@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey } from "@/lib/apiAuth";
+import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 
 export async function GET(request: Request) {
@@ -31,8 +31,10 @@ export async function POST(request: Request) {
   const denied = requireApiKey(request);
   if (denied) return denied;
 
-  const body = await request.json();
-  const parsed = createProjectSchema.safeParse(body);
+  const parsedBody = await safeJson(request);
+  if ("error" in parsedBody) return parsedBody.error;
+
+  const parsed = createProjectSchema.safeParse(parsedBody.data);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }

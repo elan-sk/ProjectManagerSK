@@ -10,3 +10,12 @@ export function requireApiKey(request: Request) {
   }
   return null;
 }
+
+// Evita que un body no-JSON (o vacío) tire un 500 crudo en vez de un 400 limpio.
+export async function safeJson(request: Request): Promise<{ data: unknown } | { error: NextResponse }> {
+  try {
+    return { data: await request.json() };
+  } catch {
+    return { error: NextResponse.json({ error: "Body inválido, se esperaba JSON" }, { status: 400 }) };
+  }
+}

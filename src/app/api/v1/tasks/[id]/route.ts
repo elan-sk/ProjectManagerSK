@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey } from "@/lib/apiAuth";
+import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { getTaskDelayDays } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 
@@ -43,7 +43,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const task = await prisma.task.findUnique({ where: { id }, include: { steps: true } });
   if (!task) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
-  const parsed = updateTaskSchema.safeParse(await request.json());
+  const parsedBody = await safeJson(request);
+  if ("error" in parsedBody) return parsedBody.error;
+
+  const parsed = updateTaskSchema.safeParse(parsedBody.data);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }

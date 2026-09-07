@@ -65,11 +65,25 @@ model User {
   role         Role     @default(MEMBER)
   createdAt    DateTime @default(now())
 
-  pmOfProjects      Project[]          @relation("ProjectPM")
-  assignments       TaskAssignee[]
-  attachments       Attachment[]
-  notifications     Notification[]
-  pushSubscriptions PushSubscription[]
+  pmOfProjects        Project[]            @relation("ProjectPM")
+  assignments         TaskAssignee[]
+  attachments         Attachment[]
+  notifications       Notification[]
+  pushSubscriptions   PushSubscription[]
+  googleCalendarConn  GoogleCalendarConnection?
+}
+
+// Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
+// cronograma/alarmas). Se autoriza una vez vía /api/google-calendar/connect;
+// el refreshToken permite renovar el accessToken sin pedir permiso de nuevo.
+model GoogleCalendarConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String
+  refreshToken String
+  expiryDate   DateTime
+  createdAt    DateTime @default(now())
 }
 
 // Suscripción Web Push del navegador (punto 14: alarmas activas sin abrir

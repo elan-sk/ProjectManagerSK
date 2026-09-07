@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
+import { WarningIcon } from "@/components/icons";
 
 export default async function DashboardPage() {
   const projects = await prisma.project.findMany({
@@ -55,8 +56,9 @@ export default async function DashboardPage() {
               />
             </div>
             {bottlenecks.length > 0 && (
-              <p className="text-sm text-amber-600">
-                ⚠ {bottlenecks.length} cuello(s) de botella: {bottlenecks.map((b) => b.title).join(", ")}
+              <p className="flex items-start gap-1 text-sm text-amber-600">
+                <WarningIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                {bottlenecks.length} cuello(s) de botella: {bottlenecks.map((b) => b.title).join(", ")}
               </p>
             )}
             {delays.length > 0 && (

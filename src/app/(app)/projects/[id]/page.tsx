@@ -165,7 +165,11 @@ export default async function ProjectPage({
       {view === "gantt" ? (
         <GanttView projectId={project.id} businessDays={businessDays} tasks={ganttTasks} />
       ) : (
-        <KanbanBoard initialTasks={taskCards} projectId={project.id} />
+        <KanbanBoard
+          key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
+          initialTasks={taskCards}
+          projectId={project.id}
+        />
       )}
     </div>
   );

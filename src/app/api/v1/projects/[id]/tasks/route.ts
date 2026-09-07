@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey } from "@/lib/apiAuth";
+import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { addBusinessDays } from "@/lib/holidays";
 import { notifyAssignment } from "@/lib/notifications";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -41,7 +41,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
 
-  const parsed = createTaskSchema.safeParse(await request.json());
+  const parsedBody = await safeJson(request);
+  if ("error" in parsedBody) return parsedBody.error;
+
+  const parsed = createTaskSchema.safeParse(parsedBody.data);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }

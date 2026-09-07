@@ -10,7 +10,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <form
         action={formAction}
-        className="w-full max-w-sm space-y-4 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
+        className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-8 shadow-[0_2px_4px_rgba(15,23,42,0.06),0_12px_32px_rgba(15,23,42,0.10)]"
       >
         <h1 className="text-xl font-semibold text-slate-900">Iniciar sesión</h1>
 

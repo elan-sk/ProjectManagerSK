@@ -35,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/projects">Proyectos</Link>
           <Link href="/agenda">Mi agenda</Link>
           <Link href="/performance">Rendimiento</Link>
+          <Link href="/settings">Configuración</Link>
         </nav>
         <div className="flex items-center gap-3">
           <PushSubscribeButton />

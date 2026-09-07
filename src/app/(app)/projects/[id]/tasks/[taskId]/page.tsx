@@ -6,6 +6,8 @@ import { getTaskDelayDays } from "@/lib/delays";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { StepCheckbox } from "./StepCheckbox";
 import { AttachmentUploader } from "./AttachmentUploader";
+import { GoogleCalendarButton } from "./GoogleCalendarButton";
+import { DocumentIcon } from "@/components/icons";
 
 const HAS_CHECKLIST: Record<string, boolean> = { CHECKLIST: true, QA: true };
 
@@ -64,6 +66,11 @@ export default async function TaskDetailPage({
           <p className="mt-1 text-sm font-medium text-red-600">
             Generó {delayDays} día(s) hábil(es) de atraso propio.
           </p>
+        )}
+        {session?.user && (
+          <div className="mt-2">
+            <GoogleCalendarButton taskId={taskId} userId={session.user.id} />
+          </div>
         )}
       </div>
 
@@ -176,7 +183,7 @@ function AttachmentPreview({
     return (
       <a href={url} target="_blank" rel="noreferrer" className="block" download={name}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={name} className="h-24 w-full rounded-lg border border-slate-200 object-cover" />
+        <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover" />
       </a>
     );
   }
@@ -186,9 +193,10 @@ function AttachmentPreview({
       target="_blank"
       rel="noreferrer"
       download={name}
-      className="flex h-24 flex-col items-center justify-center rounded-lg border border-slate-200 p-2 text-center text-xs text-slate-500"
+      className="flex h-24 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 p-2 text-center text-xs text-slate-500"
     >
-      📄 {name}
+      <DocumentIcon className="h-5 w-5 text-slate-400" />
+      <span className="line-clamp-2">{name}</span>
     </a>
   );
 }

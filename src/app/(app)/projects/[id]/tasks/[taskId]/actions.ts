@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { createCalendarEvent } from "@/lib/googleCalendar";
 import type { AttachmentKind } from "@prisma/client";
 
 export async function addStep(taskId: string, formData: FormData) {
@@ -50,6 +51,21 @@ export async function setDependency(taskId: string, formData: FormData) {
 export async function removeDependency(dependencyId: string, taskId: string) {
   await prisma.taskDependency.delete({ where: { id: dependencyId } });
   await revalidateTask(taskId);
+}
+
+export async function syncTaskToGoogleCalendar(taskId: string, userId: string) {
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+  try {
+    await createCalendarEvent(userId, {
+      summary: task.title,
+      description: `ProjectManagerSK — ${task.type}`,
+      start: task.plannedStart,
+      end: task.plannedEnd,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 async function revalidateTask(taskId: string) {

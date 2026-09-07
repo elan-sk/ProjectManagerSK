@@ -25,16 +25,23 @@ export async function getHolidays(countryCode: string, year: number) {
   if (cached.length > 0) return cached;
 
   const fetched = await fetchHolidaysFromApi(countryCode, year);
-  // SQLite no soporta skipDuplicates en createMany; no hace falta acá porque
-  // solo se llega a este punto cuando la caché para countryCode/year está vacía.
-  await prisma.holiday.createMany({
-    data: fetched.map((h) => ({
-      countryCode,
-      year,
-      date: new Date(h.date),
-      name: h.name,
-    })),
-  });
+  try {
+    // SQLite no soporta skipDuplicates en createMany. Puede chocar contra la
+    // restricción única si otra tarea en paralelo (ver getProjectDelaySummary,
+    // que calcula varias tareas a la vez) ya sincronizó este país/año primero
+    // — en ese caso ya está en caché, no es un error real.
+    await prisma.holiday.createMany({
+      data: fetched.map((h) => ({
+        countryCode,
+        year,
+        date: new Date(h.date),
+        name: h.name,
+      })),
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code !== "P2002") throw err;
+  }
   return prisma.holiday.findMany({ where: { countryCode, year } });
 }
 
