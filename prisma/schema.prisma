@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // ponytail: SQLite para desarrollo local sin fricción. Para producción en
+  // Hostinger, cambiar provider a "postgresql" y DATABASE_URL (en
+  // prisma.config.ts) a la cadena de Supabase — el resto del schema no cambia.
+  // Prisma 7: la URL de conexión vive en prisma.config.ts, no aquí.
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+}
+
+enum TaskType {
+  SIMPLE
+  CHECKLIST
+  MILESTONE
+  MEETING
+  QA
+  ADJUSTMENT
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AttachmentKind {
+  INSUMO
+  RESULTADO
+}
+
+enum NotificationType {
+  ASSIGNED
+  DEADLINE_APPROACHING
+  OVERDUE
+  BLOCKED
+  DELAY_CAUSED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MEMBER)
+  createdAt    DateTime @default(now())
+
+  pmOfProjects      Project[]          @relation("ProjectPM")
+  assignments       TaskAssignee[]
+  attachments       Attachment[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+}
+
+// Suscripción Web Push del navegador (punto 14: alarmas activas sin abrir
+// la app). Un usuario puede tener varias si instala la PWA en más de un
+// dispositivo.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  clientName  String?
+  countryCode String        @default("CO")
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime
+  pmId        String
+  pm          User          @relation("ProjectPM", fields: [pmId], references: [id])
+  createdAt   DateTime      @default(now())
+
+  phases Phase[]
+  tasks  Task[]
+}
+
+model Phase {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  order     Int
+
+  tasks Task[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phaseId     String
+  phase       Phase      @relation(fields: [phaseId], references: [id])
+  type        TaskType   @default(SIMPLE)
+  title       String
+  description String?
+  status      TaskStatus @default(NOT_STARTED)
+  riskLevel   RiskLevel  @default(LOW)
+
+  plannedStart DateTime
+  plannedEnd   DateTime
+  actualStart  DateTime?
+  actualEnd    DateTime?
+
+  createdAt DateTime @default(now())
+
+  assignees    TaskAssignee[]
+  steps        TaskStep[]
+  attachments  Attachment[]
+  notifications Notification[]
+
+  // Dependencias: esta tarea depende de (predecesoras) / bloquea a (sucesoras)
+  dependsOn TaskDependency[] @relation("SuccessorTask")
+  blocks    TaskDependency[] @relation("PredecessorTask")
+}
+
+// Join table explícita: permite compartir/reasignar responsabilidad de una
+// misma tarea entre varios usuarios (punto 5 del manuscrito).
+model TaskAssignee {
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+}
+
+model TaskDependency {
+  id            String @id @default(cuid())
+  predecessorId String
+  predecessor   Task   @relation("PredecessorTask", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successorId   String
+  successor     Task   @relation("SuccessorTask", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+}
+
+// Pasos de una tarea tipo CHECKLIST (también cubre los ítems de una tarea QA).
+model TaskStep {
+  id          String  @id @default(cuid())
+  taskId      String
+  task        Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  description String
+  done        Boolean @default(false)
+  order       Int
+}
+
+// Insumos (archivos/imágenes de entrada) y Resultados (evidencia) de una
+// tarea. Cubre también el patrón antes/después de Ajustes.xlsx.
+model Attachment {
+  id           String         @id @default(cuid())
+  taskId       String
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  kind         AttachmentKind
+  fileUrl      String
+  fileName     String
+  mimeType     String
+  uploadedById String
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime       @default(now())
+}
+
+// Caché local de festivos (fuente: Nager.Date). Se resuelve solo, el
+// usuario nunca los carga a mano.
+model Holiday {
+  id          String   @id @default(cuid())
+  countryCode String
+  date        DateTime
+  name        String
+  year        Int
+
+  @@unique([countryCode, date])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
