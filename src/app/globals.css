@@ -1,6 +1,14 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
+/* La app todavía es solo modo claro (el modo oscuro real queda para una
+   pasada aparte que toque cada componente). Sin esto, cuando el sistema
+   operativo está en oscuro, el navegador le mete estilos oscuros a los
+   controles nativos (<select>, checkboxes, scrollbar) aunque el resto de la
+   app siga clara — el bug real que se vio: texto casi blanco heredado del
+   <body> quedando invisible sobre fondos blancos de Tailwind. */
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,13 +18,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

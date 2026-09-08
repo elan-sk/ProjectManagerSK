@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { businessDaysBetween } from "@/lib/holidays";
+import { businessDaysBetween, todayUTC } from "@/lib/holidays";
 import type { Task } from "@prisma/client";
 
 export type TaskWithDelay = Task & {
@@ -32,6 +32,36 @@ export async function getTaskDelayDays(
   );
 
   return Math.max(0, actualDuration - plannedDuration);
+}
+
+export type TaskAlertLevel = "done" | "blocked" | "overdue" | "warning" | "onTrack";
+export type TaskAlert = { level: TaskAlertLevel; businessDaysOverdue: number };
+
+/**
+ * Alerta de agenda (punto 4): a diferencia de getTaskDelayDays (que solo
+ * aplica a tareas ya COMPLETED comparando duración real vs. planeada), esto
+ * mide si una tarea TODAVÍA ABIERTA ya se pasó de su fecha fin planeada, o
+ * está por vencer — para pintar cards/badges antes de que el atraso ya sea
+ * un hecho consumado.
+ */
+export async function getTaskAlert(
+  countryCode: string,
+  task: Pick<Task, "status" | "plannedEnd">
+): Promise<TaskAlert> {
+  if (task.status === "COMPLETED") return { level: "done", businessDaysOverdue: 0 };
+  if (task.status === "BLOCKED") return { level: "blocked", businessDaysOverdue: 0 };
+
+  const today = todayUTC();
+  if (today > task.plannedEnd) {
+    const dayAfterEnd = new Date(task.plannedEnd);
+    dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
+    const businessDaysOverdue = await businessDaysBetween(countryCode, dayAfterEnd, today);
+    return { level: "overdue", businessDaysOverdue };
+  }
+
+  const daysToDeadline = await businessDaysBetween(countryCode, today, task.plannedEnd);
+  if (daysToDeadline <= 2) return { level: "warning", businessDaysOverdue: 0 };
+  return { level: "onTrack", businessDaysOverdue: 0 };
 }
 
 export async function getProjectDelaySummary(projectId: string) {
@@ -120,15 +150,22 @@ export async function getUserPerformance(
 
 /**
  * Cuellos de botella (punto 17): tareas no completadas de las que dependen
- * dos o más tareas sucesoras, o que ya están en riesgo alto.
+ * dos o más tareas sucesoras, o que ya están en riesgo alto. bottleneckReason
+ * explica el PORQUÉ (qué retiene) para mostrar en un hover, no solo marcarlo.
  */
 export async function getBottlenecks(projectId: string) {
   const tasks = await prisma.task.findMany({
     where: { projectId },
-    include: { blocks: true },
+    include: { blocks: { include: { successor: { select: { title: true } } } } },
   });
 
-  return tasks.filter(
-    (t) => t.status !== "COMPLETED" && (t.blocks.length >= 2 || t.riskLevel === "HIGH")
-  );
+  return tasks
+    .filter((t) => t.status !== "COMPLETED" && (t.blocks.length >= 2 || t.riskLevel === "HIGH"))
+    .map((t) => ({
+      ...t,
+      bottleneckReason:
+        t.blocks.length >= 2
+          ? `Retiene ${t.blocks.length} tareas: ${t.blocks.map((b) => b.successor.title).join(", ")}`
+          : "Marcada con riesgo alto",
+    }));
 }

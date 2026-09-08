@@ -57,12 +57,22 @@ enum NotificationType {
   DELAY_CAUSED
 }
 
+// FINISH_TO_START (la de siempre): la sucesora no puede empezar antes de
+// que termine la predecesora. START_TO_START ("en paralelo" del Excel de
+// Racafé, ej. QA continua junto a su Sprint): ambas deben empezar el mismo
+// día — si la predecesora se mueve, la sucesora se mueve con ella.
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
   passwordHash String
   role         Role     @default(MEMBER)
+  avatarUrl    String?
   createdAt    DateTime @default(now())
 
   pmOfProjects        Project[]            @relation("ProjectPM")
@@ -165,11 +175,12 @@ model TaskAssignee {
 }
 
 model TaskDependency {
-  id            String @id @default(cuid())
+  id            String         @id @default(cuid())
   predecessorId String
-  predecessor   Task   @relation("PredecessorTask", fields: [predecessorId], references: [id], onDelete: Cascade)
+  predecessor   Task           @relation("PredecessorTask", fields: [predecessorId], references: [id], onDelete: Cascade)
   successorId   String
-  successor     Task   @relation("SuccessorTask", fields: [successorId], references: [id], onDelete: Cascade)
+  successor     Task           @relation("SuccessorTask", fields: [successorId], references: [id], onDelete: Cascade)
+  type          DependencyType @default(FINISH_TO_START)
 
   @@unique([predecessorId, successorId])
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { markNotificationRead } from "./notificationActions";
+import { markNotificationRead, markAllNotificationsRead } from "./notificationActions";
 import { BellIcon, XIcon } from "@/components/icons";
 
 export type NotificationItem = {
@@ -13,11 +13,23 @@ export type NotificationItem = {
   projectId: string | null;
 };
 
-export function NotificationBell({ items }: { items: NotificationItem[] }) {
+export function NotificationBell({ items, userId }: { items: NotificationItem[]; userId: string }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-full p-1.5 text-slate-500 hover:bg-slate-100"
@@ -35,6 +47,14 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
         <div className="absolute right-0 z-10 mt-2 w-80 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
           {items.length === 0 && (
             <p className="p-3 text-sm text-slate-400">Sin notificaciones pendientes.</p>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={() => markAllNotificationsRead(userId)}
+              className="mb-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+            >
+              Marcar todas como leídas
+            </button>
           )}
           {items.map((n) => (
             <div key={n.id} className="flex items-start gap-2 rounded-lg p-2 text-sm hover:bg-slate-50">

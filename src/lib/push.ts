@@ -15,7 +15,7 @@ export async function sendPushToUser(userId: string, title: string, url?: string
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, url: url ?? "/dashboard" })
+          JSON.stringify({ title, url: url ?? "/projects" })
         );
       } catch (err) {
         // ponytail: una suscripción muerta (410 Gone) es normal cuando el

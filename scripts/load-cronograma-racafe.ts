@@ -130,7 +130,7 @@ async function main() {
     console.log(`Proyecto ya existía: ${projectId} (no se duplica)`);
   }
 
-  let phaseIds = (await prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } })).map((p) => p.name);
+  const phaseIds = (await prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } })).map((p) => p.name);
   if (phaseIds.length === 0) {
     for (const [order, name] of PHASES.entries()) {
       await prisma.phase.create({ data: { projectId, name, order } });
