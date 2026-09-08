@@ -51,9 +51,11 @@ const createTaskSchema = z.object({
   phaseId: z.string().min(1),
   title: z.string().min(1),
   type: z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]),
+  description: z.string().nullable(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),
   assigneeIds: z.array(z.string()).min(1),
+  predecessorId: z.string().optional(),
 });
 
 export async function addTask(projectId: string, formData: FormData) {
@@ -65,13 +67,17 @@ export async function addTask(projectId: string, formData: FormData) {
 
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
 
+  const rawDescription = formData.get("description");
+  const rawPredecessorId = formData.get("predecessorId");
   const data = createTaskSchema.parse({
     phaseId: formData.get("phaseId"),
     title: formData.get("title"),
     type: formData.get("type"),
+    description: typeof rawDescription === "string" && rawDescription.trim() !== "" ? rawDescription : null,
     plannedStart: formData.get("plannedStart"),
     durationDays: formData.get("durationDays"),
     assigneeIds: formData.getAll("assigneeIds"),
+    predecessorId: typeof rawPredecessorId === "string" && rawPredecessorId !== "" ? rawPredecessorId : undefined,
   });
 
   const plannedEnd =
@@ -85,11 +91,25 @@ export async function addTask(projectId: string, formData: FormData) {
       phaseId: data.phaseId,
       title: data.title,
       type: data.type as TaskType,
+      description: data.description,
       plannedStart: data.plannedStart,
       plannedEnd,
       assignees: { create: data.assigneeIds.map((userId) => ({ userId })) },
     },
   });
+
+  // Si eligieron predecesora, el vínculo nace consistente de una vez —
+  // mismo mecanismo que setDependency (punto ya confirmado): resincroniza
+  // la nueva tarea (y en cadena, sus propias sucesoras) contra la fecha real
+  // de la predecesora, en vez de dejarla con la fecha que puso el usuario.
+  if (data.predecessorId) {
+    await prisma.$transaction(async (tx) => {
+      await tx.taskDependency.create({
+        data: { predecessorId: data.predecessorId!, successorId: task.id, type: "FINISH_TO_START" },
+      });
+      await propagateToSuccessors(tx, project.countryCode, data.predecessorId!);
+    });
+  }
 
   await notifyAssignment(task.id, data.assigneeIds);
 

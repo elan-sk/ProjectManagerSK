@@ -49,36 +49,57 @@ export function ProjectCalendarView({
   const now = new Date();
 
   if (mode === "day") {
-    const dayTasks = tasksParsed.filter((t) => t.start <= start && t.end >= start);
+    // Estilo Agenda (punto pedido): no un solo día — TODAS las tareas ya
+    // filtradas, agrupadas por su día de inicio, en orden cronológico, con
+    // franjas de color alternadas por grupo para separarlos de un vistazo.
+    const sorted = [...tasksParsed].sort((a, b) => a.start.getTime() - b.start.getTime());
+    const groups: { dayKey: string; date: Date; tasks: typeof sorted }[] = [];
+    for (const t of sorted) {
+      const key = isoDay(t.start);
+      const last = groups[groups.length - 1];
+      if (last && last.dayKey === key) last.tasks.push(t);
+      else groups.push({ dayKey: key, date: t.start, tasks: [t] });
+    }
+
     return (
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        {dayTasks.length === 0 && <p className="p-4 text-sm text-slate-400">Sin tareas este día.</p>}
-        <ul className="divide-y divide-slate-100">
-          {dayTasks.map((t) => (
-            <li key={t.id}>
-              <Link
-                href={`/projects/${t.projectId}/tasks/${t.id}`}
-                className="flex items-center justify-between gap-3 p-3 hover:bg-slate-50"
-              >
-                <span className="flex min-w-0 items-center gap-1.5 text-sm text-slate-900">
-                  {showProjectName && <span className="flex-shrink-0 text-slate-400">{t.projectName} ·</span>}
-                  <span className="truncate">{t.title}</span>
-                  {collisionText(t) && (
-                    <span title={collisionText(t)!}>
-                      <OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
+        {groups.length === 0 && <p className="p-4 text-sm text-slate-400">Sin tareas.</p>}
+        {groups.map((g, i) => (
+          <div key={g.dayKey} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+            <p className="border-b border-slate-100 px-3 py-1.5 text-xs font-semibold capitalize text-slate-500">
+              {g.date.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}
+            </p>
+            <ul className="divide-y divide-slate-100">
+              {g.tasks.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/projects/${t.projectId}/tasks/${t.id}`}
+                    className="flex items-center justify-between gap-3 p-3 hover:brightness-95"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm text-slate-900">
+                      {showProjectName && <span className="flex-shrink-0 text-slate-400">{t.projectName} ·</span>}
+                      <span className="truncate">{t.title}</span>
+                      {collisionText(t) && (
+                        <span title={collisionText(t)!}>
+                          <OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span className="flex flex-shrink-0 items-center gap-1.5">
-                  <AlertBadge alert={t.alert} />
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge}`}>
-                    {TASK_STATUS_LABEL[t.status]}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                    <span className="flex flex-shrink-0 items-center gap-1.5">
+                      {t.alert.level === "onTrack" && (
+                        <span className="text-[11px] text-slate-400">vence en {t.alert.daysRemaining}d</span>
+                      )}
+                      <AlertBadge alert={t.alert} />
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge}`}>
+                        {TASK_STATUS_LABEL[t.status]}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     );
   }

@@ -140,6 +140,23 @@ export async function updateTaskType(taskId: string, type: string) {
   return { ok: true };
 }
 
+export async function updateTaskPhase(taskId: string, phaseId: string) {
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+  try {
+    await requireProjectAdmin(task.projectId);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  const phase = await prisma.phase.findUnique({ where: { id: phaseId } });
+  if (!phase || phase.projectId !== task.projectId) return { ok: false, error: "Fase inválida." };
+
+  await prisma.task.update({ where: { id: taskId }, data: { phaseId } });
+  await revalidateTask(taskId);
+  revalidatePath(`/projects/${task.projectId}`);
+  return { ok: true };
+}
+
 export async function updateTaskDescription(taskId: string, formData: FormData) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   try {

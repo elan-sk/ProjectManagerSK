@@ -10,11 +10,17 @@ import { Avatar } from "@/components/Avatar";
 import { ModalTrigger } from "@/components/Modal";
 import { OverlapIcon } from "@/components/icons";
 import { ProjectAlertLink } from "../ProjectAlertLink";
+import { RememberViewState } from "../RememberViewState";
+import { NavLinkWithMemory } from "../NavLinkWithMemory";
+import { ComboFilter } from "@/components/ComboFilter";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesTaskSearch } from "@/lib/search";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { ProjectStatus } from "@prisma/client";
+import type { ProjectStatus, TaskStatus } from "@prisma/client";
 
 const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "Planeación",
@@ -40,12 +46,22 @@ function projectHealth(overdueCount: number, total: number): keyof typeof HEALTH
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ risk?: "overdue" | "warning"; view?: string; date?: string; mode?: string }>;
+  searchParams: Promise<{
+    risk?: "overdue" | "warning";
+    view?: string;
+    date?: string;
+    mode?: string;
+    status?: TaskStatus;
+    userId?: string;
+    q?: string;
+    collision?: string;
+    pq?: string;
+  }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode } = await searchParams;
+  const { risk, view, date, mode, status, userId, q, collision, pq } = await searchParams;
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -76,6 +92,10 @@ export default async function ProjectsPage({
       view,
       mode: calendarMode !== "month" ? calendarMode : undefined,
       date: anchorKey(anchor),
+      status,
+      userId,
+      q,
+      collision,
       ...overrides,
     };
     for (const [k, v] of Object.entries(merged)) {
@@ -145,6 +165,12 @@ export default async function ProjectsPage({
       if (risk === "overdue") return summary.overdueCount > 0;
       if (risk === "warning") return summary.warningCount > 0;
       return true;
+    })
+    .filter(({ project: p }) => {
+      if (!pq) return true;
+      const needle = pq.trim().toLowerCase();
+      if (!needle) return true;
+      return p.name.toLowerCase().includes(needle) || (p.clientName ?? "").toLowerCase().includes(needle);
     });
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
@@ -163,7 +189,7 @@ export default async function ProjectsPage({
       phase: { select: { name: true } },
       assignees: { include: { user: true } },
       steps: true,
-      attachments: { select: { id: true } },
+      attachments: { select: { id: true, fileName: true } },
       dependsOn: {
         include: { predecessor: { select: { id: true, title: true, plannedStart: true, plannedEnd: true } } },
       },
@@ -179,7 +205,19 @@ export default async function ProjectsPage({
   const boardAlertById = new Map(
     await Promise.all(boardTasksRaw.map(async (t) => [t.id, await getTaskAlert(t.project.countryCode, t)] as const))
   );
-  const matchesBoardRisk = (taskId: string) => !risk || boardAlertById.get(taskId)!.level === risk;
+  const matchesBoardFilters = (t: {
+    id: string;
+    status: string;
+    title: string;
+    description: string | null;
+    assignees: { userId: string }[];
+    attachments: { fileName: string }[];
+  }) =>
+    (!risk || boardAlertById.get(t.id)!.level === risk) &&
+    (!status || t.status === status) &&
+    (!userId || t.assignees.some((a) => a.userId === userId)) &&
+    (!collision || Boolean(collisionsById.get(t.id))) &&
+    matchesTaskSearch(t, q);
 
   const earliestStart =
     boardTasksRaw.length > 0 ? new Date(Math.min(...boardTasksRaw.map((t) => t.project.startDate.getTime()))) : now;
@@ -193,7 +231,7 @@ export default async function ProjectsPage({
   const boardBusinessDayIndex = new Map(boardBusinessDays.map((d, i) => [dateKey(d), i]));
 
   const boardTaskCards: TaskCard[] = boardTasksRaw
-    .filter((t) => matchesBoardRisk(t.id))
+    .filter(matchesBoardFilters)
     .map((t) => ({
       id: t.id,
       projectId: t.projectId,
@@ -214,7 +252,7 @@ export default async function ProjectsPage({
     }));
 
   const boardGanttTasks: GanttTask[] = boardTasksRaw
-    .filter((t) => matchesBoardRisk(t.id))
+    .filter(matchesBoardFilters)
     .map((t) => {
       const startIndex = boardBusinessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
       const endIndex = boardBusinessDayIndex.get(dateKey(t.plannedEnd)) ?? startIndex;
@@ -248,7 +286,7 @@ export default async function ProjectsPage({
     });
 
   const boardCalendarTasks: CalendarTask[] = boardTasksRaw
-    .filter((t) => matchesBoardRisk(t.id))
+    .filter(matchesBoardFilters)
     .map((t) => ({
       id: t.id,
       projectId: t.projectId,
@@ -263,6 +301,7 @@ export default async function ProjectsPage({
 
   return (
     <div className="space-y-8">
+      <RememberViewState storageKey="projectsBoard" />
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
@@ -305,39 +344,45 @@ export default async function ProjectsPage({
           </ModalTrigger>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link
-            href={boardHref({ risk: undefined })}
-            className={`rounded-lg px-3 py-1.5 ${!risk ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Todos
-          </Link>
-          <Link
-            href={boardHref({ risk: "overdue" })}
-            className={`rounded-lg px-3 py-1.5 font-medium ${risk === "overdue" ? "bg-red-600 text-white" : "bg-red-50 text-red-700 hover:brightness-95"}`}
-          >
-            Con retraso
-          </Link>
-          <Link
-            href={boardHref({ risk: "warning" })}
-            className={`rounded-lg px-3 py-1.5 font-medium ${risk === "warning" ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:brightness-95"}`}
-          >
-            Por vencer
-          </Link>
+        <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Buscar</span>
+            <SearchBox basePath="/projects" q={pq} paramName="pq" placeholder="Buscar proyectos…" hiddenParams={{ risk }} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Alerta</span>
+            <ComboFilter
+              allLabel="Todos los proyectos"
+              value={risk}
+              options={[
+                { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
+                { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+              ]}
+              paramKey="risk"
+              basePath="/projects"
+              currentParams={{ pq }}
+              triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {rows.length === 0 && (
             <p className="text-sm text-slate-500 sm:col-span-2">
-              {risk ? "Ningún proyecto tiene tareas con este filtro." : "Todavía no tenés proyectos."}
+              {pq
+                ? "Ningún proyecto coincide con la búsqueda."
+                : risk
+                ? "Ningún proyecto tiene tareas con este filtro."
+                : "Todavía no tenés proyectos."}
             </p>
           )}
           {rows.map(({ project: p, summary }) => {
-            const { overdueCount, bottlenecks, total, completed, health, hasCollision } = summary;
+            const { overdueCount, warningCount, bottlenecks, total, completed, health, hasCollision } = summary;
             return (
-              <Link
+              <NavLinkWithMemory
                 key={p.id}
                 href={`/projects/${p.id}`}
+                storageKey={`project:${p.id}`}
                 className="block rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
               >
                 <div className="flex items-center justify-between gap-3">
@@ -364,6 +409,15 @@ export default async function ProjectsPage({
                         className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium hover:brightness-95 ${HEALTH_STYLE[health]}`}
                       >
                         {HEALTH_LABEL[health]} · {overdueCount} atrasada{overdueCount > 1 ? "s" : ""}
+                      </ProjectAlertLink>
+                    )}
+                    {warningCount > 0 && (
+                      <ProjectAlertLink
+                        projectId={p.id}
+                        risk="warning"
+                        className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 hover:brightness-95"
+                      >
+                        {warningCount} por vencer
                       </ProjectAlertLink>
                     )}
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
@@ -393,7 +447,7 @@ export default async function ProjectsPage({
                     {bottlenecks.length > 2 ? ` +${bottlenecks.length - 2} más` : ""}
                   </p>
                 )}
-              </Link>
+              </NavLinkWithMemory>
             );
           })}
         </div>
@@ -431,20 +485,68 @@ export default async function ProjectsPage({
             </Link>
           </div>
 
-          {view === "calendar" && (
+          {view === "calendar" && calendarMode !== "day" && (
             <div className="flex items-center gap-2">
               <Link href={boardHref({ date: anchorKey(prevAnchor) })} className="rounded-lg bg-slate-100 px-3 py-1.5 hover:bg-slate-200">
                 ‹
               </Link>
               <span className="min-w-32 text-center font-medium capitalize text-slate-900">
-                {calendarMode === "day"
-                  ? anchor.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
-                  : calendarMode === "week"
+                {calendarMode === "week"
                   ? `${rangeForMode("week", anchor).start.toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" })} – ${rangeForMode("week", anchor).end.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`
                   : anchor.toLocaleDateString("es-CO", { month: "long", year: "numeric", timeZone: "UTC" })}
               </span>
               <Link href={boardHref({ date: anchorKey(nextAnchor) })} className="rounded-lg bg-slate-100 px-3 py-1.5 hover:bg-slate-200">
                 ›
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Buscar</span>
+            <SearchBox
+              basePath="/projects"
+              q={q}
+              hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, collision }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Persona</span>
+            <ComboFilter
+              allLabel="Todas las personas"
+              value={userId}
+              options={users.map((u) => ({ id: u.id, label: u.name }))}
+              paramKey="userId"
+              basePath="/projects"
+              currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, q, collision }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Estado</span>
+            <ComboFilter
+              allLabel="Todos los estados"
+              value={status}
+              options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"] as const).map((s) => ({
+                id: s,
+                label: TASK_STATUS_LABEL[s],
+                dotColorClass: TASK_STATUS_COLOR[s].dot,
+              }))}
+              paramKey="status"
+              basePath="/projects"
+              currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, q, collision }}
+              triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+            />
+          </div>
+          {canSeeCollisions && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Colisión</span>
+              <Link
+                href={boardHref({ collision: collision ? undefined : "1" })}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${collision ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+              >
+                <OverlapIcon className="h-3.5 w-3.5" />
+                Solo colisiones
               </Link>
             </div>
           )}

@@ -12,9 +12,13 @@ const STYLE: Partial<Record<TaskAlert["level"], string>> = {
   blocked: "bg-rose-100 text-rose-800",
 };
 
-const LABEL: Partial<Record<TaskAlert["level"], (days: number) => string>> = {
-  overdue: (days) => `+${days} d atraso`,
-  warning: () => "Vence pronto",
+function dayWord(n: number) {
+  return `${n} día${n !== 1 ? "s" : ""}`;
+}
+
+const LABEL: Partial<Record<TaskAlert["level"], (alert: TaskAlert) => string>> = {
+  overdue: (a) => `Hace ${dayWord(a.businessDaysOverdue)}`,
+  warning: (a) => `En ${dayWord(a.daysRemaining)}`,
   blocked: () => "Bloqueada",
 };
 
@@ -25,7 +29,7 @@ export function AlertBadge({ alert, className = "" }: { alert: TaskAlert; classN
 
   return (
     <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${style} ${className}`}>
-      {label(alert.businessDaysOverdue)}
+      {label(alert)}
     </span>
   );
 }

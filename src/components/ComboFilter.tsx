@@ -20,13 +20,16 @@ export function ComboFilter({
   paramKey,
   basePath,
   currentParams,
+  triggerColorClass,
 }: {
   allLabel: string;
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; dotColorClass?: string }[];
   value: string | undefined;
   paramKey: string;
   basePath: string;
   currentParams: Record<string, string | undefined>;
+  /** Reemplaza el violeta genérico del botón cuando hay un valor elegido — para sets con color propio (estado, alerta). */
+  triggerColorClass?: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -71,13 +74,16 @@ export function ComboFilter({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`rounded-lg px-3 py-1.5 ${value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${value ? (triggerColorClass ?? "bg-violet-600 text-white") : "bg-slate-100 text-slate-600"}`}
       >
+        {!triggerColorClass && selected?.dotColorClass && (
+          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${selected.dotColorClass}`} />
+        )}
         {selected ? selected.label : allLabel}
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-64 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+        <div className="absolute z-50 mt-1 w-64 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
           <input
             autoFocus
             value={query}
@@ -98,8 +104,9 @@ export function ComboFilter({
                 key={o.id}
                 type="button"
                 onClick={() => choose(o.id)}
-                className={`block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
+                className={`flex w-full items-center gap-1.5 truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
               >
+                {o.dotColorClass && <span className={`h-2 w-2 flex-shrink-0 rounded-full ${o.dotColorClass}`} />}
                 {o.label}
               </button>
             ))}

@@ -198,6 +198,7 @@ export function GanttBar({
             <p className="mt-1 text-slate-500">
               {fmtDate(plannedStart)} — {fmtDate(plannedEnd)} · {liveSpan} día{liveSpan !== 1 ? "s" : ""} hábil
               {liveSpan !== 1 ? "es" : ""}
+              {taskAlert.level === "onTrack" && ` · vence en ${taskAlert.daysRemaining}d`}
             </p>
             {dependsOn.length > 0 && <p className="mt-1 text-slate-500">Depende de: {dependsOn.join(", ")}</p>}
             {blocks.length > 0 && <p className="mt-1 text-slate-500">Sigue: {blocks.join(", ")}</p>}

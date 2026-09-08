@@ -3,22 +3,19 @@
 import { useEffect } from "react";
 
 /**
- * Guarda el proyecto y la vista actuales para que el nav "Proyectos" vuelva
- * acá ("lastProject", un solo slot global) y ADEMÁS la vista de ESTE
- * proyecto puntual bajo su propia clave ("lastView:<id>") — a diferencia del
- * slot global, esta no se pisa cuando el usuario visita otro proyecto
- * después, así un link a una alerta de un proyecto viejo igual sabe en qué
- * vista (tablero/Gantt/calendario) lo dejaste la última vez.
+ * Guarda cuál fue el ÚLTIMO proyecto visitado, para que el nav "Proyectos"
+ * vuelva ahí en vez de resetear siempre a la lista. Los filtros/vista de ese
+ * proyecto puntual los guarda RememberViewState (storageKey `project:<id>`,
+ * agregado en la misma página) — esto solo resuelve el "cuál".
  */
-export function SaveLastProject({ projectId, view }: { projectId: string; view: string }) {
+export function SaveLastProject({ projectId }: { projectId: string }) {
   useEffect(() => {
     try {
-      localStorage.setItem("lastProject", JSON.stringify({ id: projectId, view }));
-      localStorage.setItem(`lastView:${projectId}`, view);
+      localStorage.setItem("lastProjectId", projectId);
     } catch {
       // localStorage no disponible (modo privado, etc.) — no es crítico
     }
-  }, [projectId, view]);
+  }, [projectId]);
 
   return null;
 }

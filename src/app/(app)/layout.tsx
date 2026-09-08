@@ -17,10 +17,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session?.user) redirect("/login");
 
   await checkDeadlineAlerts(session.user.id);
-  const me = await prisma.user.findUniqueOrThrow({
-    where: { id: session.user.id },
-    select: { name: true, avatarUrl: true },
-  });
+  const isAdmin = session.user.role === "ADMIN";
+  const [me, pmProjectCount] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: session.user.id },
+      select: { name: true, avatarUrl: true },
+    }),
+    isAdmin ? Promise.resolve(0) : prisma.project.count({ where: { pmId: session.user.id } }),
+  ]);
+  // "Rendimiento" es privilegio de admin/PM (ver performance/page.tsx) — un
+  // miembro normal no lo ve en el nav, ya que entrar lo redirige igual.
+  const canSeePerformance = isAdmin || pmProjectCount > 0;
   const notifications = await prisma.notification.findMany({
     where: { userId: session.user.id, read: false },
     include: { task: { select: { projectId: true } } },
@@ -42,7 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
             Agenda
           </NavLinkWithMemory>
-          <Link href="/performance">Rendimiento</Link>
+          {canSeePerformance && <Link href="/performance">Rendimiento</Link>}
           <Link href="/settings">Configuración</Link>
         </nav>
         <div className="flex items-center gap-3">

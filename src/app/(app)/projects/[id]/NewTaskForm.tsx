@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { addTask } from "./actions";
 import { CalendarDatePicker } from "@/components/CalendarDatePicker";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { useModalClose } from "@/components/Modal";
 
 const TASK_TYPES = [
@@ -18,10 +20,12 @@ export function NewTaskForm({
   projectId,
   phases,
   users,
+  otherTasks,
 }: {
   projectId: string;
   phases: { id: string; name: string }[];
   users: { id: string; name: string }[];
+  otherTasks: { id: string; title: string }[];
 }) {
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +85,20 @@ export function NewTaskForm({
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm text-slate-600">Depende de (opcional)</label>
+        <SearchableSelect
+          name="predecessorId"
+          placeholder="Ninguna"
+          options={otherTasks.map((t) => ({ id: t.id, label: t.title }))}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm text-slate-600">Descripción</label>
+        <RichTextEditor name="description" defaultValue={null} />
       </div>
 
       <div className="space-y-1">

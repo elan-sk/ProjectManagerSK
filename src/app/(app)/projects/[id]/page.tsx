@@ -14,8 +14,12 @@ import { NewTaskForm } from "./NewTaskForm";
 import { ReassignPMForm } from "./ReassignPMForm";
 import { EditStartDateForm } from "./EditStartDateForm";
 import { SaveLastProject } from "./SaveLastProject";
+import { RememberViewState } from "../../RememberViewState";
+import { NavLinkWithMemory } from "../../NavLinkWithMemory";
 import { ComboFilter } from "@/components/ComboFilter";
-import { StatusFilterPill } from "@/components/StatusFilterPill";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesTaskSearch } from "@/lib/search";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import type { TaskStatus } from "@prisma/client";
 
@@ -33,10 +37,11 @@ export default async function ProjectPage({
     status?: TaskStatus;
     userId?: string;
     risk?: "overdue" | "warning";
+    q?: string;
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, userId, risk } = await searchParams;
+  const { view, date, mode, status, userId, risk, q } = await searchParams;
   const now = new Date();
   const calendarMode: CalendarMode = mode === "week" || mode === "day" ? mode : "month";
   const [dy, dm, dd] = date ? date.split("-").map(Number) : [];
@@ -60,12 +65,12 @@ export default async function ProjectPage({
     }
     return `/projects/${id}?${p.toString()}`;
   };
-  // Filtro de riesgo: a diferencia de calendarHref (fuerza view=calendar
-  // para la navegación mes/semana/día), este conserva la vista actual —
-  // aplica igual estés en tablero, Gantt o calendario.
-  const riskHref = (newRisk: string | undefined) => {
+  // Filtros de riesgo/estado (a diferencia de calendarHref, que fuerza
+  // view=calendar para la navegación mes/semana/día): estos conservan la
+  // vista actual — aplican igual estés en tablero, Gantt o calendario.
+  const filterHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { view, mode, date, status, userId, risk: newRisk };
+    const merged: Record<string, string | undefined> = { view, mode, date, status, userId, risk, q, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -83,7 +88,7 @@ export default async function ProjectPage({
           include: {
             assignees: { include: { user: true } },
             steps: true,
-            attachments: { select: { id: true } },
+            attachments: { select: { id: true, fileName: true } },
             dependsOn: {
               include: { predecessor: { select: { id: true, title: true, plannedStart: true, plannedEnd: true } } },
             },
@@ -107,8 +112,20 @@ export default async function ProjectPage({
     )
   );
   const matchesRisk = (taskId: string) => !risk || alertByTaskId.get(taskId)!.level === risk;
+  const matchesFilters = (t: {
+    id: string;
+    status: string;
+    title: string;
+    description: string | null;
+    assignees: { userId: string }[];
+    attachments: { fileName: string }[];
+  }) =>
+    matchesRisk(t.id) &&
+    (!status || t.status === status) &&
+    (!userId || t.assignees.some((a) => a.userId === userId)) &&
+    matchesTaskSearch(t, q);
 
-  const taskCards: TaskCard[] = project.tasks.filter((t) => matchesRisk(t.id)).map((t) => ({
+  const taskCards: TaskCard[] = project.tasks.filter(matchesFilters).map((t) => ({
     id: t.id,
     projectId: project.id,
     projectName: project.name,
@@ -138,7 +155,7 @@ export default async function ProjectPage({
   const dateKey = (d: Date) => d.toISOString().slice(0, 10);
   const businessDayIndex = new Map(businessDays.map((d, i) => [dateKey(d), i]));
 
-  const ganttTasks: GanttTask[] = project.tasks.filter((t) => matchesRisk(t.id)).map((t) => {
+  const ganttTasks: GanttTask[] = project.tasks.filter(matchesFilters).map((t) => {
     const startIndex = businessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
     const endIndex = businessDayIndex.get(dateKey(t.plannedEnd)) ?? startIndex;
     // Punto 6 (arrastre de extremos): el inicio nunca puede quedar antes de
@@ -176,9 +193,7 @@ export default async function ProjectPage({
   });
 
   const calendarTasks: CalendarTask[] = project.tasks
-    .filter((t) => (status ? t.status === status : true))
-    .filter((t) => (userId ? t.assignees.some((a) => a.userId === userId) : true))
-    .filter((t) => matchesRisk(t.id))
+    .filter(matchesFilters)
     .map((t) => ({
       id: t.id,
       projectId: project.id,
@@ -193,10 +208,11 @@ export default async function ProjectPage({
 
   return (
     <div className="space-y-6">
-      <SaveLastProject projectId={project.id} view={view ?? "kanban"} />
-      <Link href="/projects" className="text-sm text-slate-500 hover:underline">
+      <SaveLastProject projectId={project.id} />
+      <RememberViewState storageKey={`project:${project.id}`} />
+      <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
-      </Link>
+      </NavLinkWithMemory>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
@@ -235,7 +251,12 @@ export default async function ProjectPage({
             <NewPhaseForm projectId={project.id} />
           </ModalTrigger>
           <ModalTrigger label="+ Nueva tarea" title="Nueva tarea" variant="primary">
-            <NewTaskForm projectId={project.id} phases={project.phases} users={users} />
+            <NewTaskForm
+              projectId={project.id}
+              phases={project.phases}
+              users={users}
+              otherTasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
+            />
           </ModalTrigger>
         </div>
       )}
@@ -243,34 +264,32 @@ export default async function ProjectPage({
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex gap-2">
           <Link
-            href={`/projects/${project.id}`}
+            href={filterHref({ view: undefined })}
             className={`rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Tablero
           </Link>
           <Link
-            href={`/projects/${project.id}?view=gantt`}
+            href={filterHref({ view: "gantt" })}
             className={`rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Gantt
           </Link>
           <Link
-            href={`/projects/${project.id}?view=calendar`}
+            href={filterHref({ view: "calendar" })}
             className={`rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Calendario
           </Link>
         </div>
 
-        {view === "calendar" && (
+        {view === "calendar" && calendarMode !== "day" && (
           <div className="flex items-center gap-2">
             <Link href={calendarHref({ date: anchorKey(prevAnchor) })} className="rounded-lg bg-slate-100 px-3 py-1.5 hover:bg-slate-200">
               ‹
             </Link>
             <span className="min-w-32 text-center font-medium capitalize text-slate-900">
-              {calendarMode === "day"
-                ? anchor.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
-                : calendarMode === "week"
+              {calendarMode === "week"
                 ? `${rangeForMode("week", anchor).start.toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" })} – ${rangeForMode("week", anchor).end.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`
                 : anchor.toLocaleDateString("es-CO", { month: "long", year: "numeric", timeZone: "UTC" })}
             </span>
@@ -281,59 +300,73 @@ export default async function ProjectPage({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Link
-          href={riskHref(undefined)}
-          className={`rounded-lg px-3 py-1.5 ${!risk ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-        >
-          Cualquier alerta
-        </Link>
-        <Link
-          href={riskHref("overdue")}
-          className={`rounded-lg px-3 py-1.5 font-medium ${risk === "overdue" ? "bg-red-600 text-white" : "bg-red-50 text-red-700 hover:brightness-95"}`}
-        >
-          Con retraso
-        </Link>
-        <Link
-          href={riskHref("warning")}
-          className={`rounded-lg px-3 py-1.5 font-medium ${risk === "warning" ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:brightness-95"}`}
-        >
-          Por vencer
-        </Link>
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Buscar</span>
+          <SearchBox
+            basePath={`/projects/${project.id}`}
+            q={q}
+            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, risk }}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Persona</span>
+          <ComboFilter
+            allLabel="Todas las personas"
+            value={userId}
+            options={users.map((u) => ({ id: u.id, label: u.name }))}
+            paramKey="userId"
+            basePath={`/projects/${project.id}`}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, risk, q }}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Estado</span>
+          <ComboFilter
+            allLabel="Todos los estados"
+            value={status}
+            options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"] as const).map((s) => ({
+              id: s,
+              label: TASK_STATUS_LABEL[s],
+              dotColorClass: TASK_STATUS_COLOR[s].dot,
+            }))}
+            paramKey="status"
+            basePath={`/projects/${project.id}`}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, risk, q }}
+            triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Alerta</span>
+          <ComboFilter
+            allLabel="Todas las alertas"
+            value={risk}
+            options={[
+              { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
+              { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+            ]}
+            paramKey="risk"
+            basePath={`/projects/${project.id}`}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q }}
+            triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
+          />
+        </div>
       </div>
 
       {view === "calendar" && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-1 text-sm">
-            {(["month", "week", "day"] as const).map((m) => (
-              <Link
-                key={m}
-                href={calendarHref({ mode: m === "month" ? undefined : m })}
-                className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-              >
-                {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
-              </Link>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <ComboFilter
-              allLabel="Todas las personas"
-              value={userId}
-              options={users.map((u) => ({ id: u.id, label: u.name }))}
-              paramKey="userId"
-              basePath={`/projects/${project.id}`}
-              currentParams={{ view: "calendar", mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, risk }}
-            />
+        <div className="flex gap-1 text-sm">
+          {(["month", "week", "day"] as const).map((m) => (
             <Link
-              href={calendarHref({ status: undefined })}
-              className={`rounded-lg px-3 py-1.5 ${!status ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              key={m}
+              href={calendarHref({ mode: m === "month" ? undefined : m })}
+              className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
             >
-              Cualquier estado
+              {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
             </Link>
-            {(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"] as const).map((s) => (
-              <StatusFilterPill key={s} status={s} active={status === s} href={calendarHref({ status: s })} />
-            ))}
-          </div>
+          ))}
         </div>
       )}
 

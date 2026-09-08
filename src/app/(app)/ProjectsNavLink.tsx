@@ -6,36 +6,31 @@ import { useSyncExternalStore } from "react";
 function subscribe() {
   return () => {};
 }
-function getSnapshot() {
+function getServerSnapshot() {
+  return "";
+}
+function readLocal(key: string) {
   try {
-    return localStorage.getItem("lastProject") ?? "";
+    return localStorage.getItem(key) ?? "";
   } catch {
     return "";
   }
 }
-function getServerSnapshot() {
-  return "";
-}
 
 /**
- * "Proyectos" en el nav vuelve al último proyecto (y vista: tablero/gantt/
- * calendario) que estabas viendo, en vez de resetear siempre a la lista —
- * la lista completa sigue disponible desde "Todos los proyectos" dentro de
- * cada proyecto. useSyncExternalStore (no useEffect+setState) para leer
- * localStorage sin desincronizar el render de servidor y cliente.
+ * "Proyectos" en el nav vuelve al último proyecto Y a los filtros/vista
+ * (tablero/Gantt/calendario, persona, estado, alerta, mes/semana/día) que
+ * tenías ahí la última vez, en vez de resetear siempre — mismo mecanismo que
+ * ya usa Agenda (RememberViewState + esta lectura). Sin proyecto guardado,
+ * vuelve a la lista /projects con SUS propios filtros recordados.
  */
 export function ProjectsNavLink() {
-  const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const projectId = useSyncExternalStore(subscribe, () => readLocal("lastProjectId"), getServerSnapshot);
+  const paramsKey = projectId ? `project:${projectId}` : "projectsBoard";
+  const params = useSyncExternalStore(subscribe, () => readLocal(paramsKey), getServerSnapshot);
 
-  let href = "/projects";
-  if (raw) {
-    try {
-      const { id, view } = JSON.parse(raw);
-      if (id) href = view && view !== "kanban" ? `/projects/${id}?view=${view}` : `/projects/${id}`;
-    } catch {
-      // dato corrupto en localStorage — se queda en /projects
-    }
-  }
+  const base = projectId ? `/projects/${projectId}` : "/projects";
+  const href = params ? `${base}?${params}` : base;
 
   return <Link href={href}>Proyectos</Link>;
 }

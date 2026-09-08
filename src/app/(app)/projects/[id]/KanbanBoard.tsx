@@ -144,6 +144,7 @@ function Card({
 
       <p className="text-[11px] text-slate-400">
         {fmtDate(task.plannedStart)} — {fmtDate(task.plannedEnd)}
+        {task.alert.level === "onTrack" && ` · vence en ${task.alert.daysRemaining}d`}
       </p>
 
       {(task.alert.level === "overdue" || task.alert.level === "warning") && (
@@ -228,18 +229,19 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 flex-shrink-0 flex-col gap-2.5 rounded-2xl p-3 transition-colors ${
+      className={`flex w-72 flex-shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-2xl transition-colors ${
         isOver ? "bg-slate-200/70" : "bg-slate-100"
       }`}
+      style={{ maxHeight: "75vh" }}
     >
-      <h3 className="flex items-center gap-1.5 px-1 text-sm font-semibold text-slate-700">
+      <h3 className="sticky top-0 z-10 flex flex-shrink-0 items-center gap-1.5 bg-inherit px-4 py-3 text-sm font-semibold text-slate-700">
         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${color.dot}`} />
         {TASK_STATUS_LABEL[id]}
         <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${color.badge}`}>
           {tasks.length}
         </span>
       </h3>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5 px-3 pb-3">
         {tasks.map((t) => (
           <Card key={t.id} task={t} showProjectName={showProjectName} canManage={canManage} users={users} onDeleted={onDeleted} />
         ))}

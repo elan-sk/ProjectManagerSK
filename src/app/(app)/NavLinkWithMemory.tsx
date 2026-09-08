@@ -14,10 +14,12 @@ function getServerSnapshot() {
 export function NavLinkWithMemory({
   href,
   storageKey,
+  className,
   children,
 }: {
   href: string;
   storageKey: string;
+  className?: string;
   children: ReactNode;
 }) {
   const search = useSyncExternalStore(
@@ -32,5 +34,9 @@ export function NavLinkWithMemory({
     getServerSnapshot
   );
 
-  return <Link href={search ? `${href}?${search}` : href}>{children}</Link>;
+  return (
+    <Link href={search ? `${href}?${search}` : href} className={className}>
+      {children}
+    </Link>
+  );
 }

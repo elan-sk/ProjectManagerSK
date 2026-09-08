@@ -151,11 +151,11 @@ export function GanttView({
 
   return (
     <>
-    <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-auto rounded-xl border border-slate-200 bg-white" style={{ maxHeight: "75vh" }}>
       <div style={{ minWidth: LABEL_WIDTH + timelineWidth }}>
-        {/* Header: meses */}
-        <div className="flex border-b border-slate-200 text-xs font-medium text-slate-500">
-          <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-30 flex-shrink-0 bg-white px-3 py-2">
+        {/* Header: meses — sticky verticalmente, siempre visible aunque haya muchas fases/tareas debajo. */}
+        <div className="sticky top-0 z-40 flex border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
+          <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-10 flex-shrink-0 bg-white px-3 py-2">
             Tarea
           </div>
           <div className="flex">
@@ -309,11 +309,11 @@ export function GanttView({
     </div>
 
       {/* Tooltips (barras y "hoy") se portalean acá — ver GanttBar y
-          TodayMarker. `fixed inset-0` a propósito, FUERA del contenedor con
-          scroll horizontal de arriba: si un tooltip se desborda hacia abajo
-          (última fila), como está fuera de ese contenedor no lo obliga a
-          crecer y nunca le aparece un scroll vertical propio. El Gantt
-          interno jamás puede tener scroll vertical, solo el horizontal. */}
+          TodayMarker. `fixed inset-0` a propósito, FUERA del contenedor de
+          arriba (que ahora sí tiene scroll propio, horizontal Y vertical,
+          por el encabezado sticky): si el tooltip viviera adentro, uno que
+          se desborde en la última fila quedaría recortado por ese scroll en
+          vez de mostrarse completo por encima de todo. */}
       <div id={GANTT_TOOLTIP_LAYER_ID} className="pointer-events-none fixed inset-0 z-40" />
     </>
   );

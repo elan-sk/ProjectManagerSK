@@ -2,8 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getTaskDelayDays, getTaskAlert, getBottlenecks } from "@/lib/delays";
-import { businessDaysBetween, todayUTC } from "@/lib/holidays";
+import { getTaskDelayDays, getTaskAlert } from "@/lib/delays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { StepCheckbox } from "./StepCheckbox";
@@ -14,9 +13,12 @@ import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
 import { InlineType } from "./InlineType";
+import { InlinePhase } from "./InlinePhase";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
+import { SearchableSelect } from "@/components/SearchableSelect";
+import { NavLinkWithMemory } from "../../../../NavLinkWithMemory";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -39,11 +41,12 @@ export default async function TaskDetailPage({
       steps: { orderBy: { order: "asc" } },
       attachments: { include: { uploadedBy: true }, orderBy: { uploadedAt: "desc" } },
       dependsOn: { include: { predecessor: true } },
+      blocks: { include: { successor: { select: { id: true, title: true } } } },
     },
   });
   if (!task) notFound();
 
-  const [otherTasks, canManage, users, alert, bottlenecks] = await Promise.all([
+  const [otherTasks, canManage, users, alert, phases] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
@@ -51,16 +54,16 @@ export default async function TaskDetailPage({
     getProjectAdmin(projectId).then(Boolean),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
     getTaskAlert(task.project.countryCode, task),
-    getBottlenecks(projectId),
+    prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
   ]);
 
   const delayDays =
     task.status === "COMPLETED" ? await getTaskDelayDays(task.project.countryCode, task) : 0;
-  const bottleneckReason = bottlenecks.find((b) => b.id === taskId)?.bottleneckReason ?? null;
-  const daysRemaining =
-    alert.level === "warning" || alert.level === "onTrack"
-      ? await businessDaysBetween(task.project.countryCode, todayUTC(), task.plannedEnd)
-      : 0;
+  // Mismo criterio que getBottlenecks (lib/delays.ts): no completada y (2+
+  // sucesoras retenidas, o riesgo alto). Se recalcula acá en vez de llamar a
+  // esa función porque acá hace falta el id de cada sucesora para poder
+  // linkearla, no solo el texto de la razón.
+  const isBottleneck = task.status !== "COMPLETED" && (task.blocks.length >= 2 || task.riskLevel === "HIGH");
 
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
@@ -71,17 +74,22 @@ export default async function TaskDetailPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <Link href={`/projects/${projectId}`} className="text-sm text-slate-500 hover:underline">
+        <NavLinkWithMemory
+          href={`/projects/${projectId}`}
+          storageKey={`project:${projectId}`}
+          className="text-sm text-slate-500 hover:underline"
+        >
           ← {task.project.name}
-        </Link>
+        </NavLinkWithMemory>
         <div className="mt-1">
           <InlineTitle taskId={taskId} title={task.title} canManage={canManage} />
         </div>
         <InlineDescription taskId={taskId} description={task.description} canManage={canManage} />
         <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-slate-500">
           <span>
-            <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase: {task.phase.name} ·
-            Asignados: {task.assignees.map((a) => a.user.name).join(", ") || "Sin asignar"}
+            <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase:{" "}
+            <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canManage} />{" "}
+            · Asignados: {task.assignees.map((a) => a.user.name).join(", ") || "Sin asignar"}
           </span>
           {canManage && (
             <ModalTrigger label="Cambiar" title="Asignar tarea" variant="secondary" compact>
@@ -109,22 +117,41 @@ export default async function TaskDetailPage({
             Generó {delayDays} día(s) hábil(es) de atraso propio.
           </p>
         )}
-        {bottleneckReason && (
-          <p className="mt-1 text-sm font-medium text-amber-600">Cuello de botella — {bottleneckReason}.</p>
+        {isBottleneck && (
+          <p className="mt-1 text-sm font-medium text-amber-600">
+            Cuello de botella
+            {task.blocks.length >= 2 ? (
+              <>
+                {" "}
+                — retiene {task.blocks.length} tarea{task.blocks.length !== 1 ? "s" : ""}:{" "}
+                {task.blocks.map((b, i) => (
+                  <span key={b.id}>
+                    {i > 0 && ", "}
+                    <Link href={`/projects/${projectId}/tasks/${b.successor.id}`} className="underline hover:text-amber-800">
+                      {b.successor.title}
+                    </Link>
+                  </span>
+                ))}
+              </>
+            ) : (
+              " — marcada con riesgo alto"
+            )}
+            .
+          </p>
         )}
         {alert.level === "overdue" && (
           <p className="mt-1 text-sm font-medium text-red-600">
-            Atrasada {alert.businessDaysOverdue} día(s) hábil(es).
+            Atrasada — hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""}.
           </p>
         )}
         {alert.level === "warning" && (
           <p className="mt-1 text-sm font-medium text-amber-600">
-            Vence pronto — quedan {daysRemaining} día(s) hábil(es).
+            Vence en {alert.daysRemaining} día{alert.daysRemaining !== 1 ? "s" : ""} hábil{alert.daysRemaining !== 1 ? "es" : ""}.
           </p>
         )}
         {alert.level === "onTrack" && (
           <p className="mt-1 text-sm text-emerald-600">
-            En curso — faltan {daysRemaining} día(s) hábil(es) para el fin planeado.
+            En curso — vence en {alert.daysRemaining} día{alert.daysRemaining !== 1 ? "s" : ""} hábil{alert.daysRemaining !== 1 ? "es" : ""}.
           </p>
         )}
 
@@ -223,14 +250,13 @@ export default async function TaskDetailPage({
           </ul>
           {canManage && (
             <form action={setDependencyWithId} className="flex gap-2">
-              <select name="predecessorId" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Elegir tarea predecesora…</option>
-                {otherTasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-0 flex-1">
+                <SearchableSelect
+                  name="predecessorId"
+                  placeholder="Elegir tarea predecesora…"
+                  options={otherTasks.map((t) => ({ id: t.id, label: t.title }))}
+                />
+              </div>
               <button className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
                 Agregar
               </button>

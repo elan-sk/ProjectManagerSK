@@ -12,12 +12,12 @@ function getServerSnapshot() {
 
 /**
  * Badge clickeable de una alerta agregada ("N atrasadas" en la lista de
- * Proyectos): lleva al proyecto, a la ÚLTIMA vista que se usó ahí
- * (tablero/Gantt/calendario, guardada por SaveLastProject bajo
- * "lastView:<id>") con el filtro de riesgo ya aplicado — en vez de resetear
- * siempre al tablero. No es un <a> porque vive DENTRO del <Link> que cubre
- * toda la card del proyecto (un <a> anidado en otro <a> es HTML inválido) —
- * por eso navega con router.push y frena la propagación para no disparar
+ * Proyectos): lleva al proyecto, a los ÚLTIMOS filtros/vista que tenías ahí
+ * (guardados por RememberViewState bajo "project:<id>" — vista, persona,
+ * estado, mes/semana/día), pisando solo el filtro de riesgo — en vez de
+ * resetear todo. No es un <a> porque vive DENTRO del <Link> que cubre toda
+ * la card del proyecto (un <a> anidado en otro <a> es HTML inválido) — por
+ * eso navega con router.push y frena la propagación para no disparar
  * también el click del link contenedor.
  */
 export function ProjectAlertLink({
@@ -32,11 +32,11 @@ export function ProjectAlertLink({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const view = useSyncExternalStore(
+  const saved = useSyncExternalStore(
     subscribe,
     () => {
       try {
-        return localStorage.getItem(`lastView:${projectId}`) ?? "";
+        return localStorage.getItem(`project:${projectId}`) ?? "";
       } catch {
         return "";
       }
@@ -44,8 +44,8 @@ export function ProjectAlertLink({
     getServerSnapshot
   );
 
-  const params = new URLSearchParams({ risk });
-  if (view && view !== "kanban") params.set("view", view);
+  const params = new URLSearchParams(saved);
+  params.set("risk", risk);
 
   return (
     <span
