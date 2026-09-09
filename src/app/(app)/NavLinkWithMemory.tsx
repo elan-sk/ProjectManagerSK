@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 
 function subscribe() {
   return () => {};
@@ -15,11 +15,13 @@ export function NavLinkWithMemory({
   href,
   storageKey,
   className,
+  style,
   children,
 }: {
   href: string;
   storageKey: string;
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   const search = useSyncExternalStore(
@@ -35,7 +37,7 @@ export function NavLinkWithMemory({
   );
 
   return (
-    <Link href={search ? `${href}?${search}` : href} className={className}>
+    <Link href={search ? `${href}?${search}` : href} className={className} style={style}>
       {children}
     </Link>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendarGrid";
 import { AlertBadge } from "@/components/AlertBadge";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import { OverlapIcon } from "@/components/icons";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -72,19 +73,27 @@ export function ProjectCalendarView({
             <ul className="divide-y divide-slate-100">
               {g.tasks.map((t) => (
                 <li key={t.id}>
-                  <Link
-                    href={`/projects/${t.projectId}/tasks/${t.id}`}
-                    className="flex items-center justify-between gap-3 p-3 hover:brightness-95"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5 text-sm text-slate-900">
+                  <div className="flex items-center justify-between gap-3 p-3 hover:bg-slate-50">
+                    <Link
+                      href={`/projects/${t.projectId}/tasks/${t.id}`}
+                      className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-slate-900"
+                    >
                       {showProjectName && <span className="flex-shrink-0 text-slate-400">{t.projectName} ·</span>}
                       <span className="truncate">{t.title}</span>
-                      {collisionText(t) && (
-                        <span title={collisionText(t)!}>
-                          <OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
-                        </span>
-                      )}
-                    </span>
+                    </Link>
+                    {t.collidesWith && t.collidesWith.length > 0 && (
+                      <ReferencePopover
+                        trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
+                        hoverText={collisionText(t)!}
+                        items={t.collidesWith.map((c) => ({
+                          id: c.taskId,
+                          label: `${c.title} (${c.projectName})`,
+                          href: `/projects/${c.projectId}/tasks/${c.taskId}`,
+                        }))}
+                        filteredHref="/projects?collision=1"
+                        filteredLabel="Ver todas las colisiones"
+                      />
+                    )}
                     <span className="flex flex-shrink-0 items-center gap-1.5">
                       {t.alert.level === "onTrack" && (
                         <span className="text-[11px] text-slate-400">vence en {t.alert.daysRemaining}d</span>
@@ -94,7 +103,7 @@ export function ProjectCalendarView({
                         {TASK_STATUS_LABEL[t.status]}
                       </span>
                     </span>
-                  </Link>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -4,6 +4,8 @@ import { TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon } from "@/components/icons";
 import { TodayMarker } from "./TodayMarker";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
 
@@ -13,7 +15,10 @@ const LABEL_WIDTH = 260;
 export type GanttTask = {
   id: string;
   projectId: string;
+  projectName: string;
+  projectIconUrl: string | null;
   title: string;
+  phaseId: string;
   phaseName: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
   startIndex: number;
@@ -24,6 +29,7 @@ export type GanttTask = {
   dependsOn: string[];
   dependsOnLinks: { id: string; type: "FINISH_TO_START" | "START_TO_START" }[];
   blocks: string[];
+  blockedSuccessors: { id: string; title: string }[];
   attachmentsCount: number;
   alert: TaskAlert;
   bottleneckReason: string | null;
@@ -109,8 +115,9 @@ export function GanttView({
 
   const grouped = new Map<string, GanttTask[]>();
   for (const t of tasks) {
-    if (!grouped.has(t.phaseName)) grouped.set(t.phaseName, []);
-    grouped.get(t.phaseName)!.push(t);
+    const key = `${t.projectId}:${t.phaseId}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(t);
   }
 
   const timelineWidth = businessDays.length * DAY_WIDTH;
@@ -151,9 +158,17 @@ export function GanttView({
 
   return (
     <>
-    <div className="overflow-auto rounded-xl border border-slate-200 bg-white" style={{ maxHeight: "75vh" }}>
+    {/* Alto = el espacio que sobra en la pantalla (punto confirmado con el
+        usuario, revierte el criterio anterior de "sin tope, un solo scroll
+        de página"): el padre (page.tsx) es flex-col con altura fija
+        100vh-header y este bloque es el único flex-1, así que "h-full" ya
+        resuelve exactamente 100vh menos header y menos todo el contenido de
+        arriba (breadcrumb, título, tabs, filtros) — el Gantt scrollea
+        internamente en ambos ejes dentro de ese alto. */}
+    <div className="h-full overflow-x-auto overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xl border border-slate-200 bg-white mb-0">
       <div style={{ minWidth: LABEL_WIDTH + timelineWidth }}>
-        {/* Header: meses — sticky verticalmente, siempre visible aunque haya muchas fases/tareas debajo. */}
+        {/* Header: meses — sticky verticalmente (debajo del header fijo del
+            programa), siempre visible aunque haya muchas fases/tareas debajo. */}
         <div className="sticky top-0 z-40 flex border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
           <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-10 flex-shrink-0 bg-white px-3 py-2">
             Tarea
@@ -172,22 +187,26 @@ export function GanttView({
         </div>
 
         <div className="relative">
-          {Array.from(grouped.entries()).map(([phaseName, phaseTasks]) => {
+          {Array.from(grouped.entries()).map(([groupKey, phaseTasks]) => {
             const completed = phaseTasks.filter((t) => t.status === "COMPLETED").length;
             const phasePct = Math.round((completed / phaseTasks.length) * 100);
             const phaseStart = Math.min(...phaseTasks.map((t) => t.startIndex));
             const phaseEnd = Math.max(...phaseTasks.map((t) => t.startIndex + t.span));
             const phaseHasOverdue = phaseTasks.some((t) => t.alert.level === "overdue");
+            const first = phaseTasks[0];
 
             return (
-              <div key={phaseName}>
+              <div key={groupKey}>
                 <div
                   className="flex items-center bg-slate-50"
                   style={{ minWidth: LABEL_WIDTH + timelineWidth, height: PHASE_ROW_HEIGHT }}
                 >
-                  <div className="sticky left-0 z-30 flex-shrink-0 self-stretch bg-slate-50 px-3 py-1.5" style={{ width: LABEL_WIDTH }}>
-                    <p className="text-xs font-semibold text-slate-600">{phaseName}</p>
-                    <p className="text-[10px] text-slate-400">{phasePct}% completado</p>
+                  <div className="sticky left-0 z-30 flex flex-shrink-0 items-center gap-1.5 self-stretch bg-slate-50 px-3 py-1.5" style={{ width: LABEL_WIDTH }}>
+                    <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} size="h-5 w-5 flex-shrink-0 text-[9px]" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-slate-600" title={first.phaseName}>{first.phaseName}</p>
+                      <p className="text-[10px] text-slate-400">{phasePct}% completado</p>
+                    </div>
                   </div>
                   <div className="relative flex-1" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
                     <div
@@ -218,22 +237,34 @@ export function GanttView({
                         title={t.title}
                       >
                         <span className="truncate">{t.title}</span>
-                        {t.bottleneckReason && (
-                          <span title={`Cuello de botella — ${t.bottleneckReason}`}>
-                            <WarningIcon className="h-3 w-3 flex-shrink-0 text-amber-500" />
-                          </span>
-                        )}
-                        {t.collidesWith && t.collidesWith.length > 0 && (
-                          <span
-                            title={`Coincide en fechas con: ${t.collidesWith.map((c) => `${c.title} (${c.projectName})`).join(", ")}`}
-                          >
-                            <OverlapIcon className="h-3 w-3 flex-shrink-0 text-indigo-500" />
-                          </span>
-                        )}
-                        {t.attachmentsCount > 0 && (
-                          <PaperclipIcon className="h-3 w-3 flex-shrink-0 text-slate-400" />
-                        )}
                       </a>
+                      {t.bottleneckReason && (
+                        <ReferencePopover
+                          trigger={<WarningIcon className="h-3 w-3 flex-shrink-0 text-amber-500" />}
+                          hoverText={`Cuello de botella — ${t.bottleneckReason}`}
+                          items={t.blockedSuccessors.map((s) => ({
+                            id: s.id,
+                            label: s.title,
+                            href: `/projects/${t.projectId}/tasks/${s.id}`,
+                          }))}
+                        />
+                      )}
+                      {t.collidesWith && t.collidesWith.length > 0 && (
+                        <ReferencePopover
+                          trigger={<OverlapIcon className="h-3 w-3 flex-shrink-0 text-indigo-500" />}
+                          hoverText={`Coincide en fechas con: ${t.collidesWith.map((c) => `${c.title} (${c.projectName})`).join(", ")}`}
+                          items={t.collidesWith.map((c) => ({
+                            id: c.taskId,
+                            label: `${c.title} (${c.projectName})`,
+                            href: `/projects/${c.projectId}/tasks/${c.taskId}`,
+                          }))}
+                          filteredHref="/projects?collision=1"
+                          filteredLabel="Ver todas las colisiones"
+                        />
+                      )}
+                      {t.attachmentsCount > 0 && (
+                        <PaperclipIcon className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                      )}
                       <button
                         type="button"
                         onClick={() => scrollToBar(t.id)}

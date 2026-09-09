@@ -7,8 +7,10 @@ import { businessDaysRange } from "@/lib/holidays";
 import { findScheduleCollisions } from "@/lib/collisions";
 import { createProject } from "./actions";
 import { Avatar } from "@/components/Avatar";
+import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
 import { ModalTrigger } from "@/components/Modal";
 import { OverlapIcon } from "@/components/icons";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import { ProjectAlertLink } from "../ProjectAlertLink";
 import { RememberViewState } from "../RememberViewState";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
@@ -107,7 +109,7 @@ export default async function ProjectsPage({
 
   const [projects, users, allTasksForCollisions] = await Promise.all([
     prisma.project.findMany({
-      include: { pm: true, tasks: { select: { id: true, status: true, plannedEnd: true } } },
+      include: { pm: true, tasks: { select: { id: true, title: true, status: true, plannedEnd: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
@@ -141,20 +143,24 @@ export default async function ProjectsPage({
   const summaries = await Promise.all(
     projects.map(async (p) => {
       const alerts = await Promise.all(p.tasks.map((t) => getTaskAlert(p.countryCode, t)));
-      const overdueCount = alerts.filter((a) => a.level === "overdue").length;
-      const warningCount = alerts.filter((a) => a.level === "warning").length;
+      const overdueTasks = p.tasks.filter((_, i) => alerts[i].level === "overdue").map((t) => ({ id: t.id, title: t.title }));
+      const warningTasks = p.tasks.filter((_, i) => alerts[i].level === "warning").map((t) => ({ id: t.id, title: t.title }));
       const bottlenecks = await getBottlenecks(p.id);
       const total = p.tasks.length;
       const completed = p.tasks.filter((t) => t.status === "COMPLETED").length;
-      const hasCollision = canSeeCollisions && p.tasks.some((t) => collisionsById.has(t.id));
+      const collisionTasks = canSeeCollisions
+        ? p.tasks.filter((t) => collisionsById.has(t.id)).map((t) => ({ id: t.id, title: t.title }))
+        : [];
       return {
-        overdueCount,
-        warningCount,
+        overdueCount: overdueTasks.length,
+        warningCount: warningTasks.length,
+        overdueTasks,
+        warningTasks,
         bottlenecks,
         total,
         completed,
-        health: projectHealth(overdueCount, total),
-        hasCollision,
+        health: projectHealth(overdueTasks.length, total),
+        collisionTasks,
       };
     })
   );
@@ -185,7 +191,7 @@ export default async function ProjectsPage({
   const boardTasksRaw = await prisma.task.findMany({
     where: boardWhere,
     include: {
-      project: { select: { id: true, name: true, countryCode: true, startDate: true } },
+      project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
       phase: { select: { name: true } },
       assignees: { include: { user: true } },
       steps: true,
@@ -236,6 +242,7 @@ export default async function ProjectsPage({
       id: t.id,
       projectId: t.projectId,
       projectName: t.project.name,
+      projectIconUrl: t.project.iconUrl,
       title: t.title,
       type: t.type,
       status: t.status,
@@ -265,8 +272,11 @@ export default async function ProjectsPage({
       return {
         id: t.id,
         projectId: t.projectId,
+        projectName: t.project.name,
+        projectIconUrl: t.project.iconUrl,
         title: t.title,
-        phaseName: `${t.project.name} — ${t.phase.name}`,
+        phaseId: t.phaseId,
+        phaseName: t.phase.name,
         status: t.status,
         startIndex,
         span: endIndex - startIndex + 1,
@@ -278,6 +288,7 @@ export default async function ProjectsPage({
         ),
         dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, type: d.type })),
         blocks: t.blocks.map((d) => d.successor.title),
+        blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
         attachmentsCount: t.attachments.length,
         alert: boardAlertById.get(t.id)!,
         bottleneckReason: boardBottleneckReasonById.get(t.id) ?? null,
@@ -377,25 +388,38 @@ export default async function ProjectsPage({
             </p>
           )}
           {rows.map(({ project: p, summary }) => {
-            const { overdueCount, warningCount, bottlenecks, total, completed, health, hasCollision } = summary;
+            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, collisionTasks } = summary;
+            // El color del proyecto (o uno automático si no eligió uno) va de
+            // fondo de la tarjeta — punto confirmado con el usuario. Siempre
+            // es un color CLARO (paleta acotada en ProjectIcon.tsx), así el
+            // texto slate normal es legible sin necesitar calcular contraste.
+            const cardColor = p.color ?? defaultProjectBgColor(p.name);
             return (
               <NavLinkWithMemory
                 key={p.id}
                 href={`/projects/${p.id}`}
                 storageKey={`project:${p.id}`}
-                className="block rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
+                className="block rounded-xl border border-slate-200 p-4 hover:brightness-95"
+                style={{ backgroundColor: cardColor }}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-8 w-8 text-xs" />
+                    <div className="min-w-0">
                     <p className="flex items-center gap-1.5 font-medium text-slate-900">
                       <span className="truncate">{p.name}</span>
-                      {hasCollision && (
-                        <span title="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)">
-                          <OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
-                        </span>
+                      {collisionTasks.length > 0 && (
+                        <ReferencePopover
+                          trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
+                          hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
+                          items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
+                          filteredHref="/projects?collision=1"
+                          filteredLabel="Ver todas las colisiones"
+                        />
                       )}
                     </p>
                     <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
+                    </div>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
                     {health === "ok" ? (
@@ -406,6 +430,7 @@ export default async function ProjectsPage({
                       <ProjectAlertLink
                         projectId={p.id}
                         risk="overdue"
+                        items={overdueTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
                         className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium hover:brightness-95 ${HEALTH_STYLE[health]}`}
                       >
                         {HEALTH_LABEL[health]} · {overdueCount} atrasada{overdueCount > 1 ? "s" : ""}
@@ -415,6 +440,7 @@ export default async function ProjectsPage({
                       <ProjectAlertLink
                         projectId={p.id}
                         risk="warning"
+                        items={warningTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
                         className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 hover:brightness-95"
                       >
                         {warningCount} por vencer
@@ -428,23 +454,28 @@ export default async function ProjectsPage({
                 </div>
 
                 <div className="mt-2 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10">
                     <div
                       className="h-full bg-emerald-500"
                       style={{ width: total > 0 ? `${Math.round((completed / total) * 100)}%` : "0%" }}
                     />
                   </div>
-                  <span className="flex-shrink-0 text-xs text-slate-400">
+                  <span className="flex-shrink-0 text-xs text-slate-500">
                     {total > 0 ? Math.round((completed / total) * 100) : 0}% · {completed}/{total} tareas
                   </span>
                 </div>
                 {bottlenecks.length > 0 && (
-                  <p
-                    className="mt-1 truncate text-xs text-amber-600"
-                    title={bottlenecks.map((b) => `${b.title}: ${b.bottleneckReason}`).join("\n")}
-                  >
-                    {bottlenecks.length} cuello(s) de botella: {bottlenecks.slice(0, 2).map((b) => b.title).join(", ")}
-                    {bottlenecks.length > 2 ? ` +${bottlenecks.length - 2} más` : ""}
+                  <p className="mt-1 truncate text-xs text-amber-600">
+                    <ReferencePopover
+                      trigger={
+                        <>
+                          {bottlenecks.length} cuello(s) de botella: {bottlenecks.slice(0, 2).map((b) => b.title).join(", ")}
+                          {bottlenecks.length > 2 ? ` +${bottlenecks.length - 2} más` : ""}
+                        </>
+                      }
+                      hoverText={bottlenecks.map((b) => `${b.title}: ${b.bottleneckReason}`).join("\n")}
+                      items={bottlenecks.map((b) => ({ id: b.id, label: b.title, href: `/projects/${p.id}/tasks/${b.id}` }))}
+                    />
                   </p>
                 )}
               </NavLinkWithMemory>
@@ -567,17 +598,26 @@ export default async function ProjectsPage({
         )}
 
         {view === "gantt" ? (
-          <GanttView businessDays={boardBusinessDays} tasks={boardGanttTasks} canManage={canManageBoard} />
+          // Sticky en vez de flex-col como en projects/[id]/page.tsx: acá,
+          // antes del Gantt, va la sección completa de tarjetas de proyecto
+          // (crece libre con la página, no se comprime). Al bajar el scroll
+          // hasta acá, el Gantt se pega debajo del header (57px) y ocupa el
+          // resto de la pantalla con su propio scroll interno.
+          <div className="sticky top-[57px] h-[calc(100vh-57px-16px)]">
+            <GanttView businessDays={boardBusinessDays} tasks={boardGanttTasks} canManage={canManageBoard} />
+          </div>
         ) : view === "calendar" ? (
           <ProjectCalendarView tasks={boardCalendarTasks} mode={calendarMode} anchor={anchor} showProjectName />
         ) : (
-          <KanbanBoard
-            key={boardTaskCards.map((t) => `${t.id}:${t.status}`).join(",")}
-            initialTasks={boardTaskCards}
-            showProjectName
-            canManage={canManageBoard}
-            users={users}
-          />
+          <div className="sticky top-[57px] h-[calc(100vh-100px)]">
+            <KanbanBoard
+              key={boardTaskCards.map((t) => `${t.id}:${t.status}`).join(",")}
+              initialTasks={boardTaskCards}
+              showProjectName
+              canManage={canManageBoard}
+              users={users}
+            />
+          </div>
         )}
       </section>
     </div>

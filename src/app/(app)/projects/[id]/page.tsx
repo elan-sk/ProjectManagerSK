@@ -7,8 +7,11 @@ import { getProjectAdmin } from "@/lib/permissions";
 import { KanbanBoard, type TaskCard } from "./KanbanBoard";
 import { GanttView, type GanttTask } from "./GanttView";
 import { ProjectCalendarView, type CalendarTask } from "./ProjectCalendarView";
+import { DefinitionTab } from "./DefinitionTab";
+import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { ModalTrigger } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
+import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
 import { NewPhaseForm } from "./NewPhaseForm";
 import { NewTaskForm } from "./NewTaskForm";
 import { ReassignPMForm } from "./ReassignPMForm";
@@ -78,7 +81,7 @@ export default async function ProjectPage({
     return `/projects/${id}${qs ? `?${qs}` : ""}`;
   };
 
-  const [project, users, canManage, bottlenecks] = await Promise.all([
+  const [project, users, canManage, bottlenecks, cascadeProgress] = await Promise.all([
     prisma.project.findUnique({
       where: { id },
       include: {
@@ -100,9 +103,17 @@ export default async function ProjectPage({
     prisma.user.findMany({ orderBy: { name: "asc" } }),
     getProjectAdmin(id).then(Boolean),
     getBottlenecks(id),
+    getProjectCascadeProgress(id),
   ]);
 
   if (!project) notFound();
+
+  // El color del proyecto (o uno automático si no eligió uno) va de fondo de
+  // TODA esta vista — punto confirmado con el usuario, para reconocer de un
+  // vistazo en qué proyecto estás. Siempre es un color CLARO (paleta acotada
+  // en ProjectIcon.tsx), así el texto slate normal es legible sin necesitar
+  // calcular contraste.
+  const viewColor = project.color ?? defaultProjectBgColor(project.name);
 
   const bottleneckReasonById = new Map(bottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
@@ -129,6 +140,7 @@ export default async function ProjectPage({
     id: t.id,
     projectId: project.id,
     projectName: project.name,
+    projectIconUrl: project.iconUrl,
     title: t.title,
     type: t.type,
     status: t.status,
@@ -172,7 +184,10 @@ export default async function ProjectPage({
     return {
       id: t.id,
       projectId: project.id,
+      projectName: project.name,
+      projectIconUrl: project.iconUrl,
       title: t.title,
+      phaseId: t.phaseId,
       phaseName: project.phases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,
       startIndex,
@@ -185,6 +200,7 @@ export default async function ProjectPage({
       ),
       dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, type: d.type })),
       blocks: t.blocks.map((d) => d.successor.title),
+      blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
       attachmentsCount: t.attachments.length,
       alert: alertByTaskId.get(t.id)!,
       bottleneckReason: bottleneckReasonById.get(t.id) ?? null,
@@ -207,27 +223,42 @@ export default async function ProjectPage({
     }));
 
   return (
-    <div className="space-y-6">
+    // El color del proyecto va de fondo de TODA la vista, no solo del
+    // encabezado — por eso el -m-6/p-6 (cancela el padding de <main> para
+    // que el color llegue hasta los bordes) y el alto mínimo (para que
+    // cubra hasta el fondo de la pantalla, no solo lo que ocupe el
+    // contenido). 57px ≈ alto del header fijo del programa.
+    <div
+      className={
+        view === "gantt"
+          ? "-m-6 flex h-[calc(100vh-57px)] flex-col space-y-6 p-6"
+          : "-m-6 min-h-[calc(100vh-57px)] space-y-6 p-6"
+      }
+      style={{ backgroundColor: `color-mix(in srgb, ${viewColor} 20%, white)` }}
+    >
       <SaveLastProject projectId={project.id} />
       <RememberViewState storageKey={`project:${project.id}`} />
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
-          <div className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
-            <span>
-              {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
-            </span>
-            {canManage && (
-              <ModalTrigger label="Cambiar fecha" title="Editar fecha de inicio" variant="secondary">
-                <EditStartDateForm
-                  projectId={project.id}
-                  currentStartDate={project.startDate.toISOString().slice(0, 10)}
-                />
-              </ModalTrigger>
-            )}
+        <div className="flex items-center gap-3">
+          <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" />
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
+            <div className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
+              <span>
+                {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
+              </span>
+              {canManage && (
+                <ModalTrigger label="Cambiar fecha" title="Editar fecha de inicio" variant="secondary">
+                  <EditStartDateForm
+                    projectId={project.id}
+                    currentStartDate={project.startDate.toISOString().slice(0, 10)}
+                  />
+                </ModalTrigger>
+              )}
+            </div>
           </div>
         </div>
 
@@ -281,6 +312,12 @@ export default async function ProjectPage({
           >
             Calendario
           </Link>
+          <Link
+            href={filterHref({ view: "definition" })}
+            className={`rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+          >
+            Definición
+          </Link>
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -300,6 +337,7 @@ export default async function ProjectPage({
         )}
       </div>
 
+      {view !== "definition" && (
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
@@ -355,6 +393,7 @@ export default async function ProjectPage({
           />
         </div>
       </div>
+      )}
 
       {view === "calendar" && (
         <div className="flex gap-1 text-sm">
@@ -370,17 +409,33 @@ export default async function ProjectPage({
         </div>
       )}
 
-      {view === "gantt" ? (
-        <GanttView businessDays={businessDays} tasks={ganttTasks} canManage={canManage} />
+      {view === "definition" ? (
+        <DefinitionTab
+          projectId={project.id}
+          name={project.name}
+          color={project.color}
+          iconUrl={project.iconUrl}
+          description={project.description}
+          canManage={canManage}
+          objectives={cascadeProgress.objectives}
+          requirements={cascadeProgress.requirements}
+          phases={cascadeProgress.phases}
+        />
+      ) : view === "gantt" ? (
+        <div className="min-h-0 flex-1">
+          <GanttView businessDays={businessDays} tasks={ganttTasks} canManage={canManage} />
+        </div>
       ) : view === "calendar" ? (
         <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} />
       ) : (
-        <KanbanBoard
-          key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
-          initialTasks={taskCards}
-          canManage={canManage}
-          users={users}
-        />
+        <div className="sticky top-[57px] h-[calc(100vh-100px)]">
+          <KanbanBoard
+            key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
+            initialTasks={taskCards}
+            canManage={canManage}
+            users={users}
+          />
+        </div>
       )}
     </div>
   );

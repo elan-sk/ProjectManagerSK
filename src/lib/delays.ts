@@ -163,7 +163,7 @@ export async function getUserPerformance(
 export async function getBottlenecks(projectId: string) {
   const tasks = await prisma.task.findMany({
     where: { projectId },
-    include: { blocks: { include: { successor: { select: { title: true } } } } },
+    include: { blocks: { include: { successor: { select: { id: true, title: true } } } } },
   });
 
   return tasks
@@ -174,6 +174,9 @@ export async function getBottlenecks(projectId: string) {
         t.blocks.length >= 2
           ? `Retiene ${t.blocks.length} tareas: ${t.blocks.map((b) => b.successor.title).join(", ")}`
           : "Marcada con riesgo alto",
+      // Para popups con link directo a cada sucesora (ver ReferencePopover) —
+      // el string de arriba se deja igual por compatibilidad con lo que ya lo consume.
+      blockedSuccessors: t.blocks.map((b) => ({ id: b.successor.id, title: b.successor.title })),
     }));
 }
 

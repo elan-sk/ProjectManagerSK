@@ -120,8 +120,17 @@ model Project {
   pm          User          @relation("ProjectPM", fields: [pmId], references: [id])
   createdAt   DateTime      @default(now())
 
-  phases Phase[]
-  tasks  Task[]
+  // Pestaña "Definición" (gestión de proyecto, vocabulario alineado con las
+  // Fases 1-2 de la skill /dev-project-definer — Problema/Requerimientos —
+  // para poder transcribir directo lo que salga de esa skill).
+  description String? // HTML del editor WYSIWYG, igual que Task.description
+  color       String? // hex; identidad visual rápida en resúmenes/tarjetas
+  iconUrl     String? // logo/ícono subido; si no hay, se usa color + inicial
+
+  phases       Phase[]
+  tasks        Task[]
+  objectives   Objective[]
+  requirements Requirement[]
 }
 
 model Phase {
@@ -131,7 +140,39 @@ model Phase {
   name      String
   order     Int
 
-  tasks Task[]
+  tasks        Task[]
+  requirements Requirement[] @relation("PhaseRequirements")
+}
+
+// "Objetivo" (Fase 1 de /dev-project-definer: el problema/meta que el
+// proyecto busca resolver) — su % de avance se calcula en cascada como el
+// promedio del % de sus Requerimientos vinculados (ver lib/cascadeProgress.ts).
+model Objective {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+
+  requirements Requirement[] @relation("RequirementObjectives")
+}
+
+// "Requerimiento" (Fase 2 de /dev-project-definer) — se cumple a través de
+// una o varias Fases del cronograma; su % de avance es el promedio del %
+// completado de esas fases (mismo % que ya se ve por fase en el Gantt).
+model Requirement {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+
+  objectives Objective[] @relation("RequirementObjectives")
+  phases     Phase[]     @relation("PhaseRequirements")
 }
 
 model Task {

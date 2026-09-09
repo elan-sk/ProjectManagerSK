@@ -8,6 +8,7 @@ import { PushSubscribeButton } from "./PushSubscribeButton";
 import { ProjectsNavLink } from "./ProjectsNavLink";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { Avatar } from "@/components/Avatar";
+import { ToastProvider } from "@/components/Toast";
 
 // Next.js 16: proxy.ts (ex-middleware) ya no es el lugar para auth — la
 // verificación de sesión va en el layout/route handler, como pide la guía
@@ -42,8 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }));
 
   return (
+    <ToastProvider>
     <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
           <ProjectsNavLink />
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useSyncExternalStore, type ReactNode } from "react";
+import { ReferencePopover, type ReferenceItem } from "@/components/ReferencePopover";
 
 function subscribe() {
   return () => {};
@@ -11,27 +11,28 @@ function getServerSnapshot() {
 }
 
 /**
- * Badge clickeable de una alerta agregada ("N atrasadas" en la lista de
- * Proyectos): lleva al proyecto, a los ÚLTIMOS filtros/vista que tenías ahí
- * (guardados por RememberViewState bajo "project:<id>" — vista, persona,
- * estado, mes/semana/día), pisando solo el filtro de riesgo — en vez de
- * resetear todo. No es un <a> porque vive DENTRO del <Link> que cubre toda
- * la card del proyecto (un <a> anidado en otro <a> es HTML inválido) — por
- * eso navega con router.push y frena la propagación para no disparar
- * también el click del link contenedor.
+ * Badge de una alerta agregada ("N atrasadas" en la lista de Proyectos):
+ * click abre un popup con las tareas puntuales (link directo a cada una) +
+ * un acceso a la vista filtrada del proyecto, a los ÚLTIMOS filtros/vista
+ * que tenías ahí (guardados por RememberViewState bajo "project:<id>" —
+ * vista, persona, estado, mes/semana/día), pisando solo el filtro de riesgo
+ * — en vez de resetear todo. Delega en ReferencePopover, que ya resuelve
+ * (vía spans + router.push) el problema de vivir DENTRO del <Link> que cubre
+ * toda la card del proyecto.
  */
 export function ProjectAlertLink({
   projectId,
   risk,
+  items,
   className,
   children,
 }: {
   projectId: string;
   risk: "overdue" | "warning";
+  items: ReferenceItem[];
   className?: string;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const saved = useSyncExternalStore(
     subscribe,
     () => {
@@ -48,17 +49,12 @@ export function ProjectAlertLink({
   params.set("risk", risk);
 
   return (
-    <span
-      role="link"
-      tabIndex={0}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        router.push(`/projects/${projectId}?${params.toString()}`);
-      }}
-      className={`${className ?? ""} cursor-pointer`}
-    >
-      {children}
-    </span>
+    <ReferencePopover
+      trigger={children}
+      items={items}
+      filteredHref={`/projects/${projectId}?${params.toString()}`}
+      filteredLabel="Ver en el tablero del proyecto"
+      className={className}
+    />
   );
 }

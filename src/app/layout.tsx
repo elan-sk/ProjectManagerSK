@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { DevToolsLoader } from "./DevToolsLoader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <DevToolsLoader />
         <script
           // ponytail: registro del SW en JS plano — no hace falta un
           // componente cliente aparte solo para esto.

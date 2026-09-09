@@ -9,7 +9,9 @@ import { deleteTask } from "./tasks/[taskId]/actions";
 import { ReassignAssigneesForm } from "./tasks/[taskId]/ReassignAssigneesForm";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { AlertBadge } from "@/components/AlertBadge";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import { PaperclipIcon, OverlapIcon } from "@/components/icons";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
@@ -20,6 +22,7 @@ export type TaskCard = {
   id: string;
   projectId: string;
   projectName: string;
+  projectIconUrl: string | null;
   title: string;
   type: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
@@ -73,8 +76,13 @@ function Card({
     id: task.id,
   });
   const [deleting, setDeleting] = useState(false);
+  // El transform del drag crea su propio contexto de apilamiento, así que sin
+  // z-index explícito la card queda por detrás de la columna siguiente al
+  // arrastrarla entre columnas. Por debajo de z-10 a propósito: el
+  // encabezado sticky de cada columna debe quedar siempre visible, incluso
+  // tapando a una card en pleno arrastre.
   const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 5 }
     : undefined;
   const riskDot = RISK_DOT[task.riskLevel];
 
@@ -127,11 +135,18 @@ function Card({
         </span>
         <div className="mt-1 flex flex-shrink-0 items-center gap-1.5">
           {task.collidesWith && task.collidesWith.length > 0 && (
-            <span
-              title={`Coincide en fechas con: ${task.collidesWith.map((c) => `${c.title} (${c.projectName})`).join(", ")}`}
-            >
-              <OverlapIcon className="h-3 w-3 text-indigo-500" />
-            </span>
+            <ReferencePopover
+              trigger={<OverlapIcon className="h-3 w-3 text-indigo-500" />}
+              hoverText={`Coincide en fechas con: ${task.collidesWith.map((c) => `${c.title} (${c.projectName})`).join(", ")}`}
+              items={task.collidesWith.map((c) => ({
+                id: c.taskId,
+                label: `${c.title} (${c.projectName})`,
+                href: `/projects/${c.projectId}/tasks/${c.taskId}`,
+              }))}
+              filteredHref="/projects?collision=1"
+              filteredLabel="Ver todas las colisiones"
+              align="right"
+            />
           )}
           {riskDot && (
             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${riskDot}`} title={`Riesgo ${task.riskLevel}`} />
@@ -139,7 +154,12 @@ function Card({
         </div>
       </div>
 
-      {showProjectName && <p className="text-[11px] font-medium text-slate-400">{task.projectName}</p>}
+      {showProjectName && (
+        <p className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+          <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" />
+          {task.projectName}
+        </p>
+      )}
       <p className="text-sm font-medium leading-snug text-slate-900">{task.title}</p>
 
       <p className="text-[11px] text-slate-400">
@@ -229,10 +249,9 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 flex-shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-2xl transition-colors ${
+      className={`flex h-full w-72 flex-shrink-0 flex-col overflow-y-auto rounded-2xl transition-colors ${
         isOver ? "bg-slate-200/70" : "bg-slate-100"
       }`}
-      style={{ maxHeight: "75vh" }}
     >
       <h3 className="sticky top-0 z-10 flex flex-shrink-0 items-center gap-1.5 bg-inherit px-4 py-3 text-sm font-semibold text-slate-700">
         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${color.dot}`} />
@@ -291,7 +310,12 @@ export function KanbanBoard({
 
   return (
     <DndContext onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4">
+      {/* Alto fijo (mismo tratamiento que GanttView): el padre es sticky con
+          altura calculada, "h-full" propaga ese alto a cada columna. El
+          scroll vertical es de CADA columna por separado (ver Column más
+          abajo), no de este contenedor — así "Completado" con 50 tareas no
+          obliga a scrollear igual a "Bloqueado" con 2. */}
+      <div className="flex h-full gap-4 overflow-x-auto overflow-y-visible pb-4">
         {COLUMNS.map((status) => (
           <Column
             key={status}

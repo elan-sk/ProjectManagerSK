@@ -1,4 +1,4 @@
-export type CollisionInfo = { taskId: string; projectName: string; title: string };
+export type CollisionInfo = { taskId: string; projectId: string; projectName: string; title: string };
 
 export type CollisionInput = {
   id: string;
@@ -36,8 +36,8 @@ export function findScheduleCollisions(tasks: CollisionInput[]): Map<string, Col
       if (!a.assigneeIds.some((id) => b.assigneeIds.includes(id))) continue;
       const overlaps = a.plannedStart <= b.plannedEnd && b.plannedStart <= a.plannedEnd;
       if (!overlaps) continue;
-      add(a.id, { taskId: b.id, projectName: b.projectName, title: b.title });
-      add(b.id, { taskId: a.id, projectName: a.projectName, title: a.title });
+      add(a.id, { taskId: b.id, projectId: b.projectId, projectName: b.projectName, title: b.title });
+      add(b.id, { taskId: a.id, projectId: a.projectId, projectName: a.projectName, title: a.title });
     }
   }
 

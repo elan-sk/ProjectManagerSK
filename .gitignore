@@ -48,3 +48,8 @@ next-env.d.ts
 # archivos subidos por usuarios (insumos/evidencias de tareas)
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# Lens-SK (toolbar de depuración visual, solo desarrollo)
+/dev-tools
+/public/dev-tools
+/.lens-sk-cache

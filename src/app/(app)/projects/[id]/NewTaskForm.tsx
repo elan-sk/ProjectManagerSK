@@ -103,13 +103,14 @@ export function NewTaskForm({
 
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Asignados</label>
-        <select name="assigneeIds" multiple required className="h-28 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-lg border border-slate-300 p-1">
           {users.map((u) => (
-            <option key={u.id} value={u.id}>
+            <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+              <input type="checkbox" name="assigneeIds" value={u.id} className="rounded border-slate-300" />
               {u.name}
-            </option>
+            </label>
           ))}
-        </select>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
