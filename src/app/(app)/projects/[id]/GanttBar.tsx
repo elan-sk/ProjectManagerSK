@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { resizeTask } from "./actions";
 import { AlertBadge } from "@/components/AlertBadge";
+import { useToast } from "@/components/Toast";
 import type { TaskAlert } from "@/lib/delays";
 
 const DAY_WIDTH = 28;
@@ -61,6 +62,7 @@ export function GanttBar({
   canResize: boolean;
 }) {
   const router = useRouter();
+  const showToast = useToast();
   const [, startTransition] = useTransition();
   const endIndex = startIndex + span - 1;
   const barRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,7 @@ export function GanttBar({
         const result = await resizeTask(taskId, "start", newDateISO);
         if (!result.ok) {
           setLiveStartIndex(startIndex);
-          alert(result.error);
+          showToast(result.error ?? "Ocurrió un error.");
         } else {
           router.refresh();
         }
@@ -148,7 +150,7 @@ export function GanttBar({
         const result = await resizeTask(taskId, "end", newDateISO);
         if (!result.ok) {
           setLiveEndIndex(endIndex);
-          alert(result.error);
+          showToast(result.error ?? "Ocurrió un error.");
         } else {
           router.refresh();
         }

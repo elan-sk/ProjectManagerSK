@@ -1,6 +1,6 @@
 "use client";
 
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -12,6 +12,7 @@ import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { useToast } from "@/components/Toast";
 import { PaperclipIcon, OverlapIcon } from "@/components/icons";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
@@ -58,68 +59,39 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" });
 }
 
-function Card({
+// Clases visuales compartidas por la card "real" (dentro de la columna,
+// arrastrable) y su copia en el DragOverlay (ver KanbanBoard) — así ambas se
+// ven idénticas sin duplicar el string de Tailwind.
+function cardClassName(task: TaskCard, extra: string) {
+  return `group relative touch-none space-y-2 rounded-2xl p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${taskCardTint(
+    task.status,
+    task.alert.level
+  )} ${extra}`;
+}
+
+function CardBody({
   task,
   showProjectName,
   canManage,
   users,
-  onDeleted,
+  deleting,
+  onDelete,
 }: {
   task: TaskCard;
   showProjectName: boolean;
   canManage: boolean;
   users: { id: string; name: string }[];
-  onDeleted: (taskId: string) => void;
+  deleting: boolean;
+  onDelete: () => void;
 }) {
-  const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-  });
-  const [deleting, setDeleting] = useState(false);
-  // El transform del drag crea su propio contexto de apilamiento, así que sin
-  // z-index explícito la card queda por detrás de la columna siguiente al
-  // arrastrarla entre columnas. Por debajo de z-10 a propósito: el
-  // encabezado sticky de cada columna debe quedar siempre visible, incluso
-  // tapando a una card en pleno arrastre.
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 5 }
-    : undefined;
   const riskDot = RISK_DOT[task.riskLevel];
 
-  function handleDelete() {
-    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta acción no se puede deshacer.`)) return;
-    setDeleting(true);
-    deleteTask(task.id).then((result) => {
-      if (result.ok) {
-        onDeleted(task.id);
-        router.refresh();
-      } else {
-        setDeleting(false);
-        alert(result.error);
-      }
-    });
-  }
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      // dnd-kit numera aria-describedby con un contador de instancia que no
-      // coincide entre el render del servidor y la hidratación del cliente
-      // (problema conocido de la librería con SSR) — no afecta layout ni
-      // función, solo el nombre accesible del elemento.
-      suppressHydrationWarning
-      className={`group relative touch-none cursor-grab space-y-2 rounded-2xl p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${taskCardTint(
-        task.status,
-        task.alert.level
-      )} ${isDragging ? "opacity-50" : deleting ? "opacity-40" : ""}`}
-    >
+    <>
       {canManage && (
         <button
           type="button"
-          onClick={handleDelete}
+          onClick={onDelete}
           onPointerDown={(e) => e.stopPropagation()}
           disabled={deleting}
           aria-label="Eliminar tarea"
@@ -217,6 +189,61 @@ function Card({
           </Link>
         </div>
       </div>
+    </>
+  );
+}
+
+function Card({
+  task,
+  showProjectName,
+  canManage,
+  users,
+  onDeleted,
+}: {
+  task: TaskCard;
+  showProjectName: boolean;
+  canManage: boolean;
+  users: { id: string; name: string }[];
+  onDeleted: (taskId: string) => void;
+}) {
+  const router = useRouter();
+  const showToast = useToast();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+  });
+  const [deleting, setDeleting] = useState(false);
+
+  function handleDelete() {
+    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    deleteTask(task.id).then((result) => {
+      if (result.ok) {
+        onDeleted(task.id);
+        router.refresh();
+      } else {
+        setDeleting(false);
+        showToast(result.error ?? "Ocurrió un error.");
+      }
+    });
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      // dnd-kit numera aria-describedby con un contador de instancia que no
+      // coincide entre el render del servidor y la hidratación del cliente
+      // (problema conocido de la librería con SSR) — no afecta layout ni
+      // función, solo el nombre accesible del elemento.
+      suppressHydrationWarning
+      // La card real ya no se traslada con `transform`: mientras se arrastra
+      // queda oculta (opacity-0) y la copia visible es el DragOverlay de
+      // KanbanBoard, que al portalearse a <body> siempre queda por delante de
+      // cualquier columna, sin depender del overflow/stacking de cada una.
+      className={cardClassName(task, isDragging ? "cursor-grabbing opacity-0" : deleting ? "cursor-grab opacity-40" : "cursor-grab")}
+    >
+      <CardBody task={task} showProjectName={showProjectName} canManage={canManage} users={users} deleting={deleting} onDelete={handleDelete} />
     </div>
   );
 }
@@ -281,9 +308,16 @@ export function KanbanBoard({
   users: { id: string; name: string }[];
 }) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
+  const showToast = useToast();
   const [, startTransition] = useTransition();
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveTask(tasks.find((t) => t.id === event.active.id) ?? null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
     const newStatus = over.id as TaskCard["status"];
@@ -299,7 +333,7 @@ export function KanbanBoard({
         setTasks((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, status: previousStatus } : t))
         );
-        alert(result.error);
+        showToast(result.error ?? "Ocurrió un error.");
       }
     });
   }
@@ -309,7 +343,10 @@ export function KanbanBoard({
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    // autoScroll desactivado: por defecto dnd-kit scrollea el contenedor más
+    // cercano (este mismo div, con overflow-x-auto) al arrastrar cerca de un
+    // borde, lo que movía el tablero solo con empezar a arrastrar una card.
+    <DndContext autoScroll={false} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {/* Alto fijo (mismo tratamiento que GanttView): el padre es sticky con
           altura calculada, "h-full" propaga ese alto a cada columna. El
           scroll vertical es de CADA columna por separado (ver Column más
@@ -328,6 +365,25 @@ export function KanbanBoard({
           />
         ))}
       </div>
+      {/* Copia de la card en un portal a <body> (comportamiento nativo de
+          DragOverlay): así siempre se ve por delante de cualquier columna
+          mientras se arrastra, sin pelear con el overflow/stacking de cada
+          Column (que antes la dejaba por detrás al cruzar a la columna
+          vecina). */}
+      <DragOverlay>
+        {activeTask && (
+          <div className={cardClassName(activeTask, "cursor-grabbing rotate-2 shadow-lg")}>
+            <CardBody
+              task={activeTask}
+              showProjectName={showProjectName}
+              canManage={false}
+              users={[]}
+              deleting={false}
+              onDelete={() => {}}
+            />
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
   );
 }

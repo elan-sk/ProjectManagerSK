@@ -158,13 +158,11 @@ export function GanttView({
 
   return (
     <>
-    {/* Alto = el espacio que sobra en la pantalla (punto confirmado con el
-        usuario, revierte el criterio anterior de "sin tope, un solo scroll
-        de página"): el padre (page.tsx) es flex-col con altura fija
-        100vh-header y este bloque es el único flex-1, así que "h-full" ya
-        resuelve exactamente 100vh menos header y menos todo el contenido de
-        arriba (breadcrumb, título, tabs, filtros) — el Gantt scrollea
-        internamente en ambos ejes dentro de ese alto. */}
+    {/* Alto fijo (mismo patrón que KanbanBoard): el padre (page.tsx) es
+        sticky top-[57px] h-[calc(100vh-100px)], así que "h-full" hereda esa
+        altura sin importar cuánto contenido haya arriba (breadcrumb, título,
+        tabs, filtros) — el Gantt scrollea internamente en ambos ejes dentro
+        de ese alto. */}
     <div className="h-full overflow-x-auto overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xl border border-slate-200 bg-white mb-0">
       <div style={{ minWidth: LABEL_WIDTH + timelineWidth }}>
         {/* Header: meses — sticky verticalmente (debajo del header fijo del

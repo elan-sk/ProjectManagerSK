@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteRequirement } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { RequirementForm } from "./RequirementForm";
+import { PhaseRequirementsForm } from "./PhaseRequirementsForm";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import type { RequirementSummary } from "@/lib/cascadeProgress";
@@ -34,6 +35,7 @@ export function RequirementsPanel({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const requirementOptions = requirements.map((rr) => ({ id: rr.id, title: rr.title }));
 
   function handleDelete(id: string, title: string) {
     if (!confirm(`¿Eliminar el requerimiento "${title}"? Esta acción no se puede deshacer.`)) return;
@@ -58,58 +60,80 @@ export function RequirementsPanel({
       {requirements.length === 0 && <p className="text-sm text-slate-400">Todavía no hay requerimientos definidos.</p>}
       <ul className="space-y-2">
         {requirements.map((r) => (
-          <li key={r.id} className="rounded-lg border border-slate-100 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium text-slate-900">{r.title}</p>
-                {r.description && <p className="mt-0.5 text-sm text-slate-500">{r.description}</p>}
-                <p className="mt-1 text-xs text-slate-400">
-                  {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {r.phases.length > 0
-                    ? `Fases: ${r.phases.map((p) => p.name).join(", ")}`
-                    : "Sin fase vinculada todavía (vinculalo desde la fase en Fases y avance)."}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
-                <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} />
-                <span>
-                  {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
-                  {r.atRiskPhaseCount > 0 && (
-                    <ReferencePopover
-                      trigger={<span className="text-red-600"> · {r.atRiskPhaseCount} en riesgo</span>}
-                      hoverText={`Tareas atrasadas: ${r.atRiskTasks.map((t) => t.title).join(", ")}`}
-                      items={r.atRiskTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
-                    />
-                  )}
-                </span>
-              </div>
-              {canManage && (
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <ModalTrigger label="Editar" title="Editar requerimiento" variant="secondary" compact>
-                    <RequirementForm
-                      projectId={projectId}
-                      objectives={objectives}
-                      requirementId={r.id}
-                      currentTitle={r.title}
-                      currentDescription={r.description}
-                      currentObjectiveIds={r.objectiveIds}
-                    />
-                  </ModalTrigger>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(r.id, r.title)}
-                    disabled={isPending && deletingId === r.id}
-                    className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
-                  >
-                    Eliminar
-                  </button>
+          <li key={r.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900">{r.title}</p>
+                  {r.description && <p className="mt-0.5 text-sm text-slate-500">{r.description}</p>}
+                  <p className="mt-1 text-xs text-slate-400">
+                    {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
+                  </p>
                 </div>
-              )}
+                <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                  <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} />
+                  <span>
+                    {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
+                    {r.atRiskPhaseCount > 0 && (
+                      <ReferencePopover
+                        trigger={<span className="text-red-600"> · {r.atRiskPhaseCount} en riesgo</span>}
+                        hoverText={`Tareas atrasadas: ${r.atRiskTasks.map((t) => t.title).join(", ")}`}
+                        items={r.atRiskTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
+                      />
+                    )}
+                  </span>
+                </div>
+                {canManage && (
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <ModalTrigger label="Editar" title="Editar requerimiento" variant="secondary" compact>
+                      <RequirementForm
+                        projectId={projectId}
+                        objectives={objectives}
+                        requirementId={r.id}
+                        currentTitle={r.title}
+                        currentDescription={r.description}
+                        currentObjectiveIds={r.objectiveIds}
+                      />
+                    </ModalTrigger>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(r.id, r.title)}
+                      disabled={isPending && deletingId === r.id}
+                      className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2">
+                <ProgressBar pct={r.pct} />
+              </div>
             </div>
-            <div className="mt-2">
-              <ProgressBar pct={r.pct} />
+            <div className="border-t border-slate-100 pt-2 text-xs text-slate-500 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+              <p className="font-medium text-slate-600">Fases</p>
+              {r.phases.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {r.phases.map((p) => (
+                    <li key={p.id} title={p.name}>
+                      ·{" "}
+                      {canManage ? (
+                        <ModalTrigger label={p.name} title="Requerimientos de la fase" compact>
+                          <PhaseRequirementsForm
+                            phaseId={p.id}
+                            requirements={requirementOptions}
+                            currentRequirementIds={p.requirementIds}
+                          />
+                        </ModalTrigger>
+                      ) : (
+                        p.name
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-slate-400">Sin fase vinculada todavía (vinculalo desde la fase en Fases y avance).</p>
+              )}
             </div>
           </li>
         ))}

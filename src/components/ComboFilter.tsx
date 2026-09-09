@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { normalizeSearchText } from "@/lib/search";
 
 /**
  * Filtro con autocompletar: para listas que pueden crecer con el uso real
@@ -60,7 +61,7 @@ export function ComboFilter({
 
   const selected = options.find((o) => o.id === value);
   const filtered = query
-    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+    ? options.filter((o) => normalizeSearchText(o.label).includes(normalizeSearchText(query)))
     : options;
 
   function choose(id: string | undefined) {

@@ -74,7 +74,7 @@ function average(values: number[]) {
   return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
 }
 
-export type PhaseSummary = { id: string; name: string; pct: number; atRisk: boolean; overdueTasks: TaskRef[] };
+export type PhaseSummary = { id: string; name: string; pct: number; atRisk: boolean; overdueTasks: TaskRef[]; requirementIds: string[] };
 export type RequirementSummary = {
   id: string;
   title: string;
@@ -94,6 +94,7 @@ export type ObjectiveSummary = {
   atRiskRequirementCount: number;
   atRiskTasks: TaskRef[];
   requirementTitles: string[];
+  requirementIds: string[];
 };
 
 export async function getProjectCascadeProgress(projectId: string) {
@@ -109,7 +110,12 @@ export async function getProjectCascadeProgress(projectId: string) {
       orderBy: { order: "asc" },
       include: {
         objectives: { select: { id: true, title: true } },
-        phases: { include: { tasks: { select: { id: true, title: true, status: true, plannedEnd: true } } } },
+        phases: {
+          include: {
+            tasks: { select: { id: true, title: true, status: true, plannedEnd: true } },
+            requirements: { select: { id: true } },
+          },
+        },
       },
     }),
     prisma.phase.findMany({
@@ -122,9 +128,21 @@ export async function getProjectCascadeProgress(projectId: string) {
     }),
   ]);
 
-  const toPhaseSummary = (p: { id: string; name: string; tasks: { id: string; title: string; status: string; plannedEnd: Date }[] }) => {
+  const toPhaseSummary = (p: {
+    id: string;
+    name: string;
+    tasks: { id: string; title: string; status: string; plannedEnd: Date }[];
+    requirements: { id: string }[];
+  }) => {
     const counts = phaseTaskCounts(p, projectId);
-    return { id: p.id, name: p.name, pct: phasePct(p), atRisk: counts.overdue > 0, overdueTasks: counts.overdueTasks };
+    return {
+      id: p.id,
+      name: p.name,
+      pct: phasePct(p),
+      atRisk: counts.overdue > 0,
+      overdueTasks: counts.overdueTasks,
+      requirementIds: p.requirements.map((r) => r.id),
+    };
   };
   const phaseIndex = new Map(phasesRaw.map((p) => [p.id, toPhaseSummary(p)]));
 
@@ -154,6 +172,7 @@ export async function getProjectCascadeProgress(projectId: string) {
     atRiskRequirementCount: o.requirements.filter((r) => requirementAtRiskById.get(r.id)).length,
     atRiskTasks: dedupeById(o.requirements.flatMap((r) => requirementAtRiskTasksById.get(r.id) ?? [])),
     requirementTitles: o.requirements.map((r) => r.title),
+    requirementIds: o.requirements.map((r) => r.id),
   }));
 
   const phases = await Promise.all(
@@ -168,6 +187,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         overdueTasks: counts.overdueTasks,
         requirementTitles: p.requirements.map((r) => r.title),
         requirementIds: p.requirements.map((r) => r.id),
+        tasks: p.tasks.map((t) => ({ id: t.id, title: t.title, href: `/projects/${projectId}/tasks/${t.id}` })),
         taskCounts: counts,
         dueInDays: due.dueInDays,
         dueTasks: due.dueTasks,

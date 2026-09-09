@@ -11,6 +11,8 @@ import { DefinitionTab } from "./DefinitionTab";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { ModalTrigger } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
+import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { projectHealth } from "@/lib/projectHealth";
 import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
 import { NewPhaseForm } from "./NewPhaseForm";
 import { NewTaskForm } from "./NewTaskForm";
@@ -122,6 +124,19 @@ export default async function ProjectPage({
       project.tasks.map(async (t) => [t.id, await getTaskAlert(project.countryCode, t)] as const)
     )
   );
+  // Mismo resumen que la card de /projects (salud, progreso, cuellos de
+  // botella) — pedido explícito del usuario, sin filtrar por los filtros de
+  // la vista (siempre sobre TODAS las tareas del proyecto).
+  const summaryOverdueTasks = project.tasks
+    .filter((t) => alertByTaskId.get(t.id)!.level === "overdue")
+    .map((t) => ({ id: t.id, title: t.title }));
+  const summaryWarningTasks = project.tasks
+    .filter((t) => alertByTaskId.get(t.id)!.level === "warning")
+    .map((t) => ({ id: t.id, title: t.title }));
+  const summaryTotal = project.tasks.length;
+  const summaryCompleted = project.tasks.filter((t) => t.status === "COMPLETED").length;
+  const summaryHealth = projectHealth(summaryOverdueTasks.length, summaryTotal);
+
   const matchesRisk = (taskId: string) => !risk || alertByTaskId.get(taskId)!.level === risk;
   const matchesFilters = (t: {
     id: string;
@@ -229,11 +244,7 @@ export default async function ProjectPage({
     // cubra hasta el fondo de la pantalla, no solo lo que ocupe el
     // contenido). 57px ≈ alto del header fijo del programa.
     <div
-      className={
-        view === "gantt"
-          ? "-m-6 flex h-[calc(100vh-57px)] flex-col space-y-6 p-6"
-          : "-m-6 min-h-[calc(100vh-57px)] space-y-6 p-6"
-      }
+      className="-m-6 min-h-[calc(100vh-57px)] space-y-6 p-6"
       style={{ backgroundColor: `color-mix(in srgb, ${viewColor} 20%, white)` }}
     >
       <SaveLastProject projectId={project.id} />
@@ -260,6 +271,25 @@ export default async function ProjectPage({
               )}
             </div>
           </div>
+        </div>
+
+        <div className="min-w-[220px] max-w-md flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <ProjectHealthBadges
+              projectId={project.id}
+              health={summaryHealth}
+              overdueCount={summaryOverdueTasks.length}
+              overdueTasks={summaryOverdueTasks}
+              warningCount={summaryWarningTasks.length}
+              warningTasks={summaryWarningTasks}
+            />
+          </div>
+          <ProjectProgress
+            projectId={project.id}
+            bottlenecks={bottlenecks}
+            total={summaryTotal}
+            completed={summaryCompleted}
+          />
         </div>
 
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -422,7 +452,7 @@ export default async function ProjectPage({
           phases={cascadeProgress.phases}
         />
       ) : view === "gantt" ? (
-        <div className="min-h-0 flex-1">
+        <div className="sticky top-[57px] h-[calc(100vh-100px)]">
           <GanttView businessDays={businessDays} tasks={ganttTasks} canManage={canManage} />
         </div>
       ) : view === "calendar" ? (

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ProjectDescription } from "./ProjectDescription";
@@ -42,6 +43,7 @@ export function DefinitionTab({
   phases: (PhaseSummary & {
     requirementTitles: string[];
     requirementIds: string[];
+    tasks: TaskRef[];
     taskCounts: { completed: number; total: number; overdue: number };
     dueInDays: number | null;
     dueTasks: TaskRef[];
@@ -50,9 +52,9 @@ export function DefinitionTab({
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-base" />
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium text-slate-900">Descripción</p>
             {canManage ? (
               <ProjectDescription projectId={projectId} description={description} />
@@ -72,7 +74,7 @@ export function DefinitionTab({
         )}
       </div>
 
-      <ObjectivesPanel projectId={projectId} objectives={objectives} canManage={canManage} />
+      <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} />
 
       <RequirementsPanel
         projectId={projectId}
@@ -86,49 +88,65 @@ export function DefinitionTab({
         {phases.length === 0 && <p className="text-sm text-slate-400">Todavía no hay fases creadas.</p>}
         <ul className="space-y-2">
           {phases.map((p) => (
-            <li key={p.id} className="rounded-lg border border-slate-100 p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{p.name}</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {p.requirementTitles.length > 0 ? `Atiende: ${p.requirementTitles.join(", ")}` : "Sin requerimiento vinculado todavía."}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
-                  <ProgressRing pct={p.pct} overdue={p.taskCounts.overdue > 0} />
-                  <span>
-                    {p.taskCounts.total > 0 ? `${p.taskCounts.completed}/${p.taskCounts.total} tareas` : "Sin tareas"}
-                    {p.taskCounts.overdue > 0 ? (
-                      <ReferencePopover
-                        trigger={
-                          <span className="text-red-600"> · {p.taskCounts.overdue} atrasada{p.taskCounts.overdue === 1 ? "" : "s"}</span>
-                        }
-                        hoverText={`Tareas atrasadas: ${p.overdueTasks.map((t) => t.title).join(", ")}`}
-                        items={p.overdueTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
-                      />
-                    ) : (
-                      p.dueInDays !== null && (
+            <li key={p.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900">{p.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {p.requirementTitles.length > 0 ? `Atiende: ${p.requirementTitles.join(", ")}` : "Sin requerimiento vinculado todavía."}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                    <ProgressRing pct={p.pct} overdue={p.taskCounts.overdue > 0} />
+                    <span>
+                      {p.taskCounts.total > 0 ? `${p.taskCounts.completed}/${p.taskCounts.total} tareas` : "Sin tareas"}
+                      {p.taskCounts.overdue > 0 ? (
                         <ReferencePopover
-                          trigger={<span className={p.dueInDays <= 2 ? "text-amber-600" : undefined}> · vence en {p.dueInDays}d</span>}
-                          hoverText={`Define la fecha: ${p.dueTasks.map((t) => t.title).join(", ")}`}
-                          items={p.dueTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
+                          trigger={
+                            <span className="text-red-600"> · {p.taskCounts.overdue} atrasada{p.taskCounts.overdue === 1 ? "" : "s"}</span>
+                          }
+                          hoverText={`Tareas atrasadas: ${p.overdueTasks.map((t) => t.title).join(", ")}`}
+                          items={p.overdueTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
                         />
-                      )
-                    )}
-                  </span>
+                      ) : (
+                        p.dueInDays !== null && (
+                          <ReferencePopover
+                            trigger={<span className={p.dueInDays <= 2 ? "text-amber-600" : undefined}> · vence en {p.dueInDays}d</span>}
+                            hoverText={`Define la fecha: ${p.dueTasks.map((t) => t.title).join(", ")}`}
+                            items={p.dueTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
+                          />
+                        )
+                      )}
+                    </span>
+                  </div>
+                  {canManage && (
+                    <ModalTrigger label="Vincular" title="Requerimientos de la fase" variant="secondary" compact>
+                      <PhaseRequirementsForm
+                        phaseId={p.id}
+                        requirements={requirements.map((r) => ({ id: r.id, title: r.title }))}
+                        currentRequirementIds={p.requirementIds}
+                      />
+                    </ModalTrigger>
+                  )}
                 </div>
-                {canManage && (
-                  <ModalTrigger label="Vincular" title="Requerimientos de la fase" variant="secondary" compact>
-                    <PhaseRequirementsForm
-                      phaseId={p.id}
-                      requirements={requirements.map((r) => ({ id: r.id, title: r.title }))}
-                      currentRequirementIds={p.requirementIds}
-                    />
-                  </ModalTrigger>
-                )}
+                <div className="mt-2">
+                  <ProgressBar pct={p.pct} />
+                </div>
               </div>
-              <div className="mt-2">
-                <ProgressBar pct={p.pct} />
+              <div className="border-t border-slate-100 pt-2 text-xs text-slate-500 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+                <p className="font-medium text-slate-600">Tareas</p>
+                {p.tasks.length > 0 ? (
+                  <ul className="mt-1 space-y-0.5">
+                    {p.tasks.map((t) => (
+                      <li key={t.id} title={t.title}>
+                        · <Link href={t.href} className="hover:text-slate-900 hover:underline">{t.title}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-slate-400">Sin tareas todavía.</p>
+                )}
               </div>
             </li>
           ))}

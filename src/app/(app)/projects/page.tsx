@@ -11,38 +11,31 @@ import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
 import { ModalTrigger } from "@/components/Modal";
 import { OverlapIcon } from "@/components/icons";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { ProjectAlertLink } from "../ProjectAlertLink";
+import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { projectHealth } from "@/lib/projectHealth";
 import { RememberViewState } from "../RememberViewState";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
+import { ProjectCardsOrder } from "./ProjectCardsOrder";
 import { ComboFilter } from "@/components/ComboFilter";
 import { SearchBox } from "@/components/SearchBox";
-import { matchesTaskSearch } from "@/lib/search";
+import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { ProjectStatus, TaskStatus } from "@prisma/client";
+import type { TaskStatus } from "@prisma/client";
 
-const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
-  PLANNING: "Planeación",
-  ACTIVE: "Activo",
-  ON_HOLD: "En pausa",
-  COMPLETED: "Completado",
-};
-
-// Indicador de salud (punto confirmado con el usuario: % de tareas
-// atrasadas) — "cómo voy" de un vistazo, sin tener que leer el detalle.
-const HEALTH_LABEL = { ok: "Bien", warn: "Normal", bad: "Muy retrasado" } as const;
-const HEALTH_STYLE = {
-  ok: "bg-emerald-50 text-emerald-700",
-  warn: "bg-amber-50 text-amber-700",
-  bad: "bg-red-50 text-red-700",
-} as const;
-
-function projectHealth(overdueCount: number, total: number): keyof typeof HEALTH_LABEL {
-  if (overdueCount === 0 || total === 0) return "ok";
-  return overdueCount / total >= 0.2 ? "bad" : "warn";
+// El status del proyecto (PLANNING/ACTIVE/.../COMPLETED en el schema) no lo
+// actualiza ningún flujo de la app — queda pegado en PLANNING para siempre
+// (bug real detectado por el usuario). Se calcula acá a partir del progreso
+// real de las tareas en vez de leer ese campo, así siempre refleja la
+// realidad sin depender de que alguien lo actualice a mano.
+const PROJECT_PHASE_LABEL = { PLANNING: "Planeación", ACTIVE: "Activo", COMPLETED: "Completado" } as const;
+function projectPhase(total: number, completed: number, started: boolean): keyof typeof PROJECT_PHASE_LABEL {
+  if (total === 0 || !started) return "PLANNING";
+  if (completed === total) return "COMPLETED";
+  return "ACTIVE";
 }
 
 export default async function ProjectsPage({
@@ -148,6 +141,7 @@ export default async function ProjectsPage({
       const bottlenecks = await getBottlenecks(p.id);
       const total = p.tasks.length;
       const completed = p.tasks.filter((t) => t.status === "COMPLETED").length;
+      const started = p.tasks.some((t) => t.status !== "NOT_STARTED");
       const collisionTasks = canSeeCollisions
         ? p.tasks.filter((t) => collisionsById.has(t.id)).map((t) => ({ id: t.id, title: t.title }))
         : [];
@@ -160,6 +154,7 @@ export default async function ProjectsPage({
         total,
         completed,
         health: projectHealth(overdueTasks.length, total),
+        phase: projectPhase(total, completed, started),
         collisionTasks,
       };
     })
@@ -174,9 +169,9 @@ export default async function ProjectsPage({
     })
     .filter(({ project: p }) => {
       if (!pq) return true;
-      const needle = pq.trim().toLowerCase();
+      const needle = normalizeSearchText(pq.trim());
       if (!needle) return true;
-      return p.name.toLowerCase().includes(needle) || (p.clientName ?? "").toLowerCase().includes(needle);
+      return normalizeSearchText(p.name).includes(needle) || normalizeSearchText(p.clientName ?? "").includes(needle);
     });
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
@@ -387,16 +382,16 @@ export default async function ProjectsPage({
                 : "Todavía no tenés proyectos."}
             </p>
           )}
-          {rows.map(({ project: p, summary }) => {
-            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, collisionTasks } = summary;
+          <ProjectCardsOrder
+            items={rows.map(({ project: p, summary }) => {
+            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, phase, collisionTasks } = summary;
             // El color del proyecto (o uno automático si no eligió uno) va de
             // fondo de la tarjeta — punto confirmado con el usuario. Siempre
             // es un color CLARO (paleta acotada en ProjectIcon.tsx), así el
             // texto slate normal es legible sin necesitar calcular contraste.
             const cardColor = p.color ?? defaultProjectBgColor(p.name);
-            return (
+            return { id: p.id, node: (
               <NavLinkWithMemory
-                key={p.id}
                 href={`/projects/${p.id}`}
                 storageKey={`project:${p.id}`}
                 className="block rounded-xl border border-slate-200 p-4 hover:brightness-95"
@@ -422,65 +417,28 @@ export default async function ProjectsPage({
                     </div>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
-                    {health === "ok" ? (
-                      <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE.ok}`}>
-                        {HEALTH_LABEL.ok}
-                      </span>
-                    ) : (
-                      <ProjectAlertLink
-                        projectId={p.id}
-                        risk="overdue"
-                        items={overdueTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
-                        className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium hover:brightness-95 ${HEALTH_STYLE[health]}`}
-                      >
-                        {HEALTH_LABEL[health]} · {overdueCount} atrasada{overdueCount > 1 ? "s" : ""}
-                      </ProjectAlertLink>
-                    )}
-                    {warningCount > 0 && (
-                      <ProjectAlertLink
-                        projectId={p.id}
-                        risk="warning"
-                        items={warningTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
-                        className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 hover:brightness-95"
-                      >
-                        {warningCount} por vencer
-                      </ProjectAlertLink>
-                    )}
+                    <ProjectHealthBadges
+                      projectId={p.id}
+                      health={health}
+                      overdueCount={overdueCount}
+                      overdueTasks={overdueTasks}
+                      warningCount={warningCount}
+                      warningTasks={warningTasks}
+                    />
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                      {PROJECT_STATUS_LABEL[p.status]}
+                      {PROJECT_PHASE_LABEL[phase]}
                     </span>
                     <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10">
-                    <div
-                      className="h-full bg-emerald-500"
-                      style={{ width: total > 0 ? `${Math.round((completed / total) * 100)}%` : "0%" }}
-                    />
-                  </div>
-                  <span className="flex-shrink-0 text-xs text-slate-500">
-                    {total > 0 ? Math.round((completed / total) * 100) : 0}% · {completed}/{total} tareas
-                  </span>
+                <div className="mt-2">
+                  <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} />
                 </div>
-                {bottlenecks.length > 0 && (
-                  <p className="mt-1 truncate text-xs text-amber-600">
-                    <ReferencePopover
-                      trigger={
-                        <>
-                          {bottlenecks.length} cuello(s) de botella: {bottlenecks.slice(0, 2).map((b) => b.title).join(", ")}
-                          {bottlenecks.length > 2 ? ` +${bottlenecks.length - 2} más` : ""}
-                        </>
-                      }
-                      hoverText={bottlenecks.map((b) => `${b.title}: ${b.bottleneckReason}`).join("\n")}
-                      items={bottlenecks.map((b) => ({ id: b.id, label: b.title, href: `/projects/${p.id}/tasks/${b.id}` }))}
-                    />
-                  </p>
-                )}
               </NavLinkWithMemory>
-            );
-          })}
+            ) };
+            })}
+          />
         </div>
       </div>
 

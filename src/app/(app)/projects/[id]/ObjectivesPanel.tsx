@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { deleteObjective } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { ObjectiveForm } from "./ObjectiveForm";
+import { RequirementForm } from "./RequirementForm";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import type { ObjectiveSummary } from "@/lib/cascadeProgress";
+import type { ObjectiveSummary, RequirementSummary } from "@/lib/cascadeProgress";
 
 function ProgressBar({ pct }: { pct: number }) {
   return (
@@ -23,12 +24,16 @@ function ProgressBar({ pct }: { pct: number }) {
 export function ObjectivesPanel({
   projectId,
   objectives,
+  requirements,
   canManage,
 }: {
   projectId: string;
   objectives: ObjectiveSummary[];
+  requirements: RequirementSummary[];
   canManage: boolean;
 }) {
+  const objectiveOptions = objectives.map((o) => ({ id: o.id, title: o.title }));
+  const requirementById = new Map(requirements.map((r) => [r.id, r]));
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -56,48 +61,74 @@ export function ObjectivesPanel({
       {objectives.length === 0 && <p className="text-sm text-slate-400">Todavía no hay objetivos definidos.</p>}
       <ul className="space-y-2">
         {objectives.map((o) => (
-          <li key={o.id} className="rounded-lg border border-slate-100 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium text-slate-900">{o.title}</p>
-                {o.description && <p className="mt-0.5 text-sm text-slate-500">{o.description}</p>}
-                <p className="mt-1 text-xs text-slate-400">
-                  {o.requirementTitles.length > 0
-                    ? `Requerimientos: ${o.requirementTitles.join(", ")}`
-                    : "Sin requerimientos vinculados todavía."}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
-                <ProgressRing pct={o.pct} overdue={o.atRiskRequirementCount > 0} />
-                <span>
-                  {o.requirementTitles.length} requerimiento{o.requirementTitles.length === 1 ? "" : "s"}
-                  {o.atRiskRequirementCount > 0 && (
-                    <ReferencePopover
-                      trigger={<span className="text-red-600"> · {o.atRiskRequirementCount} en riesgo</span>}
-                      hoverText={`Tareas atrasadas: ${o.atRiskTasks.map((t) => t.title).join(", ")}`}
-                      items={o.atRiskTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
-                    />
-                  )}
-                </span>
-              </div>
-              {canManage && (
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <ModalTrigger label="Editar" title="Editar objetivo" variant="secondary" compact>
-                    <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} />
-                  </ModalTrigger>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(o.id, o.title)}
-                    disabled={isPending && deletingId === o.id}
-                    className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
-                  >
-                    Eliminar
-                  </button>
+          <li key={o.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900">{o.title}</p>
+                  {o.description && <p className="mt-0.5 text-sm text-slate-500">{o.description}</p>}
                 </div>
-              )}
+                <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                  <ProgressRing pct={o.pct} overdue={o.atRiskRequirementCount > 0} />
+                  <span>
+                    {o.requirementTitles.length} requerimiento{o.requirementTitles.length === 1 ? "" : "s"}
+                    {o.atRiskRequirementCount > 0 && (
+                      <ReferencePopover
+                        trigger={<span className="text-red-600"> · {o.atRiskRequirementCount} en riesgo</span>}
+                        hoverText={`Tareas atrasadas: ${o.atRiskTasks.map((t) => t.title).join(", ")}`}
+                        items={o.atRiskTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
+                      />
+                    )}
+                  </span>
+                </div>
+                {canManage && (
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <ModalTrigger label="Editar" title="Editar objetivo" variant="secondary" compact>
+                      <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} />
+                    </ModalTrigger>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(o.id, o.title)}
+                      disabled={isPending && deletingId === o.id}
+                      className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2">
+                <ProgressBar pct={o.pct} />
+              </div>
             </div>
-            <div className="mt-2">
-              <ProgressBar pct={o.pct} />
+            <div className="border-t border-slate-100 pt-2 text-xs text-slate-500 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+              <p className="font-medium text-slate-600">Requerimientos</p>
+              {o.requirementIds.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {o.requirementIds.map((id, i) => {
+                    const title = o.requirementTitles[i];
+                    const req = requirementById.get(id);
+                    if (!canManage || !req) return <li key={id} title={title}>· {title}</li>;
+                    return (
+                      <li key={id} title={title}>
+                        ·{" "}
+                        <ModalTrigger label={title} title="Editar requerimiento" compact>
+                          <RequirementForm
+                            projectId={projectId}
+                            objectives={objectiveOptions}
+                            requirementId={req.id}
+                            currentTitle={req.title}
+                            currentDescription={req.description}
+                            currentObjectiveIds={req.objectiveIds}
+                          />
+                        </ModalTrigger>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="mt-1 text-slate-400">Sin requerimientos vinculados todavía.</p>
+              )}
             </div>
           </li>
         ))}

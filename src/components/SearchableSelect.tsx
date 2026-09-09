@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { normalizeSearchText } from "@/lib/search";
 
 /**
  * Select con buscador para un <form> — mismo look/UX que ComboFilter
@@ -37,7 +38,7 @@ export function SearchableSelect({
   }, [open]);
 
   const selected = options.find((o) => o.id === value);
-  const filtered = query ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())) : options;
+  const filtered = query ? options.filter((o) => normalizeSearchText(o.label).includes(normalizeSearchText(query))) : options;
 
   function choose(id: string) {
     setValue(id);

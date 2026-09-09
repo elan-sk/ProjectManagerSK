@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type ReferenceItem = { id: string; label: string; href: string };
@@ -73,6 +73,8 @@ export function ReferencePopover({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [resolvedAlign, setResolvedAlign] = useState(align);
 
   useEffect(() => {
     if (!open) return;
@@ -82,6 +84,20 @@ export function ReferencePopover({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+
+  // El align pedido por el caller es solo el punto de partida: si igual se
+  // sale del viewport (badges pegados al borde, como en la lista de
+  // Proyectos), se voltea al lado que sí entra.
+  useLayoutEffect(() => {
+    if (!open) {
+      setResolvedAlign(align);
+      return;
+    }
+    const rect = popoverRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    if (rect.right > window.innerWidth) setResolvedAlign("right");
+    else if (rect.left < 0) setResolvedAlign("left");
+  }, [open, align]);
 
   if (items.length === 0) return <span title={hoverText}>{trigger}</span>;
 
@@ -103,9 +119,10 @@ export function ReferencePopover({
 
       {open && (
         <div
+          ref={popoverRef}
           onClick={(e) => e.stopPropagation()}
           className={`absolute top-full z-20 mt-1 w-64 rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ${
-            align === "right" ? "right-0" : "left-0"
+            resolvedAlign === "right" ? "right-0" : "left-0"
           }`}
         >
           {filteredHref && (

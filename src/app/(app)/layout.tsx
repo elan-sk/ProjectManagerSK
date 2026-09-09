@@ -78,5 +78,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <main className="p-6">{children}</main>
     </div>
+    </ToastProvider>
   );
 }
