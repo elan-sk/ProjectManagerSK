@@ -26,6 +26,12 @@ export async function notifyAssignment(taskId: string, userIds: string[]) {
   await notify(userIds, "ASSIGNED", `Te asignaron la tarea "${task.title}"`, taskId, url);
 }
 
+export async function notifyBlocked(taskId: string, pmId: string) {
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+  const url = `/projects/${task.projectId}/tasks/${taskId}`;
+  await notify([pmId], "BLOCKED", `La tarea "${task.title}" fue marcada como bloqueada`, taskId, url);
+}
+
 // ponytail: sin cron real todavía — se recalcula al cargar el layout
 // protegido (barato: solo tareas del usuario logueado) y evita duplicar
 // alertas ya creadas para la misma tarea/tipo mientras sigan sin leer.

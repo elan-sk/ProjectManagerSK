@@ -13,6 +13,7 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/Confirm";
 import { PaperclipIcon, OverlapIcon } from "@/components/icons";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
@@ -208,13 +209,18 @@ function Card({
 }) {
   const router = useRouter();
   const showToast = useToast();
+  const confirm = useConfirm();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
   });
   const [deleting, setDeleting] = useState(false);
 
-  function handleDelete() {
-    if (!confirm(`¿Eliminar la tarea "${task.title}"? Esta acción no se puede deshacer.`)) return;
+  async function handleDelete() {
+    const ok = await confirm(`¿Seguro que querés eliminar la tarea "${task.title}"? No vas a poder deshacer esto.`, {
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     deleteTask(task.id).then((result) => {
       if (result.ok) {
@@ -276,7 +282,7 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full w-72 flex-shrink-0 flex-col overflow-y-auto rounded-2xl transition-colors ${
+      className={`flex h-full min-w-0 flex-col overflow-y-auto rounded-2xl transition-colors ${
         isOver ? "bg-slate-200/70" : "bg-slate-100"
       }`}
     >
@@ -310,19 +316,27 @@ export function KanbanBoard({
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
   const showToast = useToast();
+  const confirm = useConfirm();
   const [, startTransition] = useTransition();
 
   function handleDragStart(event: DragStartEvent) {
     setActiveTask(tasks.find((t) => t.id === event.active.id) ?? null);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
     const newStatus = over.id as TaskCard["status"];
     const previousStatus = tasks.find((t) => t.id === active.id)?.status;
     if (!previousStatus || previousStatus === newStatus) return;
+    if (newStatus === "COMPLETED") {
+      const ok = await confirm(
+        "Una vez que la marques como completada, no vas a poder subir más evidencia para esta tarea. ¿Querés continuar?",
+        { confirmLabel: "Sí, completar" }
+      );
+      if (!ok) return;
+    }
 
     setTasks((prev) =>
       prev.map((t) => (t.id === active.id ? { ...t, status: newStatus } : t))
@@ -344,7 +358,7 @@ export function KanbanBoard({
 
   return (
     // autoScroll desactivado: por defecto dnd-kit scrollea el contenedor más
-    // cercano (este mismo div, con overflow-x-auto) al arrastrar cerca de un
+    // cercano (cada columna, con overflow-y-auto) al arrastrar cerca de un
     // borde, lo que movía el tablero solo con empezar a arrastrar una card.
     <DndContext autoScroll={false} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {/* Alto fijo (mismo tratamiento que GanttView): el padre es sticky con
@@ -352,7 +366,7 @@ export function KanbanBoard({
           scroll vertical es de CADA columna por separado (ver Column más
           abajo), no de este contenedor — así "Completado" con 50 tareas no
           obliga a scrollear igual a "Bloqueado" con 2. */}
-      <div className="flex h-full gap-4 overflow-x-auto overflow-y-visible pb-4">
+      <div className="grid h-full grid-cols-1 gap-4 overflow-y-visible pb-4 sm:grid-cols-2 lg:grid-cols-4">
         {COLUMNS.map((status) => (
           <Column
             key={status}

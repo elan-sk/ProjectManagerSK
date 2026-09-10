@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   addMonths,
   eachDayOfInterval,
@@ -51,17 +52,57 @@ export function CalendarDatePicker({
   const [open, setOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState(value ?? new Date());
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // El popover se porta a document.body en vez de vivir "absolute" dentro
+  // del formulario: cuando este picker se abre adentro de un modal (que
+  // tiene su propio scroll interno), un hijo "absolute" queda recortado por
+  // el overflow del modal en vez de flotar libremente sobre todo — mismo
+  // patrón que los tooltips del Gantt (ver GanttBar.tsx).
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const POPOVER_HEIGHT_ESTIMATE = 420;
+  const POPOVER_WIDTH = 288; // w-72
+
+  function updatePopoverPos() {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const fitsBelow = window.innerHeight - rect.bottom >= POPOVER_HEIGHT_ESTIMATE + 8;
+    if (fitsBelow) {
+      setPopoverPos({ left: rect.left, top: rect.bottom + 4 });
+      return;
+    }
+    // No entra debajo del botón (típico cuando el picker vive dentro de un
+    // modal que ya ocupa buena parte de la pantalla) — se centra en el
+    // viewport en vez de quedar pegado arriba en una esquina rara.
+    setPopoverPos({
+      left: Math.max(8, (window.innerWidth - POPOVER_WIDTH) / 2),
+      top: Math.max(8, (window.innerHeight - POPOVER_HEIGHT_ESTIMATE) / 2),
+    });
+  }
 
   // No cierra al elegir el día: así se ve resaltado el rango de días hábiles
   // resultante (punto 5 — estilo apps de hotel) antes de cerrar. Cierra solo
   // al hacer click afuera.
   useEffect(() => {
     if (!open) return;
+    updatePopoverPos();
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onReposition() {
+      updatePopoverPos();
     }
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+    };
   }, [open]);
 
   const days = eachDayOfInterval({ start: startOfMonth(viewMonth), end: endOfMonth(viewMonth) });
@@ -73,6 +114,7 @@ export function CalendarDatePicker({
     <div className="relative" ref={rootRef}>
       <label className="text-sm text-slate-600">{label}</label>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="mt-1 flex w-full items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-left text-sm hover:border-slate-400"
@@ -87,8 +129,14 @@ export function CalendarDatePicker({
       </button>
       <input type="hidden" name={name} value={value ? format(value, "yyyy-MM-dd") : ""} required />
 
-      {open && (
-        <div className="absolute z-20 mt-1 w-72 rounded-2xl bg-white p-3 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+      {open &&
+        popoverPos &&
+        createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-100 w-72 rounded-2xl bg-white p-3 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
+          style={{ top: popoverPos.top, left: popoverPos.left }}
+        >
           <div className="mb-2 flex items-center justify-between">
             <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="rounded p-1 text-slate-500 hover:bg-slate-100">
               ‹
@@ -144,7 +192,8 @@ export function CalendarDatePicker({
               Listo
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

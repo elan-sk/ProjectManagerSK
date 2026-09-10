@@ -116,6 +116,10 @@ model Project {
   countryCode String        @default("CO")
   status      ProjectStatus @default(PLANNING)
   startDate   DateTime
+  // Deadline comprometido del proyecto (no se deriva del cronograma de
+  // tareas) — opcional porque los proyectos existentes no tienen uno.
+  targetEndDate DateTime?
+  repoUrl     String?
   pmId        String
   pm          User          @relation("ProjectPM", fields: [pmId], references: [id])
   createdAt   DateTime      @default(now())

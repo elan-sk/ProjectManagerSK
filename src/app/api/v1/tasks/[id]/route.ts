@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { getTaskDelayDays } from "@/lib/delays";
+import { notifyBlocked } from "@/lib/notifications";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +41,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (denied) return denied;
 
   const { id } = await params;
-  const task = await prisma.task.findUnique({ where: { id }, include: { steps: true } });
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: { steps: true, project: { select: { pmId: true } } },
+  });
   if (!task) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
   const parsedBody = await safeJson(request);
@@ -69,6 +73,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       actualEnd: data.status === "COMPLETED" ? new Date() : data.status ? null : undefined,
     },
   });
+
+  if (data.status === "BLOCKED" && task.status !== "BLOCKED" && task.project.pmId) {
+    await notifyBlocked(id, task.project.pmId);
+  }
 
   return NextResponse.json(updated);
 }

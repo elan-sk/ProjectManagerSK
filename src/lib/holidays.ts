@@ -101,6 +101,22 @@ export async function addBusinessDays(
   return result;
 }
 
+// Espejo de addBusinessDays: resta `days` días hábiles a partir de `start`
+// (sin contar `start` mismo). Usada por el backward pass de criticalPath.ts.
+export async function subtractBusinessDays(
+  countryCode: string,
+  start: Date,
+  days: number
+) {
+  const result = new Date(start);
+  let remaining = days;
+  while (remaining > 0) {
+    result.setUTCDate(result.getUTCDate() - 1);
+    if (await isBusinessDay(countryCode, result)) remaining -= 1;
+  }
+  return result;
+}
+
 // Lista las fechas hábiles entre dos fechas (inclusive) — usada para
 // posicionar las barras del Gantt sin contar fines de semana ni festivos,
 // igual que el Cronograma_Racafe.xlsx de referencia.

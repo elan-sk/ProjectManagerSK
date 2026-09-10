@@ -8,6 +8,24 @@ import type { getBottlenecks } from "@/lib/delays";
 // layouts (la card las mezcla con el badge de fase y el avatar del PM en una
 // misma fila; /projects/[id] las apila aparte) sin duplicar el JSX.
 
+// Holgura/retraso REAL (plannedEnd vs. actualEnd de tareas ya completadas,
+// ver getTaskScheduleVariance) — distinto del openSlackDays de al lado
+// (margen estructural CPM de las tareas todavía abiertas). Positivo =
+// terminaron adelantadas en conjunto, negativo = atrasadas. null = ninguna
+// tarea completada todavía en ese alcance.
+export function ScheduleVarianceBadge({ days }: { days: number | null }) {
+  if (days === null || days === 0) return null;
+  return (
+    <span
+      className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+        days > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+      }`}
+    >
+      {days > 0 ? `+${days}d holgura` : `${days}d retraso`}
+    </span>
+  );
+}
+
 export function ProjectHealthBadges({
   projectId,
   health,
@@ -15,6 +33,8 @@ export function ProjectHealthBadges({
   overdueTasks,
   warningCount,
   warningTasks,
+  openSlackDays = null,
+  scheduleVarianceDays = null,
 }: {
   projectId: string;
   health: keyof typeof HEALTH_LABEL;
@@ -22,12 +42,15 @@ export function ProjectHealthBadges({
   overdueTasks: { id: string; title: string }[];
   warningCount: number;
   warningTasks: { id: string; title: string }[];
+  openSlackDays?: number | null;
+  scheduleVarianceDays?: number | null;
 }) {
   return (
     <>
       {health === "ok" ? (
         <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE.ok}`}>
           {HEALTH_LABEL.ok}
+          {openSlackDays !== null && openSlackDays !== 0 && ` · ${openSlackDays}d de holgura`}
         </span>
       ) : (
         <ProjectAlertLink
@@ -49,6 +72,7 @@ export function ProjectHealthBadges({
           {warningCount} por vencer
         </ProjectAlertLink>
       )}
+      <ScheduleVarianceBadge days={scheduleVarianceDays} />
     </>
   );
 }

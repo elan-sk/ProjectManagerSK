@@ -7,8 +7,10 @@ import { NotificationBell } from "./NotificationBell";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { ProjectsNavLink } from "./ProjectsNavLink";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
+import { BackButton } from "./BackButton";
 import { Avatar } from "@/components/Avatar";
 import { ToastProvider } from "@/components/Toast";
+import { ConfirmProvider } from "@/components/Confirm";
 
 // Next.js 16: proxy.ts (ex-middleware) ya no es el lugar para auth — la
 // verificación de sesión va en el layout/route handler, como pide la guía
@@ -44,9 +46,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
+    <ConfirmProvider>
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
+          <BackButton />
           <ProjectsNavLink />
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
             Agenda
@@ -78,6 +82,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <main className="p-6">{children}</main>
     </div>
+    </ConfirmProvider>
     </ToastProvider>
   );
 }

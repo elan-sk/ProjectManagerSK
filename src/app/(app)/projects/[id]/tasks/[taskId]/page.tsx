@@ -2,12 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getTaskDelayDays, getTaskAlert } from "@/lib/delays";
-import { getProjectAdmin } from "@/lib/permissions";
+import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
+import { getProjectAdmin, canEditTask } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { StepCheckbox } from "./StepCheckbox";
 import { AttachmentUploader } from "./AttachmentUploader";
-import { AttachmentPreview } from "./AttachmentPreview";
+import { AttachmentGrid } from "./AttachmentGrid";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
 import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
@@ -18,6 +18,8 @@ import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { AvatarGroup } from "@/components/Avatar";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { NavLinkWithMemory } from "../../../../NavLinkWithMemory";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
@@ -46,12 +48,13 @@ export default async function TaskDetailPage({
   });
   if (!task) notFound();
 
-  const [otherTasks, canManage, users, alert, phases] = await Promise.all([
+  const [otherTasks, canManage, canEdit, users, alert, phases] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
     }),
     getProjectAdmin(projectId).then(Boolean),
+    canEditTask(taskId),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
     getTaskAlert(task.project.countryCode, task),
     prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
@@ -59,6 +62,12 @@ export default async function TaskDetailPage({
 
   const delayDays =
     task.status === "COMPLETED" ? await getTaskDelayDays(task.project.countryCode, task) : 0;
+  const earlyDays =
+    task.status === "COMPLETED" && delayDays === 0
+      ? await getTaskEarlyDays(task.project.countryCode, task)
+      : 0;
+  const scheduleVariance =
+    task.status === "COMPLETED" ? await getTaskScheduleVariance(task.project.countryCode, task) : null;
   // Mismo criterio que getBottlenecks (lib/delays.ts): no completada y (2+
   // sucesoras retenidas, o riesgo alto). Se recalcula acá en vez de llamar a
   // esa función porque acá hace falta el id de cada sucesora para poder
@@ -81,17 +90,22 @@ export default async function TaskDetailPage({
         >
           ← {task.project.name}
         </NavLinkWithMemory>
-        <div className="mt-1">
-          <InlineTitle taskId={taskId} title={task.title} canManage={canManage} />
+        <div className="mt-1 flex items-center gap-2">
+          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} size="h-10 w-10 flex-shrink-0 text-sm" />
+          <div className="min-w-0 flex-1">
+            <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
+          </div>
         </div>
-        <InlineDescription taskId={taskId} description={task.description} canManage={canManage} />
-        <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-slate-500">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
           <span>
-            <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase:{" "}
-            <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canManage} />{" "}
-            · Asignados: {task.assignees.map((a) => a.user.name).join(", ") || "Sin asignar"}
+            <InlineType taskId={taskId} type={task.type} canManage={canEdit} /> · Fase:{" "}
+            <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canEdit} />{" "}
+            · Asignados:
           </span>
-          {canManage && (
+          <AvatarGroup
+            people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))}
+          />
+          {canEdit && (
             <ModalTrigger label="Cambiar" title="Asignar tarea" variant="secondary" compact>
               <ReassignAssigneesForm
                 taskId={taskId}
@@ -115,6 +129,18 @@ export default async function TaskDetailPage({
         {delayDays > 0 && (
           <p className="mt-1 text-sm font-medium text-red-600">
             Generó {delayDays} día(s) hábil(es) de atraso propio.
+          </p>
+        )}
+        {earlyDays > 0 && (
+          <p className="mt-1 text-sm font-medium text-emerald-600">
+            Se adelantó {earlyDays} día(s) hábil(es) (holgura).
+          </p>
+        )}
+        {scheduleVariance !== null && scheduleVariance !== 0 && (
+          <p className={`mt-1 text-sm font-medium ${scheduleVariance > 0 ? "text-emerald-600" : "text-red-600"}`}>
+            {scheduleVariance > 0
+              ? `Terminó ${scheduleVariance} día(s) hábil(es) antes de lo planeado (holgura) — sus sucesoras ya se corrieron.`
+              : `Terminó ${Math.abs(scheduleVariance)} día(s) hábil(es) después de lo planeado (retraso) — sus sucesoras ya se corrieron.`}
           </p>
         )}
         {isBottleneck && (
@@ -155,6 +181,8 @@ export default async function TaskDetailPage({
           </p>
         )}
 
+        <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
+
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <TaskStatusControl taskId={taskId} status={task.status} />
           {canManage && <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} />}
@@ -172,35 +200,36 @@ export default async function TaskDetailPage({
           <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
           <div className="space-y-2">
             {task.steps.map((s) => (
-              <StepCheckbox key={s.id} stepId={s.id} description={s.description} done={s.done} />
+              <StepCheckbox key={s.id} stepId={s.id} description={s.description} done={s.done} canEdit={canEdit} />
             ))}
             {task.steps.length === 0 && (
               <p className="text-sm text-slate-400">Sin pasos todavía.</p>
             )}
           </div>
-          <form action={addStepWithId} className="flex gap-2">
-            <input
-              name="description"
-              placeholder="Nuevo paso / prueba"
-              required
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
-              Agregar
-            </button>
-          </form>
+          {canEdit && (
+            <form action={addStepWithId} className="flex gap-2">
+              <input
+                name="description"
+                placeholder="Nuevo paso / prueba"
+                required
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                Agregar
+              </button>
+            </form>
+          )}
         </section>
       )}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">Insumos</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {insumos.map((a) => (
-              <AttachmentPreview key={a.id} id={a.id} url={a.fileUrl} name={a.fileName} mimeType={a.mimeType} />
-            ))}
-          </div>
-          {session?.user && (
+          <AttachmentGrid
+            items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+            canDelete={canManage}
+          />
+          {canEdit && session?.user && (
             <AttachmentUploader
               taskId={taskId}
               userId={session.user.id}
@@ -212,18 +241,20 @@ export default async function TaskDetailPage({
 
         <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">Resultados / evidencia</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {resultados.map((a) => (
-              <AttachmentPreview key={a.id} id={a.id} url={a.fileUrl} name={a.fileName} mimeType={a.mimeType} />
-            ))}
-          </div>
-          {session?.user && (
+          <AttachmentGrid
+            items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+            canDelete={canManage}
+          />
+          {canEdit && session?.user && task.status !== "COMPLETED" && (
             <AttachmentUploader
               taskId={taskId}
               userId={session.user.id}
               kind="RESULTADO"
               label="+ Subir evidencia"
             />
+          )}
+          {task.status === "COMPLETED" && (
+            <p className="text-xs text-slate-400">La tarea ya está completada — no se puede subir más evidencia.</p>
           )}
         </div>
       </section>

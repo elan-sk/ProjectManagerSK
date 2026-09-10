@@ -6,6 +6,7 @@ import { CalendarDatePicker } from "@/components/CalendarDatePicker";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { useModalClose } from "@/components/Modal";
+import { Avatar } from "@/components/Avatar";
 
 const TASK_TYPES = [
   { value: "SIMPLE", label: "Simple" },
@@ -24,7 +25,7 @@ export function NewTaskForm({
 }: {
   projectId: string;
   phases: { id: string; name: string }[];
-  users: { id: string; name: string }[];
+  users: { id: string; name: string; avatarUrl?: string | null }[];
   otherTasks: { id: string; title: string }[];
 }) {
   const onDone = useModalClose();
@@ -107,6 +108,7 @@ export function NewTaskForm({
           {users.map((u) => (
             <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
               <input type="checkbox" name="assigneeIds" value={u.id} className="rounded border-slate-300" />
+              <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-6 w-6 text-[10px]" />
               {u.name}
             </label>
           ))}

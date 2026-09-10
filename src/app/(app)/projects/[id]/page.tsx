@@ -6,6 +6,7 @@ import { getTaskAlert, getBottlenecks } from "@/lib/delays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { KanbanBoard, type TaskCard } from "./KanbanBoard";
 import { GanttView, type GanttTask } from "./GanttView";
+import { CriticalPathButton } from "./CriticalPathButton";
 import { ProjectCalendarView, type CalendarTask } from "./ProjectCalendarView";
 import { DefinitionTab } from "./DefinitionTab";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
@@ -14,16 +15,19 @@ import { Avatar } from "@/components/Avatar";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { projectHealth } from "@/lib/projectHealth";
 import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
-import { NewPhaseForm } from "./NewPhaseForm";
 import { NewTaskForm } from "./NewTaskForm";
 import { ReassignPMForm } from "./ReassignPMForm";
 import { EditStartDateForm } from "./EditStartDateForm";
+import { EditTargetEndDateForm } from "./EditTargetEndDateForm";
+import { EditRepoUrlForm } from "./EditRepoUrlForm";
 import { SaveLastProject } from "./SaveLastProject";
 import { RememberViewState } from "../../RememberViewState";
 import { NavLinkWithMemory } from "../../NavLinkWithMemory";
 import { ComboFilter } from "@/components/ComboFilter";
 import { SearchBox } from "@/components/SearchBox";
-import { matchesTaskSearch } from "@/lib/search";
+import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
+import { attachmentFileType } from "@/lib/attachments";
+import { ProjectFilesView } from "./ProjectFilesView";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import type { TaskStatus } from "@prisma/client";
@@ -43,10 +47,14 @@ export default async function ProjectPage({
     userId?: string;
     risk?: "overdue" | "warning";
     q?: string;
+    fileKind?: string;
+    fileType?: string;
+    fileTask?: string;
+    fileQ?: string;
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, userId, risk, q } = await searchParams;
+  const { view, date, mode, status, userId, risk, q, fileKind, fileType, fileTask, fileQ } = await searchParams;
   const now = new Date();
   const calendarMode: CalendarMode = mode === "week" || mode === "day" ? mode : "month";
   const [dy, dm, dd] = date ? date.split("-").map(Number) : [];
@@ -82,6 +90,16 @@ export default async function ProjectPage({
     const qs = p.toString();
     return `/projects/${id}${qs ? `?${qs}` : ""}`;
   };
+  // Filtros propios de la pestaña "Archivos" (insumo/evidencia, tipo,
+  // tarea, buscador) — independientes de los de arriba, que filtran tareas.
+  const filesHref = (overrides: Record<string, string | undefined>) => {
+    const p = new URLSearchParams({ view: "files" });
+    const merged: Record<string, string | undefined> = { fileKind, fileType, fileTask, fileQ, ...overrides };
+    for (const [k, v] of Object.entries(merged)) {
+      if (v) p.set(k, v);
+    }
+    return `/projects/${id}?${p.toString()}`;
+  };
 
   const [project, users, canManage, bottlenecks, cascadeProgress] = await Promise.all([
     prisma.project.findUnique({
@@ -93,9 +111,13 @@ export default async function ProjectPage({
           include: {
             assignees: { include: { user: true } },
             steps: true,
-            attachments: { select: { id: true, fileName: true } },
+            attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
             dependsOn: {
-              include: { predecessor: { select: { id: true, title: true, plannedStart: true, plannedEnd: true } } },
+              include: {
+                predecessor: {
+                  select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true },
+                },
+              },
             },
             blocks: { include: { successor: { select: { id: true, title: true } } } },
           },
@@ -136,6 +158,12 @@ export default async function ProjectPage({
   const summaryTotal = project.tasks.length;
   const summaryCompleted = project.tasks.filter((t) => t.status === "COMPLETED").length;
   const summaryHealth = projectHealth(summaryOverdueTasks.length, summaryTotal);
+  const phaseSlackValues = cascadeProgress.phases.map((p) => p.openSlackDays).filter((v): v is number => v !== null);
+  const summaryOpenSlackDays = phaseSlackValues.length > 0 ? Math.min(...phaseSlackValues) : null;
+  const phaseVarianceValues = cascadeProgress.phases
+    .map((p) => p.scheduleVarianceDays)
+    .filter((v): v is number => v !== null);
+  const summaryScheduleVarianceDays = phaseVarianceValues.length > 0 ? phaseVarianceValues.reduce((s, v) => s + v, 0) : null;
 
   const matchesRisk = (taskId: string) => !risk || alertByTaskId.get(taskId)!.level === risk;
   const matchesFilters = (t: {
@@ -175,16 +203,32 @@ export default async function ProjectPage({
 
   const rangeEnd =
     project.tasks.length > 0
-      ? new Date(Math.max(...project.tasks.map((t) => t.plannedEnd.getTime())))
+      ? new Date(Math.max(...project.tasks.flatMap((t) => [t.plannedEnd.getTime(), t.actualEnd?.getTime() ?? 0])))
       : project.startDate;
-  const businessDays = await businessDaysRange(project.countryCode, project.startDate, rangeEnd);
+  // Margen para poder arrastrar el fin de la última tarea del proyecto más
+  // allá de lo ya planeado (bug real: sin esto, businessDays terminaba
+  // justo en su plannedEnd y el handle de la derecha quedaba clampeado en
+  // el mismo lugar — no había ninguna columna futura a la que arrastrar). Si
+  // el deadline del proyecto cae más lejos que eso, la grilla también debe
+  // alcanzar para poder dibujar esa línea.
+  const gridEnd = new Date(Math.max(rangeEnd.getTime(), project.targetEndDate?.getTime() ?? 0));
+  gridEnd.setUTCDate(gridEnd.getUTCDate() + 30);
+  const businessDays = await businessDaysRange(project.countryCode, project.startDate, gridEnd);
 
   const dateKey = (d: Date) => d.toISOString().slice(0, 10);
   const businessDayIndex = new Map(businessDays.map((d, i) => [dateKey(d), i]));
 
+  // Punto confirmado con el usuario: una tarea ya COMPLETED se dibuja hasta
+  // su actualEnd real, no hasta el plannedEnd planeado — la barra debe
+  // reflejar cuándo terminó de verdad. El plannedEnd de la DB sigue intacto
+  // (getTaskDelayDays/getTaskEarlyDays/reportes lo siguen usando tal cual);
+  // esto es solo la fecha que se grafica.
+  const displayEnd = (t: { status: string; plannedEnd: Date; actualEnd: Date | null }) =>
+    t.status === "COMPLETED" && t.actualEnd ? t.actualEnd : t.plannedEnd;
+
   const ganttTasks: GanttTask[] = project.tasks.filter(matchesFilters).map((t) => {
     const startIndex = businessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
-    const endIndex = businessDayIndex.get(dateKey(t.plannedEnd)) ?? startIndex;
+    const endIndex = businessDayIndex.get(dateKey(displayEnd(t))) ?? startIndex;
     // Punto 6 (arrastre de extremos): el inicio nunca puede quedar antes de
     // lo que exija la predecesora MÁS estricta — "termina antes de que esta
     // empiece" (Finish-to-Start) pide el día hábil siguiente a su fin; "en
@@ -193,7 +237,7 @@ export default async function ProjectPage({
     const requiredStartIndices = t.dependsOn.map((d) =>
       d.type === "START_TO_START"
         ? (businessDayIndex.get(dateKey(d.predecessor.plannedStart)) ?? -1)
-        : (businessDayIndex.get(dateKey(d.predecessor.plannedEnd)) ?? -1) + 1
+        : (businessDayIndex.get(dateKey(displayEnd(d.predecessor))) ?? -1) + 1
     );
     const minStartIndex = Math.max(0, ...requiredStartIndices);
     return {
@@ -209,11 +253,11 @@ export default async function ProjectPage({
       span: endIndex - startIndex + 1,
       minStartIndex,
       plannedStart: t.plannedStart.toISOString(),
-      plannedEnd: t.plannedEnd.toISOString(),
+      plannedEnd: displayEnd(t).toISOString(),
       dependsOn: t.dependsOn.map((d) =>
         d.type === "START_TO_START" ? `${d.predecessor.title} (en paralelo)` : d.predecessor.title
       ),
-      dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, type: d.type })),
+      dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, dependencyId: d.id, type: d.type })),
       blocks: t.blocks.map((d) => d.successor.title),
       blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
       attachmentsCount: t.attachments.length,
@@ -237,6 +281,17 @@ export default async function ProjectPage({
       collidesWith: null,
     }));
 
+  const projectFileKind: "INSUMO" | "RESULTADO" = fileKind === "RESULTADO" ? "RESULTADO" : "INSUMO";
+  const projectFiles = project.tasks
+    .flatMap((t) =>
+      t.attachments
+        .filter((a) => a.kind === projectFileKind)
+        .map((a) => ({ ...a, taskId: t.id, taskTitle: t.title }))
+    )
+    .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
+    .filter((a) => !fileTask || a.taskId === fileTask)
+    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+
   return (
     // El color del proyecto va de fondo de TODA la vista, no solo del
     // encabezado — por eso el -m-6/p-6 (cancela el padding de <main> para
@@ -253,23 +308,43 @@ export default async function ProjectPage({
         ← Todos los proyectos
       </NavLinkWithMemory>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" />
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
-            <div className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
-              <span>
-                {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
-              </span>
-              {canManage && (
-                <ModalTrigger label="Cambiar fecha" title="Editar fecha de inicio" variant="secondary">
+            <div className="text-sm text-slate-500">
+              {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
+              {project.targetEndDate && (
+                <> · Cierre: {project.targetEndDate.toLocaleDateString("es-CO", DATE_FMT)}</>
+              )}
+              {project.repoUrl && (
+                <>
+                  {" · "}
+                  <a href={project.repoUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                    Repositorio
+                  </a>
+                </>
+              )}
+            </div>
+            {canManage && (
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                <ModalTrigger label="Fecha de inicio" title="Editar fecha de inicio" variant="secondary" small>
                   <EditStartDateForm
                     projectId={project.id}
                     currentStartDate={project.startDate.toISOString().slice(0, 10)}
                   />
                 </ModalTrigger>
-              )}
-            </div>
+                <ModalTrigger label="Fecha de cierre" title="Editar fecha de cierre" variant="secondary" small>
+                  <EditTargetEndDateForm
+                    projectId={project.id}
+                    currentTargetEndDate={project.targetEndDate?.toISOString().slice(0, 10) ?? null}
+                  />
+                </ModalTrigger>
+                <ModalTrigger label="Repositorio" title="Editar URL del repositorio" variant="secondary" small>
+                  <EditRepoUrlForm projectId={project.id} currentRepoUrl={project.repoUrl} />
+                </ModalTrigger>
+              </div>
+            )}
           </div>
         </div>
 
@@ -282,6 +357,8 @@ export default async function ProjectPage({
               overdueTasks={summaryOverdueTasks}
               warningCount={summaryWarningTasks.length}
               warningTasks={summaryWarningTasks}
+              openSlackDays={summaryOpenSlackDays}
+              scheduleVarianceDays={summaryScheduleVarianceDays}
             />
           </div>
           <ProjectProgress
@@ -308,9 +385,6 @@ export default async function ProjectPage({
 
       {canManage && (
         <div className="flex gap-2">
-          <ModalTrigger label="+ Nueva fase" title="Nueva fase" variant="secondary">
-            <NewPhaseForm projectId={project.id} />
-          </ModalTrigger>
           <ModalTrigger label="+ Nueva tarea" title="Nueva tarea" variant="primary">
             <NewTaskForm
               projectId={project.id}
@@ -348,6 +422,12 @@ export default async function ProjectPage({
           >
             Definición
           </Link>
+          <Link
+            href={filesHref({})}
+            className={`rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+          >
+            Archivos
+          </Link>
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -367,7 +447,7 @@ export default async function ProjectPage({
         )}
       </div>
 
-      {view !== "definition" && (
+      {view !== "definition" && view !== "files" && (
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
@@ -422,6 +502,13 @@ export default async function ProjectPage({
             triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
           />
         </div>
+
+        {view === "gantt" && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">&nbsp;</span>
+            <CriticalPathButton />
+          </div>
+        )}
       </div>
       )}
 
@@ -439,7 +526,26 @@ export default async function ProjectPage({
         </div>
       )}
 
-      {view === "definition" ? (
+      {view === "files" ? (
+        <ProjectFilesView
+          projectId={project.id}
+          files={projectFiles.map((f) => ({
+            id: f.id,
+            taskId: f.taskId,
+            taskTitle: f.taskTitle,
+            fileUrl: f.fileUrl,
+            fileName: f.fileName,
+            mimeType: f.mimeType,
+          }))}
+          tasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
+          fileKind={projectFileKind}
+          fileType={fileType}
+          fileTask={fileTask}
+          fileQ={fileQ}
+          canDelete={canManage}
+          filesHref={filesHref}
+        />
+      ) : view === "definition" ? (
         <DefinitionTab
           projectId={project.id}
           name={project.name}
@@ -453,7 +559,12 @@ export default async function ProjectPage({
         />
       ) : view === "gantt" ? (
         <div className="sticky top-[57px] h-[calc(100vh-100px)]">
-          <GanttView businessDays={businessDays} tasks={ganttTasks} canManage={canManage} />
+          <GanttView
+            businessDays={businessDays}
+            tasks={ganttTasks}
+            canManage={canManage}
+            targetEndDate={project.targetEndDate?.toISOString() ?? null}
+          />
         </div>
       ) : view === "calendar" ? (
         <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} />

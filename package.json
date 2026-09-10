@@ -11,7 +11,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "verify:delay-rule": "tsx scripts/verify-delay-rule.ts"
+    "verify:delay-rule": "tsx scripts/verify-delay-rule.ts",
+    "verify:schedule-cascade": "tsx scripts/verify-schedule-cascade.ts",
+    "verify:move-task-group": "tsx scripts/verify-move-task-group.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

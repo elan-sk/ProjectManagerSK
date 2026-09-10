@@ -8,6 +8,9 @@ import { RequirementForm } from "./RequirementForm";
 import { PhaseRequirementsForm } from "./PhaseRequirementsForm";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
+import { useConfirm } from "@/components/Confirm";
+import { pctStatus } from "@/lib/statusColors";
 import type { RequirementSummary } from "@/lib/cascadeProgress";
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -33,12 +36,17 @@ export function RequirementsPanel({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const requirementOptions = requirements.map((rr) => ({ id: rr.id, title: rr.title }));
 
-  function handleDelete(id: string, title: string) {
-    if (!confirm(`¿Eliminar el requerimiento "${title}"? Esta acción no se puede deshacer.`)) return;
+  async function handleDelete(id: string, title: string) {
+    const ok = await confirm(`¿Seguro que querés eliminar el requerimiento "${title}"? No vas a poder deshacer esto.`, {
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     startTransition(async () => {
       await deleteRequirement(id);
@@ -60,31 +68,48 @@ export function RequirementsPanel({
       {requirements.length === 0 && <p className="text-sm text-slate-400">Todavía no hay requerimientos definidos.</p>}
       <ul className="space-y-2">
         {requirements.map((r) => (
-          <li key={r.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 p-3 sm:grid-cols-[minmax(0,1fr)_200px]">
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{r.title}</p>
-                  {r.description && <p className="mt-0.5 text-sm text-slate-500">{r.description}</p>}
-                  <p className="mt-1 text-xs text-slate-400">
-                    {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
-                  <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} />
-                  <span>
-                    {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
-                    {r.atRiskPhaseCount > 0 && (
+          <li key={r.id} className="rounded-lg border border-slate-100 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-900">{r.title}</p>
+                {r.description && <p className="mt-0.5 text-sm text-slate-500">{r.description}</p>}
+                <p className="mt-1 text-xs text-slate-400">
+                  {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} size={28} />
+                  <div className="text-xs text-slate-500">
+                    <p className="whitespace-nowrap">
+                      {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
+                    </p>
+                    {r.atRiskPhaseCount > 0 ? (
                       <ReferencePopover
-                        trigger={<span className="text-red-600"> · {r.atRiskPhaseCount} en riesgo</span>}
+                        trigger={
+                          <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
+                            {r.atRiskPhaseCount} en riesgo
+                          </span>
+                        }
                         hoverText={`Tareas atrasadas: ${r.atRiskTasks.map((t) => t.title).join(", ")}`}
                         items={r.atRiskTasks.map((t) => ({ id: t.id, label: t.title, href: t.href }))}
                       />
+                    ) : (
+                      r.openSlackDays !== null && (
+                        <span
+                          className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                            r.openSlackDays <= 2 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {r.openSlackDays}d de holgura
+                        </span>
+                      )
                     )}
-                  </span>
+                    <ScheduleVarianceBadge days={r.scheduleVarianceDays} />
+                  </div>
                 </div>
                 {canManage && (
-                  <div className="flex flex-shrink-0 items-center gap-2">
+                  <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
                     <ModalTrigger label="Editar" title="Editar requerimiento" variant="secondary" compact>
                       <RequirementForm
                         projectId={projectId}
@@ -106,33 +131,44 @@ export function RequirementsPanel({
                   </div>
                 )}
               </div>
-              <div className="mt-2">
-                <ProgressBar pct={r.pct} />
-              </div>
             </div>
-            <div className="border-t border-slate-100 pt-2 text-xs text-slate-500 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-              <p className="font-medium text-slate-600">Fases</p>
+            <div className="mt-2">
+              <ProgressBar pct={r.pct} />
+            </div>
+            <div className="mt-3 border-t border-slate-100 pt-2">
+              <p className="text-xs font-medium text-slate-600">Fases</p>
               {r.phases.length > 0 ? (
-                <ul className="mt-1 space-y-0.5">
-                  {r.phases.map((p) => (
-                    <li key={p.id} title={p.name}>
-                      ·{" "}
-                      {canManage ? (
-                        <ModalTrigger label={p.name} title="Requerimientos de la fase" compact>
-                          <PhaseRequirementsForm
-                            phaseId={p.id}
-                            requirements={requirementOptions}
-                            currentRequirementIds={p.requirementIds}
-                          />
-                        </ModalTrigger>
-                      ) : (
-                        p.name
-                      )}
-                    </li>
-                  ))}
+                <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                  {r.phases.map((p, i) => {
+                    const status = pctStatus(p.pct, p.atRisk);
+                    return (
+                      <li
+                        key={p.id}
+                        title={p.name}
+                        className={`flex items-baseline justify-between gap-2 rounded px-1.5 py-1 ${i % 2 === 0 ? "bg-slate-50" : ""}`}
+                      >
+                        <span className="min-w-0">
+                          {canManage ? (
+                            <ModalTrigger label={p.name} title="Requerimientos de la fase" compact>
+                              <PhaseRequirementsForm
+                                phaseId={p.id}
+                                requirements={requirementOptions}
+                                currentRequirementIds={p.requirementIds}
+                              />
+                            </ModalTrigger>
+                          ) : (
+                            p.name
+                          )}
+                        </span>
+                        <span className={`shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-medium ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
-                <p className="mt-1 text-slate-400">Sin fase vinculada todavía (vinculalo desde la fase en Fases y avance).</p>
+                <p className="mt-1 text-xs text-slate-400">Sin fase vinculada todavía (vinculalo desde la fase en Fases y avance).</p>
               )}
             </div>
           </li>

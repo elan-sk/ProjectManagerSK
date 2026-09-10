@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteTask } from "./actions";
+import { useConfirm } from "@/components/Confirm";
 
 export function DeleteTaskButton({
   taskId,
@@ -16,11 +17,16 @@ export function DeleteTaskButton({
   compact?: boolean;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleDelete() {
-    if (!confirm(`¿Eliminar la tarea "${title}"? Esta acción no se puede deshacer.`)) return;
+  async function handleDelete() {
+    const ok = await confirm(`¿Seguro que querés eliminar la tarea "${title}"? No vas a poder deshacer esto.`, {
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteTask(taskId);

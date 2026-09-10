@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { setTaskAssignees } from "./actions";
 import { useModalClose } from "@/components/Modal";
+import { Avatar } from "@/components/Avatar";
 
 export function ReassignAssigneesForm({
   taskId,
@@ -11,7 +12,7 @@ export function ReassignAssigneesForm({
 }: {
   taskId: string;
   currentAssigneeIds: string[];
-  users: { id: string; name: string }[];
+  users: { id: string; name: string; avatarUrl?: string | null }[];
 }) {
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function ReassignAssigneesForm({
               defaultChecked={currentAssigneeIds.includes(u.id)}
               className="rounded border-slate-300"
             />
+            <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-6 w-6 text-[10px]" />
             {u.name}
           </label>
         ))}

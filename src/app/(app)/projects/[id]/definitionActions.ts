@@ -149,6 +149,40 @@ export async function deleteRequirement(requirementId: string) {
   return { ok: true as const };
 }
 
+const phaseNameSchema = z.object({ name: z.string().min(1) });
+
+export async function updatePhaseName(phaseId: string, formData: FormData) {
+  const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
+  const denied = await guard(phase.projectId);
+  if (denied) return denied;
+
+  const data = phaseNameSchema.parse({ name: formData.get("name") });
+  await prisma.phase.update({ where: { id: phaseId }, data: { name: data.name } });
+  revalidatePath(`/projects/${phase.projectId}`);
+  return { ok: true as const };
+}
+
+export async function deletePhase(phaseId: string) {
+  const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
+  const denied = await guard(phase.projectId);
+  if (denied) return denied;
+
+  // Task.phaseId es obligatorio (sin onDelete en el schema, o sea Restrict) —
+  // borrar una fase con tareas rompería esa referencia. Se valida antes en
+  // vez de dejar que truene la constraint, para dar un mensaje claro.
+  const taskCount = await prisma.task.count({ where: { phaseId } });
+  if (taskCount > 0) {
+    return {
+      ok: false as const,
+      error: `No se puede eliminar: tiene ${taskCount} tarea${taskCount === 1 ? "" : "s"} asignada${taskCount === 1 ? "" : "s"}. Movela o eliminala primero.`,
+    };
+  }
+
+  await prisma.phase.delete({ where: { id: phaseId } });
+  revalidatePath(`/projects/${phase.projectId}`);
+  return { ok: true as const };
+}
+
 export async function updatePhaseRequirements(phaseId: string, formData: FormData) {
   const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
   const denied = await guard(phase.projectId);

@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@prisma/client";
+import type { TaskStatus, NotificationType } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 
 // Fuente única del color/etiqueta de cada estado de tarea — se usa en el
@@ -42,6 +42,30 @@ export const TASK_STATUS_COLOR: Record<
  * barras del Gantt — así una tarea "en curso" pero atrasada se ve roja, no
  * azul, en cualquier lugar donde aparezca.
  */
+// Estado derivado de un ítem de la cascada de Definición (Objetivo,
+// Requerimiento, Fase — no tienen un campo "status" propio como Task) a
+// partir de su % de avance y su bandera de riesgo, con la misma paleta que
+// TASK_STATUS_COLOR para que el mismo color siga significando lo mismo en
+// toda la app.
+export function pctStatus(pct: number, atRisk: boolean): { label: string; className: string } {
+  if (atRisk) return { label: "En riesgo", className: "bg-red-50 text-red-700" };
+  if (pct >= 100) return { label: "Completado", className: "bg-emerald-50 text-emerald-700" };
+  if (pct <= 0) return { label: "Sin iniciar", className: "bg-slate-100 text-slate-700" };
+  return { label: "En curso", className: "bg-blue-50 text-blue-700" };
+}
+
+// Mismo criterio de color que el resto de la app: rojo = urgente/problema
+// (vencida, bloqueada, causó atraso), ámbar = advertencia (por vencer),
+// azul = informativo (asignación nueva) — para distinguir de un vistazo el
+// tipo de notificación en la campana.
+export const NOTIFICATION_TYPE_COLOR: Record<NotificationType, string> = {
+  ASSIGNED: "bg-blue-500",
+  DEADLINE_APPROACHING: "bg-amber-500",
+  OVERDUE: "bg-red-500",
+  BLOCKED: "bg-red-500",
+  DELAY_CAUSED: "bg-red-500",
+};
+
 export function taskCardTint(status: TaskStatus, alertLevel: TaskAlert["level"]) {
   if (status === "COMPLETED") return TASK_STATUS_COLOR.COMPLETED.tint;
   if (status === "BLOCKED") return TASK_STATUS_COLOR.BLOCKED.tint;

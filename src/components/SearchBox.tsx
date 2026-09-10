@@ -34,6 +34,7 @@ export function SearchBox({
         name={paramName}
         defaultValue={q ?? ""}
         placeholder={placeholder}
+        autoComplete="off"
         onChange={(e) => {
           if (e.target.value) return;
           const p = new URLSearchParams();

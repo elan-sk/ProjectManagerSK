@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getTaskAlert, getBottlenecks } from "@/lib/delays";
+import { getTaskAlert, getBottlenecks, getTaskScheduleVariance } from "@/lib/delays";
+import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { businessDaysRange } from "@/lib/holidays";
 import { findScheduleCollisions } from "@/lib/collisions";
 import { createProject } from "./actions";
@@ -102,7 +103,10 @@ export default async function ProjectsPage({
 
   const [projects, users, allTasksForCollisions] = await Promise.all([
     prisma.project.findMany({
-      include: { pm: true, tasks: { select: { id: true, title: true, status: true, plannedEnd: true } } },
+      include: {
+        pm: true,
+        tasks: { select: { id: true, title: true, status: true, plannedEnd: true, actualEnd: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
@@ -133,6 +137,10 @@ export default async function ProjectsPage({
     }))
   );
 
+  const taskSlackByProject = new Map(
+    await Promise.all(projects.map(async (p) => [p.id, await getProjectTaskSlack(p.id)] as const))
+  );
+
   const summaries = await Promise.all(
     projects.map(async (p) => {
       const alerts = await Promise.all(p.tasks.map((t) => getTaskAlert(p.countryCode, t)));
@@ -145,6 +153,24 @@ export default async function ProjectsPage({
       const collisionTasks = canSeeCollisions
         ? p.tasks.filter((t) => collisionsById.has(t.id)).map((t) => ({ id: t.id, title: t.title }))
         : [];
+      const openTasks = p.tasks.filter((t) => t.status !== "COMPLETED");
+      const openSlackDays =
+        openTasks.length > 0
+          ? (() => {
+              const slack = taskSlackByProject.get(p.id)!;
+              const values = openTasks.map((t) => slack.get(t.id)?.slackDays).filter((v): v is number => v != null);
+              return values.length > 0 ? Math.min(...values) : null;
+            })()
+          : null;
+      // Holgura/retraso REAL acumulado (plannedEnd vs. actualEnd de tareas ya
+      // completadas) — distinto de openSlackDays (margen CPM de las abiertas).
+      const completedWithActualEnd = p.tasks.filter((t) => t.status === "COMPLETED" && t.actualEnd);
+      const scheduleVarianceDays =
+        completedWithActualEnd.length > 0
+          ? (
+              await Promise.all(completedWithActualEnd.map((t) => getTaskScheduleVariance(p.countryCode, t)))
+            ).reduce((sum: number, v) => sum + (v ?? 0), 0)
+          : null;
       return {
         overdueCount: overdueTasks.length,
         warningCount: warningTasks.length,
@@ -156,6 +182,8 @@ export default async function ProjectsPage({
         health: projectHealth(overdueTasks.length, total),
         phase: projectPhase(total, completed, started),
         collisionTasks,
+        openSlackDays,
+        scheduleVarianceDays,
       };
     })
   );
@@ -192,7 +220,11 @@ export default async function ProjectsPage({
       steps: true,
       attachments: { select: { id: true, fileName: true } },
       dependsOn: {
-        include: { predecessor: { select: { id: true, title: true, plannedStart: true, plannedEnd: true } } },
+        include: {
+          predecessor: {
+            select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true },
+          },
+        },
       },
       blocks: { include: { successor: { select: { id: true, title: true } } } },
     },
@@ -223,11 +255,22 @@ export default async function ProjectsPage({
   const earliestStart =
     boardTasksRaw.length > 0 ? new Date(Math.min(...boardTasksRaw.map((t) => t.project.startDate.getTime()))) : now;
   const latestEnd =
-    boardTasksRaw.length > 0 ? new Date(Math.max(...boardTasksRaw.map((t) => t.plannedEnd.getTime()))) : now;
+    boardTasksRaw.length > 0
+      ? new Date(Math.max(...boardTasksRaw.flatMap((t) => [t.plannedEnd.getTime(), t.actualEnd?.getTime() ?? 0])))
+      : now;
+  // Punto confirmado con el usuario: una tarea ya COMPLETED se dibuja en el
+  // Gantt hasta su actualEnd real, no hasta el plannedEnd planeado — el
+  // plannedEnd de la DB sigue intacto para los reportes de atraso/holgura.
+  const displayEnd = (t: { status: string; plannedEnd: Date; actualEnd: Date | null }) =>
+    t.status === "COMPLETED" && t.actualEnd ? t.actualEnd : t.plannedEnd;
   // ponytail: todos los proyectos usan "CO" hoy (ver PROJECT_COUNTRY_CODE en
   // actions.ts) — si algún día hay proyectos de otro país, esta grilla
   // compartida necesita reconsiderarse.
-  const boardBusinessDays = await businessDaysRange("CO", earliestStart, latestEnd);
+  // Margen para poder arrastrar el fin de la última tarea más allá de lo ya
+  // planeado (ver mismo comentario en projects/[id]/page.tsx).
+  const boardGridEnd = new Date(latestEnd);
+  boardGridEnd.setUTCDate(boardGridEnd.getUTCDate() + 30);
+  const boardBusinessDays = await businessDaysRange("CO", earliestStart, boardGridEnd);
   const dateKey = (d: Date) => d.toISOString().slice(0, 10);
   const boardBusinessDayIndex = new Map(boardBusinessDays.map((d, i) => [dateKey(d), i]));
 
@@ -257,11 +300,11 @@ export default async function ProjectsPage({
     .filter(matchesBoardFilters)
     .map((t) => {
       const startIndex = boardBusinessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
-      const endIndex = boardBusinessDayIndex.get(dateKey(t.plannedEnd)) ?? startIndex;
+      const endIndex = boardBusinessDayIndex.get(dateKey(displayEnd(t))) ?? startIndex;
       const requiredStartIndices = t.dependsOn.map((d) =>
         d.type === "START_TO_START"
           ? (boardBusinessDayIndex.get(dateKey(d.predecessor.plannedStart)) ?? -1)
-          : (boardBusinessDayIndex.get(dateKey(d.predecessor.plannedEnd)) ?? -1) + 1
+          : (boardBusinessDayIndex.get(dateKey(displayEnd(d.predecessor))) ?? -1) + 1
       );
       const minStartIndex = Math.max(0, ...requiredStartIndices);
       return {
@@ -277,11 +320,11 @@ export default async function ProjectsPage({
         span: endIndex - startIndex + 1,
         minStartIndex,
         plannedStart: t.plannedStart.toISOString(),
-        plannedEnd: t.plannedEnd.toISOString(),
+        plannedEnd: displayEnd(t).toISOString(),
         dependsOn: t.dependsOn.map((d) =>
           d.type === "START_TO_START" ? `${d.predecessor.title} (en paralelo)` : d.predecessor.title
         ),
-        dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, type: d.type })),
+        dependsOnLinks: t.dependsOn.map((d) => ({ id: d.predecessorId, dependencyId: d.id, type: d.type })),
         blocks: t.blocks.map((d) => d.successor.title),
         blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
         attachmentsCount: t.attachments.length,
@@ -370,9 +413,17 @@ export default async function ProjectsPage({
               triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
             />
           </div>
+          {(pq || risk) && (
+            <Link
+              href={boardHref({ risk: undefined })}
+              className="self-end text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline"
+            >
+              Ver todos los proyectos
+            </Link>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid max-h-110 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
           {rows.length === 0 && (
             <p className="text-sm text-slate-500 sm:col-span-2">
               {pq
@@ -384,7 +435,7 @@ export default async function ProjectsPage({
           )}
           <ProjectCardsOrder
             items={rows.map(({ project: p, summary }) => {
-            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, phase, collisionTasks } = summary;
+            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             // El color del proyecto (o uno automático si no eligió uno) va de
             // fondo de la tarjeta — punto confirmado con el usuario. Siempre
             // es un color CLARO (paleta acotada en ProjectIcon.tsx), así el
@@ -424,6 +475,8 @@ export default async function ProjectsPage({
                       overdueTasks={overdueTasks}
                       warningCount={warningCount}
                       warningTasks={warningTasks}
+                      openSlackDays={openSlackDays}
+                      scheduleVarianceDays={scheduleVarianceDays}
                     />
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                       {PROJECT_PHASE_LABEL[phase]}

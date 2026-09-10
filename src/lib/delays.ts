@@ -35,6 +35,47 @@ export async function getTaskDelayDays(
   return Math.max(0, actualDuration - plannedDuration);
 }
 
+/**
+ * Complemento de getTaskDelayDays para el caso positivo: cuántos días
+ * hábiles se adelantó una tarea (duración real menor a la planeada). Función
+ * separada (no se cambia el signo de getTaskDelayDays) porque esa la
+ * consumen getUserPerformance/getProjectReport/getProjectDelaySummary
+ * asumiendo 0 = a tiempo — cambiarle el contrato correría esas estadísticas.
+ */
+export async function getTaskEarlyDays(
+  countryCode: string,
+  task: Pick<Task, "plannedStart" | "plannedEnd" | "actualStart" | "actualEnd">
+) {
+  if (!task.actualStart || !task.actualEnd) return 0;
+
+  const plannedDuration = await businessDaysBetween(countryCode, task.plannedStart, task.plannedEnd);
+  const actualDuration = await businessDaysBetween(countryCode, task.actualStart, task.actualEnd);
+
+  return Math.max(0, plannedDuration - actualDuration);
+}
+
+/**
+ * Variación de cronograma de una tarea ya completada: plannedEnd − actualEnd
+ * en días hábiles. Positivo = terminó antes de lo planeado (holgura),
+ * negativo = terminó después (retraso), 0 = a tiempo, null = todavía no
+ * completada. A diferencia de getTaskDelayDays/getTaskEarlyDays (que miden
+ * por DURACIÓN propia, ver comentario ahí, para no castigar a alguien por un
+ * arranque tardío ajeno) esta mide por FECHA DE CIERRE contra el plan — es
+ * la que dispara el cascadeo de sucesoras (propagateToSuccessors) y la que
+ * se muestra en las vistas de proyecto/definición/tarea.
+ */
+export async function getTaskScheduleVariance(
+  countryCode: string,
+  task: Pick<Task, "plannedEnd" | "actualEnd">
+): Promise<number | null> {
+  if (!task.actualEnd) return null;
+  if (task.actualEnd.getTime() === task.plannedEnd.getTime()) return 0;
+  if (task.actualEnd < task.plannedEnd) {
+    return await businessDaysBetween(countryCode, task.actualEnd, task.plannedEnd);
+  }
+  return -(await businessDaysBetween(countryCode, task.plannedEnd, task.actualEnd));
+}
+
 export type TaskAlertLevel = "done" | "blocked" | "overdue" | "warning" | "onTrack";
 export type TaskAlert = {
   level: TaskAlertLevel;

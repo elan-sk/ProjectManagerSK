@@ -22,8 +22,14 @@ export async function requireProjectAdmin(projectId: string) {
   return user;
 }
 
-/** Punto 1: cambiar el estado de una tarea lo puede hacer un asignado, el PM del proyecto, o un admin. */
-export async function canUpdateTaskStatus(taskId: string) {
+/**
+ * Punto 1 (extendido): editar una tarea — estado, título, descripción, tipo,
+ * fase, checklist, asignación, insumos/evidencia — lo puede hacer un
+ * asignado, el PM del proyecto, o un admin. Quedan afuera (solo PM/admin):
+ * borrar la tarea, sus predecesoras/dependencias, eliminar adjuntos, y las
+ * definiciones del proyecto (objetivos/requisitos/fases).
+ */
+export async function canEditTask(taskId: string) {
   const session = await auth();
   if (!session?.user) return false;
   if (session.user.role === "ADMIN") return true;

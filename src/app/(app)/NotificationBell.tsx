@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { markNotificationRead, markAllNotificationsRead } from "./notificationActions";
 import { BellIcon, XIcon } from "@/components/icons";
+import { NOTIFICATION_TYPE_COLOR } from "@/lib/statusColors";
+import type { NotificationType } from "@prisma/client";
 
 export type NotificationItem = {
   id: string;
   message: string;
-  type: string;
+  type: NotificationType;
   taskId: string | null;
   projectId: string | null;
 };
@@ -58,6 +60,10 @@ export function NotificationBell({ items, userId }: { items: NotificationItem[];
           )}
           {items.map((n) => (
             <div key={n.id} className="flex items-start gap-2 rounded-lg p-2 text-sm hover:bg-slate-50">
+              <span
+                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${NOTIFICATION_TYPE_COLOR[n.type]}`}
+                aria-hidden
+              />
               <Link
                 href={n.taskId ? `/projects/${n.projectId}/tasks/${n.taskId}` : "#"}
                 className="flex-1 text-slate-700"

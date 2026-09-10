@@ -6,12 +6,16 @@ import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createCalendarEvent } from "@/lib/googleCalendar";
-import { requireProjectAdmin } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
+import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { propagateToSuccessors } from "../../actions";
 import type { AttachmentKind, DependencyType } from "@prisma/client";
 
 export async function addStep(taskId: string, formData: FormData) {
+  if (!(await canEditTask(taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
   const description = z.string().min(1).parse(formData.get("description"));
   const count = await prisma.taskStep.count({ where: { taskId } });
   await prisma.taskStep.create({ data: { taskId, description, order: count } });
@@ -19,7 +23,11 @@ export async function addStep(taskId: string, formData: FormData) {
 }
 
 export async function toggleStep(stepId: string, done: boolean) {
-  const step = await prisma.taskStep.update({ where: { id: stepId }, data: { done } });
+  const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
+  if (!(await canEditTask(step.taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await prisma.taskStep.update({ where: { id: stepId }, data: { done } });
   await revalidateTask(step.taskId);
 }
 
@@ -29,6 +37,10 @@ export async function addAttachmentRecord(
   file: { url: string; name: string; mimeType: string },
   uploadedById: string
 ) {
+  if (!(await canEditTask(taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await assertCanAddAttachment(taskId, kind);
   await prisma.attachment.create({
     data: {
       taskId,
@@ -42,10 +54,63 @@ export async function addAttachmentRecord(
   await revalidateTask(taskId);
 }
 
+// Una tarea ya completada no admite más evidencia — la evidencia prueba lo
+// hecho, y eso se sube ANTES de cerrarla. Los insumos sí siguen abiertos
+// (documentación de apoyo puede sumarse en cualquier momento).
+async function assertCanAddAttachment(taskId: string, kind: AttachmentKind) {
+  if (kind !== "RESULTADO") return;
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { status: true } });
+  if (task.status === "COMPLETED") {
+    throw new Error("La tarea ya está completada — no se puede subir más evidencia.");
+  }
+}
+
 export async function removeAttachment(attachmentId: string) {
-  const attachment = await prisma.attachment.delete({ where: { id: attachmentId } });
-  await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  const attachment = await prisma.attachment.findUniqueOrThrow({
+    where: { id: attachmentId },
+    include: { task: true },
+  });
+  await requireProjectAdmin(attachment.task.projectId);
+
+  await prisma.attachment.delete({ where: { id: attachmentId } });
+  if (attachment.mimeType !== LINK_MIME_TYPE) {
+    await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  }
   await revalidateTask(attachment.taskId);
+}
+
+export async function addLinkAttachment(
+  taskId: string,
+  kind: AttachmentKind,
+  url: string,
+  name: string,
+  uploadedById: string
+) {
+  if (!(await canEditTask(taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await assertCanAddAttachment(taskId, kind);
+  const parsedUrlResult = z.string().trim().url().safeParse(url);
+  if (!parsedUrlResult.success) {
+    throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
+  }
+  const parsedNameResult = z.string().trim().min(1).safeParse(name);
+  if (!parsedNameResult.success) {
+    throw new Error("Ponele un nombre al link.");
+  }
+  const parsedUrl = parsedUrlResult.data;
+  const parsedName = parsedNameResult.data;
+  await prisma.attachment.create({
+    data: {
+      taskId,
+      kind,
+      fileUrl: parsedUrl,
+      fileName: parsedName,
+      mimeType: LINK_MIME_TYPE,
+      uploadedById,
+    },
+  });
+  await revalidateTask(taskId);
 }
 
 export async function setDependency(taskId: string, formData: FormData) {
@@ -85,10 +150,8 @@ export async function setTaskAssignees(taskId: string, formData: FormData) {
     where: { id: taskId },
     include: { assignees: true },
   });
-  try {
-    await requireProjectAdmin(task.projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const assigneeIds = formData.getAll("assigneeIds") as string[];
@@ -108,10 +171,8 @@ export async function setTaskAssignees(taskId: string, formData: FormData) {
 
 export async function updateTaskTitle(taskId: string, title: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  try {
-    await requireProjectAdmin(task.projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const parsed = z.string().min(1).safeParse(title);
@@ -125,10 +186,8 @@ export async function updateTaskTitle(taskId: string, title: string) {
 
 export async function updateTaskType(taskId: string, type: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  try {
-    await requireProjectAdmin(task.projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const parsed = z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]).safeParse(type);
@@ -142,10 +201,8 @@ export async function updateTaskType(taskId: string, type: string) {
 
 export async function updateTaskPhase(taskId: string, phaseId: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  try {
-    await requireProjectAdmin(task.projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const phase = await prisma.phase.findUnique({ where: { id: phaseId } });
@@ -159,10 +216,8 @@ export async function updateTaskPhase(taskId: string, phaseId: string) {
 
 export async function updateTaskDescription(taskId: string, formData: FormData) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  try {
-    await requireProjectAdmin(task.projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const raw = formData.get("description");
