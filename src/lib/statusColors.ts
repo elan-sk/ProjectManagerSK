@@ -10,6 +10,7 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   IN_PROGRESS: "En curso",
   BLOCKED: "Bloqueada",
   COMPLETED: "Completada",
+  RETURNED: "Devuelta",
 };
 
 // Vive acá (no en KanbanBoard.tsx) a propósito: KanbanBoard es "use client",
@@ -17,14 +18,30 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 // "use client" recibe una referencia opaca, no el valor real — TYPE_LABEL[x]
 // da `undefined` en el servidor sin ni siquiera tirar error. Este archivo no
 // tiene "use client", así que sirve tanto del lado servidor como cliente.
+// Punto 2 (unificación): CHECKLIST y MEETING dejaron de ser tipos — el
+// nombre interno del enum (MILESTONE, QA) no cambió para no migrar datos
+// existentes, solo la etiqueta visible.
 export const TASK_TYPE_LABEL: Record<string, string> = {
   SIMPLE: "Simple",
-  CHECKLIST: "Checklist",
-  MILESTONE: "Hito",
-  MEETING: "Reunión",
-  QA: "Prueba QA",
+  MILESTONE: "Entregable",
+  QA: "Revisión",
   ADJUSTMENT: "Ajuste",
 };
+
+// El status del proyecto (PLANNING/ACTIVE/.../COMPLETED en el schema) no lo
+// actualiza ningún flujo de la app — queda pegado en PLANNING para siempre
+// (bug real detectado por el usuario). La "fase" real se calcula acá a
+// partir del progreso real de las tareas en vez de leer ese campo, así
+// siempre refleja la realidad sin depender de que alguien lo actualice a
+// mano — usado por projects/page.tsx y por las tools de Chontatec
+// (chontatecTools.ts) para no exponer nunca el campo crudo, que sería
+// engañoso (diría "PLANNING" para un proyecto ya terminado).
+export const PROJECT_PHASE_LABEL = { PLANNING: "Planeación", ACTIVE: "Activo", COMPLETED: "Completado" } as const;
+export function projectPhase(total: number, completed: number, started: boolean): keyof typeof PROJECT_PHASE_LABEL {
+  if (total === 0 || !started) return "PLANNING";
+  if (completed === total) return "COMPLETED";
+  return "ACTIVE";
+}
 
 export const TASK_STATUS_COLOR: Record<
   TaskStatus,
@@ -34,6 +51,7 @@ export const TASK_STATUS_COLOR: Record<
   IN_PROGRESS: { dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700", solid: "bg-blue-600 hover:bg-blue-700", bar: "bg-blue-500", tint: "bg-blue-50" },
   BLOCKED: { dot: "bg-red-500", badge: "bg-red-50 text-red-700", solid: "bg-red-600 hover:bg-red-700", bar: "bg-red-500", tint: "bg-red-50" },
   COMPLETED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700", bar: "bg-emerald-500", tint: "bg-emerald-50" },
+  RETURNED: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700", solid: "bg-orange-600 hover:bg-orange-700", bar: "bg-orange-500", tint: "bg-orange-50" },
 };
 
 /**
@@ -64,6 +82,9 @@ export const NOTIFICATION_TYPE_COLOR: Record<NotificationType, string> = {
   OVERDUE: "bg-red-500",
   BLOCKED: "bg-red-500",
   DELAY_CAUSED: "bg-red-500",
+  RETURNED: "bg-orange-500",
+  LATE_START: "bg-blue-400",
+  LATE_START_CRITICAL: "bg-red-500",
 };
 
 export function taskCardTint(status: TaskStatus, alertLevel: TaskAlert["level"]) {

@@ -65,7 +65,7 @@ export function GanttBar({
   projectId: string;
   title: string;
   color: string;
-  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
+  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   startIndex: number;
   span: number;
   minStartIndex: number;

@@ -5,14 +5,24 @@ import { setTaskAssignees } from "./actions";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 
+type SaveResult = { ok: true } | { ok: false; error?: string };
+
+// Genérico: sirve tanto para asignar ejecutores (TaskAssignee) como
+// revisores (TaskReviewer, punto 2.6) — misma UI, distinto campo y action.
 export function ReassignAssigneesForm({
   taskId,
   currentAssigneeIds,
   users,
+  action = setTaskAssignees,
+  fieldName = "assigneeIds",
+  errorFallback = "No se pudo actualizar los asignados.",
 }: {
   taskId: string;
   currentAssigneeIds: string[];
   users: { id: string; name: string; avatarUrl?: string | null }[];
+  action?: (taskId: string, formData: FormData) => Promise<SaveResult>;
+  fieldName?: string;
+  errorFallback?: string;
 }) {
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
@@ -23,9 +33,9 @@ export function ReassignAssigneesForm({
       action={(formData: FormData) => {
         setError(null);
         startTransition(async () => {
-          const result = await setTaskAssignees(taskId, formData);
+          const result = await action(taskId, formData);
           if (result.ok) onDone();
-          else setError(result.error ?? "No se pudo actualizar los asignados.");
+          else setError(result.error ?? errorFallback);
         });
       }}
       className="space-y-3"
@@ -35,7 +45,7 @@ export function ReassignAssigneesForm({
           <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
             <input
               type="checkbox"
-              name="assigneeIds"
+              name={fieldName}
               value={u.id}
               defaultChecked={currentAssigneeIds.includes(u.id)}
               className="rounded border-slate-300"

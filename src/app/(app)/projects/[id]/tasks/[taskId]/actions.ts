@@ -9,8 +9,9 @@ import { createCalendarEvent } from "@/lib/googleCalendar";
 import { requireProjectAdmin, canEditTask } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { bogotaLocalToUTC } from "@/lib/workingHours";
 import { propagateToSuccessors } from "../../actions";
-import type { AttachmentKind, DependencyType } from "@prisma/client";
+import type { AttachmentKind, AdjustmentAttachmentKind, DependencyType } from "@prisma/client";
 
 export async function addStep(taskId: string, formData: FormData) {
   if (!(await canEditTask(taskId))) {
@@ -184,13 +185,17 @@ export async function updateTaskTitle(taskId: string, title: string) {
   return { ok: true };
 }
 
+// Punto 2.3: cambiar el tipo de tarea es solo del PM/admin — a diferencia
+// del resto de los campos, no lo puede tocar un asignado (canEditTask).
 export async function updateTaskType(taskId: string, type: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  if (!(await canEditTask(taskId))) {
-    return { ok: false, error: "No tenés permiso para editar esta tarea." };
+  try {
+    await requireProjectAdmin(task.projectId);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
   }
 
-  const parsed = z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]).safeParse(type);
+  const parsed = z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]).safeParse(type);
   if (!parsed.success) return { ok: false, error: "Tipo inválido." };
 
   await prisma.task.update({ where: { id: taskId }, data: { type: parsed.data } });
@@ -227,6 +232,126 @@ export async function updateTaskDescription(taskId: string, formData: FormData) 
   await revalidateTask(taskId);
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };
+}
+
+// Punto 2.4: cualquier tarea puede tener un link de reunión (Meet/Zoom/Teams).
+export async function updateTaskMeetingUrl(taskId: string, formData: FormData) {
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
+  }
+
+  const raw = formData.get("meetingUrl");
+  const rawAt = formData.get("meetingAt");
+
+  if (typeof raw !== "string" || raw.trim() === "") {
+    await prisma.task.update({ where: { id: taskId }, data: { meetingUrl: null, meetingAt: null, meetingReminderSentAt: null } });
+    await revalidateTask(taskId);
+    return { ok: true };
+  }
+
+  const parsed = z.string().trim().url().safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Ese link no parece válido — revisá que sea una dirección web completa (con https://)." };
+
+  const meetingAt = typeof rawAt === "string" && rawAt.trim() !== "" ? bogotaLocalToUTC(rawAt) : null;
+  if (typeof rawAt === "string" && rawAt.trim() !== "" && !meetingAt) {
+    return { ok: false, error: "La fecha/hora de la reunión no es válida." };
+  }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { meetingUrl: parsed.data, meetingAt, meetingReminderSentAt: null },
+  });
+  await revalidateTask(taskId);
+  return { ok: true };
+}
+
+// Punto 2.5: "cambios solicitados" de una tarea tipo Ajuste — cada uno con
+// su Antes/Después (o una nota cuando no aplica). El estado de cada cambio
+// se deriva solo de esto, nunca de un checkbox manual.
+export async function addAdjustmentItem(taskId: string, formData: FormData) {
+  if (!(await canEditTask(taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
+  }
+  const parsed = z.string().trim().min(1).safeParse(formData.get("description"));
+  if (!parsed.success) return { ok: false, error: "Describí el cambio solicitado." };
+  const count = await prisma.adjustmentItem.count({ where: { taskId } });
+  await prisma.adjustmentItem.create({ data: { taskId, description: parsed.data, order: count } });
+  await revalidateTask(taskId);
+  return { ok: true };
+}
+
+export async function removeAdjustmentItem(itemId: string) {
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId }, include: { task: true } });
+  await requireProjectAdmin(item.task.projectId);
+  await prisma.adjustmentItem.delete({ where: { id: itemId } });
+  await revalidateTask(item.taskId);
+}
+
+export async function setAdjustmentNote(itemId: string, note: string) {
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (!(await canEditTask(item.taskId))) {
+    return { ok: false, error: "No tenés permiso para editar esta tarea." };
+  }
+  await prisma.adjustmentItem.update({ where: { id: itemId }, data: { note: note.trim() || null } });
+  await revalidateTask(item.taskId);
+  return { ok: true };
+}
+
+export async function addAdjustmentAttachment(
+  itemId: string,
+  kind: AdjustmentAttachmentKind,
+  file: { url: string; name: string; mimeType: string },
+  uploadedById: string
+) {
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (!(await canEditTask(item.taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await prisma.adjustmentAttachment.create({
+    data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById },
+  });
+  await revalidateTask(item.taskId);
+}
+
+export async function addAdjustmentLinkAttachment(
+  itemId: string,
+  kind: AdjustmentAttachmentKind,
+  url: string,
+  name: string,
+  uploadedById: string
+) {
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (!(await canEditTask(item.taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  const parsedUrl = z.string().trim().url().safeParse(url);
+  if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
+  const parsedName = z.string().trim().min(1).safeParse(name);
+  if (!parsedName.success) throw new Error("Ponele un nombre al link.");
+  await prisma.adjustmentAttachment.create({
+    data: {
+      adjustmentItemId: itemId,
+      kind,
+      fileUrl: parsedUrl.data,
+      fileName: parsedName.data,
+      mimeType: LINK_MIME_TYPE,
+      uploadedById,
+    },
+  });
+  await revalidateTask(item.taskId);
+}
+
+export async function removeAdjustmentAttachment(attachmentId: string) {
+  const attachment = await prisma.adjustmentAttachment.findUniqueOrThrow({
+    where: { id: attachmentId },
+    include: { adjustmentItem: { include: { task: true } } },
+  });
+  await requireProjectAdmin(attachment.adjustmentItem.task.projectId);
+  await prisma.adjustmentAttachment.delete({ where: { id: attachmentId } });
+  if (attachment.mimeType !== LINK_MIME_TYPE) {
+    await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  }
+  await revalidateTask(attachment.adjustmentItem.taskId);
 }
 
 export async function deleteTask(taskId: string) {

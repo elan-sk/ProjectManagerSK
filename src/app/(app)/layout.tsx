@@ -3,6 +3,8 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { checkDeadlineAlerts } from "@/lib/notifications";
+import { getBotSettings } from "@/lib/botSettings";
+import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { ProjectsNavLink } from "./ProjectsNavLink";
@@ -21,16 +23,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   await checkDeadlineAlerts(session.user.id);
   const isAdmin = session.user.role === "ADMIN";
-  const [me, pmProjectCount] = await Promise.all([
+  const [me, pmProjectCount, botSettings] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
       select: { name: true, avatarUrl: true },
     }),
     isAdmin ? Promise.resolve(0) : prisma.project.count({ where: { pmId: session.user.id } }),
+    getBotSettings(),
   ]);
-  // "Rendimiento" es privilegio de admin/PM (ver performance/page.tsx) — un
-  // miembro normal no lo ve en el nav, ya que entrar lo redirige igual.
-  const canSeePerformance = isAdmin || pmProjectCount > 0;
+  // Admin/PM van al informe grupal; un miembro normal va directo a su propio
+  // rendimiento (ver performance/page.tsx y performance/[userId]/page.tsx).
+  const performanceHref = isAdmin || pmProjectCount > 0 ? "/performance" : `/performance/${session.user.id}`;
   const notifications = await prisma.notification.findMany({
     where: { userId: session.user.id, read: false },
     include: { task: { select: { projectId: true } } },
@@ -55,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
             Agenda
           </NavLinkWithMemory>
-          {canSeePerformance && <Link href="/performance">Rendimiento</Link>}
+          <Link href={performanceHref}>Rendimiento</Link>
           <Link href="/settings">Configuración</Link>
         </nav>
         <div className="flex items-center gap-3">
@@ -81,6 +84,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <main className="p-6">{children}</main>
+      <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
     </div>
     </ConfirmProvider>
     </ToastProvider>

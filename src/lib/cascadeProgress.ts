@@ -141,7 +141,7 @@ export type ObjectiveSummary = {
 
 export async function getProjectCascadeProgress(projectId: string) {
   const [project, objectivesRaw, requirementsRaw, phasesRaw, taskSlack] = await Promise.all([
-    prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { countryCode: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { countryCode: true } }),
     prisma.objective.findMany({
       where: { projectId },
       orderBy: { order: "asc" },
@@ -170,6 +170,10 @@ export async function getProjectCascadeProgress(projectId: string) {
     }),
     getProjectTaskSlack(projectId),
   ]);
+  // El proyecto puede no existir más (ej. link viejo, id borrado) — la
+  // página que llama a esto hace su propio notFound() con el resultado;
+  // acá solo evitamos que reviente antes de llegar a ese chequeo.
+  const countryCode = project?.countryCode ?? "CO";
 
   // Holgura de una fase = la más ajustada (mínima) entre sus tareas abiertas
   // (COMPLETED ya no aporta margen relevante); null si no tiene ninguna.
@@ -194,7 +198,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       overdueTasks: counts.overdueTasks,
       requirementIds: p.requirements.map((r) => r.id),
       openSlackDays: phaseOpenSlack(p.tasks),
-      scheduleVarianceDays: await phaseScheduleVariance(p.tasks, project.countryCode),
+      scheduleVarianceDays: await phaseScheduleVariance(p.tasks, countryCode),
     };
   };
   const phaseIndex = new Map(
@@ -241,7 +245,7 @@ export async function getProjectCascadeProgress(projectId: string) {
   const phases = await Promise.all(
     phasesRaw.map(async (p) => {
       const counts = phaseTaskCounts(p, projectId);
-      const due = await phaseDueInfo(p, projectId, project.countryCode);
+      const due = await phaseDueInfo(p, projectId, countryCode);
       return {
         id: p.id,
         name: p.name,
@@ -251,7 +255,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         requirementTitles: p.requirements.map((r) => r.title),
         requirementIds: p.requirements.map((r) => r.id),
         openSlackDays: phaseOpenSlack(p.tasks),
-        scheduleVarianceDays: await phaseScheduleVariance(p.tasks, project.countryCode),
+        scheduleVarianceDays: await phaseScheduleVariance(p.tasks, countryCode),
         tasks: p.tasks.map((t) => ({
           id: t.id,
           title: t.title,

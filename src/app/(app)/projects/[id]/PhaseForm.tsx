@@ -2,10 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updatePhaseName } from "./definitionActions";
+import { updatePhase } from "./definitionActions";
 import { useModalClose } from "@/components/Modal";
 
-export function PhaseForm({ phaseId, currentName }: { phaseId: string; currentName: string }) {
+export function PhaseForm({
+  phaseId,
+  currentName,
+  requirements,
+  currentRequirementIds,
+}: {
+  phaseId: string;
+  currentName: string;
+  requirements: { id: string; title: string }[];
+  currentRequirementIds: string[];
+}) {
   const router = useRouter();
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +26,7 @@ export function PhaseForm({ phaseId, currentName }: { phaseId: string; currentNa
       action={(formData: FormData) => {
         setError(null);
         startTransition(async () => {
-          const result = await updatePhaseName(phaseId, formData);
+          const result = await updatePhase(phaseId, formData);
           if (result.ok) {
             onDone();
             router.refresh();
@@ -36,6 +46,20 @@ export function PhaseForm({ phaseId, currentName }: { phaseId: string; currentNa
           defaultValue={currentName}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm text-slate-600">Requerimientos que atiende (opcional)</label>
+        {requirements.length === 0 ? (
+          <p className="text-xs text-slate-400">Todavía no hay requerimientos creados en este proyecto.</p>
+        ) : (
+          <select name="requirementIds" multiple defaultValue={currentRequirementIds} className="h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            {requirements.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.title}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { getAppCountryCode } from "@/lib/appSettings";
 
 export async function GET(request: Request) {
   const denied = requireApiKey(request);
@@ -22,7 +23,6 @@ export async function GET(request: Request) {
 const createProjectSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().optional(),
-  countryCode: z.string().length(2).default("CO"),
   startDate: z.coerce.date(),
   pmId: z.string().min(1),
 });
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   const project = await prisma.project.create({
-    data: { ...parsed.data, phases: { create: [{ name: "General", order: 0 }] } },
+    data: { ...parsed.data, countryCode: await getAppCountryCode(), phases: { create: [{ name: "General", order: 0 }] } },
     include: { phases: true },
   });
   return NextResponse.json(project, { status: 201 });

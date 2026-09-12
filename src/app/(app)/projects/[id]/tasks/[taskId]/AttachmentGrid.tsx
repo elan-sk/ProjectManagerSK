@@ -1,8 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { AttachmentLightbox } from "./AttachmentLightbox";
+import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
+import { removeAttachment } from "./actions";
 
 export type AttachmentGridItem = {
   id: string;
@@ -26,7 +29,9 @@ export function AttachmentGrid({
   canDelete: boolean;
   className?: string;
 }) {
+  const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openPreview, setOpenPreview] = useState<AttachmentGridItem | null>(null);
   const images = items.filter((i) => i.mimeType.startsWith("image/"));
 
   return (
@@ -42,11 +47,26 @@ export function AttachmentGrid({
             canDelete={canDelete}
             taskLink={a.taskLink}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
+            onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
           />
         ))}
       </div>
       {openId && (
         <AttachmentLightbox images={images} openId={openId} onClose={() => setOpenId(null)} onNavigate={setOpenId} canDelete={canDelete} />
+      )}
+      {openPreview && (
+        <AttachmentPreviewModal
+          file={openPreview}
+          onClose={() => setOpenPreview(null)}
+          onDelete={
+            canDelete
+              ? async () => {
+                  await removeAttachment(openPreview.id);
+                  router.refresh();
+                }
+              : undefined
+          }
+        />
       )}
     </>
   );

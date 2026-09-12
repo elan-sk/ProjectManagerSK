@@ -42,3 +42,42 @@ export async function canEditTask(taskId: string) {
   if (task.project.pmId === session.user.id) return true;
   return task.assignees.some((a) => a.userId === session.user.id);
 }
+
+/**
+ * Punto 2.6: en una tarea tipo Revisión, cargar checks/resultados/evidencia
+ * y cerrar una ronda lo puede hacer un revisor (TaskReviewer) de esa tarea,
+ * el PM del proyecto, o un admin — distinto de canEditTask (que mira
+ * TaskAssignee, los ejecutores).
+ */
+export async function canReviewTask(taskId: string) {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN") return true;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { project: true, reviewers: true },
+  });
+  if (!task) return false;
+  if (task.project.pmId === session.user.id) return true;
+  return task.reviewers.some((r) => r.userId === session.user.id);
+}
+
+/**
+ * Punto 2.6.1: crear una plantilla de pruebas o categoría de respuesta NUEVA
+ * (el contenedor) requiere tener permiso de revisor en algún lado — admin,
+ * PM de algún proyecto, o revisor asignado en al menos una tarea. Agregar un
+ * ítem DENTRO de una plantilla/categoría ya existente sigue abierto a
+ * cualquiera (no pasa por acá).
+ */
+export async function isReviewerAnywhere() {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN") return true;
+
+  const [pmOf, reviewerOf] = await Promise.all([
+    prisma.project.findFirst({ where: { pmId: session.user.id } }),
+    prisma.taskReviewer.findFirst({ where: { userId: session.user.id } }),
+  ]);
+  return Boolean(pmOf || reviewerOf);
+}

@@ -16,10 +16,10 @@ const dependsOnSchema = z.object({
 });
 const taskSchema = z.object({
   phaseName: z.string().min(1),
-  type: z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
   title: z.string().min(1),
   description: z.string().nullable(),
-  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"]),
+  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED", "RETURNED"]),
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]),
   plannedStart: z.string(),
   plannedEnd: z.string(),

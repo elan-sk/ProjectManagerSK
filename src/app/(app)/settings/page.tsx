@@ -1,9 +1,16 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 import { ProfileForm } from "./ProfileForm";
 import { UsersAdmin } from "./UsersAdmin";
+import { CountrySettingForm } from "./CountrySettingForm";
+import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
+import { getBotSettings } from "@/lib/botSettings";
+import { getAvailableCountries } from "@/lib/holidays";
+import { WhatsAppConnectPanel } from "./WhatsAppConnectPanel";
+import { BotSettingsForm } from "./BotSettingsForm";
 
 export default async function SettingsPage({
   searchParams,
@@ -20,16 +27,20 @@ export default async function SettingsPage({
 
   const { google_calendar, imported, importFailed, importError } = await searchParams;
   const isAdmin = session.user.role === "ADMIN";
-  const [me, connection, users, projects] = await Promise.all([
+  const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
-      select: { name: true, email: true, avatarUrl: true },
+      select: { name: true, email: true, avatarUrl: true, phone: true },
     }),
     prisma.googleCalendarConnection.findUnique({ where: { userId: session.user.id } }),
     isAdmin
-      ? prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true, avatarUrl: true } })
+      ? prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true, avatarUrl: true, phone: true } })
       : Promise.resolve(null),
     isAdmin ? prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
+    isAdmin ? getAppCountryCode() : Promise.resolve(null),
+    isAdmin ? getAvailableCountries() : Promise.resolve(null),
+    isAdmin ? getWhatsAppSettings() : Promise.resolve(null),
+    isAdmin ? getBotSettings() : Promise.resolve(null),
   ]);
   const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
@@ -39,12 +50,66 @@ export default async function SettingsPage({
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-medium text-slate-900">Mi cuenta</h2>
-        <ProfileForm name={me.name} email={me.email} avatarUrl={me.avatarUrl} />
+        <ProfileForm name={me.name} email={me.email} phone={me.phone} avatarUrl={me.avatarUrl} />
         <hr className="border-slate-100" />
         <ChangePasswordForm />
       </section>
 
       {users && <UsersAdmin users={users} />}
+
+      {countryCode && countries && (
+        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-medium text-slate-900">País (festivos)</h2>
+          <p className="text-sm text-slate-500">
+            Un único país para toda la app — se usa para calcular festivos y días hábiles en todos
+            los proyectos.
+          </p>
+          <CountrySettingForm countries={countries} currentCountryCode={countryCode} />
+        </section>
+      )}
+
+      {isAdmin && (
+        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-medium text-slate-900">WhatsApp (alertas)</h2>
+          <p className="text-sm text-slate-500">
+            Vincula el número que va a mandar las alertas de tareas y proyectos al grupo del equipo.
+          </p>
+          <WhatsAppConnectPanel
+            currentGroupJid={whatsappSettings!.groupJid}
+            workHoursStart={whatsappSettings!.workHoursStart}
+            workHoursEnd={whatsappSettings!.workHoursEnd}
+          />
+        </section>
+      )}
+
+      {isAdmin && botSettings && (
+        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-medium text-slate-900">{botSettings.name} (bot asistente)</h2>
+          <p className="text-sm text-slate-500">
+            Nombre, foto, tono, clave de Anthropic y tope mensual de preguntas — compartido por todo el equipo.
+          </p>
+          <BotSettingsForm
+            name={botSettings.name}
+            avatarUrl={botSettings.avatarUrl}
+            apiKeyConfigured={botSettings.apiKeyConfigured}
+            apiKeyLast4={botSettings.apiKeyLast4}
+            monthlyLimit={botSettings.monthlyLimit}
+            usedThisPeriod={botSettings.usedThisPeriod}
+            personaPrompt={botSettings.personaPrompt}
+            personaIsCustom={botSettings.personaIsCustom}
+          />
+        </section>
+      )}
+
+      <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="font-medium text-slate-900">Pruebas</h2>
+        <p className="text-sm text-slate-500">
+          Plantillas de pruebas y de respuestas para las tareas tipo Revisión.
+        </p>
+        <Link href="/settings/tests" className="inline-block text-sm font-medium text-slate-900 hover:underline">
+          Ir a Pruebas →
+        </Link>
+      </section>
 
       {projects && (
         <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -133,8 +198,8 @@ export default async function SettingsPage({
 
         {googleConfigured && connection && (
           <p className="text-sm text-slate-600">
-            Conectado — las tareas de tipo Reunión/Hito se pueden agregar a tu calendario desde
-            su página de detalle.
+            Conectado — cualquier tarea se puede agregar a tu calendario desde su página de
+            detalle.
           </p>
         )}
 

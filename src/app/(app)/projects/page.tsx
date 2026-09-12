@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getTaskAlert, getBottlenecks, getTaskScheduleVariance } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { businessDaysRange } from "@/lib/holidays";
+import { getAppCountryCode } from "@/lib/appSettings";
 import { findScheduleCollisions } from "@/lib/collisions";
 import { createProject } from "./actions";
 import { Avatar } from "@/components/Avatar";
@@ -20,30 +21,20 @@ import { ProjectCardsOrder } from "./ProjectCardsOrder";
 import { ComboFilter } from "@/components/ComboFilter";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
+import { AllProjectsFilesView } from "./AllProjectsFilesView";
+import { attachmentFileType } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import type { TaskStatus } from "@prisma/client";
-
-// El status del proyecto (PLANNING/ACTIVE/.../COMPLETED en el schema) no lo
-// actualiza ningún flujo de la app — queda pegado en PLANNING para siempre
-// (bug real detectado por el usuario). Se calcula acá a partir del progreso
-// real de las tareas en vez de leer ese campo, así siempre refleja la
-// realidad sin depender de que alguien lo actualice a mano.
-const PROJECT_PHASE_LABEL = { PLANNING: "Planeación", ACTIVE: "Activo", COMPLETED: "Completado" } as const;
-function projectPhase(total: number, completed: number, started: boolean): keyof typeof PROJECT_PHASE_LABEL {
-  if (total === 0 || !started) return "PLANNING";
-  if (completed === total) return "COMPLETED";
-  return "ACTIVE";
-}
 
 export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    risk?: "overdue" | "warning";
+    risk?: "overdue" | "warning" | "lateStart";
     view?: string;
     date?: string;
     mode?: string;
@@ -52,12 +43,16 @@ export default async function ProjectsPage({
     q?: string;
     collision?: string;
     pq?: string;
+    fileKind?: string;
+    fileType?: string;
+    fileProject?: string;
+    fileQ?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, userId, q, collision, pq } = await searchParams;
+  const { risk, view, date, mode, status, userId, q, collision, pq, fileKind, fileType, fileProject, fileQ } = await searchParams;
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -101,11 +96,22 @@ export default async function ProjectsPage({
     return `/projects${qs ? `?${qs}` : ""}`;
   }
 
+  // Filtros propios de la pestaña "Archivos" (insumo/evidencia, tipo,
+  // proyecto, buscador) — independientes de los de arriba, que filtran tareas.
+  function filesHref(overrides: Record<string, string | undefined>) {
+    const p = new URLSearchParams({ view: "files" });
+    const merged: Record<string, string | undefined> = { fileKind, fileType, fileProject, fileQ, ...overrides };
+    for (const [k, v] of Object.entries(merged)) {
+      if (v) p.set(k, v);
+    }
+    return `/projects?${p.toString()}`;
+  }
+
   const [projects, users, allTasksForCollisions] = await Promise.all([
     prisma.project.findMany({
       include: {
         pm: true,
-        tasks: { select: { id: true, title: true, status: true, plannedEnd: true, actualEnd: true } },
+        tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -146,6 +152,7 @@ export default async function ProjectsPage({
       const alerts = await Promise.all(p.tasks.map((t) => getTaskAlert(p.countryCode, t)));
       const overdueTasks = p.tasks.filter((_, i) => alerts[i].level === "overdue").map((t) => ({ id: t.id, title: t.title }));
       const warningTasks = p.tasks.filter((_, i) => alerts[i].level === "warning").map((t) => ({ id: t.id, title: t.title }));
+      const lateStartTasks = p.tasks.filter((_, i) => alerts[i].level === "lateStart").map((t) => ({ id: t.id, title: t.title }));
       const bottlenecks = await getBottlenecks(p.id);
       const total = p.tasks.length;
       const completed = p.tasks.filter((t) => t.status === "COMPLETED").length;
@@ -174,8 +181,10 @@ export default async function ProjectsPage({
       return {
         overdueCount: overdueTasks.length,
         warningCount: warningTasks.length,
+        lateStartCount: lateStartTasks.length,
         overdueTasks,
         warningTasks,
+        lateStartTasks,
         bottlenecks,
         total,
         completed,
@@ -193,6 +202,7 @@ export default async function ProjectsPage({
     .filter(({ summary }) => {
       if (risk === "overdue") return summary.overdueCount > 0;
       if (risk === "warning") return summary.warningCount > 0;
+      if (risk === "lateStart") return summary.lateStartCount > 0;
       return true;
     })
     .filter(({ project: p }) => {
@@ -218,7 +228,7 @@ export default async function ProjectsPage({
       phase: { select: { name: true } },
       assignees: { include: { user: true } },
       steps: true,
-      attachments: { select: { id: true, fileName: true } },
+      attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
       dependsOn: {
         include: {
           predecessor: {
@@ -263,14 +273,11 @@ export default async function ProjectsPage({
   // plannedEnd de la DB sigue intacto para los reportes de atraso/holgura.
   const displayEnd = (t: { status: string; plannedEnd: Date; actualEnd: Date | null }) =>
     t.status === "COMPLETED" && t.actualEnd ? t.actualEnd : t.plannedEnd;
-  // ponytail: todos los proyectos usan "CO" hoy (ver PROJECT_COUNTRY_CODE en
-  // actions.ts) — si algún día hay proyectos de otro país, esta grilla
-  // compartida necesita reconsiderarse.
   // Margen para poder arrastrar el fin de la última tarea más allá de lo ya
   // planeado (ver mismo comentario en projects/[id]/page.tsx).
   const boardGridEnd = new Date(latestEnd);
   boardGridEnd.setUTCDate(boardGridEnd.getUTCDate() + 30);
-  const boardBusinessDays = await businessDaysRange("CO", earliestStart, boardGridEnd);
+  const boardBusinessDays = await businessDaysRange(await getAppCountryCode(), earliestStart, boardGridEnd);
   const dateKey = (d: Date) => d.toISOString().slice(0, 10);
   const boardBusinessDayIndex = new Map(boardBusinessDays.map((d, i) => [dateKey(d), i]));
 
@@ -348,6 +355,25 @@ export default async function ProjectsPage({
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
     }));
 
+  // Pestaña "Archivos" del panorama general: mismos archivos que ya trae
+  // boardTasksRaw (ya acotado por boardWhere a lo que puede ver este
+  // usuario — admin todo, PM sus proyectos, miembro solo sus tareas
+  // asignadas), solo se agrega el filtro de tipo/proyecto/búsqueda propio
+  // de esta vista.
+  const boardFileKind: "INSUMO" | "RESULTADO" = fileKind === "RESULTADO" ? "RESULTADO" : "INSUMO";
+  const boardFiles = boardTasksRaw
+    .flatMap((t) =>
+      t.attachments
+        .filter((a) => a.kind === boardFileKind)
+        .map((a) => ({ ...a, taskId: t.id, taskTitle: t.title, projectId: t.projectId, projectName: t.project.name }))
+    )
+    .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
+    .filter((a) => !fileProject || a.projectId === fileProject)
+    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+  const boardFileProjectOptions = Array.from(new Map(boardTasksRaw.map((t) => [t.projectId, t.project.name])).entries()).map(
+    ([id, label]) => ({ id, label })
+  );
+
   return (
     <div className="space-y-8">
       <RememberViewState storageKey="projectsBoard" />
@@ -404,13 +430,14 @@ export default async function ProjectsPage({
               allLabel="Todos los proyectos"
               value={risk}
               options={[
-                { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
+                { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
                 { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+                { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
               ]}
               paramKey="risk"
               basePath="/projects"
               currentParams={{ pq }}
-              triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
+              triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
             />
           </div>
           {(pq || risk) && (
@@ -435,7 +462,7 @@ export default async function ProjectsPage({
           )}
           <ProjectCardsOrder
             items={rows.map(({ project: p, summary }) => {
-            const { overdueCount, warningCount, overdueTasks, warningTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
+            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             // El color del proyecto (o uno automático si no eligió uno) va de
             // fondo de la tarjeta — punto confirmado con el usuario. Siempre
             // es un color CLARO (paleta acotada en ProjectIcon.tsx), así el
@@ -475,6 +502,8 @@ export default async function ProjectsPage({
                       overdueTasks={overdueTasks}
                       warningCount={warningCount}
                       warningTasks={warningTasks}
+                      lateStartCount={lateStartCount}
+                      lateStartTasks={lateStartTasks}
                       openSlackDays={openSlackDays}
                       scheduleVarianceDays={scheduleVarianceDays}
                     />
@@ -525,6 +554,12 @@ export default async function ProjectsPage({
             >
               Calendario
             </Link>
+            <Link
+              href={filesHref({})}
+              className={`rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            >
+              Archivos
+            </Link>
           </div>
 
           {view === "calendar" && calendarMode !== "day" && (
@@ -544,55 +579,73 @@ export default async function ProjectsPage({
           )}
         </div>
 
-        <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Buscar</span>
-            <SearchBox
-              basePath="/projects"
-              q={q}
-              hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, collision }}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Persona</span>
-            <ComboFilter
-              allLabel="Todas las personas"
-              value={userId}
-              options={users.map((u) => ({ id: u.id, label: u.name }))}
-              paramKey="userId"
-              basePath="/projects"
-              currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, q, collision }}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Estado</span>
-            <ComboFilter
-              allLabel="Todos los estados"
-              value={status}
-              options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"] as const).map((s) => ({
-                id: s,
-                label: TASK_STATUS_LABEL[s],
-                dotColorClass: TASK_STATUS_COLOR[s].dot,
-              }))}
-              paramKey="status"
-              basePath="/projects"
-              currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, q, collision }}
-              triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
-            />
-          </div>
-          {canSeeCollisions && (
+        {view !== "files" && (
+          <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-slate-400">Colisión</span>
-              <Link
-                href={boardHref({ collision: collision ? undefined : "1" })}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${collision ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
-              >
-                <OverlapIcon className="h-3.5 w-3.5" />
-                Solo colisiones
-              </Link>
+              <span className="text-xs text-slate-400">Buscar</span>
+              <SearchBox
+                basePath="/projects"
+                q={q}
+                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, collision }}
+              />
             </div>
-          )}
-        </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Persona</span>
+              <ComboFilter
+                allLabel="Todas las personas"
+                value={userId}
+                options={users.map((u) => ({ id: u.id, label: u.name }))}
+                paramKey="userId"
+                basePath="/projects"
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, q, collision }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Estado</span>
+              <ComboFilter
+                allLabel="Todos los estados"
+                value={status}
+                options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
+                  id: s,
+                  label: TASK_STATUS_LABEL[s],
+                  dotColorClass: TASK_STATUS_COLOR[s].dot,
+                }))}
+                paramKey="status"
+                basePath="/projects"
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, q, collision }}
+                triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Alerta</span>
+              <ComboFilter
+                allLabel="Todas las alertas"
+                value={risk}
+                options={[
+                  { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
+                  { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+                  { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
+                ]}
+                paramKey="risk"
+                basePath="/projects"
+                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, collision }}
+                triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
+              />
+            </div>
+            {canSeeCollisions && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-slate-400">Colisión</span>
+                <Link
+                  href={boardHref({ collision: collision ? undefined : "1" })}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${collision ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+                >
+                  <OverlapIcon className="h-3.5 w-3.5" />
+                  Solo colisiones
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {view === "calendar" && (
           <div className="flex gap-1 text-sm">
@@ -608,14 +661,24 @@ export default async function ProjectsPage({
           </div>
         )}
 
-        {view === "gantt" ? (
+        {view === "files" ? (
+          <AllProjectsFilesView
+            files={boardFiles}
+            projects={boardFileProjectOptions}
+            fileKind={boardFileKind}
+            fileType={fileType}
+            fileProject={fileProject}
+            fileQ={fileQ}
+            filesHref={filesHref}
+          />
+        ) : view === "gantt" ? (
           // Sticky en vez de flex-col como en projects/[id]/page.tsx: acá,
           // antes del Gantt, va la sección completa de tarjetas de proyecto
           // (crece libre con la página, no se comprime). Al bajar el scroll
           // hasta acá, el Gantt se pega debajo del header (57px) y ocupa el
           // resto de la pantalla con su propio scroll interno.
           <div className="sticky top-[57px] h-[calc(100vh-57px-16px)]">
-            <GanttView businessDays={boardBusinessDays} tasks={boardGanttTasks} canManage={canManageBoard} />
+            <GanttView businessDays={boardBusinessDays} tasks={boardGanttTasks} canManage={canManageBoard} users={users} />
           </div>
         ) : view === "calendar" ? (
           <ProjectCalendarView tasks={boardCalendarTasks} mode={calendarMode} anchor={anchor} showProjectName />

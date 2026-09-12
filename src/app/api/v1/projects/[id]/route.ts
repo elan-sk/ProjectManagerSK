@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey } from "@/lib/apiAuth";
+import { requireApiKey, safeJson } from "@/lib/apiAuth";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 
@@ -27,4 +28,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ]);
 
   return NextResponse.json({ ...project, bottlenecks, delays });
+}
+
+// Punto 3.1 (skill dev-project-definer): completar la descripción/fechas del
+// proyecto una vez creado — la info que no encaje en objetivos/requerimientos/
+// fases va acá, nunca se descarta solo por no tener un campo propio.
+const updateProjectSchema = z.object({
+  description: z.string().optional(),
+  targetEndDate: z.coerce.date().optional(),
+  clientName: z.string().optional(),
+  repoUrl: z.string().url().optional(),
+  color: z.string().optional(),
+});
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireApiKey(request);
+  if (denied) return denied;
+
+  const { id } = await params;
+  const parsedBody = await safeJson(request);
+  if ("error" in parsedBody) return parsedBody.error;
+
+  const parsed = updateProjectSchema.safeParse(parsedBody.data);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const project = await prisma.project.update({ where: { id }, data: parsed.data }).catch(() => null);
+  if (!project) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+  return NextResponse.json(project);
 }

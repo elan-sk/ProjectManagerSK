@@ -14,11 +14,13 @@ export function SearchableSelect({
   options,
   placeholder = "Elegir…",
   defaultValue,
+  onChange,
 }: {
   name: string;
   options: { id: string; label: string }[];
   placeholder?: string;
   defaultValue?: string;
+  onChange?: (id: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
   const [query, setQuery] = useState("");
@@ -44,6 +46,7 @@ export function SearchableSelect({
     setValue(id);
     setOpen(false);
     setQuery("");
+    onChange?.(id);
   }
 
   return (

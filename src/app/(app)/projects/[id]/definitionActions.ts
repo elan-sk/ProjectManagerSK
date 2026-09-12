@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unlink } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProjectAdmin } from "@/lib/permissions";
+import { listGroups } from "@/lib/whatsapp";
 
 async function guard(projectId: string) {
   try {
@@ -40,6 +43,21 @@ export async function updateProjectIdentity(projectId: string, formData: FormDat
   await prisma.project.update({ where: { id: projectId }, data: { color, iconUrl } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
+  return { ok: true as const };
+}
+
+export async function projectWhatsAppGroups(projectId: string) {
+  const denied = await guard(projectId);
+  if (denied) return [];
+  return listGroups();
+}
+
+export async function updateProjectWhatsAppGroup(projectId: string, groupJid: string) {
+  const denied = await guard(projectId);
+  if (denied) return denied;
+
+  await prisma.project.update({ where: { id: projectId }, data: { whatsappGroupJid: groupJid || null } });
+  revalidatePath(`/projects/${projectId}`);
   return { ok: true as const };
 }
 
@@ -149,15 +167,24 @@ export async function deleteRequirement(requirementId: string) {
   return { ok: true as const };
 }
 
-const phaseNameSchema = z.object({ name: z.string().min(1) });
+const phaseSchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()) });
 
-export async function updatePhaseName(phaseId: string, formData: FormData) {
+export async function updatePhase(phaseId: string, formData: FormData) {
   const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
   const denied = await guard(phase.projectId);
   if (denied) return denied;
 
-  const data = phaseNameSchema.parse({ name: formData.get("name") });
-  await prisma.phase.update({ where: { id: phaseId }, data: { name: data.name } });
+  const data = phaseSchema.parse({
+    name: formData.get("name"),
+    requirementIds: formData.getAll("requirementIds"),
+  });
+  await prisma.phase.update({
+    where: { id: phaseId },
+    data: {
+      name: data.name,
+      requirements: { set: data.requirementIds.map((id) => ({ id })) },
+    },
+  });
   revalidatePath(`/projects/${phase.projectId}`);
   return { ok: true as const };
 }
@@ -194,5 +221,64 @@ export async function updatePhaseRequirements(phaseId: string, formData: FormDat
     data: { requirements: { set: requirementIds.map((id) => ({ id })) } },
   });
   revalidatePath(`/projects/${phase.projectId}`);
+  return { ok: true as const };
+}
+
+// Punto 3.2: archivos y enlaces importantes del proyecto — se prioriza el
+// link sobre subir el archivo, para no llenar la app de contenido que puede
+// vivir en un servicio externo (Drive, Figma, repo).
+const projectLinkSchema = z.object({
+  title: z.string().min(1),
+  url: z.string().trim().url(),
+});
+
+export async function addProjectLink(projectId: string, formData: FormData) {
+  const denied = await guard(projectId);
+  if (denied) return denied;
+
+  const parsed = projectLinkSchema.safeParse({
+    title: formData.get("title"),
+    url: formData.get("url"),
+  });
+  if (!parsed.success) return { ok: false as const, error: "Completá un nombre y un link válido (con https://)." };
+
+  await prisma.projectLink.create({ data: { projectId, title: parsed.data.title, url: parsed.data.url } });
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true as const };
+}
+
+export async function removeProjectLink(linkId: string) {
+  const link = await prisma.projectLink.findUniqueOrThrow({ where: { id: linkId } });
+  const denied = await guard(link.projectId);
+  if (denied) return denied;
+
+  await prisma.projectLink.delete({ where: { id: linkId } });
+  revalidatePath(`/projects/${link.projectId}`);
+  return { ok: true as const };
+}
+
+export async function addProjectAttachment(projectId: string, file: { url: string; name: string; mimeType: string }) {
+  let user;
+  try {
+    user = await requireProjectAdmin(projectId);
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
+
+  await prisma.projectAttachment.create({
+    data: { projectId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: user.id },
+  });
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true as const };
+}
+
+export async function removeProjectAttachment(attachmentId: string) {
+  const attachment = await prisma.projectAttachment.findUniqueOrThrow({ where: { id: attachmentId } });
+  const denied = await guard(attachment.projectId);
+  if (denied) return denied;
+
+  await prisma.projectAttachment.delete({ where: { id: attachmentId } });
+  await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  revalidatePath(`/projects/${attachment.projectId}`);
   return { ok: true as const };
 }

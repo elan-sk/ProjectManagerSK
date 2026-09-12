@@ -3,15 +3,19 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
-import { getProjectAdmin, canEditTask } from "@/lib/permissions";
+import { utcToBogotaLocalInputValue } from "@/lib/workingHours";
+import { getProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { StepCheckbox } from "./StepCheckbox";
 import { AttachmentUploader } from "./AttachmentUploader";
 import { AttachmentGrid } from "./AttachmentGrid";
+import { AdjustmentPanel } from "./AdjustmentPanel";
+import { ReviewPanel } from "./ReviewPanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
 import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
+import { InlineMeetingUrl } from "./InlineMeetingUrl";
 import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
@@ -21,10 +25,11 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { NavLinkWithMemory } from "../../../../NavLinkWithMemory";
+import { getActiveShareLink } from "@/lib/shareLinks";
+import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
+import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
-
-const HAS_CHECKLIST: Record<string, boolean> = { CHECKLIST: true, QA: true };
 
 export default async function TaskDetailPage({
   params,
@@ -40,24 +45,38 @@ export default async function TaskDetailPage({
       project: true,
       phase: true,
       assignees: { include: { user: true } },
+      reviewers: { include: { user: true } },
       steps: { orderBy: { order: "asc" } },
       attachments: { include: { uploadedBy: true }, orderBy: { uploadedAt: "desc" } },
+      adjustmentItems: { include: { attachments: true }, orderBy: { order: "asc" } },
+      reviewRounds: {
+        orderBy: { roundNumber: "desc" },
+        include: {
+          submittedBy: true,
+          deliverables: true,
+          checks: { include: { evidence: true, reviewedBy: true }, orderBy: { order: "asc" } },
+          messages: { include: { author: true }, orderBy: { createdAt: "asc" } },
+        },
+      },
       dependsOn: { include: { predecessor: true } },
       blocks: { include: { successor: { select: { id: true, title: true } } } },
     },
   });
   if (!task) notFound();
 
-  const [otherTasks, canManage, canEdit, users, alert, phases] = await Promise.all([
+  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
     }),
     getProjectAdmin(projectId).then(Boolean),
     canEditTask(taskId),
+    canReviewTask(taskId),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
     getTaskAlert(task.project.countryCode, task),
     prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
+    getActiveShareLink("TASK", taskId),
+    task.type === "QA" ? prisma.testTemplate.findMany({ orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
   ]);
 
   const delayDays =
@@ -98,7 +117,7 @@ export default async function TaskDetailPage({
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
           <span>
-            <InlineType taskId={taskId} type={task.type} canManage={canEdit} /> · Fase:{" "}
+            <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase:{" "}
             <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canEdit} />{" "}
             · Asignados:
           </span>
@@ -167,7 +186,12 @@ export default async function TaskDetailPage({
         )}
         {alert.level === "overdue" && (
           <p className="mt-1 text-sm font-medium text-red-600">
-            Atrasada — hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""}.
+            Final retrasado — hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""}.
+          </p>
+        )}
+        {alert.level === "lateStart" && (
+          <p className="mt-1 text-sm font-medium text-amber-600">
+            Debía iniciar hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""} y sigue sin arrancar.
           </p>
         )}
         {alert.level === "warning" && (
@@ -183,8 +207,27 @@ export default async function TaskDetailPage({
 
         <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
 
+        <div className="mt-2">
+          <InlineMeetingUrl
+            taskId={taskId}
+            meetingUrl={task.meetingUrl}
+            meetingAtLocal={task.meetingAt ? utcToBogotaLocalInputValue(task.meetingAt) : null}
+            canManage={canEdit}
+          />
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <TaskStatusControl taskId={taskId} status={task.status} />
+          <TaskStatusControl key={task.status} taskId={taskId} status={task.status} />
+          {canManage && (
+            <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact>
+              <ShareLinkPanel
+                activeToken={activeShareLink?.token ?? null}
+                activeLinkId={activeShareLink?.id ?? null}
+                onCreate={createTaskShareLink.bind(null, taskId)}
+                onRevoke={revokeTaskShareLink.bind(null, taskId)}
+              />
+            </ModalTrigger>
+          )}
           {canManage && <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} />}
         </div>
 
@@ -195,69 +238,123 @@ export default async function TaskDetailPage({
         )}
       </div>
 
-      {HAS_CHECKLIST[task.type] && (
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
-          <div className="space-y-2">
-            {task.steps.map((s) => (
-              <StepCheckbox key={s.id} stepId={s.id} description={s.description} done={s.done} canEdit={canEdit} />
-            ))}
-            {task.steps.length === 0 && (
-              <p className="text-sm text-slate-400">Sin pasos todavía.</p>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
+        <div className="space-y-2">
+          {task.steps.map((s) => (
+            <StepCheckbox key={s.id} stepId={s.id} description={s.description} done={s.done} canEdit={canEdit} />
+          ))}
+          {task.steps.length === 0 && (
+            <p className="text-sm text-slate-400">Sin pasos todavía.</p>
+          )}
+        </div>
+        {canEdit && (
+          <form action={addStepWithId} className="flex gap-2">
+            <input
+              name="description"
+              placeholder="Nuevo paso / prueba"
+              required
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
+              Agregar
+            </button>
+          </form>
+        )}
+      </section>
+
+      {task.type === "ADJUSTMENT" ? (
+        <AdjustmentPanel
+          taskId={taskId}
+          items={task.adjustmentItems.map((item) => ({
+            id: item.id,
+            description: item.description,
+            note: item.note,
+            before: item.attachments.filter((a) => a.kind === "BEFORE").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            after: item.attachments.filter((a) => a.kind === "AFTER").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+          }))}
+          userId={session?.user?.id ?? null}
+          canEdit={canEdit}
+          canDelete={canManage}
+        />
+      ) : (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="font-medium text-slate-900">Insumos</h2>
+            <AttachmentGrid
+              items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+              canDelete={canManage}
+            />
+            {canEdit && session?.user && (
+              <AttachmentUploader
+                taskId={taskId}
+                userId={session.user.id}
+                kind="INSUMO"
+                label="+ Subir insumo"
+              />
             )}
           </div>
-          {canEdit && (
-            <form action={addStepWithId} className="flex gap-2">
-              <input
-                name="description"
-                placeholder="Nuevo paso / prueba"
-                required
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+
+          <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="font-medium text-slate-900">Resultados / evidencia</h2>
+            <AttachmentGrid
+              items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+              canDelete={canManage}
+            />
+            {canEdit && session?.user && task.status !== "COMPLETED" && (
+              <AttachmentUploader
+                taskId={taskId}
+                userId={session.user.id}
+                kind="RESULTADO"
+                label="+ Subir evidencia"
               />
-              <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
-                Agregar
-              </button>
-            </form>
-          )}
+            )}
+            {task.status === "COMPLETED" && (
+              <p className="text-xs text-slate-400">La tarea ya está completada — no se puede subir más evidencia.</p>
+            )}
+          </div>
         </section>
       )}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-medium text-slate-900">Insumos</h2>
-          <AttachmentGrid
-            items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
-            canDelete={canManage}
-          />
-          {canEdit && session?.user && (
-            <AttachmentUploader
-              taskId={taskId}
-              userId={session.user.id}
-              kind="INSUMO"
-              label="+ Subir insumo"
-            />
-          )}
-        </div>
-
-        <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-medium text-slate-900">Resultados / evidencia</h2>
-          <AttachmentGrid
-            items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
-            canDelete={canManage}
-          />
-          {canEdit && session?.user && task.status !== "COMPLETED" && (
-            <AttachmentUploader
-              taskId={taskId}
-              userId={session.user.id}
-              kind="RESULTADO"
-              label="+ Subir evidencia"
-            />
-          )}
-          {task.status === "COMPLETED" && (
-            <p className="text-xs text-slate-400">La tarea ya está completada — no se puede subir más evidencia.</p>
-          )}
-        </div>
-      </section>
+      {task.type === "QA" && (
+        <ReviewPanel
+          taskId={taskId}
+          userId={session?.user?.id ?? null}
+          canManage={canManage}
+          canEdit={canEdit}
+          canReview={canReview}
+          users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
+          currentReviewerIds={task.reviewers.map((r) => r.userId)}
+          templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}
+          rounds={task.reviewRounds.map((round) => ({
+            id: round.id,
+            roundNumber: round.roundNumber,
+            submittedByName: round.submittedBy.name,
+            submittedAt: round.submittedAt.toISOString(),
+            outcome: round.outcome,
+            deliverables: round.deliverables.map((d) => ({ id: d.id, url: d.fileUrl, name: d.fileName, mimeType: d.mimeType })),
+            checks: round.checks.map((c) => ({
+              id: c.id,
+              title: c.title,
+              criteria: c.criteria,
+              category: c.category,
+              result: c.result,
+              note: c.note,
+              responseCategory: c.responseCategory,
+              reviewedByName: c.reviewedBy?.name ?? null,
+              evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+            })),
+            messages: round.messages.map((m) => ({
+              id: m.id,
+              authorId: m.authorId,
+              authorName: m.author.name,
+              body: m.body,
+              editedAt: m.editedAt?.toISOString() ?? null,
+              createdAt: m.createdAt.toISOString(),
+            })),
+          }))}
+        />
+      )}
 
       <section>
         <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4">

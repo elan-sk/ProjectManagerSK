@@ -28,7 +28,7 @@ export function ProjectAlertLink({
   children,
 }: {
   projectId: string;
-  risk: "overdue" | "warning";
+  risk: "overdue" | "warning" | "lateStart";
   items: ReferenceItem[];
   className?: string;
   children: ReactNode;

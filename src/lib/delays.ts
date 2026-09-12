@@ -76,10 +76,10 @@ export async function getTaskScheduleVariance(
   return -(await businessDaysBetween(countryCode, task.plannedEnd, task.actualEnd));
 }
 
-export type TaskAlertLevel = "done" | "blocked" | "overdue" | "warning" | "onTrack";
+export type TaskAlertLevel = "done" | "blocked" | "overdue" | "lateStart" | "warning" | "onTrack";
 export type TaskAlert = {
   level: TaskAlertLevel;
-  /** Días hábiles ya vencidos (solo "overdue"). */
+  /** Días hábiles ya vencidos (solo "overdue"/"lateStart"). */
   businessDaysOverdue: number;
   /** Días hábiles que faltan hasta la fecha fin planeada (solo "warning"/"onTrack"). */
   daysRemaining: number;
@@ -90,24 +90,45 @@ export type TaskAlert = {
  * aplica a tareas ya COMPLETED comparando duración real vs. planeada), esto
  * mide si una tarea TODAVÍA ABIERTA ya se pasó de su fecha fin planeada, o
  * está por vencer — para pintar cards/badges antes de que el atraso ya sea
- * un hecho consumado.
+ * un hecho consumado. También detecta el caso de que ya debería estar en
+ * curso (plannedStart pasado) pero sigue NOT_STARTED, mientras su plannedEnd
+ * todavía no llega — si plannedEnd ya pasó, el chequeo de "overdue" de abajo
+ * ya la cubre y no hace falta duplicar la alerta.
  */
+function dateOnly(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
 export async function getTaskAlert(
   countryCode: string,
-  task: Pick<Task, "status" | "plannedEnd">
+  task: Pick<Task, "status" | "plannedStart" | "plannedEnd">
 ): Promise<TaskAlert> {
   if (task.status === "COMPLETED") return { level: "done", businessDaysOverdue: 0, daysRemaining: 0 };
   if (task.status === "BLOCKED") return { level: "blocked", businessDaysOverdue: 0, daysRemaining: 0 };
 
   const today = todayUTC();
-  if (today > task.plannedEnd) {
-    const dayAfterEnd = new Date(task.plannedEnd);
+  // Se compara por día calendario, no por instante — algunas tareas quedaron
+  // guardadas con hora distinta de medianoche UTC (bug real detectado: p.ej.
+  // plannedStart "00:38:19" en vez de "00:00:00"), lo que hacía fallar
+  // silenciosamente `today >= plannedStart` el mismísimo día de inicio.
+  const plannedStart = dateOnly(task.plannedStart);
+  const plannedEnd = dateOnly(task.plannedEnd);
+
+  if (task.status === "NOT_STARTED" && today >= plannedStart && today <= plannedEnd) {
+    const dayAfterStart = new Date(plannedStart);
+    dayAfterStart.setUTCDate(dayAfterStart.getUTCDate() + 1);
+    const businessDaysLate = await businessDaysBetween(countryCode, dayAfterStart, today);
+    return { level: "lateStart", businessDaysOverdue: businessDaysLate, daysRemaining: 0 };
+  }
+
+  if (today > plannedEnd) {
+    const dayAfterEnd = new Date(plannedEnd);
     dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
     const businessDaysOverdue = await businessDaysBetween(countryCode, dayAfterEnd, today);
     return { level: "overdue", businessDaysOverdue, daysRemaining: 0 };
   }
 
-  const daysToDeadline = await businessDaysBetween(countryCode, today, task.plannedEnd);
+  const daysToDeadline = await businessDaysBetween(countryCode, today, plannedEnd);
   if (daysToDeadline <= 2) return { level: "warning", businessDaysOverdue: 0, daysRemaining: daysToDeadline };
   return { level: "onTrack", businessDaysOverdue: 0, daysRemaining: daysToDeadline };
 }
@@ -196,6 +217,67 @@ export async function getUserPerformance(
   return results;
 }
 
+export type UserPerformanceByProject = UserPerformance & {
+  projectId: string;
+  projectName: string;
+};
+
+/**
+ * Igual que getUserPerformance pero desglosado por proyecto — para el
+ * informe individual (filosofía PSP: cada persona necesita ver su propia
+ * evolución, no solo el acumulado mezclado con el resto del equipo).
+ */
+export async function getUserPerformanceByProject(
+  userId: string,
+  projectIds?: string[]
+): Promise<UserPerformanceByProject[]> {
+  const [user, assignments] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    prisma.taskAssignee.findMany({
+      where: { userId, task: projectIds ? { projectId: { in: projectIds } } : undefined },
+      include: { task: { include: { project: true } } },
+    }),
+  ]);
+
+  const byProject = new Map<
+    string,
+    { projectName: string; tasksAssigned: number; tasksCompleted: number; tasksOnTime: number; totalDelayDays: number }
+  >();
+
+  for (const { task } of assignments) {
+    if (!byProject.has(task.projectId)) {
+      byProject.set(task.projectId, {
+        projectName: task.project.name,
+        tasksAssigned: 0,
+        tasksCompleted: 0,
+        tasksOnTime: 0,
+        totalDelayDays: 0,
+      });
+    }
+    const entry = byProject.get(task.projectId)!;
+    entry.tasksAssigned += 1;
+    if (task.status !== "COMPLETED") continue;
+    entry.tasksCompleted += 1;
+    const delayDays = await getTaskDelayDays(task.project.countryCode, task);
+    entry.totalDelayDays += delayDays;
+    if (delayDays === 0) entry.tasksOnTime += 1;
+  }
+
+  return Array.from(byProject.entries())
+    .map(([projectId, e]) => ({
+      projectId,
+      projectName: e.projectName,
+      userId,
+      userName: user?.name ?? "—",
+      tasksAssigned: e.tasksAssigned,
+      tasksCompleted: e.tasksCompleted,
+      tasksOnTime: e.tasksOnTime,
+      totalDelayDays: e.totalDelayDays,
+      onTimeRate: e.tasksCompleted > 0 ? e.tasksOnTime / e.tasksCompleted : null,
+    }))
+    .sort((a, b) => a.projectName.localeCompare(b.projectName));
+}
+
 /**
  * Cuellos de botella (punto 17): tareas no completadas de las que dependen
  * dos o más tareas sucesoras, o que ya están en riesgo alto. bottleneckReason
@@ -280,7 +362,7 @@ export type ProjectReport = {
   totalTasks: number;
   statusBreakdown: Record<string, number>;
   riskBreakdown: Record<string, number>;
-  alertBreakdown: { overdue: number; warning: number; onTrack: number; done: number; blocked: number };
+  alertBreakdown: { overdue: number; lateStart: number; warning: number; onTrack: number; done: number; blocked: number };
   onTimeRate: number | null;
   avgDelayDays: number;
   bottlenecks: Awaited<ReturnType<typeof getBottlenecks>>;
@@ -300,7 +382,7 @@ export async function getProjectReport(projectIds?: string[]): Promise<ProjectRe
 
   const statusBreakdown: Record<string, number> = { NOT_STARTED: 0, IN_PROGRESS: 0, BLOCKED: 0, COMPLETED: 0 };
   const riskBreakdown: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0 };
-  const alertBreakdown = { overdue: 0, warning: 0, onTrack: 0, done: 0, blocked: 0 };
+  const alertBreakdown = { overdue: 0, lateStart: 0, warning: 0, onTrack: 0, done: 0, blocked: 0 };
 
   let completedCount = 0;
   let onTimeCount = 0;
@@ -366,4 +448,36 @@ export async function getCompletionTrend(projectIds?: string[], weeks = 8): Prom
     });
   }
   return buckets;
+}
+
+export type RecentTrend = { rate: number; count: number };
+
+/**
+ * Tendencia reciente de cumplimiento a tiempo: de las últimas `windowSize`
+ * tareas que esta persona completó, qué % fue a tiempo — para comparar
+ * contra el % histórico acumulado y ver si está mejorando o empeorando, no
+ * solo la foto de siempre. `null` si no completó ninguna tarea todavía.
+ */
+export async function getRecentOnTimeTrend(
+  userId: string,
+  projectIds: string[] | undefined,
+  windowSize = 5
+): Promise<RecentTrend | null> {
+  const assignments = await prisma.taskAssignee.findMany({
+    where: {
+      userId,
+      task: { status: "COMPLETED", projectId: projectIds ? { in: projectIds } : undefined },
+    },
+    include: { task: { include: { project: true } } },
+    orderBy: { task: { actualEnd: "desc" } },
+    take: windowSize,
+  });
+  if (assignments.length === 0) return null;
+
+  let onTime = 0;
+  for (const { task } of assignments) {
+    const delayDays = await getTaskDelayDays(task.project.countryCode, task);
+    if (delayDays === 0) onTime++;
+  }
+  return { rate: onTime / assignments.length, count: assignments.length };
 }

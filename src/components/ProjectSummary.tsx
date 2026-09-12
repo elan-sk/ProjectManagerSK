@@ -33,6 +33,8 @@ export function ProjectHealthBadges({
   overdueTasks,
   warningCount,
   warningTasks,
+  lateStartCount = 0,
+  lateStartTasks = [],
   openSlackDays = null,
   scheduleVarianceDays = null,
 }: {
@@ -42,24 +44,29 @@ export function ProjectHealthBadges({
   overdueTasks: { id: string; title: string }[];
   warningCount: number;
   warningTasks: { id: string; title: string }[];
+  lateStartCount?: number;
+  lateStartTasks?: { id: string; title: string }[];
   openSlackDays?: number | null;
   scheduleVarianceDays?: number | null;
 }) {
   return (
     <>
-      {health === "ok" ? (
-        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE.ok}`}>
-          {HEALTH_LABEL.ok}
-          {openSlackDays !== null && openSlackDays !== 0 && ` · ${openSlackDays}d de holgura`}
-        </span>
-      ) : (
+      {/* Salud general (% de tareas con final retrasado sobre el total) —
+          badge propio, independiente de los conteos de abajo: da el "cómo
+          voy" de un vistazo sin tener que abrir Rendimiento ni sumar los
+          conteos de alertas a mano. */}
+      <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE[health]}`}>
+        {HEALTH_LABEL[health]}
+        {health === "ok" && openSlackDays !== null && openSlackDays !== 0 && ` · ${openSlackDays}d de holgura`}
+      </span>
+      {lateStartCount > 0 && (
         <ProjectAlertLink
           projectId={projectId}
-          risk="overdue"
-          items={overdueTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${projectId}/tasks/${t.id}` }))}
-          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium hover:brightness-95 ${HEALTH_STYLE[health]}`}
+          risk="lateStart"
+          items={lateStartTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${projectId}/tasks/${t.id}` }))}
+          className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700 hover:brightness-95"
         >
-          {HEALTH_LABEL[health]} · {overdueCount} atrasada{overdueCount > 1 ? "s" : ""}
+          {lateStartCount} · Inicio retrasado
         </ProjectAlertLink>
       )}
       {warningCount > 0 && (
@@ -70,6 +77,16 @@ export function ProjectHealthBadges({
           className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 hover:brightness-95"
         >
           {warningCount} por vencer
+        </ProjectAlertLink>
+      )}
+      {overdueCount > 0 && (
+        <ProjectAlertLink
+          projectId={projectId}
+          risk="overdue"
+          items={overdueTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${projectId}/tasks/${t.id}` }))}
+          className="rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 hover:brightness-95"
+        >
+          {overdueCount} final retrasado
         </ProjectAlertLink>
       )}
       <ScheduleVarianceBadge days={scheduleVarianceDays} />

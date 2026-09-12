@@ -27,7 +27,7 @@ export type TaskCard = {
   projectIconUrl: string | null;
   title: string;
   type: string;
-  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
+  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   riskLevel: string;
   assignees: { name: string; avatarUrl: string | null }[];
   assigneeIds: string[];
@@ -39,7 +39,11 @@ export type TaskCard = {
   collidesWith: CollisionInfo[] | null;
 };
 
-const COLUMNS = Object.keys(TASK_STATUS_LABEL) as TaskStatus[];
+// RETURNED comparte columna con BLOCKED (misma columna "Bloqueada"): el
+// revisor es el único que devuelve una tarea (reviewActions.ts), nunca se
+// arrastra manualmente, así que no necesita columna propia — solo un badge
+// en la card para distinguirla (ver CardBody).
+const COLUMNS = (Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).filter((s) => s !== "RETURNED");
 
 const TYPE_BADGE: Record<string, string> = {
   SIMPLE: "bg-slate-100 text-slate-600",
@@ -103,9 +107,16 @@ function CardBody({
       )}
 
       <div className="flex items-start justify-between gap-2 pr-4">
-        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
-          {TYPE_LABEL[task.type] ?? task.type}
-        </span>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
+            {TYPE_LABEL[task.type] ?? task.type}
+          </span>
+          {task.status === "RETURNED" && (
+            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_STATUS_COLOR.RETURNED.badge}`}>
+              {TASK_STATUS_LABEL.RETURNED}
+            </span>
+          )}
+        </div>
         <div className="mt-1 flex flex-shrink-0 items-center gap-1.5">
           {task.collidesWith && task.collidesWith.length > 0 && (
             <ReferencePopover
@@ -140,7 +151,7 @@ function CardBody({
         {task.alert.level === "onTrack" && ` · vence en ${task.alert.daysRemaining}d`}
       </p>
 
-      {(task.alert.level === "overdue" || task.alert.level === "warning") && (
+      {(task.alert.level === "overdue" || task.alert.level === "warning" || task.alert.level === "lateStart") && (
         <AlertBadge alert={task.alert} />
       )}
 
@@ -371,7 +382,7 @@ export function KanbanBoard({
           <Column
             key={status}
             id={status}
-            tasks={tasks.filter((t) => t.status === status)}
+            tasks={tasks.filter((t) => t.status === status || (status === "BLOCKED" && t.status === "RETURNED"))}
             showProjectName={showProjectName}
             canManage={canManage}
             users={users}

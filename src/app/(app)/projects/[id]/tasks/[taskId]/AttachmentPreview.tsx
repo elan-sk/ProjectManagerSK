@@ -22,6 +22,7 @@ export function AttachmentPreview({
   canDelete,
   taskLink,
   onOpenImage,
+  onOpenPreview,
 }: {
   id: string;
   url: string;
@@ -31,6 +32,8 @@ export function AttachmentPreview({
   /** Solo en la vista "Archivos" del proyecto, que junta adjuntos de varias tareas — lleva de vuelta a la tarea dueña. */
   taskLink?: { href: string; title: string };
   onOpenImage?: () => void;
+  /** PDF/Word/Excel — abre el visor (AttachmentPreviewModal) en vez de descargar directo. */
+  onOpenPreview?: () => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -54,22 +57,29 @@ export function AttachmentPreview({
   }
 
   if (!isImage) {
+    const thumbClass = "flex h-24 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 p-2 text-center text-xs text-slate-500";
+    const thumbContent = (
+      <>
+        {isLink ? (
+          <LinkIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+        ) : (
+          <DocumentIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+        )}
+        <span className="line-clamp-2 w-full break-words">{name}</span>
+      </>
+    );
+
     return (
       <div className="group relative min-w-0">
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          download={isLink ? undefined : name}
-          className="flex h-24 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 p-2 text-center text-xs text-slate-500"
-        >
-          {isLink ? (
-            <LinkIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
-          ) : (
-            <DocumentIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
-          )}
-          <span className="line-clamp-2 w-full break-words">{name}</span>
-        </a>
+        {onOpenPreview ? (
+          <button type="button" onClick={onOpenPreview} className={thumbClass}>
+            {thumbContent}
+          </button>
+        ) : (
+          <a href={url} target="_blank" rel="noreferrer" download={isLink ? undefined : name} className={thumbClass}>
+            {thumbContent}
+          </a>
+        )}
         {taskLink && (
           <Link
             href={taskLink.href}

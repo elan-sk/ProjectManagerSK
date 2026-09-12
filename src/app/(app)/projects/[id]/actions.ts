@@ -81,7 +81,7 @@ export async function updateProjectRepoUrl(projectId: string, formData: FormData
 const createTaskSchema = z.object({
   phaseId: z.string().min(1),
   title: z.string().min(1),
-  type: z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
   description: z.string().nullable(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),
@@ -145,6 +145,132 @@ export async function addTask(projectId: string, formData: FormData) {
   await notifyAssignment(task.id, data.assigneeIds);
 
   revalidatePath(`/projects/${projectId}`);
+  return { ok: true, id: task.id };
+}
+
+const insertAdjacentTaskSchema = z.object({
+  title: z.string().min(1),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
+  description: z.string().nullable(),
+  plannedStart: z.coerce.date(),
+  durationDays: z.coerce.number().int().min(1).default(1),
+  assigneeIds: z.array(z.string()).min(1),
+  predecessorId: z.string().optional(),
+});
+
+// Lógica pura de "Crear predecesor"/"Crear sucesor" (sin el chequeo de
+// permisos, separado así para poder probarla directo desde
+// scripts/verify-insert-adjacent-task.ts, mismo patrón que
+// propagateToSuccessors): crea una tarea nueva en la MISMA fase que la tarea
+// de origen. Si el lado pedido ya tenía vínculo(s) directos (ej. origin ya
+// tenía una sucesora), esos vínculos se cortan y se recablean a través de la
+// nueva tarea en vez de coexistir con ella — así queda insertada EN MEDIO de
+// la cadena. La cascada ya existente (propagateToSuccessors) es la que
+// efectivamente empuja hacia adelante lo que sigue, igual que cualquier otro
+// cambio de fecha en el Gantt.
+export async function insertAdjacentTaskCore(
+  originTaskId: string,
+  role: "predecessor" | "successor",
+  data: {
+    title: string;
+    type: TaskType;
+    description: string | null;
+    plannedStart: Date;
+    durationDays: number;
+    assigneeIds: string[];
+    predecessorId?: string;
+  }
+) {
+  const origin = await prisma.task.findUniqueOrThrow({
+    where: { id: originTaskId },
+    include: { project: true, dependsOn: true, blocks: true },
+  });
+
+  const plannedEnd =
+    data.durationDays <= 1
+      ? data.plannedStart
+      : await addBusinessDays(origin.project.countryCode, data.plannedStart, data.durationDays - 1);
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.task.create({
+      data: {
+        projectId: origin.projectId,
+        phaseId: origin.phaseId,
+        title: data.title,
+        type: data.type,
+        description: data.description,
+        plannedStart: data.plannedStart,
+        plannedEnd,
+        assignees: { create: data.assigneeIds.map((userId) => ({ userId })) },
+      },
+    });
+
+    if (role === "successor") {
+      await tx.taskDependency.create({
+        data: { predecessorId: originTaskId, successorId: created.id, type: "FINISH_TO_START" },
+      });
+      for (const link of origin.blocks) {
+        await tx.taskDependency.delete({ where: { id: link.id } });
+        await tx.taskDependency.create({
+          data: { predecessorId: created.id, successorId: link.successorId, type: link.type },
+        });
+      }
+      await propagateToSuccessors(tx, origin.project.countryCode, originTaskId);
+    } else {
+      await tx.taskDependency.create({
+        data: { predecessorId: created.id, successorId: originTaskId, type: "FINISH_TO_START" },
+      });
+      // origin ya no puede seguir dependiendo directo de lo que tenía antes
+      // (ahora depende de created); si el usuario eligió un predecesor para
+      // la nueva tarea (precargado en el form con ese mismo vínculo previo,
+      // pero editable), se reengancha ahí en vez de asumirlo siempre.
+      for (const link of origin.dependsOn) {
+        await tx.taskDependency.delete({ where: { id: link.id } });
+      }
+      if (data.predecessorId) {
+        await tx.taskDependency.create({
+          data: { predecessorId: data.predecessorId, successorId: created.id, type: "FINISH_TO_START" },
+        });
+        await propagateToSuccessors(tx, origin.project.countryCode, data.predecessorId);
+      } else {
+        await propagateToSuccessors(tx, origin.project.countryCode, created.id);
+      }
+    }
+
+    return created.id;
+  });
+}
+
+// Menú contextual del Gantt: valida permisos y datos, delega la lógica real
+// a insertAdjacentTaskCore.
+export async function insertAdjacentTask(originTaskId: string, role: "predecessor" | "successor", formData: FormData) {
+  const origin = await prisma.task.findUnique({ where: { id: originTaskId } });
+  if (!origin) return { ok: false, error: "Tarea no encontrada." };
+
+  try {
+    await requireProjectAdmin(origin.projectId);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  const rawDescription = formData.get("description");
+  const rawPredecessorId = formData.get("predecessorId");
+  const data = insertAdjacentTaskSchema.parse({
+    title: formData.get("title"),
+    type: formData.get("type"),
+    description: typeof rawDescription === "string" && rawDescription.trim() !== "" ? rawDescription : null,
+    plannedStart: formData.get("plannedStart"),
+    durationDays: formData.get("durationDays"),
+    assigneeIds: formData.getAll("assigneeIds"),
+    predecessorId: typeof rawPredecessorId === "string" && rawPredecessorId !== "" ? rawPredecessorId : undefined,
+  });
+
+  const createdId = await insertAdjacentTaskCore(originTaskId, role, { ...data, type: data.type as TaskType });
+
+  await notifyAssignment(createdId, data.assigneeIds);
+
+  revalidatePath(`/projects/${origin.projectId}`);
+  revalidatePath("/projects");
   return { ok: true };
 }
 
@@ -155,7 +281,12 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
 
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    include: { steps: true },
+    include: {
+      steps: true,
+      attachments: { select: { kind: true } },
+      adjustmentItems: { include: { attachments: { select: { kind: true } } } },
+      reviewRounds: { orderBy: { roundNumber: "desc" }, take: 1 },
+    },
   });
 
   // Un miembro sin permisos de PM/admin no puede reabrir una tarea ya
@@ -172,6 +303,32 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
   // Punto 12: una tarea con pasos solo se completa cuando TODOS están hechos.
   if (status === "COMPLETED" && task.steps.some((s) => !s.done)) {
     return { ok: false, error: "Todavía hay pasos del checklist sin completar." };
+  }
+
+  // Punto 2.3: un Entregable exige evidencia cargada antes de poder cerrarse.
+  if (status === "COMPLETED" && task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
+    return { ok: false, error: "Este entregable necesita al menos una evidencia cargada para poder completarse." };
+  }
+
+  // Punto 2.5: un Ajuste solo se completa cuando todos sus cambios quedaron
+  // respondidos (con un "Después" cargado o una nota de que no aplica) — el
+  // estado nunca se marca a mano con un checkbox.
+  if (status === "COMPLETED" && task.type === "ADJUSTMENT") {
+    const pending = task.adjustmentItems.filter(
+      (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
+    );
+    if (pending.length > 0) {
+      return { ok: false, error: `Todavía hay ${pending.length} cambio(s) sin responder (falta el "Después" o una nota).` };
+    }
+  }
+
+  // Punto 2.6: una Revisión solo se completa cuando su última ronda quedó
+  // aprobada — ni con una ronda todavía abierta, ni con la última devuelta.
+  if (status === "COMPLETED" && task.type === "QA") {
+    const lastRound = task.reviewRounds[0];
+    if (!lastRound || lastRound.outcome !== "APPROVED") {
+      return { ok: false, error: "Esta revisión necesita una ronda aprobada antes de poder completarse." };
+    }
   }
 
   // Holgura/retraso (punto confirmado con el usuario): plannedEnd de ESTA

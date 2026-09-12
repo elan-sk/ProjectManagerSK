@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { deletePhase } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { PhaseForm } from "./PhaseForm";
-import { PhaseRequirementsForm } from "./PhaseRequirementsForm";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
@@ -118,15 +117,13 @@ export function PhasesPanel({
                 </div>
                 {canManage && (
                   <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
-                    <ModalTrigger label="Vincular" title="Requerimientos de la fase" variant="secondary" compact>
-                      <PhaseRequirementsForm
+                    <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact>
+                      <PhaseForm
                         phaseId={p.id}
+                        currentName={p.name}
                         requirements={requirements}
                         currentRequirementIds={p.requirementIds}
                       />
-                    </ModalTrigger>
-                    <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact>
-                      <PhaseForm phaseId={p.id} currentName={p.name} />
                     </ModalTrigger>
                     <button
                       type="button"

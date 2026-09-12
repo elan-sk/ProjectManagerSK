@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { businessDaysRange } from "@/lib/holidays";
+import { businessDaysRange, addBusinessDays } from "@/lib/holidays";
 import { getTaskAlert, getBottlenecks } from "@/lib/delays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { KanbanBoard, type TaskCard } from "./KanbanBoard";
@@ -28,6 +28,9 @@ import { SearchBox } from "@/components/SearchBox";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { attachmentFileType } from "@/lib/attachments";
 import { ProjectFilesView } from "./ProjectFilesView";
+import { getActiveShareLink } from "@/lib/shareLinks";
+import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
+import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import type { TaskStatus } from "@prisma/client";
@@ -45,7 +48,7 @@ export default async function ProjectPage({
     mode?: string;
     status?: TaskStatus;
     userId?: string;
-    risk?: "overdue" | "warning";
+    risk?: "overdue" | "warning" | "lateStart";
     q?: string;
     fileKind?: string;
     fileType?: string;
@@ -101,12 +104,14 @@ export default async function ProjectPage({
     return `/projects/${id}?${p.toString()}`;
   };
 
-  const [project, users, canManage, bottlenecks, cascadeProgress] = await Promise.all([
+  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink] = await Promise.all([
     prisma.project.findUnique({
       where: { id },
       include: {
         pm: true,
         phases: { orderBy: { order: "asc" } },
+        links: { orderBy: { createdAt: "asc" } },
+        attachments: { orderBy: { uploadedAt: "asc" } },
         tasks: {
           include: {
             assignees: { include: { user: true } },
@@ -128,6 +133,7 @@ export default async function ProjectPage({
     getProjectAdmin(id).then(Boolean),
     getBottlenecks(id),
     getProjectCascadeProgress(id),
+    getActiveShareLink("PROJECT", id),
   ]);
 
   if (!project) notFound();
@@ -154,6 +160,9 @@ export default async function ProjectPage({
     .map((t) => ({ id: t.id, title: t.title }));
   const summaryWarningTasks = project.tasks
     .filter((t) => alertByTaskId.get(t.id)!.level === "warning")
+    .map((t) => ({ id: t.id, title: t.title }));
+  const summaryLateStartTasks = project.tasks
+    .filter((t) => alertByTaskId.get(t.id)!.level === "lateStart")
     .map((t) => ({ id: t.id, title: t.title }));
   const summaryTotal = project.tasks.length;
   const summaryCompleted = project.tasks.filter((t) => t.status === "COMPLETED").length;
@@ -225,6 +234,17 @@ export default async function ProjectPage({
   // esto es solo la fecha que se grafica.
   const displayEnd = (t: { status: string; plannedEnd: Date; actualEnd: Date | null }) =>
     t.status === "COMPLETED" && t.actualEnd ? t.actualEnd : t.plannedEnd;
+
+  // Sugerencia de fecha de inicio para "Nueva tarea" al elegir "Depende de":
+  // el día hábil siguiente al fin real de esa tarea (mismo criterio que
+  // requiredStartFor en actions.ts) — el usuario puede seguir ajustándola.
+  const nextAvailableStartById = new Map(
+    await Promise.all(
+      project.tasks.map(
+        async (t) => [t.id, (await addBusinessDays(project.countryCode, displayEnd(t), 1)).toISOString()] as const
+      )
+    )
+  );
 
   const ganttTasks: GanttTask[] = project.tasks.filter(matchesFilters).map((t) => {
     const startIndex = businessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
@@ -357,6 +377,8 @@ export default async function ProjectPage({
               overdueTasks={summaryOverdueTasks}
               warningCount={summaryWarningTasks.length}
               warningTasks={summaryWarningTasks}
+              lateStartCount={summaryLateStartTasks.length}
+              lateStartTasks={summaryLateStartTasks}
               openSlackDays={summaryOpenSlackDays}
               scheduleVarianceDays={summaryScheduleVarianceDays}
             />
@@ -367,6 +389,9 @@ export default async function ProjectPage({
             total={summaryTotal}
             completed={summaryCompleted}
           />
+          <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
+            Rendimiento
+          </Link>
         </div>
 
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -390,7 +415,19 @@ export default async function ProjectPage({
               projectId={project.id}
               phases={project.phases}
               users={users}
-              otherTasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
+              otherTasks={project.tasks.map((t) => ({
+                id: t.id,
+                title: t.title,
+                nextAvailableStart: nextAvailableStartById.get(t.id)!,
+              }))}
+            />
+          </ModalTrigger>
+          <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary">
+            <ShareLinkPanel
+              activeToken={activeShareLink?.token ?? null}
+              activeLinkId={activeShareLink?.id ?? null}
+              onCreate={createProjectShareLink.bind(null, project.id)}
+              onRevoke={revokeProjectShareLink.bind(null, project.id)}
             />
           </ModalTrigger>
         </div>
@@ -475,7 +512,7 @@ export default async function ProjectPage({
           <ComboFilter
             allLabel="Todos los estados"
             value={status}
-            options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED"] as const).map((s) => ({
+            options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
               id: s,
               label: TASK_STATUS_LABEL[s],
               dotColorClass: TASK_STATUS_COLOR[s].dot,
@@ -493,13 +530,14 @@ export default async function ProjectPage({
             allLabel="Todas las alertas"
             value={risk}
             options={[
-              { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
+              { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
               { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+              { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
             ]}
             paramKey="risk"
             basePath={`/projects/${project.id}`}
             currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q }}
-            triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : undefined}
+            triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
           />
         </div>
 
@@ -556,6 +594,9 @@ export default async function ProjectPage({
           objectives={cascadeProgress.objectives}
           requirements={cascadeProgress.requirements}
           phases={cascadeProgress.phases}
+          links={project.links}
+          attachments={project.attachments}
+          whatsappGroupJid={project.whatsappGroupJid}
         />
       ) : view === "gantt" ? (
         <div className="sticky top-[57px] h-[calc(100vh-100px)]">
@@ -564,6 +605,7 @@ export default async function ProjectPage({
             tasks={ganttTasks}
             canManage={canManage}
             targetEndDate={project.targetEndDate?.toISOString() ?? null}
+            users={users}
           />
         </div>
       ) : view === "calendar" ? (

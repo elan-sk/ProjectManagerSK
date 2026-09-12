@@ -11,6 +11,8 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { setDependency, removeDependency } from "./tasks/[taskId]/actions";
 import { moveTaskGroup } from "./actions";
+import { ModalShell } from "@/components/Modal";
+import { InsertAdjacentTaskForm } from "./InsertAdjacentTaskForm";
 import { CRITICAL_PATH_EVENT } from "./CriticalPathButton";
 import { useToast } from "@/components/Toast";
 import type { TaskAlert } from "@/lib/delays";
@@ -30,7 +32,7 @@ export type GanttTask = {
   title: string;
   phaseId: string;
   phaseName: string;
-  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
+  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   startIndex: number;
   span: number;
   minStartIndex: number;
@@ -165,11 +167,13 @@ export function GanttView({
   tasks,
   canManage,
   targetEndDate,
+  users,
 }: {
   businessDays: Date[];
   tasks: GanttTask[];
   canManage: boolean;
   targetEndDate?: string | null;
+  users: { id: string; name: string; avatarUrl?: string | null }[];
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -182,6 +186,12 @@ export function GanttView({
   const [reconnect, setReconnect] = useState<ReconnectState | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [connect, setConnect] = useState<ConnectState | null>(null);
+  // "Crear predecesor"/"Crear sucesor" del menú contextual: a diferencia de
+  // "Vincular" (modo connect, arriba), esto abre el popup de creación de
+  // tarea en vez de esperar un clic sobre una tarea ya existente.
+  const [insertTask, setInsertTask] = useState<{ originTaskId: string; role: "predecessor" | "successor" } | null>(
+    null
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Modo "mover en grupo" (punto confirmado con el usuario): el botón
   // "Mover" arma este modo; el siguiente arrastre sobre CUALQUIERA de las
@@ -412,6 +422,11 @@ export function GanttView({
     const originX = role === "successor" ? (origin.startIndex + origin.span) * DAY_WIDTH : origin.startIndex * DAY_WIDTH;
     const originY = rowCenterY.get(originTaskId)!;
     setConnect({ originTaskId, role, originX, originY, pointerX: originX, pointerY: originY });
+  }
+
+  function startInsertTask(originTaskId: string, role: "predecessor" | "successor") {
+    setContextMenu(null);
+    setInsertTask({ originTaskId, role });
   }
 
   // Clic derecho en un tramo puntual de flecha → elimina SOLO ese vínculo
@@ -1058,14 +1073,28 @@ export function GanttView({
                   onClick={() => startConnect(contextMenu.taskId, "predecessor")}
                   className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
                 >
-                  Añadir predecesor
+                  Vincular predecesor
                 </button>
                 <button
                   type="button"
                   onClick={() => startConnect(contextMenu.taskId, "successor")}
                   className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
                 >
-                  Añadir sucesor
+                  Vincular sucesor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startInsertTask(contextMenu.taskId, "predecessor")}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                >
+                  Crear predecesor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startInsertTask(contextMenu.taskId, "successor")}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                >
+                  Crear sucesor
                 </button>
               </>
             ) : (
@@ -1080,6 +1109,32 @@ export function GanttView({
           </div>,
           tooltipLayer
         )}
+
+      {/* "Crear predecesor"/"Crear sucesor": mismo ModalShell que usa
+          ModalTrigger, pero controlado a mano (ver comentario en
+          Modal.tsx) porque se abre desde una opción de menú, no un botón fijo. */}
+      {insertTask &&
+        (() => {
+          const origin = taskById.get(insertTask.originTaskId);
+          if (!origin) return null;
+          return (
+            <ModalShell
+              open
+              onClose={() => setInsertTask(null)}
+              title={insertTask.role === "successor" ? "Crear sucesor" : "Crear predecesor"}
+            >
+              <InsertAdjacentTaskForm
+                originTaskId={insertTask.originTaskId}
+                role={insertTask.role}
+                phaseName={origin.phaseName}
+                originTitle={origin.title}
+                users={users}
+                phaseTasks={tasks.filter((t) => t.phaseId === origin.phaseId && t.id !== origin.id)}
+                currentPredecessorId={origin.dependsOn[0]}
+              />
+            </ModalShell>
+          );
+        })()}
 
       {/* Popup de hover sobre cualquier tramo de la ruta crítica: lista
           completa de esa ruta, cada tarea cliqueable. onMouseEnter/Leave

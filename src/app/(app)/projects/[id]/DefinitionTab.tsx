@@ -5,6 +5,8 @@ import { ProjectIdentityForm } from "./ProjectIdentityForm";
 import { ObjectivesPanel } from "./ObjectivesPanel";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { PhasesPanel } from "./PhasesPanel";
+import { ProjectLinksPanel } from "./ProjectLinksPanel";
+import { ProjectWhatsAppGroupPanel } from "./ProjectWhatsAppGroupPanel";
 import type { ObjectiveSummary, RequirementSummary, PhaseSummary, TaskRef } from "@/lib/cascadeProgress";
 import type { TaskStatus } from "@prisma/client";
 
@@ -18,6 +20,9 @@ export function DefinitionTab({
   objectives,
   requirements,
   phases,
+  links,
+  attachments,
+  whatsappGroupJid,
 }: {
   projectId: string;
   name: string;
@@ -25,6 +30,7 @@ export function DefinitionTab({
   iconUrl: string | null;
   description: string | null;
   canManage: boolean;
+  whatsappGroupJid: string | null;
   objectives: ObjectiveSummary[];
   requirements: RequirementSummary[];
   phases: (PhaseSummary & {
@@ -35,6 +41,8 @@ export function DefinitionTab({
     dueInDays: number | null;
     dueTasks: TaskRef[];
   })[];
+  links: { id: string; title: string; url: string }[];
+  attachments: { id: string; fileName: string; fileUrl: string; mimeType: string }[];
 }) {
   return (
     <div className="space-y-4">
@@ -75,6 +83,10 @@ export function DefinitionTab({
         canManage={canManage}
         phases={phases}
       />
+
+      <ProjectLinksPanel projectId={projectId} links={links} attachments={attachments} canManage={canManage} />
+
+      {canManage && <ProjectWhatsAppGroupPanel projectId={projectId} currentGroupJid={whatsappGroupJid} />}
     </div>
   );
 }

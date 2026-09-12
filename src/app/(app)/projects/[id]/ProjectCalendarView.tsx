@@ -4,6 +4,7 @@ import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendar
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { OverlapIcon } from "@/components/icons";
+import { CalendarTaskLink } from "./CalendarTaskLink";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
 import type { TaskStatus } from "@prisma/client";
@@ -147,22 +148,20 @@ export function ProjectCalendarView({
                 {dayTasks.slice(0, maxPerCell).map((t) => {
                   const label = showProjectName ? `${t.projectName} · ${t.title}` : t.title;
                   const collision = collisionText(t);
-                  const title =
-                    t.alert.level === "overdue"
-                      ? `${label} — ${t.alert.businessDaysOverdue}d de atraso`
-                      : t.alert.level === "warning"
-                      ? `${label} — vence pronto`
-                      : label;
                   return (
-                    <Link
+                    <CalendarTaskLink
                       key={t.id}
                       href={`/projects/${t.projectId}/tasks/${t.id}`}
-                      title={collision ? `${title}\n${collision}` : title}
+                      title={label}
+                      start={t.start}
+                      end={t.end}
+                      alert={t.alert}
+                      collisionText={collision}
                       className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] ${ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge}`}
                     >
                       {collision && <OverlapIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       <span className="truncate">{label}</span>
-                    </Link>
+                    </CalendarTaskLink>
                   );
                 })}
                 {dayTasks.length > maxPerCell && (

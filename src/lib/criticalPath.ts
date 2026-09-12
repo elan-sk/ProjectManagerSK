@@ -18,7 +18,7 @@ export type TaskSlack = { slackDays: number | null; isCritical: boolean };
 
 export async function getProjectTaskSlack(projectId: string): Promise<Map<string, TaskSlack>> {
   const [project, tasks] = await Promise.all([
-    prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { countryCode: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { countryCode: true } }),
     prisma.task.findMany({
       where: { projectId },
       select: { id: true, plannedStart: true, plannedEnd: true },
@@ -29,7 +29,9 @@ export async function getProjectTaskSlack(projectId: string): Promise<Map<string
     select: { predecessorId: true, successorId: true, type: true },
   });
 
-  const countryCode = project.countryCode;
+  // El proyecto puede no existir más (ej. link viejo, id borrado) — quien
+  // llama a esto hace su propio notFound(); acá solo evitamos reventar antes.
+  const countryCode = project?.countryCode ?? "CO";
   const taskById = new Map(tasks.map((t) => [t.id, t]));
   const successorsOf = new Map<string, { successorId: string; type: DependencyType }[]>();
   for (const e of edges) {

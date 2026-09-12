@@ -10,11 +10,13 @@ export function EditUserForm({
   userId,
   name,
   email,
+  phone,
   avatarUrl,
 }: {
   userId: string;
   name: string;
   email: string;
+  phone: string | null;
   avatarUrl: string | null;
 }) {
   const router = useRouter();
@@ -82,6 +84,17 @@ export function EditUserForm({
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Email</label>
           <input type="email" name="email" required defaultValue={email} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">WhatsApp</label>
+          <input
+            type="tel"
+            name="phone"
+            defaultValue={phone ?? ""}
+            placeholder="573001234567"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-slate-400">Con indicativo de país, solo números. Para que le puedan mencionar en las alertas del grupo.</p>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button

@@ -8,12 +8,12 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 
+// Punto 2 (unificación): checklist y link de reunión ahora son atributos de
+// cualquier tarea, no tipos propios — ver TASK_TYPE_LABEL en statusColors.ts.
 const TASK_TYPES = [
   { value: "SIMPLE", label: "Simple" },
-  { value: "CHECKLIST", label: "Checklist" },
-  { value: "MILESTONE", label: "Hito" },
-  { value: "MEETING", label: "Reunión / entrega" },
-  { value: "QA", label: "Prueba de calidad" },
+  { value: "MILESTONE", label: "Entregable" },
+  { value: "QA", label: "Revisión" },
   { value: "ADJUSTMENT", label: "Ajuste" },
 ];
 
@@ -26,12 +26,14 @@ export function NewTaskForm({
   projectId: string;
   phases: { id: string; name: string }[];
   users: { id: string; name: string; avatarUrl?: string | null }[];
-  otherTasks: { id: string; title: string }[];
+  otherTasks: { id: string; title: string; nextAvailableStart: string }[];
 }) {
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
   const [durationDays, setDurationDays] = useState(1);
+  const [predecessorId, setPredecessorId] = useState("");
   const [isPending, startTransition] = useTransition();
+  const selectedPredecessor = otherTasks.find((t) => t.id === predecessorId);
 
   return (
     <form
@@ -74,7 +76,13 @@ export function NewTaskForm({
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <CalendarDatePicker name="plannedStart" label="Fecha de inicio" previewDays={durationDays} />
+        <CalendarDatePicker
+          key={predecessorId || "none"}
+          name="plannedStart"
+          label="Fecha de inicio"
+          previewDays={durationDays}
+          defaultValue={selectedPredecessor?.nextAvailableStart.slice(0, 10)}
+        />
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Días hábiles</label>
           <input
@@ -94,6 +102,7 @@ export function NewTaskForm({
           name="predecessorId"
           placeholder="Ninguna"
           options={otherTasks.map((t) => ({ id: t.id, label: t.title }))}
+          onChange={setPredecessorId}
         />
       </div>
 

@@ -143,8 +143,8 @@ export default async function AgendaPage({
             allLabel="Todas las alertas"
             value={risk}
             options={[
-              { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
               { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
+              { id: "overdue", label: "Con retraso", dotColorClass: "bg-red-500" },
             ]}
             paramKey="risk"
             basePath="/agenda"

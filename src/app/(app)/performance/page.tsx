@@ -2,10 +2,19 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getUserPerformance, getTeamWorkload, getProjectReport, getCompletionTrend } from "@/lib/delays";
+import { getUserPerformance, getTeamWorkload, getProjectReport, getCompletionTrend, getRecentOnTimeTrend } from "@/lib/delays";
+import {
+  getReviewPerformance,
+  getCommonFailureCategories,
+  getCommonResponseCategories,
+  getRecentFirstPassTrend,
+} from "@/lib/reviewPerformance";
 import { TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { BarChart, TrendBars } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
+import { toDonutData } from "@/lib/chartPalette";
+import { ComboFilter } from "@/components/ComboFilter";
+import { ProjectIcon } from "@/components/ProjectIcon";
 
 const STATUS_HEX: Record<string, string> = {
   NOT_STARTED: "#94a3b8",
@@ -32,6 +41,19 @@ function StatTile({ label, value, tone = "text-slate-900" }: { label: string; va
   );
 }
 
+/** Compara el % reciente (últimas N) contra el histórico acumulado — ↑/↓ verde/rojo, para ver si mejora o empeora. */
+function TrendCell({ recent, historicalRate }: { recent: { rate: number; count: number } | null; historicalRate: number | null }) {
+  if (!recent) return <span className="text-slate-400">—</span>;
+  const recentPct = Math.round(recent.rate * 100);
+  if (historicalRate === null) return <span className="text-slate-600">{recentPct}%</span>;
+  const improving = recentPct >= Math.round(historicalRate * 100);
+  return (
+    <span className={improving ? "text-emerald-600" : "text-red-600"}>
+      {improving ? "↑" : "↓"} {recentPct}%
+    </span>
+  );
+}
+
 export default async function PerformancePage({
   searchParams,
 }: {
@@ -47,7 +69,8 @@ export default async function PerformancePage({
     ? null
     : (await prisma.project.findMany({ where: { pmId: session.user.id }, select: { id: true } })).map((p) => p.id);
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);
-  if (!isAdmin && !isPM) redirect("/agenda");
+  // Un miembro normal no tiene informe grupal — lo mandamos directo al suyo.
+  if (!isAdmin && !isPM) redirect(`/performance/${session.user.id}`);
 
   const { projectId } = await searchParams;
   // Si es PM, queda acotado a sus proyectos aunque el projectId de la URL
@@ -60,7 +83,7 @@ export default async function PerformancePage({
     ? [projectId]
     : myPmProjectIds!;
 
-  const [projects, performance, workload, report, trend] = await Promise.all([
+  const [projects, performance, workload, report, trend, reviewPerformance, failureCategories, responseCategories] = await Promise.all([
     prisma.project.findMany({
       where: isAdmin ? undefined : { id: { in: myPmProjectIds! } },
       orderBy: { name: "asc" },
@@ -69,6 +92,9 @@ export default async function PerformancePage({
     getTeamWorkload(selectedProjectIds),
     getProjectReport(selectedProjectIds),
     getCompletionTrend(selectedProjectIds, 8),
+    getReviewPerformance(selectedProjectIds),
+    getCommonFailureCategories(selectedProjectIds),
+    getCommonResponseCategories(selectedProjectIds),
   ]);
 
   const onTimeRanked = performance
@@ -80,6 +106,18 @@ export default async function PerformancePage({
     .filter((p) => p.totalDelayDays > 0)
     .map((p) => ({ label: p.userName, value: p.totalDelayDays, colorClass: "bg-red-500" }))
     .sort((a, b) => b.value - a.value);
+
+  const roundsApprovedFirstTryTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsApprovedFirstTry, 0);
+  const roundsReturnedTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsReturned, 0);
+
+  const [onTimeTrends, reviewTrends] = await Promise.all([
+    Promise.all(performance.map((p) => getRecentOnTimeTrend(p.userId, selectedProjectIds))),
+    Promise.all(reviewPerformance.map((p) => getRecentFirstPassTrend(p.userId, selectedProjectIds))),
+  ]);
+  const onTimeTrendByUser = new Map(performance.map((p, i) => [p.userId, onTimeTrends[i]]));
+  const reviewTrendByUser = new Map(reviewPerformance.map((p, i) => [p.userId, reviewTrends[i]]));
+
+  const selectedProject = projectId ? projects.find((p) => p.id === projectId) ?? null : null;
 
   const workloadBars = workload
     .filter((w) => w.openTotal > 0)
@@ -93,27 +131,24 @@ export default async function PerformancePage({
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Rendimiento</h1>
-          {!isAdmin && <p className="text-sm text-slate-500">Los proyectos que administrás.</p>}
+        <div className="flex items-center gap-2">
+          {selectedProject && (
+            <ProjectIcon name={selectedProject.name} iconUrl={selectedProject.iconUrl} size="h-8 w-8 text-sm" />
+          )}
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Rendimiento</h1>
+            {!isAdmin && <p className="text-sm text-slate-500">Los proyectos que administrás.</p>}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Link
-            href="/performance"
-            className={`rounded-lg px-3 py-1.5 ${!projectId ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            {isAdmin ? "Todos los proyectos" : "Todos los míos"}
-          </Link>
-          {projects.map((p) => (
-            <Link
-              key={p.id}
-              href={`/performance?projectId=${p.id}`}
-              className={`rounded-lg px-3 py-1.5 ${projectId === p.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              {p.name}
-            </Link>
-          ))}
-        </div>
+        <ComboFilter
+          allLabel={isAdmin ? "Todos los proyectos" : "Todos los míos"}
+          value={projectId}
+          options={projects.map((p) => ({ id: p.id, label: p.name }))}
+          paramKey="projectId"
+          basePath="/performance"
+          currentParams={{}}
+          align="right"
+        />
       </div>
 
       {/* Informe general — pulso del proyecto (o de todos), no solo por persona. */}
@@ -221,12 +256,17 @@ export default async function PerformancePage({
                 <th className="px-4 py-2 font-medium">A tiempo</th>
                 <th className="px-4 py-2 font-medium">% cumplimiento</th>
                 <th className="px-4 py-2 font-medium">Días de atraso acumulados</th>
+                <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {performance.map((p) => (
                 <tr key={p.userId}>
-                  <td className="px-4 py-2 font-medium text-slate-900">{p.userName}</td>
+                  <td className="px-4 py-2 font-medium text-slate-900">
+                    <Link href={`/performance/${p.userId}`} className="hover:underline">
+                      {p.userName}
+                    </Link>
+                  </td>
                   <td className="px-4 py-2 text-slate-600">{p.tasksAssigned}</td>
                   <td className="px-4 py-2 text-slate-600">{p.tasksCompleted}</td>
                   <td className="px-4 py-2 text-slate-600">{p.tasksOnTime}</td>
@@ -236,12 +276,99 @@ export default async function PerformancePage({
                   <td className={`px-4 py-2 font-medium ${p.totalDelayDays > 0 ? "text-red-600" : "text-slate-600"}`}>
                     {p.totalDelayDays}
                   </td>
+                  <td className="px-4 py-2 font-medium">
+                    <TrendCell recent={onTimeTrendByUser.get(p.userId) ?? null} historicalRate={p.onTimeRate} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </section>
+
+      {/* Punto 2.6.2/2.6.3: Revisión — enfoque PSP ligero (detección de
+          errores, calidad, patrones), sin métricas de código. */}
+      {(reviewPerformance.length > 0 || failureCategories.length > 0 || responseCategories.length > 0) && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-slate-900">Revisión</h2>
+          <p className="text-sm text-slate-500">
+            Rondas enviadas y aprobadas como responsable, y qué categorías de error se repiten más — para detectar
+            patrones, no para señalar personas.
+          </p>
+
+          {roundsApprovedFirstTryTotal + roundsReturnedTotal > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-medium text-slate-700">Rondas: aprobadas a la 1ra vs. devueltas</h3>
+              <BarChart
+                data={[
+                  { label: "Aprobadas", value: roundsApprovedFirstTryTotal, colorClass: "bg-emerald-500" },
+                  { label: "Devueltas", value: roundsReturnedTotal, colorClass: "bg-red-500" },
+                ]}
+              />
+            </div>
+          )}
+
+          {(failureCategories.length > 0 || responseCategories.length > 0) && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {failureCategories.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">Categorías de error más comunes</h3>
+                  <DonutChart data={toDonutData(failureCategories)} />
+                </div>
+              )}
+              {responseCategories.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">Tipo de corrección más frecuente</h3>
+                  <DonutChart data={toDonutData(responseCategories)} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {reviewPerformance.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-left text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Persona</th>
+                    <th className="px-4 py-2 font-medium">Rondas enviadas</th>
+                    <th className="px-4 py-2 font-medium">Tareas revisadas</th>
+                    <th className="px-4 py-2 font-medium">Aprobadas al 1er intento</th>
+                    <th className="px-4 py-2 font-medium">Rondas/tarea</th>
+                    <th className="px-4 py-2 font-medium">Devueltas</th>
+                    <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {reviewPerformance.map((p) => {
+                    const fpy = p.tasksReviewed > 0 ? p.roundsApprovedFirstTry / p.tasksReviewed : null;
+                    const reworkRate = p.tasksReviewed > 0 ? p.roundsSubmitted / p.tasksReviewed : null;
+                    return (
+                      <tr key={p.userId}>
+                        <td className="px-4 py-2 font-medium text-slate-900">{p.userName}</td>
+                        <td className="px-4 py-2 text-slate-600">{p.roundsSubmitted}</td>
+                        <td className="px-4 py-2 text-slate-600">{p.tasksReviewed}</td>
+                        <td className="px-4 py-2 text-slate-600">
+                          {p.tasksReviewed === 0
+                            ? "—"
+                            : `${p.roundsApprovedFirstTry}/${p.tasksReviewed} (${Math.round((fpy ?? 0) * 100)}%)`}
+                        </td>
+                        <td className="px-4 py-2 text-slate-600">{reworkRate === null ? "—" : reworkRate.toFixed(1)}</td>
+                        <td className={`px-4 py-2 font-medium ${p.roundsReturned > 0 ? "text-orange-600" : "text-slate-600"}`}>
+                          {p.roundsReturned}
+                        </td>
+                        <td className="px-4 py-2 font-medium">
+                          <TrendCell recent={reviewTrendByUser.get(p.userId) ?? null} historicalRate={fpy} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

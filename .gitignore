@@ -53,3 +53,6 @@ next-env.d.ts
 /dev-tools
 /public/dev-tools
 /.lens-sk-cache
+
+# Sesión de WhatsApp (Baileys) — credenciales del dispositivo vinculado
+/.baileys-auth

@@ -22,6 +22,7 @@ export function ComboFilter({
   basePath,
   currentParams,
   triggerColorClass,
+  align = "left",
 }: {
   allLabel: string;
   options: { id: string; label: string; dotColorClass?: string }[];
@@ -31,6 +32,8 @@ export function ComboFilter({
   currentParams: Record<string, string | undefined>;
   /** Reemplaza el violeta genérico del botón cuando hay un valor elegido — para sets con color propio (estado, alerta). */
   triggerColorClass?: string;
+  /** "right" cuando el trigger queda pegado al borde derecho del viewport (si no, el dropdown se sale). */
+  align?: "left" | "right";
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -84,7 +87,11 @@ export function ComboFilter({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-64 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+        <div
+          className={`absolute z-50 mt-1 w-64 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
           <input
             autoFocus
             value={query}

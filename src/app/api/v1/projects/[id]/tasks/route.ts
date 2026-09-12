@@ -26,7 +26,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 const createTaskSchema = z.object({
   phaseId: z.string().min(1),
   title: z.string().min(1),
-  type: z.enum(["SIMPLE", "CHECKLIST", "MILESTONE", "MEETING", "QA", "ADJUSTMENT"]).default("SIMPLE"),
+  // Punto 3.3: aprovechar el espacio disponible — descripción clara, precisa
+  // y orientada a la acción, para que quien la ejecute no tenga ambigüedad.
+  description: z.string().nullable().optional(),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]).default("SIMPLE"),
+  meetingUrl: z.string().url().nullable().optional(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),
   assigneeIds: z.array(z.string()).min(1),
@@ -60,7 +64,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       projectId,
       phaseId: data.phaseId,
       title: data.title,
+      description: data.description ?? null,
       type: data.type,
+      meetingUrl: data.meetingUrl ?? null,
       plannedStart: data.plannedStart,
       plannedEnd,
       assignees: { create: data.assigneeIds.map((userId) => ({ userId })) },

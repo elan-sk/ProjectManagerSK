@@ -17,6 +17,21 @@ async function fetchHolidaysFromApi(countryCode: string, year: number) {
   return data.map((h) => ({ date: h.date, name: h.localName }));
 }
 
+// Lista de países soportados por Nager.Date, para el selector de país de
+// Configuración — nunca cambia durante la vida del proceso, así que se
+// cachea una sola vez (a diferencia de holidayCache, ni siquiera necesita
+// key por año).
+let countriesCache: { countryCode: string; name: string }[] | null = null;
+
+export async function getAvailableCountries() {
+  if (countriesCache) return countriesCache;
+  const res = await fetch("https://date.nager.at/api/v3/AvailableCountries");
+  if (!res.ok) return [{ countryCode: "CO", name: "Colombia" }];
+  const data = (await res.json()) as { countryCode: string; name: string }[];
+  countriesCache = data.sort((a, b) => a.name.localeCompare(b.name));
+  return countriesCache;
+}
+
 // Caché en memoria del proceso: los festivos de un país/año no cambian
 // durante la vida del servidor, así que evita repetir la consulta a SQLite
 // en cada día verificado. Sin esto, calcular el atraso/rango de un proyecto

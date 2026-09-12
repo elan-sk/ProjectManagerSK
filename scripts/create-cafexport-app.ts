@@ -75,7 +75,7 @@ async function main() {
       projectId: project.id,
       phaseId: phaseId("Diseño"),
       title: "Diseño UI móvil (Figma)",
-      type: "CHECKLIST",
+      type: "SIMPLE", // checklist ahora es transversal (ver steps)
       status: "NOT_STARTED",
       plannedStart: d("2026-09-07"),
       plannedEnd: d("2026-09-15"),
@@ -94,7 +94,7 @@ async function main() {
       projectId: project.id,
       phaseId: phaseId("Diseño"),
       title: "Validación de diseño con cliente",
-      type: "MEETING",
+      type: "SIMPLE", // reunión ahora es un atributo (meetingUrl), no un tipo
       status: "NOT_STARTED",
       plannedStart: d("2026-09-16"),
       plannedEnd: d("2026-09-17"),

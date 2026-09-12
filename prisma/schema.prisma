@@ -22,20 +22,26 @@ enum ProjectStatus {
   COMPLETED
 }
 
+// Punto 2 (unificación): CHECKLIST y MEETING dejaron de ser tipos — ahora
+// cualquier tarea puede tener checklist y/o un link de reunión. MILESTONE se
+// presenta como "Entregable" (evidencia obligatoria) y QA como "Revisión"
+// (nombre interno del enum sin tocar para no migrar datos existentes).
 enum TaskType {
   SIMPLE
-  CHECKLIST
   MILESTONE
-  MEETING
   QA
   ADJUSTMENT
 }
 
+// RETURNED ("Devuelta", punto 2.6): una ronda de Revisión cerró con al menos
+// un check "Con errores" — la tarea vuelve al responsable hasta que reenvíe
+// y la ronda siguiente quede aprobada.
 enum TaskStatus {
   NOT_STARTED
   IN_PROGRESS
   BLOCKED
   COMPLETED
+  RETURNED
 }
 
 enum RiskLevel {
@@ -55,6 +61,28 @@ enum NotificationType {
   OVERDUE
   BLOCKED
   DELAY_CAUSED
+  RETURNED
+  // Tarea NOT_STARTED cuya plannedStart ya pasó (debería estar en curso):
+  // LATE_START mientras es reciente (≤2 días hábiles, alerta suave por DM),
+  // LATE_START_CRITICAL al superar ese umbral (grave, va al grupo).
+  LATE_START
+  LATE_START_CRITICAL
+}
+
+enum ShareTargetType {
+  PROJECT
+  TASK
+}
+
+enum ReviewOutcome {
+  APPROVED
+  RETURNED
+}
+
+enum CheckResult {
+  APPROVED // Aprobada
+  FLAGGED  // Con hallazgos
+  FAILED   // Con errores
 }
 
 // FINISH_TO_START (la de siempre): la sucesora no puede empezar antes de
@@ -73,14 +101,24 @@ model User {
   passwordHash String
   role         Role     @default(MEMBER)
   avatarUrl    String?
+  // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
+  phone        String?
   createdAt    DateTime @default(now())
 
   pmOfProjects        Project[]            @relation("ProjectPM")
   assignments         TaskAssignee[]
   attachments         Attachment[]
+  projectAttachments  ProjectAttachment[]
   notifications       Notification[]
   pushSubscriptions   PushSubscription[]
   googleCalendarConn  GoogleCalendarConnection?
+  shareLinksCreated   ShareLink[]
+  adjustmentAttachments AdjustmentAttachment[]
+  reviewerOf          TaskReviewer[] @relation("TaskReviewerUser")
+  reviewRoundsSubmitted ReviewRound[] @relation("ReviewRoundSubmitter")
+  reviewChecksReviewed ReviewCheck[] @relation("ReviewCheckReviewer")
+  reviewMessages      ReviewMessage[]
+  botMessages         BotMessage[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -131,10 +169,44 @@ model Project {
   color       String? // hex; identidad visual rápida en resúmenes/tarjetas
   iconUrl     String? // logo/ícono subido; si no hay, se usa color + inicial
 
+  // Grupo de WhatsApp propio para las alertas graves de este proyecto. Si es
+  // null, se usa AppSetting.whatsappGroupJid (el grupo por defecto).
+  whatsappGroupJid String?
+
   phases       Phase[]
   tasks        Task[]
   objectives   Objective[]
   requirements Requirement[]
+  links        ProjectLink[]
+  attachments  ProjectAttachment[]
+  shareLinks   ShareLink[]
+}
+
+// Enlaces/archivos importantes del proyecto (punto 3.2) — se prioriza el
+// link (Drive, Figma, repo, etc.) sobre subir el archivo, para no llenar la
+// app de contenido que ya vive en otro lado.
+model ProjectLink {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  url       String
+  createdAt DateTime @default(now())
+}
+
+// Archivo subido directamente (a diferencia de ProjectLink, que apunta a
+// contenido externo) — mismo par fileUrl/fileName/mimeType que Attachment,
+// pero a nivel de proyecto en vez de tarea.
+model ProjectAttachment {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileUrl      String
+  fileName     String
+  mimeType     String
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
 }
 
 model Phase {
@@ -190,6 +262,15 @@ model Task {
   description String?
   status      TaskStatus @default(NOT_STARTED)
   riskLevel   RiskLevel  @default(LOW)
+  // Punto 2.4: cualquier tarea puede tener un link de reunión — el día es
+  // la propia plannedStart/plannedEnd de la tarea, y "vincular con Google"
+  // ya lo cubre el botón de Google Calendar existente por tarea. meetingAt
+  // guarda la hora exacta (independiente del rango de días del cronograma)
+  // para poder calcular el recordatorio 30 min antes por WhatsApp;
+  // meetingReminderSentAt evita mandarlo dos veces.
+  meetingUrl             String?
+  meetingAt              DateTime?
+  meetingReminderSentAt  DateTime?
 
   plannedStart DateTime
   plannedEnd   DateTime
@@ -202,10 +283,26 @@ model Task {
   steps        TaskStep[]
   attachments  Attachment[]
   notifications Notification[]
+  adjustmentItems AdjustmentItem[]
+  reviewers    TaskReviewer[]
+  reviewRounds ReviewRound[]
 
   // Dependencias: esta tarea depende de (predecesoras) / bloquea a (sucesoras)
   dependsOn TaskDependency[] @relation("SuccessorTask")
   blocks    TaskDependency[] @relation("PredecessorTask")
+
+  shareLinks ShareLink[]
+}
+
+// Punto 2.6: segundo grupo de personas de una tarea tipo Revisión — quienes
+// revisan, distinto de TaskAssignee (quienes ejecutan).
+model TaskReviewer {
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("TaskReviewerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
 }
 
 // Join table explícita: permite compartir/reasignar responsabilidad de una
@@ -255,6 +352,39 @@ model Attachment {
   uploadedAt   DateTime       @default(now())
 }
 
+// Punto 2.5: un cambio solicitado dentro de una tarea tipo ADJUSTMENT. Se
+// considera "respondido" cuando tiene al menos un adjunto AFTER o una nota
+// (no aplica un checkbox manual — el estado se deriva de la evidencia).
+model AdjustmentItem {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  description String
+  note        String?
+  order       Int
+  createdAt   DateTime @default(now())
+
+  attachments AdjustmentAttachment[]
+}
+
+enum AdjustmentAttachmentKind {
+  BEFORE
+  AFTER
+}
+
+model AdjustmentAttachment {
+  id               String                   @id @default(cuid())
+  adjustmentItemId String
+  adjustmentItem   AdjustmentItem           @relation(fields: [adjustmentItemId], references: [id], onDelete: Cascade)
+  kind             AdjustmentAttachmentKind
+  fileUrl          String
+  fileName         String
+  mimeType         String
+  uploadedById     String
+  uploadedBy       User                     @relation(fields: [uploadedById], references: [id])
+  uploadedAt       DateTime                 @default(now())
+}
+
 // Caché local de festivos (fuente: Nager.Date). Se resuelve solo, el
 // usuario nunca los carga a mano.
 model Holiday {
@@ -277,4 +407,203 @@ model Notification {
   message   String
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
+}
+
+// Enlace de acceso público de solo lectura para clientes externos sin
+// cuenta (punto 1) — el token ES la autenticación (nadie sin el link exacto
+// entra), igual que "cualquiera con el link" de Figma/Drive. Generar uno
+// nuevo para el mismo proyecto/tarea revoca automáticamente los anteriores
+// (revokedAt) — nunca hay dos activos a la vez para el mismo destino.
+model ShareLink {
+  id          String          @id @default(cuid())
+  token       String          @unique
+  targetType  ShareTargetType
+  projectId   String?
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  revokedAt   DateTime?
+}
+
+// Configuración global de la app — una sola fila fija (id="app"). Hoy solo
+// guarda el país usado para calcular festivos/días hábiles en TODOS los
+// proyectos (antes vivía hardcodeado como PROJECT_COUNTRY_CODE en
+// projects/actions.ts — la app siempre opera con un único país a la vez, así
+// que se centraliza acá en vez de repetirlo por proyecto).
+model AppSetting {
+  id          String @id
+  countryCode String @default("CO")
+
+  // Escalamiento de alertas por WhatsApp: grupo al que caen las alertas
+  // graves de proyectos sin grupo propio, y ventana de horario laboral
+  // (horas en punto, 0-23) fuera de la cual las alertas se encolan en
+  // WhatsAppQueueItem en vez de mandarse al toque.
+  whatsappGroupJid String?
+  workHoursStart   Int     @default(8)
+  workHoursEnd     Int     @default(18)
+
+  // Chontatec (bot asistente in-app, ver src/lib/botSettings.ts y
+  // src/lib/chontatec.ts). La API key vive acá (DB) en vez de env porque
+  // se decidió explícitamente que se configure desde la UI sin redeploy y
+  // sin tener que ser la misma cuenta de Anthropic que usa el resto de la
+  // infraestructura (confirmado con el usuario).
+  // ponytail: queda en texto plano, igual que el resto de esta fila — no
+  // hay cifrado de secretos en ningún otro lado de la app (AUTH_SECRET,
+  // etc. viven sin cifrar en .env). Si algún día esta DB se trata como
+  // "no confiable" (backups compartidos, hosting multi-tenant), agregar
+  // cifrado simétrico con una clave maestra nueva por env var recién ahí.
+  botName                    String    @default("Chontatec")
+  botAvatarUrl               String?
+  botApiKey                  String?
+  // Tono/personalidad editable desde Configuración (ver DEFAULT_BOT_PERSONA
+  // en src/lib/botSettings.ts) — null significa "usar el default de fábrica".
+  // Las reglas operativas no negociables (usar las tools, nunca inventar
+  // datos) NO viven acá, están fijas en src/lib/chontatec.ts.
+  botPersonaPrompt           String?
+  botMonthlyQuestionLimit    Int       @default(300)
+  botQuestionsUsedThisPeriod Int       @default(0)
+  botUsagePeriodStart        DateTime?
+}
+
+// Historial de chat con Chontatec (ver src/lib/chontatec.ts). Log plano
+// por usuario — no hay "conversaciones"/threads con título, es un Q&A
+// continuo. `content` guarda el array de content blocks de Anthropic tal
+// cual (texto, tool_use, tool_result) para poder reconstruir
+// messages.create() sin transformación.
+model BotMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // "user" | "assistant"
+  content   String   // JSON.stringify(content blocks[])
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Cola de alertas de WhatsApp generadas fuera de horario laboral — el
+// poller de scheduler.ts las despacha apenas vuelve a abrir el horario.
+// `target` ya viene resuelto (JID de grupo o de persona) para no repetir
+// la lógica de destino al momento de despachar.
+model WhatsAppQueueItem {
+  id        String    @id @default(cuid())
+  target    String
+  message   String
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+}
+
+// Punto 2.6.1: Configuración > "Pruebas" — plantillas reutilizables de
+// checks para no escribir/enumerar cada prueba a mano en cada revisión.
+model TestTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  items TestTemplateItem[]
+}
+
+// title = nombre corto del check (ej. "Prueba de responsividad"); criteria =
+// puntos específicos y verificables debajo del título, uno por línea (ej.
+// "No se sale de la vista en móvil"). criteria es libre/opcional porque no
+// todo check necesita desglose.
+model TestTemplateItem {
+  id         String       @id @default(cuid())
+  templateId String
+  template   TestTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title      String       @map("description")
+  criteria   String?
+  category   String?
+  order      Int
+}
+
+// Plantilla de respuestas para quien corrige — categorías + respuestas
+// predefinidas, para no escribir la misma corrección de memoria cada vez.
+model ResponseCategory {
+  id   String @id @default(cuid())
+  name String
+
+  responses ResponseTemplate[]
+}
+
+model ResponseTemplate {
+  id         String           @id @default(cuid())
+  categoryId String
+  category   ResponseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  text       String
+}
+
+// Una ronda de revisión = un envío a revisar + sus checks + su resultado.
+// roundNumber sube en cada reintento tras una devolución (punto 2.6, flujo
+// Aprobada/Con hallazgos/Con errores -> Devuelta -> nueva ronda).
+model ReviewRound {
+  id            String         @id @default(cuid())
+  taskId        String
+  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  roundNumber   Int
+  submittedById String
+  submittedBy   User           @relation("ReviewRoundSubmitter", fields: [submittedById], references: [id])
+  submittedAt   DateTime       @default(now())
+  outcome       ReviewOutcome?
+  closedAt      DateTime?
+
+  deliverables ReviewDeliverable[]
+  checks       ReviewCheck[]
+  messages     ReviewMessage[]
+}
+
+// Lo que el responsable entrega para que se revise (link o archivo).
+model ReviewDeliverable {
+  id            String      @id @default(cuid())
+  reviewRoundId String
+  reviewRound   ReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  fileUrl       String
+  fileName      String
+  mimeType      String
+  uploadedAt    DateTime    @default(now())
+}
+
+// Instancia editable de un ítem de plantilla (o agregado ad-hoc) dentro de
+// UNA ronda — quitar/editar acá nunca toca TestTemplateItem.
+model ReviewCheck {
+  id               String       @id @default(cuid())
+  reviewRoundId    String
+  reviewRound      ReviewRound  @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  title            String       @map("description")
+  criteria         String?
+  category         String?
+  result           CheckResult?
+  note             String?
+  responseCategory String?
+  reviewedById     String?
+  reviewedBy       User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])
+  order            Int
+
+  evidence ReviewCheckEvidence[]
+}
+
+model ReviewCheckEvidence {
+  id            String      @id @default(cuid())
+  reviewCheckId String
+  reviewCheck   ReviewCheck @relation(fields: [reviewCheckId], references: [id], onDelete: Cascade)
+  fileUrl       String
+  fileName      String
+  mimeType      String
+  uploadedAt    DateTime    @default(now())
+}
+
+// Chat de devolución — editable, no borrable, sin menciones (decisión ya
+// confirmada con el usuario).
+model ReviewMessage {
+  id            String      @id @default(cuid())
+  reviewRoundId String
+  reviewRound   ReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  body          String
+  editedAt      DateTime?
+  createdAt     DateTime    @default(now())
 }

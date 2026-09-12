@@ -5,6 +5,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { setAppCountryCode } from "@/lib/appSettings";
 
 async function requireAdmin() {
   const session = await auth();
@@ -87,6 +88,7 @@ export async function updateUserProfile(userId: string, formData: FormData) {
   const parsed = updateProfileSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
+    phone: formData.get("phone"),
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
@@ -97,9 +99,23 @@ export async function updateUserProfile(userId: string, formData: FormData) {
 
   await prisma.user.update({
     where: { id: userId },
-    data: { name: parsed.data.name, email: parsed.data.email },
+    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone || null },
   });
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function updateAppCountry(countryCode: string) {
+  try {
+    await requireAdmin();
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+  const parsed = z.string().trim().length(2).safeParse(countryCode);
+  if (!parsed.success) return { ok: false, error: "Código de país inválido." };
+
+  await setAppCountryCode(parsed.data);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -117,6 +133,11 @@ export async function updateUserAvatar(userId: string, avatarUrl: string) {
 const updateProfileSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
+  phone: z
+    .string()
+    .regex(/^[0-9]{8,15}$/, "Solo números, con indicativo de país y sin espacios ni +")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function updateProfile(formData: FormData) {
@@ -126,6 +147,7 @@ export async function updateProfile(formData: FormData) {
   const parsed = updateProfileSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
+    phone: formData.get("phone"),
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
@@ -136,7 +158,7 @@ export async function updateProfile(formData: FormData) {
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { name: parsed.data.name, email: parsed.data.email },
+    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone || null },
   });
   revalidatePath("/", "layout");
   return { ok: true };

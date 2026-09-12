@@ -5,11 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-
-// ponytail: por ahora la app solo opera en Colombia (festivos, es-CO en
-// fechas) — se deja fijo acá en vez de exponerlo como campo del form, add
-// cuando haya un segundo país real.
-const PROJECT_COUNTRY_CODE = "CO";
+import { notify } from "@/lib/notifications";
+import { getAppCountryCode } from "@/lib/appSettings";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -32,7 +29,7 @@ export async function createProject(formData: FormData) {
   const project = await prisma.project.create({
     data: {
       ...data,
-      countryCode: PROJECT_COUNTRY_CODE,
+      countryCode: await getAppCountryCode(),
       phases: {
         // ponytail: una fase "General" de arranque — evita bloquear la
         // creación de tareas hasta que el usuario defina sus propias fases.
@@ -40,6 +37,8 @@ export async function createProject(formData: FormData) {
       },
     },
   });
+
+  await notify([data.pmId], "ASSIGNED", `Te asignaron el proyecto "${project.name}"`, undefined, `/projects/${project.id}`);
 
   revalidatePath("/projects");
   redirect(`/projects/${project.id}`);
