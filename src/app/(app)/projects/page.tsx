@@ -14,7 +14,7 @@ import { ModalTrigger } from "@/components/Modal";
 import { OverlapIcon } from "@/components/icons";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
-import { projectHealth } from "@/lib/projectHealth";
+import { projectHealth, HEALTH_LABEL } from "@/lib/projectHealth";
 import { RememberViewState } from "../RememberViewState";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
@@ -42,7 +42,8 @@ export default async function ProjectsPage({
     userId?: string;
     q?: string;
     collision?: string;
-    pq?: string;
+    pid?: string;
+    health?: "ok" | "warn" | "bad";
     fileKind?: string;
     fileType?: string;
     fileProject?: string;
@@ -52,7 +53,7 @@ export default async function ProjectsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, userId, q, collision, pq, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, userId, q, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -199,18 +200,12 @@ export default async function ProjectsPage({
 
   const rows = projects
     .map((p, i) => ({ project: p, summary: summaries[i] }))
-    .filter(({ summary }) => {
-      if (risk === "overdue") return summary.overdueCount > 0;
-      if (risk === "warning") return summary.warningCount > 0;
-      if (risk === "lateStart") return summary.lateStartCount > 0;
-      return true;
-    })
-    .filter(({ project: p }) => {
-      if (!pq) return true;
-      const needle = normalizeSearchText(pq.trim());
-      if (!needle) return true;
-      return normalizeSearchText(p.name).includes(needle) || normalizeSearchText(p.clientName ?? "").includes(needle);
-    });
+    .filter(({ summary }) => !health || summary.health === health)
+    .filter(({ project: p }) => !pid || pid === "all" || p.id === pid);
+  // Vista por defecto ("Recientes"): solo los 2 proyectos más recientes; al
+  // elegir "Todos los proyectos", un proyecto puntual, o filtrar por salud,
+  // se muestran todos los que calcen.
+  const visibleRows = pid || health ? rows : rows.slice(0, 2);
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
   // visibles para este usuario (según sus "superpoderes" de arriba), pensado
@@ -376,7 +371,7 @@ export default async function ProjectsPage({
 
   return (
     <div className="space-y-8">
-      <RememberViewState storageKey="projectsBoard" />
+      <RememberViewState storageKey="projectsBoard" excludeParams={["pid", "health"]} />
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
@@ -422,30 +417,37 @@ export default async function ProjectsPage({
         <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-400">Buscar</span>
-            <SearchBox basePath="/projects" q={pq} paramName="pq" placeholder="Buscar proyectos…" hiddenParams={{ risk }} />
+            <ComboFilter
+              allLabel="Recientes"
+              value={pid}
+              options={[{ id: "all", label: "Todos los proyectos" }, ...projects.map((p) => ({ id: p.id, label: p.name }))]}
+              paramKey="pid"
+              basePath="/projects"
+              currentParams={{ health }}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-400">Alerta</span>
             <ComboFilter
-              allLabel="Todos los proyectos"
-              value={risk}
+              allLabel="Toda la salud"
+              value={health}
               options={[
-                { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
-                { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
-                { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
+                { id: "ok", label: HEALTH_LABEL.ok, dotColorClass: "bg-emerald-500" },
+                { id: "warn", label: HEALTH_LABEL.warn, dotColorClass: "bg-amber-500" },
+                { id: "bad", label: HEALTH_LABEL.bad, dotColorClass: "bg-red-500" },
               ]}
-              paramKey="risk"
+              paramKey="health"
               basePath="/projects"
-              currentParams={{ pq }}
-              triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
+              currentParams={{ pid }}
+              triggerColorClass={health === "bad" ? "bg-red-600 text-white" : health === "warn" ? "bg-amber-500 text-white" : health === "ok" ? "bg-emerald-600 text-white" : undefined}
             />
           </div>
-          {(pq || risk) && (
+          {(pid || health) && (
             <Link
-              href={boardHref({ risk: undefined })}
+              href={boardHref({})}
               className="self-end text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline"
             >
-              Ver todos los proyectos
+              Ver proyectos recientes
             </Link>
           )}
         </div>
@@ -453,15 +455,15 @@ export default async function ProjectsPage({
         <div className="grid max-h-110 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
           {rows.length === 0 && (
             <p className="text-sm text-slate-500 sm:col-span-2">
-              {pq
+              {pid
                 ? "Ningún proyecto coincide con la búsqueda."
-                : risk
-                ? "Ningún proyecto tiene tareas con este filtro."
+                : health
+                ? "Ningún proyecto tiene esta salud."
                 : "Todavía no tenés proyectos."}
             </p>
           )}
           <ProjectCardsOrder
-            items={rows.map(({ project: p, summary }) => {
+            items={visibleRows.map(({ project: p, summary }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return { id: p.id, node: (
               <NavLinkWithMemory
