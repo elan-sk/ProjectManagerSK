@@ -10,7 +10,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
-import { pctStatus } from "@/lib/statusColors";
+import { pctStatus, DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
 import type { RequirementSummary } from "@/lib/cascadeProgress";
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -56,9 +56,12 @@ export function RequirementsPanel({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+    <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.REQUIREMENT.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
       <div className="flex items-center justify-between">
-        <h2 className="font-medium text-slate-900">Requerimientos</h2>
+        <h2 className="flex items-center gap-1.5 font-medium text-slate-900">
+          <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.REQUIREMENT.dot}`} aria-hidden />
+          Requerimientos
+        </h2>
         {canManage && (
           <ModalTrigger label="+ Requerimiento" title="Nuevo requerimiento" variant="secondary" compact>
             <RequirementForm projectId={projectId} objectives={objectives} />
@@ -136,7 +139,10 @@ export function RequirementsPanel({
               <ProgressBar pct={r.pct} />
             </div>
             <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className="text-xs font-medium text-slate-600">Fases</p>
+              <p className={`flex items-center gap-1.5 text-xs font-medium ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
+                Fases
+              </p>
               {r.phases.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
                   {r.phases.map((p, i) => {

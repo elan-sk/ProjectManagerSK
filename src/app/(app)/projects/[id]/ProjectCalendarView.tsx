@@ -93,6 +93,8 @@ export function ProjectCalendarView({
                         }))}
                         filteredHref="/projects?collision=1"
                         filteredLabel="Ver todas las colisiones"
+                        extraHref={`/collisions/${t.id}`}
+                        extraLabel="Ver detalle y alternativas"
                       />
                     )}
                     <span className="flex flex-shrink-0 items-center gap-1.5">

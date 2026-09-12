@@ -21,14 +21,14 @@ import { ProjectCardsOrder } from "./ProjectCardsOrder";
 import { ComboFilter } from "@/components/ComboFilter";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
 import { attachmentFileType } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { TaskStatus } from "@prisma/client";
+import type { TaskStatus, TaskType } from "@prisma/client";
 
 export default async function ProjectsPage({
   searchParams,
@@ -39,6 +39,7 @@ export default async function ProjectsPage({
     date?: string;
     mode?: string;
     status?: TaskStatus;
+    type?: TaskType;
     userId?: string;
     q?: string;
     collision?: string;
@@ -53,7 +54,7 @@ export default async function ProjectsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, userId, q, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, type, userId, q, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -85,6 +86,7 @@ export default async function ProjectsPage({
       mode: calendarMode !== "month" ? calendarMode : undefined,
       date: anchorKey(anchor),
       status,
+      type,
       userId,
       q,
       collision,
@@ -246,6 +248,7 @@ export default async function ProjectsPage({
   const matchesBoardFilters = (t: {
     id: string;
     status: string;
+    type: string;
     title: string;
     description: string | null;
     assignees: { userId: string }[];
@@ -253,6 +256,7 @@ export default async function ProjectsPage({
   }) =>
     (!risk || boardAlertById.get(t.id)!.level === risk) &&
     (!status || t.status === status) &&
+    (!type || t.type === type) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     (!collision || Boolean(collisionsById.get(t.id))) &&
     matchesTaskSearch(t, q);
@@ -471,26 +475,29 @@ export default async function ProjectsPage({
                 storageKey={`project:${p.id}`}
                 className="block h-full rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
-                    <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 font-medium text-slate-900">
-                      <span className="truncate">{p.name}</span>
-                      {collisionTasks.length > 0 && (
-                        <ReferencePopover
-                          trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
-                          hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
-                          items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/projects/${p.id}/tasks/${t.id}` }))}
-                          filteredHref="/projects?collision=1"
-                          filteredLabel="Ver todas las colisiones"
-                        />
-                      )}
-                    </p>
-                    <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
+                      <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 font-medium text-slate-900">
+                        <span className="truncate">{p.name}</span>
+                        {collisionTasks.length > 0 && (
+                          <ReferencePopover
+                            trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
+                            hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
+                            items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/collisions/${t.id}` }))}
+                            filteredHref="/projects?collision=1"
+                            filteredLabel="Ver todas las colisiones"
+                          />
+                        )}
+                      </p>
+                      <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
+                      </div>
                     </div>
+                    <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <ProjectHealthBadges
                       projectId={p.id}
                       health={health}
@@ -506,7 +513,6 @@ export default async function ProjectsPage({
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                       {PROJECT_PHASE_LABEL[phase]}
                     </span>
-                    <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                   </div>
                 </div>
 
@@ -582,7 +588,7 @@ export default async function ProjectsPage({
               <SearchBox
                 basePath="/projects"
                 q={q}
-                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, collision }}
+                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -593,7 +599,7 @@ export default async function ProjectsPage({
                 options={users.map((u) => ({ id: u.id, label: u.name }))}
                 paramKey="userId"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, q, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -608,8 +614,22 @@ export default async function ProjectsPage({
                 }))}
                 paramKey="status"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, q, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, collision }}
                 triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Tipo</span>
+              <ComboFilter
+                allLabel="Todos los tipos"
+                value={type}
+                options={(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+                  id: tt,
+                  label: TASK_TYPE_LABEL[tt],
+                }))}
+                paramKey="type"
+                basePath="/projects"
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -624,7 +644,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="risk"
                 basePath="/projects"
-                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, collision }}
+                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
                 triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
               />
             </div>

@@ -136,6 +136,10 @@ function monthLabel(date: Date) {
   return date.toLocaleDateString("es-CO", { month: "short", timeZone: "UTC" }).replace(".", "").toUpperCase();
 }
 
+function dayLabel(date: Date) {
+  return date.toLocaleDateString("es-CO", { day: "2-digit", timeZone: "UTC" });
+}
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" });
 }
@@ -624,6 +628,18 @@ export function GanttView({
     else monthGroups.push({ label, count: 1 });
   }
 
+  // Punto 12 confirmado con el usuario: al seleccionar una o varias tareas
+  // (mismo Set que ya usan "Poner en paralelo"/"Mover"), se resaltan en el
+  // encabezado los números de día que esas tareas ocupan, para ver de un
+  // vistazo qué tramo del calendario se está tocando.
+  const highlightedDayIndices = new Set<number>();
+  if (selectedIds.size > 0) {
+    for (const t of tasks) {
+      if (!selectedIds.has(t.id)) continue;
+      for (let i = t.startIndex; i < t.startIndex + t.span; i++) highlightedDayIndices.add(i);
+    }
+  }
+
   const grouped = new Map<string, GanttTask[]>();
   for (const t of tasks) {
     const key = `${t.projectId}:${t.phaseId}`;
@@ -749,19 +765,34 @@ export function GanttView({
         {/* Header: meses — sticky verticalmente (debajo del header fijo del
             programa), siempre visible aunque haya muchas fases/tareas debajo. */}
         <div className="sticky top-0 z-40 flex border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
-          <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-10 flex-shrink-0 bg-white px-3 py-2">
+          <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-10 flex flex-shrink-0 items-center bg-white px-3 py-2">
             Tarea
           </div>
-          <div className="flex">
-            {monthGroups.map((m, i) => (
-              <div
-                key={i}
-                style={{ width: m.count * DAY_WIDTH }}
-                className="border-l border-slate-100 py-2 text-center"
-              >
-                {m.label}
-              </div>
-            ))}
+          <div className="flex flex-col">
+            <div className="flex">
+              {monthGroups.map((m, i) => (
+                <div
+                  key={i}
+                  style={{ width: m.count * DAY_WIDTH }}
+                  className="border-l border-slate-100 py-1 text-center"
+                >
+                  {m.label}
+                </div>
+              ))}
+            </div>
+            <div className="flex border-t border-slate-100">
+              {businessDays.map((d, i) => (
+                <div
+                  key={i}
+                  style={{ width: DAY_WIDTH }}
+                  className={`py-1 text-center text-[10px] ${
+                    highlightedDayIndices.has(i) ? "bg-indigo-100 font-semibold text-indigo-700" : "font-normal text-slate-400"
+                  }`}
+                >
+                  {dayLabel(d)}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -844,6 +875,8 @@ export function GanttView({
                           }))}
                           filteredHref="/projects?collision=1"
                           filteredLabel="Ver todas las colisiones"
+                          extraHref={`/collisions/${t.id}`}
+                          extraLabel="Ver detalle y alternativas"
                         />
                       )}
                       {t.attachmentsCount > 0 && (

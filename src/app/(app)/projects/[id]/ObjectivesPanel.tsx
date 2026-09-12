@@ -10,7 +10,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
-import { pctStatus } from "@/lib/statusColors";
+import { pctStatus, DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
 import type { ObjectiveSummary, RequirementSummary } from "@/lib/cascadeProgress";
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -57,9 +57,12 @@ export function ObjectivesPanel({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+    <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.OBJECTIVE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
       <div className="flex items-center justify-between">
-        <h2 className="font-medium text-slate-900">Objetivos</h2>
+        <h2 className="flex items-center gap-1.5 font-medium text-slate-900">
+          <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.OBJECTIVE.dot}`} aria-hidden />
+          Objetivos
+        </h2>
         {canManage && (
           <ModalTrigger label="+ Objetivo" title="Nuevo objetivo" variant="secondary" compact>
             <ObjectiveForm projectId={projectId} />
@@ -127,7 +130,10 @@ export function ObjectivesPanel({
               <ProgressBar pct={o.pct} />
             </div>
             <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className="text-xs font-medium text-slate-600">Requerimientos</p>
+              <p className={`flex items-center gap-1.5 text-xs font-medium ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.REQUIREMENT.dot}`} aria-hidden />
+                Requerimientos
+              </p>
               {o.requirementIds.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
                   {o.requirementIds.map((id, i) => {

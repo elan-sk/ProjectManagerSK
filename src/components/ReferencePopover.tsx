@@ -62,6 +62,8 @@ export function ReferencePopover({
   items,
   filteredHref,
   filteredLabel = "Ver en el tablero filtrado",
+  extraHref,
+  extraLabel,
   align = "left",
   className,
 }: {
@@ -70,6 +72,9 @@ export function ReferencePopover({
   items: ReferenceItem[];
   filteredHref?: string;
   filteredLabel?: string;
+  /** Segundo link opcional, debajo de filteredHref (ej. detalle enriquecido de una colisión puntual). */
+  extraHref?: string;
+  extraLabel?: string;
   align?: "left" | "right";
   className?: string;
 }) {
@@ -159,6 +164,15 @@ export function ReferencePopover({
                 className="mb-1 block rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               >
                 {filteredLabel}
+              </InteractiveSpan>
+            )}
+            {extraHref && (
+              <InteractiveSpan
+                role="link"
+                onActivate={() => go(extraHref)}
+                className="mb-1 block rounded-lg px-2 py-1.5 text-xs font-medium text-indigo-600 hover:bg-slate-50"
+              >
+                {extraLabel}
               </InteractiveSpan>
             )}
             <ul className="max-h-56 space-y-0.5 overflow-y-auto">

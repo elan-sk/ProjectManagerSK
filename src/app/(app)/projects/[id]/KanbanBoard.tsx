@@ -129,6 +129,8 @@ function CardBody({
               }))}
               filteredHref="/projects?collision=1"
               filteredLabel="Ver todas las colisiones"
+              extraHref={`/collisions/${task.id}`}
+              extraLabel="Ver detalle y alternativas"
               align="right"
             />
           )}
@@ -249,6 +251,7 @@ function Card({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      onDoubleClick={() => router.push(`/projects/${task.projectId}/tasks/${task.id}`)}
       // dnd-kit numera aria-describedby con un contador de instancia que no
       // coincide entre el render del servidor y la hidratación del cliente
       // (problema conocido de la librería con SSR) — no afecta layout ni

@@ -29,7 +29,7 @@ const EXTENSION_MIME: Record<string, string> = {
   ".csv": "text/csv",
 };
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — evidencias/capturas, no video
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — evidencias/capturas, no video
 
 // ponytail: guarda en public/uploads/ para el prototipo local. Al pasar a
 // Hostinger/producción, cambiar esto por un put() a Supabase Storage — el
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     );
   }
   if (file.size > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: "El archivo supera los 15MB." }, { status: 413 });
+    return NextResponse.json({ error: "El archivo supera los 20MB." }, { status: 413 });
   }
 
   const fileName = `${randomUUID()}${ext}`;

@@ -30,7 +30,7 @@ export function ProjectFilesView({
   filesHref,
 }: {
   projectId: string;
-  files: { id: string; taskId: string; taskTitle: string; fileUrl: string; fileName: string; mimeType: string }[];
+  files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string }[];
   tasks: { id: string; title: string }[];
   fileKind: "INSUMO" | "RESULTADO";
   fileType?: string;
@@ -97,7 +97,7 @@ export function ProjectFilesView({
             url: f.fileUrl,
             name: f.fileName,
             mimeType: f.mimeType,
-            taskLink: { href: `/projects/${projectId}/tasks/${f.taskId}`, title: f.taskTitle },
+            taskLink: f.taskId ? { href: `/projects/${projectId}/tasks/${f.taskId}`, title: f.taskTitle! } : undefined,
           }))}
         />
       )}

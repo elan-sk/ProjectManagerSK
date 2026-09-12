@@ -29,7 +29,24 @@ export async function toggleStep(stepId: string, done: boolean) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
   await prisma.taskStep.update({ where: { id: stepId }, data: { done } });
+  if (done) await autoAdvanceToInProgress(step.taskId);
   await revalidateTask(step.taskId);
+}
+
+// Un Entregable, una Revisión, o cualquier tarea con checklist "avisan solas"
+// de que arrancaron en cuanto alguien chulea un paso o sube evidencia — nadie
+// tiene que acordarse de moverlas a mano a "En curso".
+async function autoAdvanceToInProgress(taskId: string) {
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { status: true, type: true, actualStart: true, steps: { select: { id: true } } },
+  });
+  if (task.status !== "NOT_STARTED") return;
+  if (task.type !== "MILESTONE" && task.type !== "QA" && task.steps.length === 0) return;
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "IN_PROGRESS", actualStart: task.actualStart ?? new Date() },
+  });
 }
 
 export async function addAttachmentRecord(
@@ -52,32 +69,46 @@ export async function addAttachmentRecord(
       uploadedById,
     },
   });
+  if (kind === "RESULTADO") await autoAdvanceToInProgress(taskId);
   await revalidateTask(taskId);
 }
 
-// Una tarea ya completada no admite más evidencia — la evidencia prueba lo
-// hecho, y eso se sube ANTES de cerrarla. Los insumos sí siguen abiertos
-// (documentación de apoyo puede sumarse en cualquier momento).
+// Una tarea ya completada no admite más archivos — tanto insumos como
+// evidencia se suben ANTES de cerrarla.
 async function assertCanAddAttachment(taskId: string, kind: AttachmentKind) {
-  if (kind !== "RESULTADO") return;
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { status: true } });
   if (task.status === "COMPLETED") {
-    throw new Error("La tarea ya está completada — no se puede subir más evidencia.");
+    const label = kind === "RESULTADO" ? "evidencia" : "insumos";
+    throw new Error(`La tarea ya está completada — no se puede subir más ${label}.`);
   }
 }
 
+// El filtro "Insumos" de la vista Archivos mezcla adjuntos de tarea
+// (Attachment) con archivos subidos directo al proyecto (ProjectAttachment)
+// — ambos comparten la misma grilla/botón de borrar, así que esta acción
+// resuelve contra la tabla que corresponda según dónde viva el id.
 export async function removeAttachment(attachmentId: string) {
-  const attachment = await prisma.attachment.findUniqueOrThrow({
+  const attachment = await prisma.attachment.findUnique({
     where: { id: attachmentId },
     include: { task: true },
   });
-  await requireProjectAdmin(attachment.task.projectId);
-
-  await prisma.attachment.delete({ where: { id: attachmentId } });
-  if (attachment.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  if (attachment) {
+    await requireProjectAdmin(attachment.task.projectId);
+    await prisma.attachment.delete({ where: { id: attachmentId } });
+    if (attachment.mimeType !== LINK_MIME_TYPE) {
+      await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+    }
+    await revalidateTask(attachment.taskId);
+    return;
   }
-  await revalidateTask(attachment.taskId);
+
+  const projectAttachment = await prisma.projectAttachment.findUniqueOrThrow({ where: { id: attachmentId } });
+  await requireProjectAdmin(projectAttachment.projectId);
+  await prisma.projectAttachment.delete({ where: { id: attachmentId } });
+  if (projectAttachment.mimeType !== LINK_MIME_TYPE) {
+    await unlink(path.join(process.cwd(), "public", projectAttachment.fileUrl)).catch(() => {});
+  }
+  revalidatePath(`/projects/${projectAttachment.projectId}`);
 }
 
 export async function addLinkAttachment(
@@ -111,6 +142,7 @@ export async function addLinkAttachment(
       uploadedById,
     },
   });
+  if (kind === "RESULTADO") await autoAdvanceToInProgress(taskId);
   await revalidateTask(taskId);
 }
 

@@ -10,7 +10,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
 import type { PhaseSummary, TaskRef } from "@/lib/cascadeProgress";
 import type { TaskStatus } from "@prisma/client";
 
@@ -64,8 +64,11 @@ export function PhasesPanel({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="font-medium text-slate-900">Fases y avance</h2>
+    <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.PHASE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
+      <h2 className="flex items-center gap-1.5 font-medium text-slate-900">
+        <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
+        Fases y avance
+      </h2>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {phases.length === 0 && <p className="text-sm text-slate-400">Todavía no hay fases creadas.</p>}
       <ul className="space-y-2">
@@ -141,7 +144,10 @@ export function PhasesPanel({
               <ProgressBar pct={p.pct} />
             </div>
             <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className="text-xs font-medium text-slate-600">Tareas</p>
+              <p className={`flex items-center gap-1.5 text-xs font-medium ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.TASK.dot}`} aria-hidden />
+                Tareas
+              </p>
               {p.tasks.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
                   {p.tasks.map((t, i) => (

@@ -285,13 +285,16 @@ export default async function TaskDetailPage({
               items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
               canDelete={canManage}
             />
-            {canEdit && session?.user && (
+            {canEdit && session?.user && task.status !== "COMPLETED" && (
               <AttachmentUploader
                 taskId={taskId}
                 userId={session.user.id}
                 kind="INSUMO"
                 label="+ Subir insumo"
               />
+            )}
+            {task.status === "COMPLETED" && (
+              <p className="text-xs text-slate-400">La tarea ya está completada — no se pueden subir más insumos.</p>
             )}
           </div>
 

@@ -31,9 +31,9 @@ import { ProjectFilesView } from "./ProjectFilesView";
 import { getActiveShareLink } from "@/lib/shareLinks";
 import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { TaskStatus } from "@prisma/client";
+import type { TaskStatus, TaskType } from "@prisma/client";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -47,6 +47,7 @@ export default async function ProjectPage({
     date?: string;
     mode?: string;
     status?: TaskStatus;
+    type?: TaskType;
     userId?: string;
     risk?: "overdue" | "warning" | "lateStart";
     q?: string;
@@ -57,7 +58,7 @@ export default async function ProjectPage({
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, userId, risk, q, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const { view, date, mode, status, type, userId, risk, q, fileKind, fileType, fileTask, fileQ } = await searchParams;
   const now = new Date();
   const calendarMode: CalendarMode = mode === "week" || mode === "day" ? mode : "month";
   const [dy, dm, dd] = date ? date.split("-").map(Number) : [];
@@ -71,6 +72,7 @@ export default async function ProjectPage({
       mode: calendarMode !== "month" ? calendarMode : undefined,
       date: anchorKey(anchor),
       status,
+      type,
       userId,
       risk,
       ...overrides,
@@ -86,7 +88,7 @@ export default async function ProjectPage({
   // vista actual — aplican igual estés en tablero, Gantt o calendario.
   const filterHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { view, mode, date, status, userId, risk, q, ...overrides };
+    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -171,6 +173,7 @@ export default async function ProjectPage({
   const matchesFilters = (t: {
     id: string;
     status: string;
+    type: string;
     title: string;
     description: string | null;
     assignees: { userId: string }[];
@@ -178,6 +181,7 @@ export default async function ProjectPage({
   }) =>
     matchesRisk(t.id) &&
     (!status || t.status === status) &&
+    (!type || t.type === type) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     matchesTaskSearch(t, q);
 
@@ -295,12 +299,19 @@ export default async function ProjectPage({
     }));
 
   const projectFileKind: "INSUMO" | "RESULTADO" = fileKind === "RESULTADO" ? "RESULTADO" : "INSUMO";
+  // Los archivos subidos directo al repositorio del proyecto (no atados a
+  // ninguna tarea) cuentan como insumo del proyecto en este filtro.
+  const projectRepoFiles: { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null }[] =
+    projectFileKind === "INSUMO"
+      ? project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null }))
+      : [];
   const projectFiles = project.tasks
     .flatMap((t) =>
       t.attachments
         .filter((a) => a.kind === projectFileKind)
-        .map((a) => ({ ...a, taskId: t.id, taskTitle: t.title }))
+        .map((a) => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id as string | null, taskTitle: t.title as string | null }))
     )
+    .concat(projectRepoFiles)
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileTask || a.taskId === fileTask)
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
@@ -312,6 +323,7 @@ export default async function ProjectPage({
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>
+      <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" />
@@ -353,32 +365,6 @@ export default async function ProjectPage({
           </div>
         </div>
 
-        <div className="min-w-[220px] max-w-md flex-1 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <ProjectHealthBadges
-              projectId={project.id}
-              health={summaryHealth}
-              overdueCount={summaryOverdueTasks.length}
-              overdueTasks={summaryOverdueTasks}
-              warningCount={summaryWarningTasks.length}
-              warningTasks={summaryWarningTasks}
-              lateStartCount={summaryLateStartTasks.length}
-              lateStartTasks={summaryLateStartTasks}
-              openSlackDays={summaryOpenSlackDays}
-              scheduleVarianceDays={summaryScheduleVarianceDays}
-            />
-          </div>
-          <ProjectProgress
-            projectId={project.id}
-            bottlenecks={bottlenecks}
-            total={summaryTotal}
-            completed={summaryCompleted}
-          />
-          <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
-            Rendimiento
-          </Link>
-        </div>
-
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
           <Avatar name={project.pm.name} avatarUrl={project.pm.avatarUrl} />
           <div>
@@ -391,6 +377,33 @@ export default async function ProjectPage({
             </ModalTrigger>
           )}
         </div>
+      </div>
+
+      <div className="min-w-[220px] max-w-md space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <ProjectHealthBadges
+            projectId={project.id}
+            health={summaryHealth}
+            overdueCount={summaryOverdueTasks.length}
+            overdueTasks={summaryOverdueTasks}
+            warningCount={summaryWarningTasks.length}
+            warningTasks={summaryWarningTasks}
+            lateStartCount={summaryLateStartTasks.length}
+            lateStartTasks={summaryLateStartTasks}
+            openSlackDays={summaryOpenSlackDays}
+            scheduleVarianceDays={summaryScheduleVarianceDays}
+          />
+        </div>
+        <ProjectProgress
+          projectId={project.id}
+          bottlenecks={bottlenecks}
+          total={summaryTotal}
+          completed={summaryCompleted}
+        />
+        <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
+          Rendimiento
+        </Link>
+      </div>
       </div>
 
       {canManage && (
@@ -476,7 +489,7 @@ export default async function ProjectPage({
           <SearchBox
             basePath={`/projects/${project.id}`}
             q={q}
-            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, userId, risk }}
+            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, risk }}
           />
         </div>
 
@@ -488,7 +501,7 @@ export default async function ProjectPage({
             options={users.map((u) => ({ id: u.id, label: u.name }))}
             paramKey="userId"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, risk, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q }}
           />
         </div>
 
@@ -504,8 +517,23 @@ export default async function ProjectPage({
             }))}
             paramKey="status"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, risk, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q }}
             triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Tipo</span>
+          <ComboFilter
+            allLabel="Todos los tipos"
+            value={type}
+            options={(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+              id: tt,
+              label: TASK_TYPE_LABEL[tt],
+            }))}
+            paramKey="type"
+            basePath={`/projects/${project.id}`}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, risk, q }}
           />
         </div>
 
@@ -521,7 +549,7 @@ export default async function ProjectPage({
             ]}
             paramKey="risk"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q }}
             triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
           />
         </div>

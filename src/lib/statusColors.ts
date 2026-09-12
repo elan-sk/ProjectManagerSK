@@ -28,6 +28,17 @@ export const TASK_TYPE_LABEL: Record<string, string> = {
   ADJUSTMENT: "Ajuste",
 };
 
+// Un mismo color por nivel de la jerarquía de Definición (Objetivo →
+// Requerimiento → Fase → Tarea), para poder distinguir de un vistazo qué es
+// qué en la pestaña Definición, incluso cuando un panel referencia el nivel
+// de abajo dentro de sus filas (ej. las Fases dentro de un Objetivo).
+export const DEFINITION_LEVEL_COLOR = {
+  OBJECTIVE: { border: "border-violet-300", text: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
+  REQUIREMENT: { border: "border-sky-300", text: "text-sky-700", bg: "bg-sky-50", dot: "bg-sky-500" },
+  PHASE: { border: "border-teal-300", text: "text-teal-700", bg: "bg-teal-50", dot: "bg-teal-500" },
+  TASK: { border: "border-fuchsia-300", text: "text-fuchsia-700", bg: "bg-fuchsia-50", dot: "bg-fuchsia-500" },
+} as const;
+
 // El status del proyecto (PLANNING/ACTIVE/.../COMPLETED en el schema) no lo
 // actualiza ningún flujo de la app — queda pegado en PLANNING para siempre
 // (bug real detectado por el usuario). La "fase" real se calcula acá a
