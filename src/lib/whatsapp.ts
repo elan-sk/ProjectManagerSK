@@ -8,7 +8,16 @@ import { getBotName } from "@/lib/botSettings";
 // server si WHATSAPP_ENABLED=true, o a pedido desde el botón de un admin en
 // Configuración) y queda escuchando en este módulo.
 let sock: WASocket | null = null;
+let rawSocket: WASocket | null = null;
 let connecting: Promise<void> | null = null;
+
+// Tope de reintentos automáticos: si el socket se cae seguido (no por logout
+// explícito), reintentamos unas pocas veces y después paramos — así el admin
+// recupera el control (botón "Conectar"/"Desconectar") en vez de quedar en
+// un loop infinito de "Conectando…".
+const MAX_AUTO_RETRIES = 2;
+let retryCount = 0;
+let manualStop = false;
 
 export type WhatsAppStatus = "disconnected" | "connecting" | "connected";
 let status: WhatsAppStatus = "disconnected";
@@ -20,10 +29,24 @@ export function getWhatsAppStatus() {
 
 export function startWhatsApp() {
   if (sock || connecting) return connecting ?? Promise.resolve();
+  manualStop = false;
   connecting = connect().finally(() => {
     connecting = null;
   });
   return connecting;
+}
+
+// Corta la conexión a mano (no es logout: las credenciales en .baileys-auth
+// quedan intactas, así que "Conectar WhatsApp" después reconecta sin QR).
+export function stopWhatsApp() {
+  manualStop = true;
+  retryCount = 0;
+  connecting = null;
+  void rawSocket?.end(undefined);
+  rawSocket = null;
+  sock = null;
+  qrDataUrl = null;
+  status = "disconnected";
 }
 
 async function connect() {
@@ -34,6 +57,7 @@ async function connect() {
   } = await import("@whiskeysockets/baileys");
   const { state, saveCreds } = await loadAuthState(".baileys-auth");
   const socket = makeWASocket({ auth: state });
+  rawSocket = socket;
   socket.ev.on("creds.update", saveCreds);
 
   socket.ev.on("connection.update", async (update) => {
@@ -48,20 +72,30 @@ async function connect() {
       sock = socket;
       status = "connected";
       qrDataUrl = null;
+      retryCount = 0;
       console.log("[whatsapp] conectado. Elegí el grupo de alertas desde Configuración.");
     }
 
     if (connection === "close") {
       sock = null;
+      rawSocket = null;
       qrDataUrl = null;
+      if (manualStop) {
+        status = "disconnected";
+        return;
+      }
       const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output
         ?.statusCode;
-      if (statusCode !== DisconnectReason.loggedOut) {
+      if (statusCode === DisconnectReason.loggedOut) {
+        status = "disconnected";
+        console.error("[whatsapp] sesión cerrada desde el teléfono, hay que volver a escanear el QR.");
+      } else if (retryCount < MAX_AUTO_RETRIES) {
+        retryCount++;
         status = "connecting";
         void startWhatsApp();
       } else {
         status = "disconnected";
-        console.error("[whatsapp] sesión cerrada desde el teléfono, hay que volver a escanear el QR.");
+        console.error(`[whatsapp] no se pudo reconectar después de ${MAX_AUTO_RETRIES} intentos, hace falta reconectar a mano desde Configuración.`);
       }
     }
   });

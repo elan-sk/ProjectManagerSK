@@ -1,39 +1,42 @@
+import { auth } from "@/auth";
+import { Avatar } from "@/components/Avatar";
+import { ComboFilter } from "@/components/ComboFilter";
+import { ModalTrigger } from "@/components/Modal";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { SearchBox } from "@/components/SearchBox";
+import { ShareLinkPanel } from "@/components/ShareLinkPanel";
+import { ShareIcon } from "@/components/icons";
+import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
+import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
+import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
+import { getBottlenecks, getTaskAlert } from "@/lib/delays";
+import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
+import { getProjectAdmin } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
+import { projectHealth } from "@/lib/projectHealth";
+import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
+import { getActiveShareLink } from "@/lib/shareLinks";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
+import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { businessDaysRange, addBusinessDays } from "@/lib/holidays";
-import { getTaskAlert, getBottlenecks } from "@/lib/delays";
-import { getProjectAdmin } from "@/lib/permissions";
-import { KanbanBoard, type TaskCard } from "./KanbanBoard";
-import { GanttView, type GanttTask } from "./GanttView";
+import { NavLinkWithMemory } from "../../NavLinkWithMemory";
+import { RememberViewState } from "../../RememberViewState";
+import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
 import { CriticalPathButton } from "./CriticalPathButton";
-import { ProjectCalendarView, type CalendarTask } from "./ProjectCalendarView";
 import { DefinitionTab } from "./DefinitionTab";
-import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
-import { ModalTrigger } from "@/components/Modal";
-import { Avatar } from "@/components/Avatar";
-import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
-import { projectHealth } from "@/lib/projectHealth";
-import { ProjectIcon } from "@/components/ProjectIcon";
-import { NewTaskForm } from "./NewTaskForm";
-import { ReassignPMForm } from "./ReassignPMForm";
+import { EditRepoUrlForm } from "./EditRepoUrlForm";
 import { EditStartDateForm } from "./EditStartDateForm";
 import { EditTargetEndDateForm } from "./EditTargetEndDateForm";
-import { EditRepoUrlForm } from "./EditRepoUrlForm";
-import { SaveLastProject } from "./SaveLastProject";
-import { RememberViewState } from "../../RememberViewState";
-import { NavLinkWithMemory } from "../../NavLinkWithMemory";
-import { ComboFilter } from "@/components/ComboFilter";
-import { SearchBox } from "@/components/SearchBox";
-import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { attachmentFileType } from "@/lib/attachments";
+import { GanttView, type GanttTask } from "./GanttView";
+import { KanbanBoard, type TaskCard } from "./KanbanBoard";
+import { NewTaskForm } from "./NewTaskForm";
+import { ProjectCalendarView, type CalendarTask } from "./ProjectCalendarView";
 import { ProjectFilesView } from "./ProjectFilesView";
-import { getActiveShareLink } from "@/lib/shareLinks";
-import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
-import { ShareLinkPanel } from "@/components/ShareLinkPanel";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL } from "@/lib/statusColors";
-import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { TaskStatus, TaskType } from "@prisma/client";
+import { ReassignPMForm } from "./ReassignPMForm";
+import { SaveLastProject } from "./SaveLastProject";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -47,10 +50,11 @@ export default async function ProjectPage({
     date?: string;
     mode?: string;
     status?: TaskStatus;
-    type?: TaskType;
+    type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE";
     userId?: string;
     risk?: "overdue" | "warning" | "lateStart";
     q?: string;
+    tag?: string;
     fileKind?: string;
     fileType?: string;
     fileTask?: string;
@@ -58,7 +62,9 @@ export default async function ProjectPage({
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, type, userId, risk, q, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const { view, date, mode, status, type, userId, risk, q, tag, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const session = await auth();
+  const myUserId = session?.user?.id ?? null;
   const now = new Date();
   const calendarMode: CalendarMode = mode === "week" || mode === "day" ? mode : "month";
   const [dy, dm, dd] = date ? date.split("-").map(Number) : [];
@@ -75,6 +81,7 @@ export default async function ProjectPage({
       type,
       userId,
       risk,
+      tag,
       ...overrides,
     };
     for (const [k, v] of Object.entries(merged)) {
@@ -88,7 +95,7 @@ export default async function ProjectPage({
   // vista actual — aplican igual estés en tablero, Gantt o calendario.
   const filterHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, ...overrides };
+    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, tag, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -106,7 +113,7 @@ export default async function ProjectPage({
     return `/projects/${id}?${p.toString()}`;
   };
 
-  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink] = await Promise.all([
+  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink, testTemplates, taskShareLinks, tagCategories, projectTags] = await Promise.all([
     prisma.project.findUnique({
       where: { id },
       include: {
@@ -117,6 +124,9 @@ export default async function ProjectPage({
         tasks: {
           include: {
             assignees: { include: { user: true } },
+            reviewers: { include: { user: true } },
+            reviewRounds: { select: { outcome: true } },
+            taskTags: { include: { tag: { include: { category: true } } } },
             steps: true,
             attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
             dependsOn: {
@@ -136,9 +146,27 @@ export default async function ProjectPage({
     getBottlenecks(id),
     getProjectCascadeProgress(id),
     getActiveShareLink("PROJECT", id),
+    prisma.testTemplate.findMany({ select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
+    // Un link por tarea a la vez (createShareLink revoca el anterior) — se
+    // usa tanto para el indicador de copiar-en-un-clic (Kanban/Gantt) como
+    // para listar los links compartidos en la vista Archivos.
+    prisma.shareLink.findMany({
+      where: { targetType: "TASK", revokedAt: null, task: { projectId: id } },
+      select: { id: true, taskId: true, token: true },
+    }),
+    prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
+    prisma.tag.findMany({ where: { projectId: id }, select: { id: true, categoryId: true, name: true } }),
   ]);
 
   if (!project) notFound();
+  const taskShareTokenById = new Map(taskShareLinks.map((l) => [l.taskId!, l.token]));
+
+  // Punto 17: nombres ya usados en ESTE proyecto, agrupados por categoría —
+  // alimenta el <datalist> del picker de etiquetas (sugiere sin obligar).
+  const projectTagNamesByCategory: Record<string, string[]> = {};
+  for (const t of projectTags) {
+    (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
+  }
 
   const bottleneckReasonById = new Map(bottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
@@ -170,6 +198,29 @@ export default async function ProjectPage({
   const summaryScheduleVarianceDays = phaseVarianceValues.length > 0 ? phaseVarianceValues.reduce((s, v) => s + v, 0) : null;
 
   const matchesRisk = (taskId: string) => !risk || alertByTaskId.get(taskId)!.level === risk;
+  // "Devueltas"/"Revisión" del filtro Tipo (punto 11 confirmado): no son un
+  // TaskType real, son un atajo personal — "me devolvieron a mí" y "tengo
+  // que revisarle a otro" — sobre los mismos datos que ya alimentan las
+  // alertas fijas del header (ver HeaderAlerts/layout.tsx).
+  const matchesType = (t: {
+    type: string;
+    status: string;
+    assignees: { userId: string }[];
+    reviewers: { userId: string }[];
+    reviewRounds: { outcome: string | null }[];
+  }) => {
+    if (!type) return true;
+    // "Devueltas"/"Revisión" son personales a propósito — el filtro de
+    // Estado ya tiene "Devuelta" para ver todas las del proyecto sin
+    // importar a quién; esto es distinto: solo las mías.
+    if (type === "RETURNED_MINE") {
+      return t.status === "RETURNED" && Boolean(myUserId) && t.assignees.some((a) => a.userId === myUserId);
+    }
+    if (type === "REVIEWING_MINE") {
+      return Boolean(myUserId) && t.reviewers.some((r) => r.userId === myUserId) && t.reviewRounds.some((r) => r.outcome === null);
+    }
+    return t.type === type;
+  };
   const matchesFilters = (t: {
     id: string;
     status: string;
@@ -178,11 +229,15 @@ export default async function ProjectPage({
     description: string | null;
     assignees: { userId: string }[];
     attachments: { fileName: string }[];
+    reviewers: { userId: string }[];
+    reviewRounds: { outcome: string | null }[];
+    taskTags: { tagId: string; categoryId: string }[];
   }) =>
     matchesRisk(t.id) &&
     (!status || t.status === status) &&
-    (!type || t.type === type) &&
+    matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
+    matchesTagFilter(tag, t.taskTags) &&
     matchesTaskSearch(t, q);
 
   const taskCards: TaskCard[] = project.tasks.filter(matchesFilters).map((t) => ({
@@ -196,6 +251,8 @@ export default async function ProjectPage({
     riskLevel: t.riskLevel,
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     assigneeIds: t.assignees.map((a) => a.userId),
+    reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
+    tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
     stepsProgress:
@@ -205,6 +262,7 @@ export default async function ProjectPage({
     attachmentsCount: t.attachments.length,
     alert: alertByTaskId.get(t.id)!,
     collidesWith: null,
+    shareToken: taskShareTokenById.get(t.id) ?? null,
   }));
 
   const rangeEnd =
@@ -281,6 +339,10 @@ export default async function ProjectPage({
       alert: alertByTaskId.get(t.id)!,
       bottleneckReason: bottleneckReasonById.get(t.id) ?? null,
       collidesWith: null,
+      assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
+      reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
+      tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+      shareToken: taskShareTokenById.get(t.id) ?? null,
     };
   });
 
@@ -298,23 +360,48 @@ export default async function ProjectPage({
       collidesWith: null,
     }));
 
-  const projectFileKind: "INSUMO" | "RESULTADO" = fileKind === "RESULTADO" ? "RESULTADO" : "INSUMO";
-  // Los archivos subidos directo al repositorio del proyecto (no atados a
-  // ninguna tarea) cuentan como insumo del proyecto en este filtro.
+  // Ausente = "Todos" (nuevo default); solo "INSUMO"/"RESULTADO" acotan a una
+  // de las dos pestañas.
+  const projectFileKind: "INSUMO" | "RESULTADO" | undefined =
+    fileKind === "RESULTADO" ? "RESULTADO" : fileKind === "INSUMO" ? "INSUMO" : undefined;
+  // Los archivos y links subidos directo al repositorio del proyecto (pestaña
+  // Definición, no atados a ninguna tarea) cuentan como insumo del proyecto
+  // en este filtro.
   const projectRepoFiles: { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null }[] =
-    projectFileKind === "INSUMO"
-      ? project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null }))
+    projectFileKind !== "RESULTADO"
+      ? [
+          ...project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null })),
+          ...project.links.map((l) => ({ id: l.id, fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
+        ]
       : [];
   const projectFiles = project.tasks
     .flatMap((t) =>
       t.attachments
-        .filter((a) => a.kind === projectFileKind)
+        .filter((a) => !projectFileKind || a.kind === projectFileKind)
         .map((a) => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id as string | null, taskTitle: t.title as string | null }))
     )
     .concat(projectRepoFiles)
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileTask || a.taskId === fileTask)
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+
+  // Links compartidos (proyecto + tareas) buscables junto al resto de
+  // archivos — distintos de un adjunto de tipo link (uno es un recurso
+  // externo pegado a mano, esto da acceso público de solo lectura a ESTE
+  // proyecto/tarea), por eso van en su propia sección, no mezclados en la
+  // grilla de AttachmentGrid.
+  const projectSharedLinks = [
+    ...(activeShareLink && !fileTask
+      ? [{ id: activeShareLink.id, label: `Proyecto — ${project.name}`, token: activeShareLink.token, href: `/projects/${project.id}` }]
+      : []),
+    ...taskShareLinks
+      .filter((l) => !fileTask || l.taskId === fileTask)
+      .map((l) => {
+        const task = project.tasks.find((t) => t.id === l.taskId);
+        return task ? { id: l.id, label: `Tarea — ${task.title}`, token: l.token, href: `/projects/${project.id}/tasks/${l.taskId}` } : null;
+      })
+      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+  ].filter((l) => !fileQ || normalizeSearchText(l.label).includes(normalizeSearchText(fileQ)));
 
   return (
     <div className="space-y-6">
@@ -323,7 +410,6 @@ export default async function ProjectPage({
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>
-      <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" />
@@ -365,6 +451,32 @@ export default async function ProjectPage({
           </div>
         </div>
 
+        <div className="min-w-[220px] max-w-md flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <ProjectHealthBadges
+              projectId={project.id}
+              health={summaryHealth}
+              overdueCount={summaryOverdueTasks.length}
+              overdueTasks={summaryOverdueTasks}
+              warningCount={summaryWarningTasks.length}
+              warningTasks={summaryWarningTasks}
+              lateStartCount={summaryLateStartTasks.length}
+              lateStartTasks={summaryLateStartTasks}
+              openSlackDays={summaryOpenSlackDays}
+              scheduleVarianceDays={summaryScheduleVarianceDays}
+            />
+          </div>
+          <ProjectProgress
+            projectId={project.id}
+            bottlenecks={bottlenecks}
+            total={summaryTotal}
+            completed={summaryCompleted}
+          />
+          <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
+            Rendimiento
+          </Link>
+        </div>
+
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
           <Avatar name={project.pm.name} avatarUrl={project.pm.avatarUrl} />
           <div>
@@ -379,33 +491,6 @@ export default async function ProjectPage({
         </div>
       </div>
 
-      <div className="min-w-[220px] max-w-md space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <ProjectHealthBadges
-            projectId={project.id}
-            health={summaryHealth}
-            overdueCount={summaryOverdueTasks.length}
-            overdueTasks={summaryOverdueTasks}
-            warningCount={summaryWarningTasks.length}
-            warningTasks={summaryWarningTasks}
-            lateStartCount={summaryLateStartTasks.length}
-            lateStartTasks={summaryLateStartTasks}
-            openSlackDays={summaryOpenSlackDays}
-            scheduleVarianceDays={summaryScheduleVarianceDays}
-          />
-        </div>
-        <ProjectProgress
-          projectId={project.id}
-          bottlenecks={bottlenecks}
-          total={summaryTotal}
-          completed={summaryCompleted}
-        />
-        <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
-          Rendimiento
-        </Link>
-      </div>
-      </div>
-
       {canManage && (
         <div className="flex gap-2">
           <ModalTrigger label="+ Nueva tarea" title="Nueva tarea" variant="primary">
@@ -413,6 +498,9 @@ export default async function ProjectPage({
               projectId={project.id}
               phases={project.phases}
               users={users}
+              templates={testTemplates}
+              tagCategories={tagCategories}
+              projectTagNamesByCategory={projectTagNamesByCategory}
               otherTasks={project.tasks.map((t) => ({
                 id: t.id,
                 title: t.title,
@@ -420,7 +508,7 @@ export default async function ProjectPage({
               }))}
             />
           </ModalTrigger>
-          <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary">
+          <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary" icon={<ShareIcon className="h-4 w-4" />}>
             <ShareLinkPanel
               activeToken={activeShareLink?.token ?? null}
               activeLinkId={activeShareLink?.id ?? null}
@@ -483,13 +571,13 @@ export default async function ProjectPage({
       </div>
 
       {view !== "definition" && view !== "files" && (
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox
             basePath={`/projects/${project.id}`}
             q={q}
-            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, risk }}
+            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, risk, tag }}
           />
         </div>
 
@@ -501,7 +589,7 @@ export default async function ProjectPage({
             options={users.map((u) => ({ id: u.id, label: u.name }))}
             paramKey="userId"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q, tag }}
           />
         </div>
 
@@ -517,7 +605,7 @@ export default async function ProjectPage({
             }))}
             paramKey="status"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q, tag }}
             triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
           />
         </div>
@@ -527,15 +615,33 @@ export default async function ProjectPage({
           <ComboFilter
             allLabel="Todos los tipos"
             value={type}
-            options={(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
-              id: tt,
-              label: TASK_TYPE_LABEL[tt],
-            }))}
+            options={[
+              ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+                id: tt,
+                label: TASK_TYPE_LABEL[tt],
+              })),
+              { id: "RETURNED_MINE", label: "Devueltas (a mí)", dotColorClass: "bg-orange-500" },
+              { id: "REVIEWING_MINE", label: "Revisión (mías)", dotColorClass: "bg-teal-500" },
+            ]}
             paramKey="type"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, risk, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, risk, q, tag }}
           />
         </div>
+
+        {projectTags.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Etiqueta</span>
+            <ComboFilter
+              allLabel="Todas las etiquetas"
+              value={tag}
+              options={buildTagFilterOptions(tagCategories, projectTags)}
+              paramKey="tag"
+              basePath={`/projects/${project.id}`}
+              currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, risk, q }}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Alerta</span>
@@ -549,7 +655,7 @@ export default async function ProjectPage({
             ]}
             paramKey="risk"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q }}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag }}
             triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
           />
         </div>
@@ -589,6 +695,7 @@ export default async function ProjectPage({
             mimeType: f.mimeType,
           }))}
           tasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
+          sharedLinks={projectSharedLinks}
           fileKind={projectFileKind}
           fileType={fileType}
           fileTask={fileTask}
@@ -611,7 +718,7 @@ export default async function ProjectPage({
           whatsappGroupJid={project.whatsappGroupJid}
         />
       ) : view === "gantt" ? (
-        <div className="sticky top-[57px] h-[calc(100vh-100px)]">
+        <div className="sticky-view-panel-gantt sticky top-[57px] h-[calc(100vh-150px)]">
           <GanttView
             businessDays={businessDays}
             tasks={ganttTasks}
@@ -623,7 +730,7 @@ export default async function ProjectPage({
       ) : view === "calendar" ? (
         <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} />
       ) : (
-        <div className="sticky top-[57px] h-[calc(100vh-100px)]">
+        <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
           <KanbanBoard
             key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
             initialTasks={taskCards}

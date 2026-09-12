@@ -64,7 +64,8 @@ export function ShareLinkPanel({
       {shareUrl ? (
         <>
           <p className="text-xs text-slate-500">
-            Cualquiera con este link puede ver una versión resumida, sin datos internos ni edición. Generar uno nuevo desactiva este.
+            Cualquiera con este link puede ver una versión resumida (sin datos internos), y sumar archivos, links o comentarios —
+            nunca puede editar ni eliminar nada existente. Generar uno nuevo desactiva este.
           </p>
           <div className="flex items-center gap-2">
             <input

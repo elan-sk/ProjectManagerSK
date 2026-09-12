@@ -1,34 +1,36 @@
+import { auth } from "@/auth";
+import { Avatar } from "@/components/Avatar";
+import { ComboFilter } from "@/components/ComboFilter";
+import { CopyLinkButton } from "@/components/CopyLinkButton";
+import { OverlapIcon } from "@/components/icons";
+import { ModalTrigger } from "@/components/Modal";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { ReferencePopover } from "@/components/ReferencePopover";
+import { SearchBox } from "@/components/SearchBox";
+import { getAppCountryCode } from "@/lib/appSettings";
+import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
+import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
+import { findScheduleCollisions } from "@/lib/collisions";
+import { getProjectTaskSlack } from "@/lib/criticalPath";
+import { getBottlenecks, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
+import { businessDaysRange } from "@/lib/holidays";
+import { prisma } from "@/lib/prisma";
+import { HEALTH_LABEL, projectHealth } from "@/lib/projectHealth";
+import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
+import { PROJECT_PHASE_LABEL, projectPhase, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
+import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { getTaskAlert, getBottlenecks, getTaskScheduleVariance } from "@/lib/delays";
-import { getProjectTaskSlack } from "@/lib/criticalPath";
-import { businessDaysRange } from "@/lib/holidays";
-import { getAppCountryCode } from "@/lib/appSettings";
-import { findScheduleCollisions } from "@/lib/collisions";
-import { createProject } from "./actions";
-import { Avatar } from "@/components/Avatar";
-import { ProjectIcon } from "@/components/ProjectIcon";
-import { ModalTrigger } from "@/components/Modal";
-import { OverlapIcon } from "@/components/icons";
-import { ReferencePopover } from "@/components/ReferencePopover";
-import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
-import { projectHealth, HEALTH_LABEL } from "@/lib/projectHealth";
-import { RememberViewState } from "../RememberViewState";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
-import { ProjectCardsOrder } from "./ProjectCardsOrder";
-import { ComboFilter } from "@/components/ComboFilter";
-import { SearchBox } from "@/components/SearchBox";
-import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
-import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
+import { RememberViewState } from "../RememberViewState";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
+import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
+import { createProject } from "./actions";
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
-import { attachmentFileType } from "@/lib/attachments";
-import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
-import type { TaskStatus, TaskType } from "@prisma/client";
+import { ProjectCardsOrder } from "./ProjectCardsOrder";
 
 export default async function ProjectsPage({
   searchParams,
@@ -39,9 +41,10 @@ export default async function ProjectsPage({
     date?: string;
     mode?: string;
     status?: TaskStatus;
-    type?: TaskType;
+    type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE";
     userId?: string;
     q?: string;
+    tag?: string;
     collision?: string;
     pid?: string;
     health?: "ok" | "warn" | "bad";
@@ -54,7 +57,7 @@ export default async function ProjectsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, type, userId, q, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, type, userId, q, tag, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -89,6 +92,7 @@ export default async function ProjectsPage({
       type,
       userId,
       q,
+      tag,
       collision,
       ...overrides,
     };
@@ -110,11 +114,22 @@ export default async function ProjectsPage({
     return `/projects?${p.toString()}`;
   }
 
-  const [projects, users, allTasksForCollisions] = await Promise.all([
+  // Base de "Ver mis colisiones" (popover de cada tarea): la vista actual
+  // con sus filtros vigentes, pero sin el `collision` de la URL — el popover
+  // le agrega el id de SU tarea encima, a diferencia de "Solo colisiones"
+  // (arriba, collision="1") que muestra TODAS las tareas con alguna colisión.
+  const collisionUrlBase = boardHref({ collision: undefined });
+
+  const [projects, users, allTasksForCollisions, activeShareLinks, tagCategories] = await Promise.all([
     prisma.project.findMany({
       include: {
         pm: true,
         tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
+        // Insumos del proyecto cargados en Definición (repositorio de
+        // archivos + links de referencia) — se mezclan más abajo con los
+        // adjuntos de tarea en la vista Archivos del panorama general.
+        attachments: { orderBy: { uploadedAt: "asc" } },
+        links: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -131,7 +146,23 @@ export default async function ProjectsPage({
         project: { select: { name: true } },
       },
     }),
+    // Un link activo a la vez por proyecto/tarea (createShareLink revoca el
+    // anterior) — alimenta tanto el indicador de copiar-en-un-clic (tarjetas
+    // de proyecto, Kanban, Gantt) como el listado en la vista Archivos. Sin
+    // filtrar por boardWhere a propósito: nunca se expone salvo para un
+    // proyecto/tarea que ya pasó ese filtro más abajo.
+    prisma.shareLink.findMany({
+      where: { revokedAt: null },
+      select: { targetType: true, projectId: true, taskId: true, token: true },
+    }),
+    prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
   ]);
+  const projectShareTokenById = new Map(
+    activeShareLinks.filter((l) => l.targetType === "PROJECT").map((l) => [l.projectId!, l.token])
+  );
+  const taskShareTokenById = new Map(
+    activeShareLinks.filter((l) => l.targetType === "TASK").map((l) => [l.taskId!, l.token])
+  );
 
   const collisionsById = findScheduleCollisions(
     allTasksForCollisions.map((t) => ({
@@ -200,14 +231,15 @@ export default async function ProjectsPage({
     })
   );
 
+  // Vista por defecto ("Recientes"): solo 2 proyectos, elegidos por
+  // ProjectCardsOrder en el cliente según el último abierto (localStorage),
+  // no por fecha de creación — por eso acá van todos los `rows` y el límite
+  // se aplica después. Al elegir "Todos los proyectos", un proyecto puntual,
+  // o filtrar por salud, se muestran todos los que calcen.
   const rows = projects
     .map((p, i) => ({ project: p, summary: summaries[i] }))
     .filter(({ summary }) => !health || summary.health === health)
     .filter(({ project: p }) => !pid || pid === "all" || p.id === pid);
-  // Vista por defecto ("Recientes"): solo los 2 proyectos más recientes; al
-  // elegir "Todos los proyectos", un proyecto puntual, o filtrar por salud,
-  // se muestran todos los que calcen.
-  const visibleRows = pid || health ? rows : rows.slice(0, 2);
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
   // visibles para este usuario (según sus "superpoderes" de arriba), pensado
@@ -224,6 +256,9 @@ export default async function ProjectsPage({
       project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
       phase: { select: { name: true } },
       assignees: { include: { user: true } },
+      reviewers: { include: { user: true } },
+      reviewRounds: { select: { outcome: true } },
+      taskTags: { include: { tag: { include: { category: true } } } },
       steps: true,
       attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
       dependsOn: {
@@ -239,12 +274,44 @@ export default async function ProjectsPage({
   });
 
   const boardProjectIds = [...new Set(boardTasksRaw.map((t) => t.projectId))];
+  // Etiquetas del filtro "Etiqueta": solo las ya usadas en algún proyecto
+  // visible en este panorama (mismo criterio que projects/[id]/page.tsx, acá
+  // agregado a través de todos los boardProjectIds).
+  const boardTags =
+    boardProjectIds.length > 0
+      ? await prisma.tag.findMany({ where: { projectId: { in: boardProjectIds } }, select: { id: true, categoryId: true, name: true } })
+      : [];
   const boardBottlenecks = (await Promise.all(boardProjectIds.map((id) => getBottlenecks(id)))).flat();
   const boardBottleneckReasonById = new Map(boardBottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
   const boardAlertById = new Map(
     await Promise.all(boardTasksRaw.map(async (t) => [t.id, await getTaskAlert(t.project.countryCode, t)] as const))
   );
+  // "Solo colisiones" (collision="1", toggle de arriba): cualquier tarea con
+  // alguna colisión. "Ver mis colisiones" (collision=<taskId>, desde el
+  // popover de una tarea puntual): solo esa tarea y las que choca con ella.
+  const myCollisionTaskIds =
+    collision && collision !== "1"
+      ? new Set([collision, ...(collisionsById.get(collision) ?? []).map((c) => c.taskId)])
+      : null;
+  const myUserId = session.user.id;
+  // Igual criterio que en la página de un proyecto puntual: "Devueltas"/
+  // "Revisión" son personales, no un TaskType real — atajos sobre los mismos
+  // datos que ya alimentan las alertas fijas del header.
+  const matchesType = (t: {
+    type: string;
+    status: string;
+    assignees: { userId: string }[];
+    reviewers: { userId: string }[];
+    reviewRounds: { outcome: string | null }[];
+  }) => {
+    if (!type) return true;
+    if (type === "RETURNED_MINE") return t.status === "RETURNED" && t.assignees.some((a) => a.userId === myUserId);
+    if (type === "REVIEWING_MINE") {
+      return t.reviewers.some((r) => r.userId === myUserId) && t.reviewRounds.some((r) => r.outcome === null);
+    }
+    return t.type === type;
+  };
   const matchesBoardFilters = (t: {
     id: string;
     status: string;
@@ -253,12 +320,15 @@ export default async function ProjectsPage({
     description: string | null;
     assignees: { userId: string }[];
     attachments: { fileName: string }[];
+    reviewers: { userId: string }[];
+    reviewRounds: { outcome: string | null }[];
+    taskTags: { tagId: string; categoryId: string }[];
   }) =>
     (!risk || boardAlertById.get(t.id)!.level === risk) &&
-    (!status || t.status === status) &&
-    (!type || t.type === type) &&
+    matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
-    (!collision || Boolean(collisionsById.get(t.id))) &&
+    matchesTagFilter(tag, t.taskTags) &&
+    (!collision || (myCollisionTaskIds ? myCollisionTaskIds.has(t.id) : Boolean(collisionsById.get(t.id)))) &&
     matchesTaskSearch(t, q);
 
   const earliestStart =
@@ -293,6 +363,8 @@ export default async function ProjectsPage({
       riskLevel: t.riskLevel,
       assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
       assigneeIds: t.assignees.map((a) => a.userId),
+      reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
+      tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       stepsProgress:
@@ -300,6 +372,7 @@ export default async function ProjectsPage({
       attachmentsCount: t.attachments.length,
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
+      shareToken: taskShareTokenById.get(t.id) ?? null,
     }));
 
   const boardGanttTasks: GanttTask[] = boardTasksRaw
@@ -337,6 +410,10 @@ export default async function ProjectsPage({
         alert: boardAlertById.get(t.id)!,
         bottleneckReason: boardBottleneckReasonById.get(t.id) ?? null,
         collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
+        assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
+        reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
+        tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+        shareToken: taskShareTokenById.get(t.id) ?? null,
       };
     });
 
@@ -359,16 +436,74 @@ export default async function ProjectsPage({
   // usuario — admin todo, PM sus proyectos, miembro solo sus tareas
   // asignadas), solo se agrega el filtro de tipo/proyecto/búsqueda propio
   // de esta vista.
-  const boardFileKind: "INSUMO" | "RESULTADO" = fileKind === "RESULTADO" ? "RESULTADO" : "INSUMO";
+  // Ausente = "Todos" (nuevo default); solo "INSUMO"/"RESULTADO" acotan a una
+  // de las dos pestañas.
+  const boardFileKind: "INSUMO" | "RESULTADO" | undefined =
+    fileKind === "RESULTADO" ? "RESULTADO" : fileKind === "INSUMO" ? "INSUMO" : undefined;
+  // Mismo scope de visibilidad que boardSharedLinks más abajo: solo
+  // proyectos con alguna tarea que este usuario ya puede ver (boardWhere) —
+  // se calcula antes porque boardProjectFiles también lo necesita.
+  const boardVisibleProjectIds = new Set(boardTasksRaw.map((t) => t.projectId));
+  // Insumos cargados en Definición (repositorio de archivos + links de
+  // referencia) de cada proyecto visible — sin tarea propia, por eso antes
+  // no aparecían acá (pedido explícito del usuario: deben poder
+  // buscarse/verse en el panorama general igual que en la vista de un
+  // proyecto puntual).
+  const boardProjectFiles =
+    boardFileKind === "RESULTADO"
+      ? []
+      : projects
+          .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
+          .flatMap((p) => [
+            ...p.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null, projectId: p.id, projectName: p.name })),
+            ...p.links.map((l) => ({
+              id: l.id,
+              fileUrl: l.url,
+              fileName: l.title,
+              mimeType: LINK_MIME_TYPE,
+              taskId: null,
+              taskTitle: null,
+              projectId: p.id,
+              projectName: p.name,
+            })),
+          ]);
   const boardFiles = boardTasksRaw
     .flatMap((t) =>
       t.attachments
-        .filter((a) => a.kind === boardFileKind)
-        .map((a) => ({ ...a, taskId: t.id, taskTitle: t.title, projectId: t.projectId, projectName: t.project.name }))
+        .filter((a) => !boardFileKind || a.kind === boardFileKind)
+        .map((a) => ({
+          id: a.id,
+          fileUrl: a.fileUrl,
+          fileName: a.fileName,
+          mimeType: a.mimeType,
+          taskId: t.id as string | null,
+          taskTitle: t.title as string | null,
+          projectId: t.projectId,
+          projectName: t.project.name,
+        }))
     )
+    .concat(boardProjectFiles)
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileProject || a.projectId === fileProject)
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+  const boardSharedLinks = [
+    ...projects
+      .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
+      .map((p) => {
+        const token = projectShareTokenById.get(p.id);
+        return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}` } : null;
+      })
+      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+    ...boardTasksRaw
+      .filter((t) => !fileProject || t.projectId === fileProject)
+      .map((t) => {
+        const token = taskShareTokenById.get(t.id);
+        return token
+          ? { id: `task:${t.id}`, label: `Tarea — ${t.title} (${t.project.name})`, token, href: `/projects/${t.projectId}/tasks/${t.id}` }
+          : null;
+      })
+      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+  ].filter((l) => !fileQ || normalizeSearchText(l.label).includes(normalizeSearchText(fileQ)));
   const boardFileProjectOptions = Array.from(new Map(boardTasksRaw.map((t) => [t.projectId, t.project.name])).entries()).map(
     ([id, label]) => ({ id, label })
   );
@@ -467,7 +602,8 @@ export default async function ProjectsPage({
             </p>
           )}
           <ProjectCardsOrder
-            items={visibleRows.map(({ project: p, summary }) => {
+            limit={pid || health ? undefined : 2}
+            items={rows.map(({ project: p, summary }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return { id: p.id, node: (
               <NavLinkWithMemory
@@ -476,27 +612,29 @@ export default async function ProjectsPage({
                 className="block h-full rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
               >
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-2">
-                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
-                      <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 font-medium text-slate-900">
-                        <span className="truncate">{p.name}</span>
-                        {collisionTasks.length > 0 && (
-                          <ReferencePopover
-                            trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
-                            hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
-                            items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/collisions/${t.id}` }))}
-                            filteredHref="/projects?collision=1"
-                            filteredLabel="Ver todas las colisiones"
-                          />
-                        )}
-                      </p>
-                      <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
-                      </div>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
+                    <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 font-medium text-slate-900">
+                      <span className="truncate">{p.name}</span>
+                      {collisionTasks.length > 0 && (
+                        <ReferencePopover
+                          trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
+                          hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
+                          items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/collisions/${t.id}` }))}
+                          filteredHref="/projects?collision=1"
+                          filteredLabel="Ver todas las colisiones"
+                        />
+                      )}
+                      {projectShareTokenById.get(p.id) && <CopyLinkButton token={projectShareTokenById.get(p.id)!} />}
+                    </p>
+                    <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
                     </div>
-                    <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                   </div>
+                  {/* Alertas en su propia fila con wrap (pedido explícito del
+                      usuario): si van en la misma fila que el nombre, muchas
+                      alertas lo comprimen o lo empujan fuera de la tarjeta.
+                      Mismo patrón que /projects/[id] (ver ProjectSummary.tsx). */}
                   <div className="flex flex-wrap items-center gap-2">
                     <ProjectHealthBadges
                       projectId={p.id}
@@ -513,6 +651,7 @@ export default async function ProjectsPage({
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                       {PROJECT_PHASE_LABEL[phase]}
                     </span>
+                    <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                   </div>
                 </div>
 
@@ -582,13 +721,13 @@ export default async function ProjectsPage({
         </div>
 
         {view !== "files" && (
-          <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+          <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-slate-400">Buscar</span>
               <SearchBox
                 basePath="/projects"
                 q={q}
-                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, collision }}
+                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -599,7 +738,7 @@ export default async function ProjectsPage({
                 options={users.map((u) => ({ id: u.id, label: u.name }))}
                 paramKey="userId"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -614,7 +753,7 @@ export default async function ProjectsPage({
                 }))}
                 paramKey="status"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, tag, collision }}
                 triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
               />
             </div>
@@ -623,15 +762,32 @@ export default async function ProjectsPage({
               <ComboFilter
                 allLabel="Todos los tipos"
                 value={type}
-                options={(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
-                  id: tt,
-                  label: TASK_TYPE_LABEL[tt],
-                }))}
+                options={[
+                  ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+                    id: tt,
+                    label: TASK_TYPE_LABEL[tt],
+                  })),
+                  { id: "RETURNED_MINE", label: "Devueltas (a mí)", dotColorClass: "bg-orange-500" },
+                  { id: "REVIEWING_MINE", label: "Revisión (mías)", dotColorClass: "bg-teal-500" },
+                ]}
                 paramKey="type"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, tag, collision }}
               />
             </div>
+            {boardTags.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-slate-400">Etiqueta</span>
+                <ComboFilter
+                  allLabel="Todas las etiquetas"
+                  value={tag}
+                  options={buildTagFilterOptions(tagCategories, boardTags)}
+                  paramKey="tag"
+                  basePath="/projects"
+                  currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
+                />
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <span className="text-xs text-slate-400">Alerta</span>
               <ComboFilter
@@ -644,7 +800,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="risk"
                 basePath="/projects"
-                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
+                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag, collision }}
                 triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
               />
             </div>
@@ -653,6 +809,7 @@ export default async function ProjectsPage({
                 <span className="text-xs text-slate-400">Colisión</span>
                 <Link
                   href={boardHref({ collision: collision ? undefined : "1" })}
+                  scroll={false}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${collision ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
                 >
                   <OverlapIcon className="h-3.5 w-3.5" />
@@ -681,6 +838,7 @@ export default async function ProjectsPage({
           <AllProjectsFilesView
             files={boardFiles}
             projects={boardFileProjectOptions}
+            sharedLinks={boardSharedLinks}
             fileKind={boardFileKind}
             fileType={fileType}
             fileProject={fileProject}
@@ -693,19 +851,32 @@ export default async function ProjectsPage({
           // (crece libre con la página, no se comprime). Al bajar el scroll
           // hasta acá, el Gantt se pega debajo del header (57px) y ocupa el
           // resto de la pantalla con su propio scroll interno.
-          <div className="sticky top-[57px] h-[calc(100vh-57px-16px)]">
-            <GanttView businessDays={boardBusinessDays} tasks={boardGanttTasks} canManage={canManageBoard} users={users} />
+          <div className="sticky-view-panel-gantt sticky top-[57px] h-[calc(100vh-150px)]">
+            <GanttView
+              businessDays={boardBusinessDays}
+              tasks={boardGanttTasks}
+              canManage={canManageBoard}
+              users={users}
+              collisionUrlBase={collisionUrlBase}
+            />
           </div>
         ) : view === "calendar" ? (
-          <ProjectCalendarView tasks={boardCalendarTasks} mode={calendarMode} anchor={anchor} showProjectName />
+          <ProjectCalendarView
+            tasks={boardCalendarTasks}
+            mode={calendarMode}
+            anchor={anchor}
+            showProjectName
+            collisionUrlBase={collisionUrlBase}
+          />
         ) : (
-          <div className="sticky top-[57px] h-[calc(100vh-100px)]">
+          <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
             <KanbanBoard
               key={boardTaskCards.map((t) => `${t.id}:${t.status}`).join(",")}
               initialTasks={boardTaskCards}
               showProjectName
               canManage={canManageBoard}
               users={users}
+              collisionUrlBase={collisionUrlBase}
             />
           </div>
         )}

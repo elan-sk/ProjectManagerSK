@@ -6,6 +6,7 @@ import { checkDeadlineAlerts } from "@/lib/notifications";
 import { getBotSettings } from "@/lib/botSettings";
 import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
+import { HeaderAlerts } from "./HeaderAlerts";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
@@ -46,15 +47,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     projectId: n.task?.projectId ?? null,
   }));
 
+  // Alertas fijas del header (punto 10 confirmado con el usuario): siempre
+  // visibles, no hay que entrar a un proyecto para verlas. "Devuelta" es
+  // pura mía (soy asignado); "Revisión" cuenta toda ronda activa donde soy
+  // revisor, tenga o no plantilla aplicada todavía — es un recordatorio para
+  // entrar a revisarla, no solo un aviso de "ya está lista para marcar".
+  // Ordenadas por urgencia: plannedEnd ascendente ya deja primero lo más
+  // atrasado/próximo a vencer.
+  const [returnedTasks, pendingReviewTasks] = await Promise.all([
+    prisma.task.findMany({
+      where: { status: "RETURNED", assignees: { some: { userId: session.user.id } } },
+      select: { id: true, title: true, projectId: true, plannedEnd: true },
+      orderBy: { plannedEnd: "asc" },
+    }),
+    prisma.task.findMany({
+      where: { reviewers: { some: { userId: session.user.id } }, reviewRounds: { some: { outcome: null } } },
+      select: { id: true, title: true, projectId: true, plannedEnd: true },
+      orderBy: { plannedEnd: "asc" },
+    }),
+  ]);
+
   return (
     <ToastProvider>
     <ConfirmProvider>
     <div className="pacific-shell min-h-screen bg-slate-50">
-      <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-3 sm:px-6">
+      <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-1 sm:px-6">
         <nav className="pacific-nav flex items-center gap-4 text-sm font-medium">
           <BackButton />
           <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="mr-1 flex items-center gap-2 text-slate-900">
-            <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">P</span></span>
+            <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">PM</span></span>
             <span className="hidden font-display tracking-[-0.02em] sm:inline">ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span></span>
           </Link>
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
@@ -68,6 +89,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             Hoy: {new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
           </span>
           <PushSubscribeButton />
+          <HeaderAlerts
+            returned={returnedTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
+            pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
+          />
           <NotificationBell items={bellItems} userId={session.user.id} />
           <Link href="/settings" className="flex items-center gap-2">
             <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />

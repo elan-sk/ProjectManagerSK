@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
 import { requireProjectAdmin, canEditTask, getProjectAdmin } from "@/lib/permissions";
+import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
 export async function addPhase(projectId: string, formData: FormData) {
@@ -87,6 +88,11 @@ const createTaskSchema = z.object({
   durationDays: z.coerce.number().int().min(1).default(1),
   assigneeIds: z.array(z.string()).min(1),
   predecessorId: z.string().optional(),
+  // Punto 10: solo tiene sentido (y solo se manda desde el form) para tipo
+  // Prueba — revisor(es) desde la creación, y la plantilla que se copiará
+  // sola como checks apenas nazca la ronda 1 (ver submitReviewRound).
+  reviewerIds: z.array(z.string()).default([]),
+  defaultTestTemplateId: z.string().optional(),
 });
 
 export async function addTask(projectId: string, formData: FormData) {
@@ -100,6 +106,7 @@ export async function addTask(projectId: string, formData: FormData) {
 
   const rawDescription = formData.get("description");
   const rawPredecessorId = formData.get("predecessorId");
+  const rawTemplateId = formData.get("defaultTestTemplateId");
   const data = createTaskSchema.parse({
     phaseId: formData.get("phaseId"),
     title: formData.get("title"),
@@ -109,6 +116,8 @@ export async function addTask(projectId: string, formData: FormData) {
     durationDays: formData.get("durationDays"),
     assigneeIds: formData.getAll("assigneeIds"),
     predecessorId: typeof rawPredecessorId === "string" && rawPredecessorId !== "" ? rawPredecessorId : undefined,
+    reviewerIds: formData.getAll("reviewerIds"),
+    defaultTestTemplateId: typeof rawTemplateId === "string" && rawTemplateId !== "" ? rawTemplateId : undefined,
   });
 
   const plannedEnd =
@@ -126,6 +135,8 @@ export async function addTask(projectId: string, formData: FormData) {
       plannedStart: data.plannedStart,
       plannedEnd,
       assignees: { create: data.assigneeIds.map((userId) => ({ userId })) },
+      reviewers: data.type === "QA" ? { create: data.reviewerIds.map((userId) => ({ userId })) } : undefined,
+      defaultTestTemplateId: data.type === "QA" ? data.defaultTestTemplateId : undefined,
     },
   });
 
@@ -143,9 +154,27 @@ export async function addTask(projectId: string, formData: FormData) {
   }
 
   await notifyAssignment(task.id, data.assigneeIds);
+  await attachTagsToNewTask(task.id, projectId, formData);
 
   revalidatePath(`/projects/${projectId}`);
   return { ok: true, id: task.id };
+}
+
+// Punto 17: etiquetas elegidas desde el formulario de creación — llegan como
+// dos arrays paralelos (NewTaskTagsPicker no puede armar el taskId todavía,
+// así que cada fila viaja como un par de inputs ocultos). Reusa el mismo
+// upsertTag que setTaskTag, para que crear una etiqueta nueva se comporte
+// igual sin importar si nace en la creación o después.
+async function attachTagsToNewTask(taskId: string, projectId: string, formData: FormData) {
+  const categoryIds = formData.getAll("tagCategoryId") as string[];
+  const names = formData.getAll("tagName") as string[];
+  for (let i = 0; i < categoryIds.length; i++) {
+    const categoryId = categoryIds[i]?.trim();
+    const name = names[i]?.trim();
+    if (!categoryId || !name) continue;
+    const tag = await upsertTag(projectId, categoryId, name);
+    await prisma.taskTag.create({ data: { taskId, categoryId, tagId: tag.id } });
+  }
 }
 
 const insertAdjacentTaskSchema = z.object({
@@ -271,7 +300,7 @@ export async function insertAdjacentTask(originTaskId: string, role: "predecesso
 
   revalidatePath(`/projects/${origin.projectId}`);
   revalidatePath("/projects");
-  return { ok: true };
+  return { ok: true, id: createdId };
 }
 
 export async function updateTaskStatus(taskId: string, status: TaskStatus) {

@@ -19,7 +19,7 @@ export function PublicDefinitionView({
   description: string | null;
   objectives: { id: string; title: string; description: string | null; pct: number }[];
   requirements: { id: string; title: string; description: string | null; pct: number }[];
-  phases: { id: string; name: string; pct: number }[];
+  phases: { id: string; name: string; pct: number; taskTitles: string[] }[];
 }) {
   return (
     <div className="space-y-4">
@@ -61,9 +61,18 @@ export function PublicDefinitionView({
         <h2 className="font-medium text-slate-900">Fases</h2>
         {phases.length === 0 && <p className="text-sm text-slate-400">Sin fases definidas.</p>}
         {phases.map((p) => (
-          <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
-            <p className="text-sm font-medium text-slate-800">{p.name}</p>
-            <ProgressBar pct={p.pct} />
+          <div key={p.id} className="space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-slate-800">{p.name}</p>
+              <ProgressBar pct={p.pct} />
+            </div>
+            {p.taskTitles.length > 0 && (
+              <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-500">
+                {p.taskTitles.map((title, i) => (
+                  <li key={i}>{title}</li>
+                ))}
+              </ul>
+            )}
           </div>
         ))}
       </div>

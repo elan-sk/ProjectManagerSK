@@ -25,7 +25,7 @@ export function ComboFilter({
   align = "left",
 }: {
   allLabel: string;
-  options: { id: string; label: string; dotColorClass?: string }[];
+  options: { id: string; label: string; dotColorClass?: string; dotColorHex?: string }[];
   value: string | undefined;
   paramKey: string;
   basePath: string;
@@ -70,7 +70,10 @@ export function ComboFilter({
   function choose(id: string | undefined) {
     setOpen(false);
     setQuery("");
-    router.push(buildHref(id));
+    // scroll: false — cambiar un filtro no debe subir la página ni resetear
+    // el scroll del tablero al tope (comportamiento por defecto de Next.js
+    // ante cualquier cambio de searchParams).
+    router.push(buildHref(id), { scroll: false });
   }
 
   return (
@@ -80,8 +83,11 @@ export function ComboFilter({
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${value ? (triggerColorClass ?? "bg-[#0a6b78] text-white") : "bg-slate-100 text-slate-600"}`}
       >
-        {!triggerColorClass && selected?.dotColorClass && (
-          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${selected.dotColorClass}`} />
+        {!triggerColorClass && (selected?.dotColorClass || selected?.dotColorHex) && (
+          <span
+            className={`h-2 w-2 flex-shrink-0 rounded-full ${selected.dotColorClass ?? ""}`}
+            style={selected.dotColorHex ? { backgroundColor: selected.dotColorHex } : undefined}
+          />
         )}
         {selected ? selected.label : allLabel}
       </button>
@@ -114,7 +120,12 @@ export function ComboFilter({
                 onClick={() => choose(o.id)}
                 className={`flex w-full items-center gap-1.5 truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
               >
-                {o.dotColorClass && <span className={`h-2 w-2 flex-shrink-0 rounded-full ${o.dotColorClass}`} />}
+                {(o.dotColorClass || o.dotColorHex) && (
+                  <span
+                    className={`h-2 w-2 flex-shrink-0 rounded-full ${o.dotColorClass ?? ""}`}
+                    style={o.dotColorHex ? { backgroundColor: o.dotColorHex } : undefined}
+                  />
+                )}
                 {o.label}
               </button>
             ))}

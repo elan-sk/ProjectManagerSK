@@ -81,3 +81,19 @@ export async function isReviewerAnywhere() {
   ]);
   return Boolean(pmOf || reviewerOf);
 }
+
+/**
+ * Punto 17: crear una categoría de etiqueta NUEVA (global, visible en todos
+ * los proyectos) requiere ser admin o PM de algún proyecto — mismo criterio
+ * de "quién decide algo que se ve en toda la app" que ya usa
+ * isReviewerAnywhere para plantillas de pruebas, pero sin el caso de
+ * revisor (acá no tiene que ver con revisiones).
+ */
+export async function isPmOrAdminAnywhere() {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN") return true;
+
+  const pmOf = await prisma.project.findFirst({ where: { pmId: session.user.id } });
+  return Boolean(pmOf);
+}

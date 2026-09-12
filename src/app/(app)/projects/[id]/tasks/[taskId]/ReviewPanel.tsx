@@ -82,6 +82,7 @@ export function ReviewPanel({
   users,
   currentReviewerIds,
   templates,
+  responseCategories,
   rounds,
 }: {
   taskId: string;
@@ -92,6 +93,7 @@ export function ReviewPanel({
   users: { id: string; name: string; avatarUrl: string | null }[];
   currentReviewerIds: string[];
   templates: { id: string; name: string }[];
+  responseCategories: { name: string; responses: string[] }[];
   rounds: Round[];
 }) {
   const activeRound = rounds.find((r) => r.outcome === null) ?? null;
@@ -101,7 +103,7 @@ export function ReviewPanel({
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-medium text-slate-900">Revisión</h2>
+        <h2 className="font-medium text-slate-900">Prueba</h2>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">Revisores:</span>
           <AvatarGroup people={reviewers.map((r) => ({ name: r.name, avatarUrl: r.avatarUrl }))} />
@@ -121,7 +123,14 @@ export function ReviewPanel({
       </div>
 
       {activeRound ? (
-        <ActiveRound round={activeRound} userId={userId} canReview={canReview} canEdit={canEdit} templates={templates} />
+        <ActiveRound
+          round={activeRound}
+          userId={userId}
+          canReview={canReview}
+          canEdit={canEdit}
+          templates={templates}
+          responseCategories={responseCategories}
+        />
       ) : (
         canEdit && <SubmitRoundForm taskId={taskId} nextRoundNumber={rounds.length + 1} />
       )}
@@ -192,12 +201,13 @@ function SubmitRoundForm({ taskId, nextRoundNumber }: { taskId: string; nextRoun
   );
 }
 
-function ActiveRound({ round, userId, canReview, canEdit, templates }: {
+function ActiveRound({ round, userId, canReview, canEdit, templates, responseCategories }: {
   round: Round;
   userId: string | null;
   canReview: boolean;
   canEdit: boolean;
   templates: { id: string; name: string }[];
+  responseCategories: { name: string; responses: string[] }[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -254,7 +264,7 @@ function ActiveRound({ round, userId, canReview, canEdit, templates }: {
         </select>
       )}
 
-      <RoundChecks checks={round.checks} canReview={canReview} canEdit={canEdit} />
+      <RoundChecks checks={round.checks} canReview={canReview} canEdit={canEdit} responseCategories={responseCategories} />
 
       {canReview && <AddCheckForm reviewRoundId={round.id} />}
 
@@ -278,23 +288,35 @@ function ActiveRound({ round, userId, canReview, canEdit, templates }: {
   );
 }
 
-function RoundChecks({ checks, canReview = false, canEdit = false, readOnly = false }: {
+function RoundChecks({ checks, canReview = false, canEdit = false, readOnly = false, responseCategories = [] }: {
   checks: Check[];
   canReview?: boolean;
   canEdit?: boolean;
   readOnly?: boolean;
+  responseCategories?: { name: string; responses: string[] }[];
 }) {
   if (checks.length === 0) return <p className="text-sm text-slate-400">Sin pruebas todavía.</p>;
   return (
     <ul className="space-y-2">
       {checks.map((check) => (
-        <CheckRow key={check.id} check={check} canReview={!readOnly && canReview} canEdit={!readOnly && canEdit} />
+        <CheckRow
+          key={check.id}
+          check={check}
+          canReview={!readOnly && canReview}
+          canEdit={!readOnly && canEdit}
+          responseCategories={responseCategories}
+        />
       ))}
     </ul>
   );
 }
 
-function CheckRow({ check, canReview, canEdit }: { check: Check; canReview: boolean; canEdit: boolean }) {
+function CheckRow({ check, canReview, canEdit, responseCategories }: {
+  check: Check;
+  canReview: boolean;
+  canEdit: boolean;
+  responseCategories: { name: string; responses: string[] }[];
+}) {
   const router = useRouter();
   const [note, setNote] = useState(check.note ?? "");
   const [isPending, startTransition] = useTransition();
@@ -343,6 +365,16 @@ function CheckRow({ check, canReview, canEdit }: { check: Check; canReview: bool
     await removeReviewCheckEvidence(evidenceId);
     router.refresh();
   }
+
+  // Punto 10 confirmado con el usuario: la plantilla de respuestas de
+  // Configuración > Pruebas conviven con el texto libre, nunca lo
+  // reemplazan — un <datalist> nativo alcanza: sugiere sin obligar. Se
+  // busca por el nombre de categoría de la prueba (viene de la plantilla de
+  // pruebas) y, si no hay una categoría con ese nombre exacto, cae a "Otro".
+  const matchingResponses =
+    responseCategories.find((c) => c.name.toLowerCase() === (check.category ?? "").trim().toLowerCase())?.responses ??
+    responseCategories.find((c) => c.name.toLowerCase() === "otro")?.responses ??
+    [];
 
   return (
     <li className="space-y-1.5 rounded-lg border border-slate-100 p-2">
@@ -424,12 +456,22 @@ function CheckRow({ check, canReview, canEdit }: { check: Check; canReview: bool
       )}
 
       {check.result === "FAILED" && canEdit && (
-        <input
-          defaultValue={check.responseCategory ?? ""}
-          onBlur={(e) => e.target.value !== (check.responseCategory ?? "") && handleResponseCategory(e.target.value)}
-          placeholder="Categoría de tu corrección (ej. Error de lógica)…"
-          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
-        />
+        <>
+          <input
+            list={matchingResponses.length > 0 ? `responses-${check.id}` : undefined}
+            defaultValue={check.responseCategory ?? ""}
+            onBlur={(e) => e.target.value !== (check.responseCategory ?? "") && handleResponseCategory(e.target.value)}
+            placeholder="Categoría de tu corrección (ej. Error de lógica)…"
+            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
+          />
+          {matchingResponses.length > 0 && (
+            <datalist id={`responses-${check.id}`}>
+              {matchingResponses.map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+          )}
+        </>
       )}
       {check.result === "FAILED" && check.responseCategory && !canEdit && (
         <p className="text-xs text-slate-500">Respuesta: {check.responseCategory}</p>

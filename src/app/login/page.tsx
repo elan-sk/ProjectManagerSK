@@ -35,7 +35,7 @@ export default function LoginPage() {
         className="relative w-full max-w-sm space-y-4 rounded-2xl border border-slate-200/80 bg-white p-8 shadow-[0_12px_32px_rgba(7,59,76,0.13)]"
       >
         <div className="flex items-center gap-3">
-          <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 text-xs font-bold">P</span></span>
+          <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 text-xs font-bold">PM</span></span>
           <div><h1 className="text-xl font-semibold tracking-[-0.025em] text-slate-900">Iniciar sesión</h1><p className="text-xs text-slate-500">ProjectManagerSK</p></div>
         </div>
 

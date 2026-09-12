@@ -143,7 +143,7 @@ export function ReferencePopover({
         role="button"
         title={hoverText}
         onActivate={() => setOpen((v) => !v)}
-        className={`inline-flex items-center ${className ?? ""}`}
+        className={`inline-flex items-center rounded transition-opacity hover:opacity-60 ${className ?? ""}`}
       >
         {trigger}
       </InteractiveSpan>

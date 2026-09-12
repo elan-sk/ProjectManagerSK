@@ -1,0 +1,3904 @@
+{
+  "generatedAt": "2026-09-12T19:34:56.789Z",
+  "themeRoot": "/home/elan-sk/Documentos/PERSONALES/SOFTWARE/ProjectManagerSK",
+  "componentMap": {
+    "BackButton": {
+      "file": "src/app/(app)/BackButton.tsx",
+      "line": 7
+    },
+    "ChontatecWidget": {
+      "file": "src/app/(app)/ChontatecWidget.tsx",
+      "line": 129
+    },
+    "HeaderAlerts": {
+      "file": "src/app/(app)/HeaderAlerts.tsx",
+      "line": 90
+    },
+    "NavLinkWithMemory": {
+      "file": "src/app/(app)/NavLinkWithMemory.tsx",
+      "line": 14
+    },
+    "NotificationBell": {
+      "file": "src/app/(app)/NotificationBell.tsx",
+      "line": 18
+    },
+    "ProjectAlertLink": {
+      "file": "src/app/(app)/ProjectAlertLink.tsx",
+      "line": 23
+    },
+    "PushSubscribeButton": {
+      "file": "src/app/(app)/PushSubscribeButton.tsx",
+      "line": 12
+    },
+    "RememberViewState": {
+      "file": "src/app/(app)/RememberViewState.tsx",
+      "line": 7
+    },
+    "AllProjectsFilesView": {
+      "file": "src/app/(app)/projects/AllProjectsFilesView.tsx",
+      "line": 30
+    },
+    "ProjectCardsOrder": {
+      "file": "src/app/(app)/projects/ProjectCardsOrder.tsx",
+      "line": 21
+    },
+    "CalendarTaskLink": {
+      "file": "src/app/(app)/projects/[id]/CalendarTaskLink.tsx",
+      "line": 23
+    },
+    "CRITICAL_PATH_EVENT": {
+      "file": "src/app/(app)/projects/[id]/CriticalPathButton.tsx",
+      "line": 9
+    },
+    "CriticalPathButton": {
+      "file": "src/app/(app)/projects/[id]/CriticalPathButton.tsx",
+      "line": 15
+    },
+    "DefinitionTab": {
+      "file": "src/app/(app)/projects/[id]/DefinitionTab.tsx",
+      "line": 13
+    },
+    "EditRepoUrlForm": {
+      "file": "src/app/(app)/projects/[id]/EditRepoUrlForm.tsx",
+      "line": 7
+    },
+    "EditStartDateForm": {
+      "file": "src/app/(app)/projects/[id]/EditStartDateForm.tsx",
+      "line": 8
+    },
+    "EditTargetEndDateForm": {
+      "file": "src/app/(app)/projects/[id]/EditTargetEndDateForm.tsx",
+      "line": 8
+    },
+    "GANTT_TOOLTIP_LAYER_ID": {
+      "file": "src/app/(app)/projects/[id]/GanttBar.tsx",
+      "line": 26
+    },
+    "GanttBar": {
+      "file": "src/app/(app)/projects/[id]/GanttBar.tsx",
+      "line": 36
+    },
+    "GanttView": {
+      "file": "src/app/(app)/projects/[id]/GanttView.tsx",
+      "line": 197
+    },
+    "InsertAdjacentTaskForm": {
+      "file": "src/app/(app)/projects/[id]/InsertAdjacentTaskForm.tsx",
+      "line": 24
+    },
+    "KanbanBoard": {
+      "file": "src/app/(app)/projects/[id]/KanbanBoard.tsx",
+      "line": 368
+    },
+    "NewPhaseForm": {
+      "file": "src/app/(app)/projects/[id]/NewPhaseForm.tsx",
+      "line": 7
+    },
+    "NewTaskForm": {
+      "file": "src/app/(app)/projects/[id]/NewTaskForm.tsx",
+      "line": 22
+    },
+    "NewTaskTagsPicker": {
+      "file": "src/app/(app)/projects/[id]/NewTaskTagsPicker.tsx",
+      "line": 13
+    },
+    "ObjectiveForm": {
+      "file": "src/app/(app)/projects/[id]/ObjectiveForm.tsx",
+      "line": 8
+    },
+    "ObjectivesPanel": {
+      "file": "src/app/(app)/projects/[id]/ObjectivesPanel.tsx",
+      "line": 27
+    },
+    "PhaseForm": {
+      "file": "src/app/(app)/projects/[id]/PhaseForm.tsx",
+      "line": 8
+    },
+    "PhaseRequirementsForm": {
+      "file": "src/app/(app)/projects/[id]/PhaseRequirementsForm.tsx",
+      "line": 8
+    },
+    "PhasesPanel": {
+      "file": "src/app/(app)/projects/[id]/PhasesPanel.tsx",
+      "line": 28
+    },
+    "ProjectCalendarView": {
+      "file": "src/app/(app)/projects/[id]/ProjectCalendarView.tsx",
+      "line": 38
+    },
+    "ProjectDescription": {
+      "file": "src/app/(app)/projects/[id]/ProjectDescription.tsx",
+      "line": 8
+    },
+    "ProjectFilesView": {
+      "file": "src/app/(app)/projects/[id]/ProjectFilesView.tsx",
+      "line": 23
+    },
+    "ProjectIdentityForm": {
+      "file": "src/app/(app)/projects/[id]/ProjectIdentityForm.tsx",
+      "line": 9
+    },
+    "ProjectLinksPanel": {
+      "file": "src/app/(app)/projects/[id]/ProjectLinksPanel.tsx",
+      "line": 14
+    },
+    "ProjectWhatsAppGroupPanel": {
+      "file": "src/app/(app)/projects/[id]/ProjectWhatsAppGroupPanel.tsx",
+      "line": 9
+    },
+    "ReassignPMForm": {
+      "file": "src/app/(app)/projects/[id]/ReassignPMForm.tsx",
+      "line": 7
+    },
+    "RequirementForm": {
+      "file": "src/app/(app)/projects/[id]/RequirementForm.tsx",
+      "line": 8
+    },
+    "RequirementsPanel": {
+      "file": "src/app/(app)/projects/[id]/RequirementsPanel.tsx",
+      "line": 27
+    },
+    "RECENT_PROJECT_IDS_KEY": {
+      "file": "src/app/(app)/projects/[id]/SaveLastProject.tsx",
+      "line": 5
+    },
+    "SaveLastProject": {
+      "file": "src/app/(app)/projects/[id]/SaveLastProject.tsx",
+      "line": 17
+    },
+    "TodayMarker": {
+      "file": "src/app/(app)/projects/[id]/TodayMarker.tsx",
+      "line": 20
+    },
+    "AdjustmentPanel": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/AdjustmentPanel.tsx",
+      "line": 28
+    },
+    "AttachmentGrid": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentGrid.tsx",
+      "line": 23
+    },
+    "AttachmentLightbox": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox.tsx",
+      "line": 21
+    },
+    "AttachmentPreview": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentPreview.tsx",
+      "line": 17
+    },
+    "AttachmentUploader": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentUploader.tsx",
+      "line": 10
+    },
+    "DeleteTaskButton": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/DeleteTaskButton.tsx",
+      "line": 8
+    },
+    "GoogleCalendarButton": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/GoogleCalendarButton.tsx",
+      "line": 6
+    },
+    "InlineDescription": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/InlineDescription.tsx",
+      "line": 8
+    },
+    "InlineMeetingUrl": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/InlineMeetingUrl.tsx",
+      "line": 13
+    },
+    "InlinePhase": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/InlinePhase.tsx",
+      "line": 7
+    },
+    "InlineTitle": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/InlineTitle.tsx",
+      "line": 7
+    },
+    "InlineType": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/InlineType.tsx",
+      "line": 14
+    },
+    "ReassignAssigneesForm": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/ReassignAssigneesForm.tsx",
+      "line": 12
+    },
+    "ReviewPanel": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/ReviewPanel.tsx",
+      "line": 76
+    },
+    "StepCheckbox": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/StepCheckbox.tsx",
+      "line": 6
+    },
+    "TaskStatusControl": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/TaskStatusControl.tsx",
+      "line": 14
+    },
+    "TaskTagsEditor": {
+      "file": "src/app/(app)/projects/[id]/tasks/[taskId]/TaskTagsEditor.tsx",
+      "line": 16
+    },
+    "BotSettingsForm": {
+      "file": "src/app/(app)/settings/BotSettingsForm.tsx",
+      "line": 15
+    },
+    "ChangePasswordForm": {
+      "file": "src/app/(app)/settings/ChangePasswordForm.tsx",
+      "line": 6
+    },
+    "CountrySettingForm": {
+      "file": "src/app/(app)/settings/CountrySettingForm.tsx",
+      "line": 11
+    },
+    "CreateUserForm": {
+      "file": "src/app/(app)/settings/CreateUserForm.tsx",
+      "line": 7
+    },
+    "EditUserForm": {
+      "file": "src/app/(app)/settings/EditUserForm.tsx",
+      "line": 9
+    },
+    "ProfileForm": {
+      "file": "src/app/(app)/settings/ProfileForm.tsx",
+      "line": 8
+    },
+    "ResetPasswordForm": {
+      "file": "src/app/(app)/settings/ResetPasswordForm.tsx",
+      "line": 7
+    },
+    "UsersAdmin": {
+      "file": "src/app/(app)/settings/UsersAdmin.tsx",
+      "line": 33
+    },
+    "WhatsAppConnectPanel": {
+      "file": "src/app/(app)/settings/WhatsAppConnectPanel.tsx",
+      "line": 7
+    },
+    "TagCategoriesPanel": {
+      "file": "src/app/(app)/settings/tags/TagCategoriesPanel.tsx",
+      "line": 29
+    },
+    "ResponseCategoriesPanel": {
+      "file": "src/app/(app)/settings/tests/ResponseCategoriesPanel.tsx",
+      "line": 18
+    },
+    "TestTemplatesPanel": {
+      "file": "src/app/(app)/settings/tests/TestTemplatesPanel.tsx",
+      "line": 18
+    },
+    "RootLayout": {
+      "file": "src/app/layout.tsx",
+      "line": 33
+    },
+    "LoginPage": {
+      "file": "src/app/login/page.tsx",
+      "line": 6
+    },
+    "PublicCommentThread": {
+      "file": "src/app/share/PublicCommentThread.tsx",
+      "line": 24
+    },
+    "PublicDefinitionView": {
+      "file": "src/app/share/PublicDefinitionView.tsx",
+      "line": 13
+    },
+    "PublicFileGrid": {
+      "file": "src/app/share/PublicFileGrid.tsx",
+      "line": 17
+    },
+    "PublicFilesView": {
+      "file": "src/app/share/PublicFilesView.tsx",
+      "line": 13
+    },
+    "PublicHeader": {
+      "file": "src/app/share/PublicHeader.tsx",
+      "line": 5
+    },
+    "PublicTaskDetail": {
+      "file": "src/app/share/PublicTaskDetail.tsx",
+      "line": 28
+    },
+    "PublicTasksList": {
+      "file": "src/app/share/PublicTasksList.tsx",
+      "line": 17
+    },
+    "PublicUploadWidget": {
+      "file": "src/app/share/PublicUploadWidget.tsx",
+      "line": 11
+    },
+    "ALERT_STYLE": {
+      "file": "src/components/AlertBadge.tsx",
+      "line": 11
+    },
+    "ALERT_LEVEL_LABEL": {
+      "file": "src/components/AlertBadge.tsx",
+      "line": 24
+    },
+    "AlertBadge": {
+      "file": "src/components/AlertBadge.tsx",
+      "line": 42
+    },
+    "AttachmentPreviewModal": {
+      "file": "src/components/AttachmentPreviewModal.tsx",
+      "line": 40
+    },
+    "Avatar": {
+      "file": "src/components/Avatar.tsx",
+      "line": 21
+    },
+    "AvatarGroup": {
+      "file": "src/components/Avatar.tsx",
+      "line": 52
+    },
+    "CalendarDatePicker": {
+      "file": "src/components/CalendarDatePicker.tsx",
+      "line": 40
+    },
+    "ComboFilter": {
+      "file": "src/components/ComboFilter.tsx",
+      "line": 17
+    },
+    "ConfirmProvider": {
+      "file": "src/components/Confirm.tsx",
+      "line": 16
+    },
+    "CopyLinkButton": {
+      "file": "src/components/CopyLinkButton.tsx",
+      "line": 12
+    },
+    "ModalTrigger": {
+      "file": "src/components/Modal.tsx",
+      "line": 17
+    },
+    "ModalShell": {
+      "file": "src/components/Modal.tsx",
+      "line": 67
+    },
+    "ProgressRing": {
+      "file": "src/components/ProgressRing.tsx",
+      "line": 6
+    },
+    "DEFAULT_COLORS": {
+      "file": "src/components/ProjectIcon.tsx",
+      "line": 15
+    },
+    "ProjectIcon": {
+      "file": "src/components/ProjectIcon.tsx",
+      "line": 45
+    },
+    "ScheduleVarianceBadge": {
+      "file": "src/components/ProjectSummary.tsx",
+      "line": 16
+    },
+    "ProjectHealthBadges": {
+      "file": "src/components/ProjectSummary.tsx",
+      "line": 29
+    },
+    "ProjectProgress": {
+      "file": "src/components/ProjectSummary.tsx",
+      "line": 97
+    },
+    "ReferencePopover": {
+      "file": "src/components/ReferencePopover.tsx",
+      "line": 59
+    },
+    "RichTextEditor": {
+      "file": "src/components/RichTextEditor.tsx",
+      "line": 14
+    },
+    "SearchBox": {
+      "file": "src/components/SearchBox.tsx",
+      "line": 13
+    },
+    "SearchableSelect": {
+      "file": "src/components/SearchableSelect.tsx",
+      "line": 12
+    },
+    "ShareLinkPanel": {
+      "file": "src/components/ShareLinkPanel.tsx",
+      "line": 14
+    },
+    "TagChip": {
+      "file": "src/components/TagChip.tsx",
+      "line": 6
+    },
+    "ToastProvider": {
+      "file": "src/components/Toast.tsx",
+      "line": 12
+    },
+    "BarChart": {
+      "file": "src/components/charts/BarChart.tsx",
+      "line": 2
+    },
+    "TrendBars": {
+      "file": "src/components/charts/BarChart.tsx",
+      "line": 39
+    },
+    "DonutChart": {
+      "file": "src/components/charts/DonutChart.tsx",
+      "line": 2
+    },
+    "BellIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 5
+    },
+    "ArrowLeftIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 17
+    },
+    "XIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 25
+    },
+    "WarningIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 33
+    },
+    "UndoIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 45
+    },
+    "ReviewChecklistIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 53
+    },
+    "PaperclipIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 65
+    },
+    "SearchIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 77
+    },
+    "OverlapIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 89
+    },
+    "DocumentIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 98
+    },
+    "LinkIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 110
+    },
+    "CheckIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 123
+    },
+    "SpeakerIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 132
+    },
+    "SpeakerOffIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 145
+    },
+    "ShareIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 154
+    },
+    "TrashIcon": {
+      "file": "src/components/icons.tsx",
+      "line": 167
+    }
+  },
+  "elementIndex": {
+    "src/app/(app)/BackButton.tsx": {
+      "button": [
+        10
+      ]
+    },
+    "src/app/(app)/ChontatecWidget.tsx": {
+      "strong": [
+        33
+      ],
+      "span": [
+        61,
+        72,
+        92,
+        104,
+        225,
+        227,
+        228,
+        246,
+        288
+      ],
+      "string": [
+        139
+      ],
+      "div": [
+        222,
+        223,
+        242,
+        244,
+        248,
+        264,
+        266,
+        281,
+        282,
+        287,
+        301,
+        310,
+        342
+      ],
+      "button": [
+        231,
+        249,
+        258,
+        290,
+        311,
+        321,
+        353
+      ],
+      "header": [
+        243
+      ],
+      "p": [
+        270,
+        275,
+        306,
+        308,
+        340
+      ],
+      "footer": [
+        338
+      ],
+      "input": [
+        343
+      ]
+    },
+    "src/app/(app)/HeaderAlerts.tsx": {
+      "div": [
+        53,
+        67
+      ],
+      "button": [
+        54
+      ],
+      "span": [
+        61,
+        79,
+        80
+      ],
+      "p": [
+        68,
+        70
+      ]
+    },
+    "src/app/(app)/NotificationBell.tsx": {
+      "div": [
+        34,
+        49,
+        62
+      ],
+      "button": [
+        35,
+        54,
+        74
+      ],
+      "span": [
+        42,
+        63
+      ],
+      "p": [
+        51
+      ]
+    },
+    "src/app/(app)/ProjectAlertLink.tsx": {
+      "id": [
+        17
+      ]
+    },
+    "src/app/(app)/PushSubscribeButton.tsx": {
+      "boolean": [
+        13
+      ],
+      "button": [
+        41
+      ]
+    },
+    "src/app/(app)/agenda/page.tsx": {
+      "string": [
+        76,
+        78
+      ],
+      "div": [
+        87,
+        91,
+        92,
+        97,
+        110,
+        123,
+        140,
+        171,
+        179
+      ],
+      "h1": [
+        89
+      ],
+      "span": [
+        93,
+        98,
+        111,
+        124,
+        141,
+        181
+      ],
+      "ul": [
+        157
+      ],
+      "li": [
+        159,
+        166
+      ],
+      "p": [
+        172,
+        173
+      ]
+    },
+    "src/app/(app)/collisions/[taskId]/page.tsx": {
+      "div": [
+        83,
+        84,
+        88,
+        93,
+        94,
+        96,
+        107,
+        132,
+        141,
+        142,
+        143,
+        145,
+        170,
+        172,
+        174,
+        183,
+        188
+      ],
+      "h1": [
+        90
+      ],
+      "p": [
+        97,
+        104,
+        128,
+        152,
+        166,
+        171,
+        184,
+        186
+      ],
+      "span": [
+        109,
+        112,
+        177,
+        190
+      ]
+    },
+    "src/app/(app)/layout.tsx": {
+      "div": [
+        73,
+        87
+      ],
+      "header": [
+        74
+      ],
+      "nav": [
+        75
+      ],
+      "span": [
+        78,
+        79,
+        88,
+        106
+      ],
+      "form": [
+        100
+      ],
+      "button": [
+        107
+      ],
+      "main": [
+        113
+      ]
+    },
+    "src/app/(app)/performance/[userId]/page.tsx": {
+      "div": [
+        33,
+        100,
+        101,
+        107,
+        116,
+        151,
+        177,
+        193,
+        251,
+        253,
+        259,
+        267
+      ],
+      "p": [
+        34,
+        35,
+        42,
+        111,
+        191,
+        247
+      ],
+      "h1": [
+        109
+      ],
+      "section": [
+        114,
+        149,
+        175,
+        188,
+        245
+      ],
+      "h2": [
+        115,
+        150,
+        176,
+        189,
+        246
+      ],
+      "table": [
+        194
+      ],
+      "thead": [
+        195
+      ],
+      "tr": [
+        196,
+        214
+      ],
+      "th": [
+        197,
+        198,
+        199,
+        200,
+        201,
+        202
+      ],
+      "tbody": [
+        205
+      ],
+      "td": [
+        215,
+        216,
+        217,
+        224,
+        227,
+        228
+      ],
+      "h3": [
+        254,
+        260
+      ]
+    },
+    "src/app/(app)/performance/page.tsx": {
+      "string": [
+        19,
+        25,
+        31,
+        32,
+        33
+      ],
+      "div": [
+        37,
+        132,
+        133,
+        134,
+        138,
+        157,
+        175,
+        176,
+        187,
+        198,
+        205,
+        225,
+        238,
+        239,
+        243,
+        249,
+        300,
+        312,
+        314,
+        320,
+        329
+      ],
+      "p": [
+        38,
+        39,
+        140,
+        224,
+        233,
+        294
+      ],
+      "span": [
+        46,
+        48,
+        51,
+        213
+      ],
+      "h1": [
+        139
+      ],
+      "section": [
+        155,
+        222,
+        231,
+        292
+      ],
+      "h2": [
+        156,
+        223,
+        232,
+        293
+      ],
+      "h3": [
+        177,
+        188,
+        199,
+        206,
+        240,
+        244,
+        301,
+        315,
+        321
+      ],
+      "ul": [
+        207
+      ],
+      "li": [
+        209
+      ],
+      "table": [
+        250,
+        330
+      ],
+      "thead": [
+        251,
+        331
+      ],
+      "tr": [
+        252,
+        264,
+        332,
+        347
+      ],
+      "th": [
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        259,
+        333,
+        334,
+        335,
+        336,
+        337,
+        338,
+        339
+      ],
+      "tbody": [
+        262,
+        342
+      ],
+      "td": [
+        265,
+        270,
+        271,
+        272,
+        273,
+        276,
+        279,
+        348,
+        349,
+        350,
+        351,
+        356,
+        357,
+        360
+      ]
+    },
+    "src/app/(app)/projects/AllProjectsFilesView.tsx": {
+      "string": [
+        8,
+        48
+      ],
+      "div": [
+        52,
+        53,
+        65,
+        66,
+        77,
+        89,
+        91,
+        102,
+        104,
+        106
+      ],
+      "span": [
+        67,
+        78,
+        90,
+        107,
+        109
+      ],
+      "p": [
+        103,
+        119
+      ]
+    },
+    "src/app/(app)/projects/ProjectCardsOrder.tsx": {
+      "div": [
+        41
+      ]
+    },
+    "src/app/(app)/projects/[id]/CalendarTaskLink.tsx": {
+      "div": [
+        65,
+        69
+      ],
+      "p": [
+        70,
+        73,
+        77
+      ]
+    },
+    "src/app/(app)/projects/[id]/CriticalPathButton.tsx": {
+      "button": [
+        17
+      ],
+      "svg": [
+        22
+      ],
+      "path": [
+        23
+      ]
+    },
+    "src/app/(app)/projects/[id]/DefinitionTab.tsx": {
+      "div": [
+        46,
+        47,
+        48,
+        50,
+        56
+      ],
+      "p": [
+        51,
+        58
+      ]
+    },
+    "src/app/(app)/projects/[id]/EditRepoUrlForm.tsx": {
+      "string": [
+        9
+      ],
+      "form": [
+        13
+      ],
+      "label": [
+        24
+      ],
+      "span": [
+        25
+      ],
+      "input": [
+        26
+      ],
+      "p": [
+        34
+      ],
+      "button": [
+        35
+      ]
+    },
+    "src/app/(app)/projects/[id]/EditStartDateForm.tsx": {
+      "string": [
+        10
+      ],
+      "form": [
+        14
+      ],
+      "p": [
+        26,
+        29
+      ],
+      "button": [
+        30
+      ]
+    },
+    "src/app/(app)/projects/[id]/EditTargetEndDateForm.tsx": {
+      "string": [
+        16
+      ],
+      "form": [
+        20
+      ],
+      "p": [
+        36,
+        40
+      ],
+      "button": [
+        41
+      ]
+    },
+    "src/app/(app)/projects/[id]/GanttBar.tsx": {
+      "div": [
+        343,
+        358,
+        382,
+        387,
+        400,
+        402,
+        410,
+        412,
+        431,
+        443
+      ],
+      "span": [
+        374,
+        401,
+        411
+      ],
+      "p": [
+        388,
+        391,
+        396,
+        397,
+        398,
+        420
+      ]
+    },
+    "src/app/(app)/projects/[id]/GanttView.tsx": {
+      "string": [
+        221,
+        231,
+        704,
+        716,
+        753,
+        756,
+        776,
+        777
+      ],
+      "typeof": [
+        246,
+        247
+      ],
+      "a": [
+        511,
+        910,
+        1272
+      ],
+      "number": [
+        696
+      ],
+      "div": [
+        816,
+        825,
+        828,
+        829,
+        832,
+        833,
+        835,
+        844,
+        846,
+        860,
+        870,
+        871,
+        875,
+        882,
+        887,
+        888,
+        892,
+        901,
+        906,
+        957,
+        1166,
+        1174,
+        1257,
+        1291
+      ],
+      "p": [
+        883,
+        884,
+        1155,
+        1268
+      ],
+      "span": [
+        915,
+        1293,
+        1296
+      ],
+      "button": [
+        947,
+        1182,
+        1189,
+        1196,
+        1203,
+        1212,
+        1297,
+        1304,
+        1313
+      ],
+      "svg": [
+        1022,
+        1025
+      ],
+      "defs": [
+        1030
+      ],
+      "marker": [
+        1031,
+        1034,
+        1037,
+        1040
+      ],
+      "path": [
+        1032,
+        1035,
+        1038,
+        1041,
+        1054,
+        1073
+      ],
+      "g": [
+        1049
+      ],
+      "circle": [
+        1092,
+        1107
+      ],
+      "line": [
+        1128,
+        1139
+      ],
+      "ul": [
+        1269
+      ],
+      "li": [
+        1271
+      ]
+    },
+    "src/app/(app)/projects/[id]/InsertAdjacentTaskForm.tsx": {
+      "string": [
+        42
+      ],
+      "form": [
+        47
+      ],
+      "div": [
+        58,
+        75,
+        86,
+        91,
+        102,
+        104,
+        117,
+        122,
+        124
+      ],
+      "p": [
+        59,
+        63,
+        67,
+        135
+      ],
+      "span": [
+        60,
+        64,
+        68,
+        69
+      ],
+      "label": [
+        76,
+        87,
+        92,
+        105,
+        118,
+        123,
+        126
+      ],
+      "input": [
+        88,
+        106,
+        127
+      ],
+      "select": [
+        93
+      ],
+      "option": [
+        95
+      ],
+      "button": [
+        136
+      ]
+    },
+    "src/app/(app)/projects/[id]/KanbanBoard.tsx": {
+      "string": [
+        53,
+        62
+      ],
+      "button": [
+        105
+      ],
+      "div": [
+        117,
+        118,
+        128,
+        161,
+        178,
+        179,
+        180,
+        193,
+        195,
+        201,
+        207,
+        210,
+        216,
+        281,
+        338,
+        351,
+        439,
+        460
+      ],
+      "span": [
+        119,
+        123,
+        147,
+        218,
+        345,
+        347
+      ],
+      "p": [
+        153,
+        158,
+        168,
+        187
+      ],
+      "body": [
+        293,
+        453
+      ],
+      "svg": [
+        312
+      ],
+      "path": [
+        313
+      ],
+      "h3": [
+        344
+      ]
+    },
+    "src/app/(app)/projects/[id]/NewPhaseForm.tsx": {
+      "string": [
+        9
+      ],
+      "form": [
+        13
+      ],
+      "div": [
+        24
+      ],
+      "label": [
+        25
+      ],
+      "input": [
+        26
+      ],
+      "p": [
+        33
+      ],
+      "button": [
+        34
+      ]
+    },
+    "src/app/(app)/projects/[id]/NewTaskForm.tsx": {
+      "string": [
+        37,
+        40
+      ],
+      "form": [
+        48
+      ],
+      "div": [
+        59,
+        64,
+        65,
+        75,
+        93,
+        101,
+        114,
+        124,
+        129,
+        131,
+        144,
+        146,
+        157
+      ],
+      "label": [
+        60,
+        66,
+        76,
+        102,
+        115,
+        125,
+        130,
+        133,
+        145,
+        148,
+        158
+      ],
+      "input": [
+        61,
+        103,
+        134,
+        149
+      ],
+      "select": [
+        67,
+        77,
+        159
+      ],
+      "option": [
+        69,
+        85,
+        160,
+        162
+      ],
+      "p": [
+        175
+      ],
+      "button": [
+        176
+      ]
+    },
+    "src/app/(app)/projects/[id]/NewTaskTagsPicker.tsx": {
+      "string": [
+        18
+      ],
+      "div": [
+        42,
+        44,
+        63
+      ],
+      "label": [
+        43
+      ],
+      "span": [
+        48
+      ],
+      "input": [
+        49,
+        50,
+        82
+      ],
+      "button": [
+        57,
+        98,
+        101
+      ],
+      "select": [
+        64
+      ],
+      "option": [
+        72,
+        74,
+        93
+      ],
+      "datalist": [
+        91
+      ]
+    },
+    "src/app/(app)/projects/[id]/ObjectiveForm.tsx": {
+      "string": [
+        21
+      ],
+      "form": [
+        25
+      ],
+      "div": [
+        42,
+        46
+      ],
+      "label": [
+        43,
+        47
+      ],
+      "input": [
+        44
+      ],
+      "textarea": [
+        48
+      ],
+      "p": [
+        55
+      ],
+      "button": [
+        56
+      ]
+    },
+    "src/app/(app)/projects/[id]/ObjectivesPanel.tsx": {
+      "div": [
+        18,
+        19,
+        20,
+        60,
+        61,
+        76,
+        77,
+        81,
+        82,
+        84,
+        113,
+        129,
+        132
+      ],
+      "span": [
+        22,
+        63,
+        91,
+        100,
+        134,
+        145,
+        152,
+        159
+      ],
+      "string": [
+        43
+      ],
+      "h2": [
+        62
+      ],
+      "p": [
+        72,
+        78,
+        79,
+        85,
+        133,
+        177
+      ],
+      "ul": [
+        73,
+        138
+      ],
+      "li": [
+        75,
+        151,
+        158
+      ],
+      "button": [
+        117
+      ]
+    },
+    "src/app/(app)/projects/[id]/PhaseForm.tsx": {
+      "string": [
+        21
+      ],
+      "form": [
+        25
+      ],
+      "div": [
+        40,
+        50
+      ],
+      "label": [
+        41,
+        51
+      ],
+      "input": [
+        42
+      ],
+      "p": [
+        53,
+        64
+      ],
+      "select": [
+        55
+      ],
+      "option": [
+        57
+      ],
+      "button": [
+        65
+      ]
+    },
+    "src/app/(app)/projects/[id]/PhaseRequirementsForm.tsx": {
+      "string": [
+        19
+      ],
+      "form": [
+        23
+      ],
+      "p": [
+        39,
+        49
+      ],
+      "select": [
+        41
+      ],
+      "option": [
+        43
+      ],
+      "button": [
+        50
+      ]
+    },
+    "src/app/(app)/projects/[id]/PhasesPanel.tsx": {
+      "div": [
+        19,
+        20,
+        21,
+        67,
+        77,
+        78,
+        84,
+        85,
+        87,
+        122,
+        143,
+        146
+      ],
+      "span": [
+        23,
+        69,
+        94,
+        105,
+        148,
+        159,
+        162
+      ],
+      "string": [
+        47,
+        48
+      ],
+      "h2": [
+        68
+      ],
+      "p": [
+        72,
+        73,
+        79,
+        80,
+        88,
+        147,
+        169
+      ],
+      "ul": [
+        74,
+        152
+      ],
+      "li": [
+        76,
+        154
+      ],
+      "button": [
+        131
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectCalendarView.tsx": {
+      "string": [
+        26
+      ],
+      "div": [
+        71,
+        74,
+        81,
+        128,
+        129,
+        131,
+        136,
+        142,
+        153
+      ],
+      "p": [
+        72,
+        75
+      ],
+      "ul": [
+        78
+      ],
+      "li": [
+        80
+      ],
+      "span": [
+        86,
+        87,
+        104,
+        106,
+        109,
+        146,
+        169,
+        174
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectDescription.tsx": {
+      "string": [
+        11
+      ],
+      "button": [
+        17,
+        53,
+        59
+      ],
+      "div": [
+        23,
+        52
+      ],
+      "form": [
+        35
+      ],
+      "p": [
+        51
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectFilesView.tsx": {
+      "string": [
+        8,
+        47
+      ],
+      "div": [
+        51,
+        52,
+        64,
+        65,
+        76,
+        88,
+        90,
+        101,
+        103,
+        105
+      ],
+      "span": [
+        66,
+        77,
+        89,
+        106,
+        108
+      ],
+      "p": [
+        102,
+        118
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectIdentityForm.tsx": {
+      "string": [
+        23
+      ],
+      "form": [
+        52
+      ],
+      "input": [
+        67,
+        74
+      ],
+      "div": [
+        69,
+        71
+      ],
+      "label": [
+        72
+      ],
+      "button": [
+        77,
+        85
+      ],
+      "p": [
+        84
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectLinksPanel.tsx": {
+      "string": [
+        30,
+        34
+      ],
+      "div": [
+        121,
+        165,
+        181
+      ],
+      "h2": [
+        122
+      ],
+      "ul": [
+        123
+      ],
+      "li": [
+        125,
+        151
+      ],
+      "button": [
+        127,
+        140,
+        156,
+        195
+      ],
+      "a": [
+        135,
+        152
+      ],
+      "p": [
+        162,
+        180,
+        206
+      ],
+      "label": [
+        166
+      ],
+      "input": [
+        178,
+        182,
+        188
+      ]
+    },
+    "src/app/(app)/projects/[id]/ProjectWhatsAppGroupPanel.tsx": {
+      "div": [
+        19
+      ],
+      "p": [
+        20,
+        40,
+        41
+      ],
+      "select": [
+        21
+      ],
+      "option": [
+        33,
+        35
+      ]
+    },
+    "src/app/(app)/projects/[id]/ReassignPMForm.tsx": {
+      "string": [
+        17
+      ],
+      "form": [
+        21
+      ],
+      "div": [
+        32
+      ],
+      "label": [
+        33
+      ],
+      "select": [
+        34
+      ],
+      "option": [
+        36
+      ],
+      "p": [
+        41,
+        45
+      ],
+      "button": [
+        46
+      ]
+    },
+    "src/app/(app)/projects/[id]/RequirementForm.tsx": {
+      "string": [
+        25
+      ],
+      "form": [
+        29
+      ],
+      "div": [
+        46,
+        50,
+        59
+      ],
+      "label": [
+        47,
+        51,
+        60
+      ],
+      "input": [
+        48
+      ],
+      "textarea": [
+        52
+      ],
+      "p": [
+        62,
+        73
+      ],
+      "select": [
+        64
+      ],
+      "option": [
+        66
+      ],
+      "button": [
+        74
+      ]
+    },
+    "src/app/(app)/projects/[id]/RequirementsPanel.tsx": {
+      "div": [
+        18,
+        19,
+        20,
+        59,
+        60,
+        75,
+        76,
+        83,
+        84,
+        86,
+        115,
+        138,
+        141
+      ],
+      "span": [
+        22,
+        62,
+        93,
+        102,
+        143,
+        156,
+        169
+      ],
+      "string": [
+        41
+      ],
+      "h2": [
+        61
+      ],
+      "p": [
+        71,
+        77,
+        78,
+        79,
+        87,
+        142,
+        177
+      ],
+      "ul": [
+        72,
+        147
+      ],
+      "li": [
+        74,
+        151
+      ],
+      "button": [
+        126
+      ]
+    },
+    "src/app/(app)/projects/[id]/SaveLastProject.tsx": {
+      "id": [
+        10
+      ]
+    },
+    "src/app/(app)/projects/[id]/TodayMarker.tsx": {
+      "div": [
+        50,
+        65
+      ]
+    },
+    "src/app/(app)/projects/[id]/page.tsx": {
+      "string": [
+        75,
+        77,
+        96,
+        98,
+        107,
+        109,
+        166
+      ],
+      "datalist": [
+        165
+      ],
+      "div": [
+        400,
+        406,
+        407,
+        408,
+        410,
+        412,
+        427,
+        448,
+        450,
+        462,
+        463,
+        490,
+        517,
+        518,
+        552,
+        569,
+        570,
+        579,
+        591,
+        608,
+        628,
+        641,
+        659,
+        668,
+        716,
+        728
+      ],
+      "h1": [
+        411
+      ],
+      "a": [
+        420
+      ],
+      "p": [
+        451,
+        452
+      ],
+      "span": [
+        556,
+        571,
+        580,
+        592,
+        609,
+        629,
+        642,
+        660
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/AdjustmentPanel.tsx": {
+      "string": [
+        38,
+        210
+      ],
+      "section": [
+        59
+      ],
+      "div": [
+        60,
+        69,
+        77,
+        142,
+        143,
+        144,
+        155,
+        161,
+        163,
+        260,
+        262,
+        267,
+        273,
+        296,
+        298,
+        309
+      ],
+      "h2": [
+        61
+      ],
+      "span": [
+        63,
+        145,
+        275
+      ],
+      "p": [
+        73,
+        95,
+        146,
+        175,
+        261,
+        320
+      ],
+      "input": [
+        78,
+        164,
+        297,
+        299,
+        312
+      ],
+      "button": [
+        85,
+        149,
+        170,
+        177,
+        182,
+        280,
+        300,
+        303,
+        314
+      ],
+      "a": [
+        268
+      ],
+      "img": [
+        271
+      ],
+      "label": [
+        310
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentGrid.tsx": {
+      "string": [
+        33
+      ],
+      "div": [
+        39
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox.tsx": {
+      "div": [
+        79,
+        80,
+        81,
+        107,
+        112
+      ],
+      "button": [
+        83,
+        97,
+        122,
+        131
+      ],
+      "img": [
+        94
+      ],
+      "span": [
+        108,
+        110
+      ],
+      "a": [
+        113
+      ],
+      "svg": [
+        143
+      ],
+      "path": [
+        144
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentPreview.tsx": {
+      "span": [
+        68
+      ],
+      "div": [
+        73,
+        107
+      ],
+      "button": [
+        75,
+        92,
+        108,
+        121
+      ],
+      "a": [
+        79
+      ],
+      "img": [
+        110
+      ],
+      "svg": [
+        137
+      ],
+      "path": [
+        138
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/AttachmentUploader.tsx": {
+      "string": [
+        25
+      ],
+      "div": [
+        85,
+        95,
+        129,
+        130
+      ],
+      "input": [
+        86,
+        96,
+        143
+      ],
+      "button": [
+        104,
+        112,
+        145
+      ],
+      "p": [
+        123,
+        153
+      ],
+      "label": [
+        131
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/DeleteTaskButton.tsx": {
+      "string": [
+        22
+      ],
+      "div": [
+        39
+      ],
+      "button": [
+        40
+      ],
+      "p": [
+        53
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/GoogleCalendarButton.tsx": {
+      "string": [
+        8
+      ],
+      "div": [
+        11
+      ],
+      "button": [
+        12
+      ],
+      "p": [
+        28
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/InlineDescription.tsx": {
+      "string": [
+        19
+      ],
+      "button": [
+        26,
+        68,
+        74
+      ],
+      "div": [
+        36,
+        67
+      ],
+      "form": [
+        50
+      ],
+      "p": [
+        66
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/InlineMeetingUrl.tsx": {
+      "string": [
+        26
+      ],
+      "button": [
+        33,
+        45,
+        83,
+        86
+      ],
+      "div": [
+        39
+      ],
+      "a": [
+        40
+      ],
+      "span": [
+        43
+      ],
+      "form": [
+        54
+      ],
+      "input": [
+        69,
+        76
+      ],
+      "p": [
+        89
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/InlinePhase.tsx": {
+      "button": [
+        28
+      ],
+      "select": [
+        40
+      ],
+      "option": [
+        56
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/InlineTitle.tsx": {
+      "string": [
+        11
+      ],
+      "h1": [
+        15,
+        19
+      ],
+      "div": [
+        53
+      ],
+      "input": [
+        54
+      ],
+      "p": [
+        80
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/InlineType.tsx": {
+      "select": [
+        8,
+        9
+      ],
+      "span": [
+        41
+      ],
+      "button": [
+        42,
+        55
+      ],
+      "div": [
+        53
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/ReassignAssigneesForm.tsx": {
+      "string": [
+        28
+      ],
+      "form": [
+        32
+      ],
+      "div": [
+        43
+      ],
+      "label": [
+        45
+      ],
+      "input": [
+        46
+      ],
+      "p": [
+        58
+      ],
+      "button": [
+        59
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/ReviewPanel.tsx": {
+      "a": [
+        63
+      ],
+      "span": [
+        71,
+        108,
+        145,
+        385,
+        396,
+        619,
+        621,
+        629,
+        630
+      ],
+      "section": [
+        104
+      ],
+      "div": [
+        105,
+        107,
+        139,
+        150,
+        183,
+        187,
+        236,
+        237,
+        241,
+        272,
+        381,
+        382,
+        383,
+        407,
+        414,
+        433,
+        435,
+        520,
+        533,
+        568,
+        614,
+        649
+      ],
+      "h2": [
+        106
+      ],
+      "p": [
+        140,
+        184,
+        199,
+        238,
+        281,
+        284,
+        298,
+        384,
+        430,
+        477,
+        480,
+        615
+      ],
+      "details": [
+        142
+      ],
+      "summary": [
+        143
+      ],
+      "string": [
+        166,
+        213,
+        586
+      ],
+      "input": [
+        188,
+        189,
+        408,
+        454,
+        460,
+        523,
+        534,
+        535,
+        569,
+        570,
+        622,
+        650
+      ],
+      "button": [
+        190,
+        273,
+        399,
+        416,
+        438,
+        525,
+        536,
+        539,
+        571,
+        623,
+        632,
+        657
+      ],
+      "select": [
+        250
+      ],
+      "option": [
+        256,
+        260,
+        470
+      ],
+      "ul": [
+        300,
+        388,
+        616
+      ],
+      "datalist": [
+        371,
+        468
+      ],
+      "li": [
+        380,
+        390,
+        618
+      ],
+      "label": [
+        452,
+        521
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/StepCheckbox.tsx": {
+      "label": [
+        20
+      ],
+      "input": [
+        21
+      ],
+      "span": [
+        31
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/TaskStatusControl.tsx": {
+      "string": [
+        17
+      ],
+      "div": [
+        43,
+        44
+      ],
+      "button": [
+        46
+      ],
+      "p": [
+        59
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/TaskTagsEditor.tsx": {
+      "datalist": [
+        14,
+        103
+      ],
+      "string": [
+        26,
+        34
+      ],
+      "div": [
+        63,
+        75
+      ],
+      "button": [
+        69,
+        110,
+        113
+      ],
+      "select": [
+        76
+      ],
+      "option": [
+        84,
+        86,
+        105
+      ],
+      "input": [
+        94
+      ],
+      "p": [
+        118
+      ]
+    },
+    "src/app/(app)/projects/[id]/tasks/[taskId]/page.tsx": {
+      "datalist": [
+        91
+      ],
+      "string": [
+        92
+      ],
+      "div": [
+        118,
+        119,
+        127,
+        129,
+        133,
+        153,
+        243,
+        252,
+        268,
+        276,
+        315,
+        334,
+        397,
+        418
+      ],
+      "span": [
+        134,
+        206
+      ],
+      "p": [
+        170,
+        182,
+        187,
+        192,
+        199,
+        221,
+        226,
+        231,
+        236,
+        281,
+        330,
+        349,
+        413
+      ],
+      "section": [
+        274,
+        314,
+        396
+      ],
+      "h2": [
+        275,
+        316,
+        335,
+        398
+      ],
+      "form": [
+        285,
+        406,
+        417
+      ],
+      "input": [
+        286
+      ],
+      "button": [
+        292,
+        407,
+        425
+      ],
+      "ul": [
+        399
+      ],
+      "li": [
+        401
+      ]
+    },
+    "src/app/(app)/projects/page.tsx": {
+      "string": [
+        84,
+        86,
+        108,
+        110
+      ],
+      "taskId": [
+        286
+      ],
+      "div": [
+        471,
+        473,
+        474,
+        478,
+        482,
+        486,
+        495,
+        515,
+        516,
+        527,
+        553,
+        573,
+        574,
+        576,
+        597,
+        617,
+        637,
+        638,
+        666,
+        683,
+        684,
+        692,
+        703,
+        719,
+        738,
+        750,
+        767,
+        782,
+        812,
+        830
+      ],
+      "h1": [
+        475
+      ],
+      "form": [
+        477
+      ],
+      "label": [
+        479,
+        483,
+        487,
+        496
+      ],
+      "input": [
+        480,
+        484,
+        488
+      ],
+      "select": [
+        497
+      ],
+      "option": [
+        499
+      ],
+      "button": [
+        505
+      ],
+      "span": [
+        517,
+        528,
+        578,
+        610,
+        670,
+        685,
+        693,
+        704,
+        720,
+        739,
+        751,
+        768
+      ],
+      "p": [
+        555,
+        577,
+        590,
+        629
+      ],
+      "section": [
+        627
+      ],
+      "h2": [
+        628
+      ]
+    },
+    "src/app/(app)/settings/BotSettingsForm.tsx": {
+      "string": [
+        37
+      ],
+      "div": [
+        69,
+        70,
+        71,
+        93,
+        106,
+        126,
+        152,
+        155,
+        204
+      ],
+      "label": [
+        73,
+        92,
+        107,
+        153,
+        205
+      ],
+      "input": [
+        75,
+        94,
+        186,
+        218
+      ],
+      "form": [
+        79,
+        109,
+        170,
+        206
+      ],
+      "button": [
+        95,
+        127,
+        134,
+        157,
+        160,
+        193,
+        225
+      ],
+      "span": [
+        101,
+        156
+      ],
+      "p": [
+        108,
+        201,
+        232,
+        237
+      ],
+      "textarea": [
+        120
+      ]
+    },
+    "src/app/(app)/settings/ChangePasswordForm.tsx": {
+      "string": [
+        7
+      ],
+      "form": [
+        12
+      ],
+      "div": [
+        24,
+        33
+      ],
+      "label": [
+        25,
+        34
+      ],
+      "input": [
+        26,
+        35
+      ],
+      "p": [
+        43,
+        44
+      ],
+      "button": [
+        45
+      ]
+    },
+    "src/app/(app)/settings/CountrySettingForm.tsx": {
+      "select": [
+        40
+      ],
+      "option": [
+        46,
+        48
+      ]
+    },
+    "src/app/(app)/settings/CreateUserForm.tsx": {
+      "string": [
+        9
+      ],
+      "form": [
+        13
+      ],
+      "div": [
+        24,
+        28,
+        32,
+        33,
+        40
+      ],
+      "label": [
+        25,
+        29,
+        34,
+        41
+      ],
+      "input": [
+        26,
+        30,
+        42
+      ],
+      "select": [
+        35
+      ],
+      "option": [
+        36,
+        37
+      ],
+      "p": [
+        52
+      ],
+      "button": [
+        53
+      ]
+    },
+    "src/app/(app)/settings/EditUserForm.tsx": {
+      "string": [
+        25
+      ],
+      "div": [
+        56,
+        57,
+        80,
+        84,
+        88
+      ],
+      "label": [
+        59,
+        81,
+        85,
+        89
+      ],
+      "input": [
+        61,
+        82,
+        86,
+        90
+      ],
+      "form": [
+        65
+      ],
+      "p": [
+        97,
+        99
+      ],
+      "button": [
+        100
+      ]
+    },
+    "src/app/(app)/settings/ProfileForm.tsx": {
+      "string": [
+        21
+      ],
+      "div": [
+        53,
+        54,
+        74,
+        78,
+        82
+      ],
+      "label": [
+        56,
+        75,
+        79,
+        83
+      ],
+      "input": [
+        58,
+        76,
+        80,
+        84
+      ],
+      "form": [
+        62
+      ],
+      "p": [
+        91,
+        93,
+        94
+      ],
+      "button": [
+        95
+      ]
+    },
+    "src/app/(app)/settings/ResetPasswordForm.tsx": {
+      "string": [
+        9
+      ],
+      "form": [
+        13
+      ],
+      "div": [
+        24
+      ],
+      "label": [
+        25
+      ],
+      "input": [
+        26
+      ],
+      "p": [
+        35
+      ],
+      "button": [
+        36
+      ]
+    },
+    "src/app/(app)/settings/UsersAdmin.tsx": {
+      "select": [
+        16
+      ],
+      "option": [
+        27,
+        28
+      ],
+      "section": [
+        35
+      ],
+      "div": [
+        36,
+        46,
+        48,
+        53
+      ],
+      "h2": [
+        37
+      ],
+      "ul": [
+        43
+      ],
+      "li": [
+        45
+      ],
+      "p": [
+        49,
+        50
+      ]
+    },
+    "src/app/(app)/settings/WhatsAppConnectPanel.tsx": {
+      "string": [
+        17,
+        20
+      ],
+      "div": [
+        50,
+        64,
+        74,
+        99,
+        101
+      ],
+      "p": [
+        51,
+        67,
+        76,
+        95,
+        140
+      ],
+      "button": [
+        54,
+        125
+      ],
+      "img": [
+        66
+      ],
+      "label": [
+        75,
+        100
+      ],
+      "select": [
+        77
+      ],
+      "option": [
+        88,
+        90
+      ],
+      "input": [
+        102,
+        114
+      ],
+      "span": [
+        113,
+        138
+      ]
+    },
+    "src/app/(app)/settings/page.tsx": {
+      "div": [
+        48,
+        141,
+        143,
+        153,
+        171
+      ],
+      "h1": [
+        49
+      ],
+      "section": [
+        51,
+        61,
+        72,
+        86,
+        104,
+        114,
+        125,
+        192
+      ],
+      "h2": [
+        52,
+        62,
+        73,
+        87,
+        105,
+        115,
+        126,
+        193
+      ],
+      "hr": [
+        54
+      ],
+      "p": [
+        63,
+        74,
+        88,
+        106,
+        116,
+        127,
+        134,
+        139,
+        142,
+        172,
+        196,
+        199,
+        203,
+        210
+      ],
+      "span": [
+        136,
+        157
+      ],
+      "a": [
+        144,
+        217
+      ],
+      "form": [
+        152,
+        173
+      ],
+      "label": [
+        155
+      ],
+      "input": [
+        156,
+        174
+      ],
+      "button": [
+        161,
+        181
+      ]
+    },
+    "src/app/(app)/settings/tags/TagCategoriesPanel.tsx": {
+      "div": [
+        13,
+        59,
+        66,
+        67,
+        81,
+        135,
+        136,
+        140,
+        142,
+        156
+      ],
+      "input": [
+        14,
+        68,
+        74,
+        137,
+        138
+      ],
+      "button": [
+        16,
+        83,
+        143,
+        146,
+        157,
+        163
+      ],
+      "string": [
+        35
+      ],
+      "section": [
+        57
+      ],
+      "h2": [
+        58
+      ],
+      "p": [
+        63,
+        92
+      ],
+      "span": [
+        158,
+        159,
+        160
+      ]
+    },
+    "src/app/(app)/settings/tags/page.tsx": {
+      "div": [
+        19
+      ],
+      "h1": [
+        23
+      ],
+      "p": [
+        24
+      ]
+    },
+    "src/app/(app)/settings/tests/ResponseCategoriesPanel.tsx": {
+      "string": [
+        22
+      ],
+      "section": [
+        41
+      ],
+      "h2": [
+        42
+      ],
+      "div": [
+        43,
+        50,
+        51,
+        127,
+        128,
+        130,
+        159
+      ],
+      "p": [
+        47,
+        68,
+        157
+      ],
+      "input": [
+        52,
+        131,
+        160,
+        206
+      ],
+      "button": [
+        59,
+        138,
+        143,
+        148,
+        167,
+        213,
+        224,
+        228
+      ],
+      "ul": [
+        153
+      ],
+      "li": [
+        205,
+        221
+      ],
+      "span": [
+        222,
+        223
+      ]
+    },
+    "src/app/(app)/settings/tests/TestTemplatesPanel.tsx": {
+      "string": [
+        22,
+        83
+      ],
+      "section": [
+        41
+      ],
+      "h2": [
+        42
+      ],
+      "div": [
+        43,
+        50,
+        51,
+        111,
+        112,
+        114,
+        138,
+        140,
+        142,
+        183,
+        184,
+        186,
+        239,
+        260
+      ],
+      "p": [
+        47,
+        68,
+        141,
+        149,
+        185
+      ],
+      "input": [
+        52,
+        115,
+        240,
+        247
+      ],
+      "button": [
+        59,
+        122,
+        127,
+        132,
+        155,
+        187,
+        191,
+        261,
+        269
+      ],
+      "ul": [
+        198
+      ],
+      "li": [
+        200
+      ],
+      "textarea": [
+        253
+      ]
+    },
+    "src/app/(app)/settings/tests/page.tsx": {
+      "div": [
+        27
+      ],
+      "h1": [
+        31
+      ],
+      "p": [
+        32
+      ]
+    },
+    "src/app/layout.tsx": {
+      "html": [
+        35
+      ],
+      "body": [
+        39
+      ],
+      "script": [
+        41
+      ]
+    },
+    "src/app/login/page.tsx": {
+      "main": [
+        10
+      ],
+      "svg": [
+        11,
+        22
+      ],
+      "path": [
+        17,
+        28
+      ],
+      "form": [
+        33
+      ],
+      "div": [
+        37,
+        39,
+        42,
+        55
+      ],
+      "span": [
+        38
+      ],
+      "label": [
+        43,
+        56
+      ],
+      "input": [
+        46,
+        59
+      ],
+      "p": [
+        68
+      ],
+      "button": [
+        70
+      ]
+    },
+    "src/app/share/PublicCommentThread.tsx": {
+      "string": [
+        38
+      ],
+      "div": [
+        76,
+        91,
+        93,
+        108
+      ],
+      "ul": [
+        78
+      ],
+      "li": [
+        80
+      ],
+      "span": [
+        81,
+        83
+      ],
+      "p": [
+        85,
+        125
+      ],
+      "input": [
+        94,
+        100,
+        109
+      ],
+      "button": [
+        116
+      ]
+    },
+    "src/app/share/PublicDefinitionView.tsx": {
+      "div": [
+        3,
+        4,
+        5,
+        25,
+        27,
+        28,
+        32,
+        36,
+        37,
+        46,
+        50,
+        51,
+        60,
+        64,
+        65
+      ],
+      "span": [
+        7
+      ],
+      "h2": [
+        33,
+        47,
+        61
+      ],
+      "p": [
+        34,
+        38,
+        41,
+        48,
+        52,
+        55,
+        62,
+        66
+      ],
+      "ul": [
+        70
+      ],
+      "li": [
+        72
+      ]
+    },
+    "src/app/share/PublicFileGrid.tsx": {
+      "string": [
+        19
+      ],
+      "p": [
+        22
+      ],
+      "div": [
+        26,
+        42
+      ],
+      "button": [
+        34,
+        50
+      ],
+      "img": [
+        36
+      ],
+      "span": [
+        44
+      ],
+      "a": [
+        56
+      ]
+    },
+    "src/app/share/PublicFilesView.tsx": {
+      "div": [
+        44,
+        45,
+        50
+      ],
+      "h2": [
+        46,
+        51
+      ]
+    },
+    "src/app/share/PublicHeader.tsx": {
+      "header": [
+        7
+      ],
+      "span": [
+        8,
+        9,
+        11,
+        12
+      ]
+    },
+    "src/app/share/PublicTaskDetail.tsx": {
+      "div": [
+        62,
+        63,
+        64,
+        71,
+        79,
+        80,
+        89,
+        97,
+        101,
+        102,
+        110,
+        111,
+        115,
+        128
+      ],
+      "h1": [
+        68
+      ],
+      "p": [
+        69,
+        73,
+        86,
+        99,
+        107,
+        109,
+        112,
+        116,
+        120
+      ],
+      "h2": [
+        81,
+        90,
+        98,
+        129
+      ],
+      "span": [
+        103
+      ]
+    },
+    "src/app/share/PublicTasksList.tsx": {
+      "div": [
+        19,
+        24,
+        26,
+        30
+      ],
+      "h2": [
+        25
+      ],
+      "h3": [
+        31
+      ],
+      "p": [
+        32,
+        33
+      ]
+    },
+    "src/app/share/PublicUploadWidget.tsx": {
+      "string": [
+        16,
+        17,
+        23
+      ],
+      "div": [
+        59,
+        68,
+        98,
+        99
+      ],
+      "input": [
+        60,
+        69,
+        117
+      ],
+      "button": [
+        76,
+        84,
+        125
+      ],
+      "p": [
+        92,
+        133
+      ],
+      "label": [
+        100
+      ]
+    },
+    "src/app/share/[token]/page.tsx": {
+      "div": [
+        43,
+        59,
+        62,
+        64,
+        73
+      ],
+      "main": [
+        45,
+        61
+      ],
+      "h1": [
+        65
+      ],
+      "p": [
+        66
+      ]
+    },
+    "src/components/AlertBadge.tsx": {
+      "span": [
+        48
+      ]
+    },
+    "src/components/AttachmentPreviewModal.tsx": {
+      "iframe": [
+        28,
+        139
+      ],
+      "void": [
+        48
+      ],
+      "string": [
+        54
+      ],
+      "div": [
+        135,
+        136,
+        137,
+        143,
+        148,
+        158,
+        175,
+        179,
+        181
+      ],
+      "p": [
+        144,
+        145
+      ],
+      "button": [
+        150,
+        196,
+        200
+      ],
+      "table": [
+        159
+      ],
+      "tbody": [
+        160
+      ],
+      "tr": [
+        162
+      ],
+      "td": [
+        164
+      ],
+      "span": [
+        180
+      ],
+      "a": [
+        183,
+        187
+      ]
+    },
+    "src/components/Avatar.tsx": {
+      "img": [
+        33
+      ],
+      "span": [
+        42,
+        53
+      ],
+      "div": [
+        55
+      ]
+    },
+    "src/components/CalendarDatePicker.tsx": {
+      "div": [
+        114,
+        135,
+        140,
+        151,
+        156
+      ],
+      "label": [
+        115
+      ],
+      "button": [
+        116,
+        141,
+        147,
+        165,
+        187
+      ],
+      "span": [
+        122,
+        144,
+        153,
+        158
+      ],
+      "svg": [
+        125
+      ],
+      "rect": [
+        126
+      ],
+      "path": [
+        127
+      ],
+      "input": [
+        130
+      ],
+      "p": [
+        182
+      ]
+    },
+    "src/components/ComboFilter.tsx": {
+      "string": [
+        32
+      ],
+      "div": [
+        77,
+        93,
+        105
+      ],
+      "button": [
+        78,
+        106,
+        114
+      ],
+      "span": [
+        84,
+        121
+      ],
+      "input": [
+        98
+      ],
+      "p": [
+        129
+      ]
+    },
+    "src/components/Confirm.tsx": {
+      "boolean": [
+        8,
+        20
+      ],
+      "div": [
+        34,
+        38,
+        39,
+        41
+      ],
+      "p": [
+        40
+      ],
+      "button": [
+        42,
+        49
+      ]
+    },
+    "src/components/CopyLinkButton.tsx": {
+      "button": [
+        25
+      ]
+    },
+    "src/components/Modal.tsx": {
+      "button": [
+        38,
+        93
+      ],
+      "div": [
+        80,
+        89,
+        90,
+        91
+      ],
+      "h2": [
+        92
+      ],
+      "svg": [
+        99
+      ],
+      "path": [
+        100
+      ]
+    },
+    "src/components/ProgressRing.tsx": {
+      "svg": [
+        22
+      ],
+      "circle": [
+        30,
+        31
+      ]
+    },
+    "src/components/ProjectIcon.tsx": {
+      "img": [
+        57
+      ],
+      "span": [
+        61
+      ]
+    },
+    "src/components/ProjectSummary.tsx": {
+      "span": [
+        19,
+        58,
+        116
+      ],
+      "typeof": [
+        104
+      ],
+      "div": [
+        111,
+        112,
+        113,
+        114
+      ],
+      "p": [
+        122
+      ]
+    },
+    "src/components/ReferencePopover.tsx": {
+      "a": [
+        11,
+        13,
+        14
+      ],
+      "span": [
+        30,
+        133,
+        141
+      ],
+      "body": [
+        95,
+        112
+      ],
+      "div": [
+        154
+      ],
+      "ul": [
+        178
+      ],
+      "li": [
+        180
+      ]
+    },
+    "src/components/RichTextEditor.tsx": {
+      "form": [
+        10
+      ],
+      "div": [
+        51,
+        53
+      ],
+      "input": [
+        52,
+        72
+      ],
+      "button": [
+        54,
+        57,
+        60,
+        63,
+        66,
+        69
+      ],
+      "span": [
+        55,
+        58,
+        61,
+        64
+      ],
+      "svg": [
+        81,
+        89
+      ],
+      "path": [
+        82,
+        90
+      ]
+    },
+    "src/components/SearchBox.tsx": {
+      "string": [
+        25
+      ],
+      "form": [
+        30
+      ],
+      "input": [
+        31,
+        32
+      ]
+    },
+    "src/components/SearchableSelect.tsx": {
+      "form": [
+        7
+      ],
+      "input": [
+        9,
+        54,
+        65
+      ],
+      "div": [
+        53,
+        64,
+        72
+      ],
+      "button": [
+        55,
+        73,
+        81
+      ],
+      "span": [
+        60
+      ],
+      "p": [
+        90
+      ]
+    },
+    "src/components/ShareLinkPanel.tsx": {
+      "div": [
+        63,
+        70,
+        85
+      ],
+      "p": [
+        66
+      ],
+      "input": [
+        71
+      ],
+      "button": [
+        77,
+        86,
+        94,
+        105
+      ]
+    },
+    "src/components/TagChip.tsx": {
+      "span": [
+        18,
+        22,
+        23
+      ],
+      "button": [
+        25
+      ]
+    },
+    "src/components/Toast.tsx": {
+      "div": [
+        24,
+        26
+      ]
+    },
+    "src/components/charts/BarChart.tsx": {
+      "p": [
+        12
+      ],
+      "div": [
+        15,
+        17,
+        21,
+        22,
+        42,
+        44,
+        46,
+        47
+      ],
+      "span": [
+        18,
+        27,
+        30,
+        45,
+        53
+      ]
+    },
+    "src/components/charts/DonutChart.tsx": {
+      "div": [
+        17
+      ],
+      "svg": [
+        18
+      ],
+      "circle": [
+        19,
+        26
+      ],
+      "ul": [
+        42
+      ],
+      "li": [
+        44
+      ],
+      "span": [
+        45,
+        46,
+        47
+      ]
+    },
+    "src/components/icons.tsx": {
+      "svg": [
+        7,
+        19,
+        27,
+        35,
+        47,
+        55,
+        67,
+        79,
+        91,
+        100,
+        112,
+        125,
+        134,
+        147,
+        156,
+        169
+      ],
+      "path": [
+        8,
+        20,
+        28,
+        36,
+        48,
+        56,
+        68,
+        80,
+        101,
+        113,
+        126,
+        135,
+        148,
+        149,
+        157,
+        170
+      ],
+      "circle": [
+        92,
+        93
+      ]
+    }
+  },
+  "files": {},
+  "byClass": {},
+  "customUtilities": {},
+  "colorTokens": {}
+}

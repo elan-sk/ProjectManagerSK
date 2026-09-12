@@ -40,11 +40,15 @@ export function ProjectCalendarView({
   mode,
   anchor,
   showProjectName = false,
+  collisionUrlBase = "/projects",
 }: {
   tasks: CalendarTask[];
   mode: CalendarMode;
   anchor: Date;
   showProjectName?: boolean;
+  // Ver mismo comentario en KanbanBoard: base de "Ver mis colisiones", solo
+  // relevante cuando la pasa /projects/page.tsx.
+  collisionUrlBase?: string;
 }) {
   const { start, end } = rangeForMode(mode, anchor);
   const tasksParsed = tasks.map((t) => ({ ...t, start: new Date(t.plannedStart), end: new Date(t.plannedEnd) }));
@@ -73,7 +77,14 @@ export function ProjectCalendarView({
             </p>
             <ul className="divide-y divide-slate-100">
               {g.tasks.map((t) => (
-                <li key={t.id}>
+                <li
+                  key={t.id}
+                  // ponytail: mismo criterio que Kanban/Gantt — esta lista es
+                  // la única del calendario sin tope por celda (vista Día =
+                  // TODAS las tareas filtradas), así que se beneficia de
+                  // saltar el render de filas fuera de vista.
+                  style={{ contentVisibility: "auto", containIntrinsicSize: "auto 48px" }}
+                >
                   <div className="flex items-center justify-between gap-3 p-3 hover:bg-slate-50">
                     <Link
                       href={`/projects/${t.projectId}/tasks/${t.id}`}
@@ -91,8 +102,8 @@ export function ProjectCalendarView({
                           label: `${c.title} (${c.projectName})`,
                           href: `/projects/${c.projectId}/tasks/${c.taskId}`,
                         }))}
-                        filteredHref="/projects?collision=1"
-                        filteredLabel="Ver todas las colisiones"
+                        filteredHref={`${collisionUrlBase}${collisionUrlBase.includes("?") ? "&" : "?"}collision=${t.id}`}
+                        filteredLabel="Ver mis colisiones"
                         extraHref={`/collisions/${t.id}`}
                         extraLabel="Ver detalle y alternativas"
                       />

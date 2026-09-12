@@ -36,7 +36,7 @@ export function DeleteTaskButton({
   }
 
   return (
-    <div className={compact ? "" : "space-y-1"}>
+    <div className={compact ? "ml-2" : "ml-3 space-y-1"}>
       <button
         type="button"
         onClick={handleDelete}

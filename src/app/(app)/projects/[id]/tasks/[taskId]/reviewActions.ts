@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { requireProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { notifyReturned } from "@/lib/notifications";
+import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import type { CheckResult } from "@prisma/client";
 
 async function revalidateTask(taskId: string) {
@@ -56,8 +56,8 @@ export async function submitReviewRound(taskId: string, formData: FormData) {
   }
 
   const roundNumber = task.reviewRounds.length + 1;
-  await prisma.$transaction(async (tx) => {
-    await tx.reviewRound.create({
+  const round = await prisma.$transaction(async (tx) => {
+    const created = await tx.reviewRound.create({
       data: {
         taskId,
         roundNumber,
@@ -68,7 +68,14 @@ export async function submitReviewRound(taskId: string, formData: FormData) {
     if (task.status === "RETURNED") {
       await tx.task.update({ where: { id: taskId }, data: { status: "IN_PROGRESS" } });
     }
+    return created;
   });
+  // Punto 10: si se eligió una plantilla desde la creación de la tarea, se
+  // copia sola en la ronda 1 — el revisor no tiene que acordarse de aplicarla.
+  if (roundNumber === 1 && task.defaultTestTemplateId) {
+    await copyTemplateItemsToRound(round.id, task.defaultTestTemplateId);
+  }
+  await notifyReviewRequested(taskId);
   await revalidateTask(taskId);
   return { ok: true as const };
 }
@@ -103,17 +110,16 @@ export async function addReviewDeliverableLink(reviewRoundId: string, url: strin
 }
 
 // Copia los ítems de una plantilla como checks EDITABLES de esta ronda —
-// tocar/quitar acá nunca modifica la plantilla de origen.
-export async function applyTestTemplate(reviewRoundId: string, templateId: string) {
-  const round = await prisma.reviewRound.findUniqueOrThrow({ where: { id: reviewRoundId } });
-  if (!(await canReviewTask(round.taskId))) {
-    return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
-  }
+// tocar/quitar acá nunca modifica la plantilla de origen. Compartido entre
+// applyTestTemplate (el revisor la aplica a mano) y submitReviewRound (se
+// aplica sola si la tarea ya traía una plantilla por defecto desde su
+// creación, punto 10).
+async function copyTemplateItemsToRound(reviewRoundId: string, templateId: string) {
   const template = await prisma.testTemplate.findUnique({
     where: { id: templateId },
     include: { items: { orderBy: { order: "asc" } } },
   });
-  if (!template) return { ok: false as const, error: "Plantilla no encontrada." };
+  if (!template) return false;
 
   const count = await prisma.reviewCheck.count({ where: { reviewRoundId } });
   await prisma.reviewCheck.createMany({
@@ -125,6 +131,16 @@ export async function applyTestTemplate(reviewRoundId: string, templateId: strin
       order: count + i,
     })),
   });
+  return true;
+}
+
+export async function applyTestTemplate(reviewRoundId: string, templateId: string) {
+  const round = await prisma.reviewRound.findUniqueOrThrow({ where: { id: reviewRoundId } });
+  if (!(await canReviewTask(round.taskId))) {
+    return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
+  }
+  const applied = await copyTemplateItemsToRound(reviewRoundId, templateId);
+  if (!applied) return { ok: false as const, error: "Plantilla no encontrada." };
   await revalidateTask(round.taskId);
   return { ok: true as const };
 }

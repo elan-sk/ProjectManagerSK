@@ -10,7 +10,7 @@ import type { NotificationType } from "@prisma/client";
 // bloqueos, devoluciones) va al grupo del proyecto (o al de por defecto)
 // mencionando a los involucrados y al PM.
 const GROUP_ALERT_TYPES: NotificationType[] = ["OVERDUE", "BLOCKED", "RETURNED", "LATE_START_CRITICAL"];
-const DIRECT_ALERT_TYPES: NotificationType[] = ["ASSIGNED", "DEADLINE_APPROACHING", "LATE_START"];
+const DIRECT_ALERT_TYPES: NotificationType[] = ["ASSIGNED", "DEADLINE_APPROACHING", "LATE_START", "REVIEW_REQUESTED", "SHARE_ACTIVITY"];
 
 // Semáforo de severidad (mismo criterio que NOTIFICATION_TYPE_COLOR en
 // statusColors.ts: rojo = urgente, ámbar = por vencer, azul = informativo,
@@ -24,6 +24,8 @@ const NOTIFICATION_TYPE_HEADER: Partial<Record<NotificationType, string>> = {
   RETURNED: "🟠 *Tarea devuelta*",
   LATE_START: "🟡 *Inicio retrasado*",
   LATE_START_CRITICAL: "🔴 *Inicio retrasado hace días*",
+  REVIEW_REQUESTED: "🔵 *Para revisar*",
+  SHARE_ACTIVITY: "🔵 *Actividad en link compartido*",
 };
 
 function formatWhatsAppText(type: NotificationType, message: string) {
@@ -149,6 +151,36 @@ export async function notifyReturned(taskId: string) {
   await notify(involvedIds, "RETURNED", `La tarea "${task.title}" fue devuelta en revisión`, taskId, url, {
     projectId: task.projectId,
   });
+}
+
+// Ronda nueva enviada a revisión — a los revisores de la tarea, no al PM ni
+// al asignado (que ya sabe que la envió). Antes no existía ningún aviso acá:
+// un revisor solo se enteraba si entraba a mirar la tarea a mano.
+export async function notifyReviewRequested(taskId: string) {
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { reviewers: true } });
+  if (task.reviewers.length === 0) return;
+  const url = `/projects/${task.projectId}/tasks/${taskId}`;
+  await notify(
+    task.reviewers.map((r) => r.userId),
+    "REVIEW_REQUESTED",
+    `"${task.title}" está esperando tu revisión`,
+    taskId,
+    url
+  );
+}
+
+// Alguien comentó o subió un archivo desde el link compartido de la tarea
+// (punto 16 confirmado con el usuario) — avisa a PM, asignados y revisores.
+export async function notifyShareActivity(taskId: string, message: string) {
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    include: { assignees: true, reviewers: true, project: { select: { pmId: true } } },
+  });
+  const url = `/projects/${task.projectId}/tasks/${taskId}`;
+  const involvedIds = Array.from(
+    new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])
+  );
+  await notify(involvedIds, "SHARE_ACTIVITY", message, taskId, url);
 }
 
 // ponytail: sin cron real todavía — se recalcula al cargar el layout

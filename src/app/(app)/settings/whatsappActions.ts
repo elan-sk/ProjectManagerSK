@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { startWhatsApp, getWhatsAppStatus, listGroups } from "@/lib/whatsapp";
+import { startWhatsApp, stopWhatsApp, getWhatsAppStatus, listGroups } from "@/lib/whatsapp";
 import { setAppWhatsAppGroup, setAppWorkHours } from "@/lib/appSettings";
 
 async function requireAdmin() {
@@ -32,6 +32,11 @@ export async function updateDefaultWhatsAppGroup(groupJid: string) {
   await setAppWhatsAppGroup(groupJid || null);
   revalidatePath("/settings");
   return { ok: true as const };
+}
+
+export async function disconnectWhatsApp() {
+  await requireAdmin();
+  stopWhatsApp();
 }
 
 export async function updateWorkHours(startHour: number, endHour: number) {

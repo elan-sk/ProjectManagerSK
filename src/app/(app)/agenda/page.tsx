@@ -1,15 +1,15 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { getTaskAlert } from "@/lib/delays";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ComboFilter } from "@/components/ComboFilter";
 import { SearchBox } from "@/components/SearchBox";
+import { getTaskAlert } from "@/lib/delays";
+import { prisma } from "@/lib/prisma";
 import { matchesTaskSearch } from "@/lib/search";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, taskCardTint } from "@/lib/statusColors";
-import { RememberViewState } from "../RememberViewState";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, taskCardTint } from "@/lib/statusColors";
 import type { TaskStatus } from "@prisma/client";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { RememberViewState } from "../RememberViewState";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", timeZone: "UTC" };
 
@@ -88,7 +88,7 @@ export default async function AgendaPage({
       <RememberViewState storageKey="lastAgendaView" />
       <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
 
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox basePath="/agenda" q={q} hiddenParams={{ projectId, status, userId, risk }} />

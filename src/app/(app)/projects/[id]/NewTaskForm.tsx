@@ -1,37 +1,48 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { addTask } from "./actions";
 import { CalendarDatePicker } from "@/components/CalendarDatePicker";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
+import { TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { NewTaskTagsPicker } from "./NewTaskTagsPicker";
 
 // Punto 2 (unificación): checklist y link de reunión ahora son atributos de
 // cualquier tarea, no tipos propios — ver TASK_TYPE_LABEL en statusColors.ts.
-const TASK_TYPES = [
-  { value: "SIMPLE", label: "Simple" },
-  { value: "MILESTONE", label: "Entregable" },
-  { value: "QA", label: "Revisión" },
-  { value: "ADJUSTMENT", label: "Ajuste" },
-];
+// Se deriva de ahí (no una lista propia) para que renombrar un tipo no quede
+// desincronizado entre este formulario y el resto de la app.
+const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((value) => ({
+  value,
+  label: TASK_TYPE_LABEL[value],
+}));
 
 export function NewTaskForm({
   projectId,
   phases,
   users,
   otherTasks,
+  templates,
+  tagCategories,
+  projectTagNamesByCategory,
 }: {
   projectId: string;
   phases: { id: string; name: string }[];
   users: { id: string; name: string; avatarUrl?: string | null }[];
   otherTasks: { id: string; title: string; nextAvailableStart: string }[];
+  templates: { id: string; name: string }[];
+  tagCategories: { id: string; name: string; colorHex: string; emoji: string | null }[];
+  projectTagNamesByCategory: Record<string, string[]>;
 }) {
   const onDone = useModalClose();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [durationDays, setDurationDays] = useState(1);
   const [predecessorId, setPredecessorId] = useState("");
+  const [type, setType] = useState(TASK_TYPES[0].value as string);
   const [isPending, startTransition] = useTransition();
   const selectedPredecessor = otherTasks.find((t) => t.id === predecessorId);
 
@@ -41,8 +52,12 @@ export function NewTaskForm({
         setError(null);
         startTransition(async () => {
           const result = await addTask(projectId, formData);
-          if (result.ok) onDone();
-          else setError(result.error ?? "No se pudo crear la tarea.");
+          if (result.ok) {
+            onDone();
+            router.push(`/projects/${projectId}/tasks/${result.id}`);
+          } else {
+            setError(result.error ?? "No se pudo crear la tarea.");
+          }
         });
       }}
       className="space-y-3"
@@ -65,7 +80,13 @@ export function NewTaskForm({
         </div>
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Tipo</label>
-          <select name="type" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <select
+            name="type"
+            required
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
             {TASK_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -123,6 +144,39 @@ export function NewTaskForm({
           ))}
         </div>
       </div>
+
+      {type === "QA" && (
+        <>
+          <div className="space-y-1">
+            <label className="text-sm text-slate-600">Revisor(es)</label>
+            <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-lg border border-slate-300 p-1">
+              {users.map((u) => (
+                <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                  <input type="checkbox" name="reviewerIds" value={u.id} className="rounded border-slate-300" />
+                  <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-6 w-6 text-[10px]" />
+                  {u.name}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-slate-600">Plantilla de pruebas (opcional)</label>
+            <select name="defaultTestTemplateId" defaultValue="" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Ninguna por ahora</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
+
+      {tagCategories.length > 0 && (
+        <NewTaskTagsPicker categories={tagCategories} projectTagNamesByCategory={projectTagNamesByCategory} />
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

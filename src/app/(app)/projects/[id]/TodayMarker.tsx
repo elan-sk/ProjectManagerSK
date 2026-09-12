@@ -19,11 +19,13 @@ import { GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
  */
 export function TodayMarker({
   left,
+  height,
   label,
   prefix = "Hoy",
   colorClass = "bg-amber-400 hover:bg-amber-500",
 }: {
   left: number;
+  height: number;
   label: string;
   prefix?: string;
   colorClass?: string;
@@ -54,8 +56,8 @@ export function TodayMarker({
       onMouseLeave={hideTooltip}
       onFocus={showTooltip}
       onBlur={hideTooltip}
-      className={`absolute top-0 z-[25] h-full w-px cursor-pointer outline-none hover:w-0.5 ${colorClass}`}
-      style={{ left }}
+      className={`absolute top-0 z-[25] w-px cursor-pointer outline-none hover:w-0.5 ${colorClass}`}
+      style={{ left, height }}
     >
       {tooltipPos &&
         tooltipLayer &&

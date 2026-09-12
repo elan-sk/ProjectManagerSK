@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { connectWhatsApp, whatsAppStatus, whatsAppGroups, updateDefaultWhatsAppGroup, updateWorkHours } from "./whatsappActions";
+import { connectWhatsApp, disconnectWhatsApp, whatsAppStatus, whatsAppGroups, updateDefaultWhatsAppGroup, updateWorkHours } from "./whatsappActions";
 import type { WhatsAppStatus } from "@/lib/whatsapp";
 
 export function WhatsAppConnectPanel({
@@ -49,6 +49,17 @@ export function WhatsAppConnectPanel({
   return (
     <div className="space-y-4">
       {status === "connected" && <p className="text-sm text-emerald-600">Conectado.</p>}
+
+      {(status === "connected" || status === "connecting") && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => startTransition(() => disconnectWhatsApp())}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 mr-3"
+        >
+          Desconectar
+        </button>
+      )}
 
       {status !== "connected" && (
         <button

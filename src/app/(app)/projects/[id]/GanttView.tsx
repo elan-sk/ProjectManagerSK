@@ -9,6 +9,7 @@ import { TodayMarker } from "./TodayMarker";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { setDependency, removeDependency } from "./tasks/[taskId]/actions";
 import { moveTaskGroup } from "./actions";
 import { ModalShell } from "@/components/Modal";
@@ -46,6 +47,10 @@ export type GanttTask = {
   alert: TaskAlert;
   bottleneckReason: string | null;
   collidesWith: CollisionInfo[] | null;
+  assignees: { name: string; avatarUrl: string | null }[];
+  reviewers: { name: string; avatarUrl: string | null }[];
+  tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
+  shareToken: string | null;
 };
 
 const TASK_ROW_HEIGHT = 32;
@@ -60,6 +65,30 @@ function barColor(task: GanttTask) {
   if (task.alert.level === "overdue") return "bg-red-500";
   if (task.alert.level === "warning") return "bg-amber-500";
   return TASK_STATUS_COLOR[task.status].bar;
+}
+
+// businessDays no tiene fin de semana/feriados (ver businessDaysRange) — si
+// "hoy" cae justo ahí, no hay ninguna columna donde dibujar la línea. En vez
+// de que desaparezca, la anclamos al día hábil más próximo (antes o
+// después, el que quede a menos días calendario). Array ya ordenado
+// ascendente, así que bisectamos en vez de recorrerlo entero.
+function closestBusinessDayIndex(days: Date[], targetKey: string): number {
+  if (days.length === 0) return -1;
+  const exact = days.findIndex((d) => d.toISOString().slice(0, 10) === targetKey);
+  if (exact >= 0) return exact;
+  const target = new Date(`${targetKey}T00:00:00.000Z`).getTime();
+  let lo = 0;
+  let hi = days.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (days[mid].getTime() < target) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo === 0) return 0;
+  if (lo === days.length) return days.length - 1;
+  const distAfter = days[lo].getTime() - target;
+  const distBefore = target - days[lo - 1].getTime();
+  return distAfter <= distBefore ? lo : lo - 1;
 }
 
 type DependencyType = "FINISH_TO_START" | "START_TO_START";
@@ -172,12 +201,16 @@ export function GanttView({
   canManage,
   targetEndDate,
   users,
+  collisionUrlBase = "/projects",
 }: {
   businessDays: Date[];
   tasks: GanttTask[];
   canManage: boolean;
   targetEndDate?: string | null;
   users: { id: string; name: string; avatarUrl?: string | null }[];
+  // Ver mismo comentario en KanbanBoard: base de "Ver mis colisiones", solo
+  // relevante cuando la pasa /projects/page.tsx.
+  collisionUrlBase?: string;
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -207,6 +240,10 @@ export function GanttView({
   const [criticalSelected, setCriticalSelected] = useState(false);
   const [criticalHoverPos, setCriticalHoverPos] = useState<{ left: number; top: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  // Ctrl/Cmd sostenido es el gesto de selección múltiple (ver toggleSelect):
+  // mientras se mantiene presionado para ir marcando varias barras rápido, el
+  // tooltip de hover solo estorba tapando las barras vecinas — se apaga acá.
+  const [ctrlHeld, setCtrlHeld] = useState(false);
   const closeHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const criticalTasksOrderedRef = useRef<GanttTask[]>([]);
@@ -249,6 +286,29 @@ export function GanttView({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    function onCtrlDown(e: KeyboardEvent) {
+      if (e.key === "Control" || e.key === "Meta") setCtrlHeld(true);
+    }
+    function onCtrlUp(e: KeyboardEvent) {
+      if (e.key === "Control" || e.key === "Meta") setCtrlHeld(false);
+    }
+    // Si el foco se va de la ventana con Ctrl todavía presionado (alt-tab,
+    // devtools, etc.), el keyup nunca llega — sin esto quedaría "pegado" en
+    // true y el hover no volvería a mostrarse.
+    function onWindowBlur() {
+      setCtrlHeld(false);
+    }
+    document.addEventListener("keydown", onCtrlDown);
+    document.addEventListener("keyup", onCtrlUp);
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      document.removeEventListener("keydown", onCtrlDown);
+      document.removeEventListener("keyup", onCtrlUp);
+      window.removeEventListener("blur", onWindowBlur);
+    };
   }, []);
 
   // Punto confirmado con el usuario: un click SIN Ctrl/Cmd reemplaza la
@@ -610,13 +670,15 @@ export function GanttView({
   // real — hacía que la línea desapareciera de noche, y si ese "día
   // siguiente" era sábado, ni figuraba en businessDays).
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
-  const todayIndex = businessDays.findIndex((d) => d.toISOString().slice(0, 10) === todayKey);
-  const todayLabel = fmtDate(`${todayKey}T00:00:00.000Z`);
+  const todayIndex = closestBusinessDayIndex(businessDays, todayKey);
+  const todayIsExact = todayIndex >= 0 && businessDays[todayIndex].toISOString().slice(0, 10) === todayKey;
+  const todayLabel = todayIndex >= 0 ? fmtDate(businessDays[todayIndex].toISOString()) : fmtDate(`${todayKey}T00:00:00.000Z`);
   const targetEndKey = targetEndDate ? targetEndDate.slice(0, 10) : null;
-  const targetEndIndex = targetEndKey
-    ? businessDays.findIndex((d) => d.toISOString().slice(0, 10) === targetEndKey)
-    : -1;
-  const targetEndLabel = targetEndDate ? fmtDate(targetEndDate) : "";
+  const targetEndIndex = targetEndKey ? closestBusinessDayIndex(businessDays, targetEndKey) : -1;
+  const targetEndIsExact =
+    targetEndIndex >= 0 && targetEndKey !== null && businessDays[targetEndIndex].toISOString().slice(0, 10) === targetEndKey;
+  const targetEndLabel =
+    targetEndIndex >= 0 ? fmtDate(businessDays[targetEndIndex].toISOString()) : targetEndDate ? fmtDate(targetEndDate) : "";
   const businessDaysISO = businessDays.map((d) => d.toISOString());
   const maxEndIndex = businessDays.length - 1;
 
@@ -748,7 +810,7 @@ export function GanttView({
   return (
     <>
     {/* Alto fijo (mismo patrón que KanbanBoard): el padre (page.tsx) es
-        sticky top-[57px] h-[calc(100vh-100px)], así que "h-full" hereda esa
+        sticky top-[57px] h-[calc(100vh-150px)], así que "h-full" hereda esa
         altura sin importar cuánto contenido haya arriba (breadcrumb, título,
         tabs, filtros) — el Gantt scrollea internamente en ambos ejes dentro
         de ese alto. */}
@@ -809,7 +871,11 @@ export function GanttView({
               <div key={groupKey}>
                 <div
                   className="flex items-center bg-slate-50"
-                  style={{ minWidth: LABEL_WIDTH + timelineWidth, height: PHASE_ROW_HEIGHT }}
+                  // ponytail: content-visibility salta el layout/paint de filas
+                  // fuera de vista — como ya tienen alto fijo, el navegador no
+                  // necesita contain-intrinsic-size para reservar espacio. Es
+                  // "carga progresiva" gratis para proyectos con muchas fases.
+                  style={{ minWidth: LABEL_WIDTH + timelineWidth, height: PHASE_ROW_HEIGHT, contentVisibility: "auto" }}
                 >
                   <div
                     onClick={() => scrollToPhaseStart(phaseStart)}
@@ -840,7 +906,7 @@ export function GanttView({
                   <div
                     key={t.id}
                     className="group flex items-center border-t border-slate-100"
-                    style={{ height: TASK_ROW_HEIGHT }}
+                    style={{ height: TASK_ROW_HEIGHT, contentVisibility: "auto" }}
                   >
                     <div
                       style={{ width: LABEL_WIDTH }}
@@ -873,12 +939,13 @@ export function GanttView({
                             label: `${c.title} (${c.projectName})`,
                             href: `/projects/${c.projectId}/tasks/${c.taskId}`,
                           }))}
-                          filteredHref="/projects?collision=1"
-                          filteredLabel="Ver todas las colisiones"
+                          filteredHref={`${collisionUrlBase}${collisionUrlBase.includes("?") ? "&" : "?"}collision=${t.id}`}
+                          filteredLabel="Ver mis colisiones"
                           extraHref={`/collisions/${t.id}`}
                           extraLabel="Ver detalle y alternativas"
                         />
                       )}
+                      {t.shareToken && <CopyLinkButton token={t.shareToken} className="flex-shrink-0 text-indigo-500 hover:text-indigo-700" />}
                       {t.attachmentsCount > 0 && (
                         <PaperclipIcon className="h-3 w-3 flex-shrink-0 text-slate-400" />
                       )}
@@ -893,17 +960,6 @@ export function GanttView({
                       </button>
                     </div>
                     <div data-gantt-timeline className="relative cursor-grab" style={{ width: timelineWidth, height: TASK_ROW_HEIGHT }}>
-                      {todayIndex >= 0 && (
-                        <TodayMarker left={todayIndex * DAY_WIDTH + DAY_WIDTH / 2} label={todayLabel} />
-                      )}
-                      {targetEndIndex >= 0 && (
-                        <TodayMarker
-                          left={targetEndIndex * DAY_WIDTH + DAY_WIDTH / 2}
-                          label={targetEndLabel}
-                          prefix="Cierre del proyecto"
-                          colorClass="bg-red-400 hover:bg-red-500"
-                        />
-                      )}
                       <GanttBar
                         key={`${t.id}:${t.plannedStart}:${t.plannedEnd}`}
                         taskId={t.id}
@@ -922,6 +978,10 @@ export function GanttView({
                         blocks={t.blocks}
                         attachmentsCount={t.attachmentsCount}
                         alert={t.alert}
+                        assignees={t.assignees}
+                        reviewers={t.reviewers}
+                        tags={t.tags}
+                        ctrlHeld={ctrlHeld}
                         canResize={canManage}
                         highlighted={highlightedIds?.has(t.id)}
                         critical={criticalTaskIds.has(t.id) && !criticalSelected}
@@ -940,6 +1000,27 @@ export function GanttView({
               </div>
             );
           })}
+
+          {/* Líneas de "hoy" y "cierre del proyecto" a lo alto de todo el
+              Gantt (no por fila): así quedan por encima del fondo de los
+              encabezados de fase en vez de cortarse en cada uno. */}
+          {todayIndex >= 0 && (
+            <TodayMarker
+              left={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
+              height={totalRowsHeight}
+              label={todayLabel}
+              prefix={todayIsExact ? "Hoy" : "Hoy · día hábil más cercano"}
+            />
+          )}
+          {targetEndIndex >= 0 && (
+            <TodayMarker
+              left={LABEL_WIDTH + targetEndIndex * DAY_WIDTH + DAY_WIDTH / 2}
+              height={totalRowsHeight}
+              label={targetEndLabel}
+              prefix={targetEndIsExact ? "Cierre del proyecto" : "Cierre del proyecto · día hábil más cercano"}
+              colorClass="bg-red-400 hover:bg-red-500"
+            />
+          )}
 
           {/* Conectores de dependencia — mismo lenguaje visual que cualquier
               Gantt (Smartsheet/MS Project): línea sólida "termina antes de
@@ -1160,6 +1241,7 @@ export function GanttView({
               title={insertTask.role === "successor" ? "Crear sucesor" : "Crear predecesor"}
             >
               <InsertAdjacentTaskForm
+                projectId={origin.projectId}
                 originTaskId={insertTask.originTaskId}
                 role={insertTask.role}
                 phaseName={origin.phaseName}

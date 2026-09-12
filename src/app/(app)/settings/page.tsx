@@ -104,10 +104,20 @@ export default async function SettingsPage({
       <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-medium text-slate-900">Pruebas</h2>
         <p className="text-sm text-slate-500">
-          Plantillas de pruebas y de respuestas para las tareas tipo Revisión.
+          Plantillas de pruebas y de respuestas para las tareas tipo Prueba.
         </p>
         <Link href="/settings/tests" className="inline-block text-sm font-medium text-slate-900 hover:underline">
           Ir a Pruebas →
+        </Link>
+      </section>
+
+      <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="font-medium text-slate-900">Etiquetas</h2>
+        <p className="text-sm text-slate-500">
+          Categorías de etiqueta (color + emoji) para seguir un mismo elemento a través de varias tareas.
+        </p>
+        <Link href="/settings/tags" className="inline-block text-sm font-medium text-slate-900 hover:underline">
+          Ir a Etiquetas →
         </Link>
       </section>
 

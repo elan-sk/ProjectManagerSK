@@ -90,7 +90,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
           <h1 className="text-xl font-semibold text-slate-900">Colisiones de agenda</h1>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-indigo-300 bg-white p-3 shadow-[0_4px_16px_rgba(99,102,241,0.18)]">
           <div className="flex min-w-0 items-center gap-2">
             <ProjectIcon name={anchorTask.project.name} iconUrl={anchorTask.project.iconUrl} size="h-9 w-9 text-sm" />
             <div className="min-w-0">

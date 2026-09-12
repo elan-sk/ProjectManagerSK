@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { resizeTask, moveTask } from "./actions";
 import { AlertBadge } from "@/components/AlertBadge";
+import { Avatar } from "@/components/Avatar";
+import { TagChip } from "@/components/TagChip";
 import { useToast } from "@/components/Toast";
 import type { TaskAlert } from "@/lib/delays";
 
@@ -49,6 +51,10 @@ export function GanttBar({
   blocks,
   attachmentsCount,
   alert: taskAlert,
+  assignees,
+  reviewers,
+  tags,
+  ctrlHeld,
   canResize,
   highlighted,
   critical,
@@ -77,6 +83,13 @@ export function GanttBar({
   blocks: string[];
   attachmentsCount: number;
   alert: TaskAlert;
+  assignees: { name: string; avatarUrl: string | null }[];
+  reviewers: { name: string; avatarUrl: string | null }[];
+  tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
+  // Mientras se sostiene Ctrl/Cmd (selección múltiple, ver GanttView) el
+  // hover no debe abrir el tooltip — estorba tapando las barras vecinas
+  // justo cuando el usuario está clickeando varias rápido.
+  ctrlHeld?: boolean;
   canResize: boolean;
   highlighted?: boolean;
   critical?: boolean;
@@ -118,6 +131,8 @@ export function GanttBar({
   const [liveStartIndex, setLiveStartIndex] = useState(startIndex);
   const [liveEndIndex, setLiveEndIndex] = useState(endIndex);
   const [tooltipPos, setTooltipPos] = useState<{ left: number; top: number } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipBarTopRef = useRef(0);
   // Distingue un click real (seleccionar/abrir) de un click que en realidad
   // fue el final de un arrastre del cuerpo — el evento click del navegador
   // se sigue disparando después del pointerup aunque haya habido movimiento.
@@ -155,12 +170,33 @@ export function GanttBar({
       8,
       containerRect.width - TOOLTIP_WIDTH - 8
     );
+    tooltipBarTopRef.current = barRect.top - containerRect.top;
     setTooltipPos({ left, top });
   }
 
   function hideTooltip() {
     setTooltipPos(null);
   }
+
+  // TOOLTIP_MAX_HEIGHT es una estimación: tareas con varias dependencias o
+  // revisores envuelven a más líneas y superan esa altura, así que el flip
+  // de arriba decidía "entra abajo" y el tooltip terminaba lejos de la barra,
+  // cerca del fondo del viewport. Acá se corrige con la altura YA renderizada.
+  useLayoutEffect(() => {
+    if (!tooltipPos || !tooltipRef.current) return;
+    const overflow = tooltipRef.current.getBoundingClientRect().bottom - window.innerHeight;
+    if (overflow > 0) {
+      const realHeight = tooltipRef.current.offsetHeight;
+      setTooltipPos((p) => (p ? { ...p, top: tooltipBarTopRef.current - realHeight - 8 } : p));
+    }
+  }, [tooltipPos]);
+
+  // El mouse puede quedarse quieto sobre la barra mientras el usuario recién
+  // presiona Ctrl — sin esto el tooltip que ya estaba abierto se quedaría
+  // pegado en pantalla hasta el próximo mouseenter/leave.
+  useEffect(() => {
+    if (ctrlHeld) hideTooltip();
+  }, [ctrlHeld]);
 
   function onHandleDown(e: React.PointerEvent, edge: "left" | "right") {
     e.preventDefault();
@@ -319,7 +355,7 @@ export function GanttBar({
         outline: criticalSelected ? "2px solid #c026d3" : critical ? "1.5px solid #475569" : "none",
         outlineOffset: criticalSelected || critical ? "1px" : undefined,
       }}
-      onMouseEnter={showTooltip}
+      onMouseEnter={() => !ctrlHeld && showTooltip()}
       onMouseLeave={hideTooltip}
     >
       <div
@@ -330,7 +366,7 @@ export function GanttBar({
         tabIndex={0}
         aria-label={title}
         aria-pressed={selected}
-        onFocus={showTooltip}
+        onFocus={() => !ctrlHeld && showTooltip()}
         onBlur={hideTooltip}
         onPointerDown={onBodyDown}
         onPointerMove={onBodyMove}
@@ -347,6 +383,7 @@ export function GanttBar({
         tooltipLayer &&
         createPortal(
           <div
+            ref={tooltipRef}
             className="pointer-events-none absolute z-10 w-64 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
             style={{ left: tooltipPos.left, top: tooltipPos.top }}
           >
@@ -362,6 +399,33 @@ export function GanttBar({
             {dependsOn.length > 0 && <p className="mt-1 text-slate-500">Depende de: {dependsOn.join(", ")}</p>}
             {blocks.length > 0 && <p className="mt-1 text-slate-500">Sigue: {blocks.join(", ")}</p>}
             {attachmentsCount > 0 && <p className="mt-1 text-slate-500">{attachmentsCount} adjunto(s)</p>}
+            {assignees.length > 0 && (
+              <div className="mt-1.5 flex items-center gap-1">
+                <span className="text-slate-400">Asignados:</span>
+                <div className="flex -space-x-1.5">
+                  {assignees.map((a) => (
+                    <Avatar key={a.name} name={a.name} avatarUrl={a.avatarUrl} size="h-5 w-5 text-[9px]" />
+                  ))}
+                </div>
+              </div>
+            )}
+            {reviewers.length > 0 && (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="text-slate-400">Revisores:</span>
+                <div className="flex -space-x-1.5">
+                  {reviewers.map((r) => (
+                    <Avatar key={r.name} name={r.name} avatarUrl={r.avatarUrl} size="h-5 w-5 text-[9px]" />
+                  ))}
+                </div>
+              </div>
+            )}
+            {tags.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} name={tag.name} />
+                ))}
+              </div>
+            )}
             {onToggleSelect && (
               <p className="mt-1.5 text-[11px] text-slate-400">
                 Click para seleccionar

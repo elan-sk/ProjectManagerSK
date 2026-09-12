@@ -62,11 +62,16 @@ enum NotificationType {
   BLOCKED
   DELAY_CAUSED
   RETURNED
+  // Ronda nueva enviada a revisión — avisa a los revisores de la tarea que
+  // hay algo esperando (antes no existía ningún aviso para esto).
+  REVIEW_REQUESTED
   // Tarea NOT_STARTED cuya plannedStart ya pasó (debería estar en curso):
   // LATE_START mientras es reciente (≤2 días hábiles, alerta suave por DM),
   // LATE_START_CRITICAL al superar ese umbral (grave, va al grupo).
   LATE_START
   LATE_START_CRITICAL
+  // Alguien comentó o subió un archivo desde un link compartido (punto 16).
+  SHARE_ACTIVITY
 }
 
 enum ShareTargetType {
@@ -180,6 +185,7 @@ model Project {
   links        ProjectLink[]
   attachments  ProjectAttachment[]
   shareLinks   ShareLink[]
+  tags         Tag[]
 }
 
 // Enlaces/archivos importantes del proyecto (punto 3.2) — se prioriza el
@@ -204,8 +210,13 @@ model ProjectAttachment {
   fileUrl      String
   fileName     String
   mimeType     String
-  uploadedById String
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  // Nulo cuando lo sube un visitante externo por el link compartido (punto
+  // 15) — no tiene cuenta en la app, así que se identifica con su nombre en
+  // vez de un uploadedById.
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  externalUploaderName String?
+  externalUploaderRole String?
   uploadedAt   DateTime @default(now())
 }
 
@@ -286,6 +297,15 @@ model Task {
   adjustmentItems AdjustmentItem[]
   reviewers    TaskReviewer[]
   reviewRounds ReviewRound[]
+  shareComments ShareComment[]
+  taskTags     TaskTag[]
+
+  // Punto 10: plantilla elegida desde la creación de la tarea tipo Prueba —
+  // se copia sola como checks apenas nace la ronda 1 (ver submitReviewRound),
+  // sin que el revisor tenga que aplicarla a mano. SetNull: borrar la
+  // plantilla original no debe romper tareas que ya la tenían elegida.
+  defaultTestTemplateId String?
+  defaultTestTemplate   TestTemplate? @relation(fields: [defaultTestTemplateId], references: [id], onDelete: SetNull)
 
   // Dependencias: esta tarea depende de (predecesoras) / bloquea a (sucesoras)
   dependsOn TaskDependency[] @relation("SuccessorTask")
@@ -347,8 +367,13 @@ model Attachment {
   fileUrl      String
   fileName     String
   mimeType     String
-  uploadedById String
-  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+  // Nulo cuando lo sube un visitante externo por el link compartido de la
+  // tarea (punto 16, solo INSUMO) — se identifica con su nombre en vez de
+  // un uploadedById.
+  uploadedById String?
+  uploadedBy   User?          @relation(fields: [uploadedById], references: [id])
+  externalUploaderName String?
+  externalUploaderRole String?
   uploadedAt   DateTime       @default(now())
 }
 
@@ -365,6 +390,24 @@ model AdjustmentItem {
   createdAt   DateTime @default(now())
 
   attachments AdjustmentAttachment[]
+  shareComments ShareComment[]
+}
+
+// Punto 16: hilo de comentarios de la vista compartida de una tarea —
+// público para cualquiera con el link (confirmado con el usuario), sin
+// cuenta: se identifica con nombre (y cargo opcional) en vez de un userId.
+// adjustmentItemId ancla el comentario a un cambio puntual de una tarea tipo
+// Ajuste; queda null para un comentario general de la tarea.
+model ShareComment {
+  id               String          @id @default(cuid())
+  taskId           String
+  task             Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  adjustmentItemId String?
+  adjustmentItem   AdjustmentItem? @relation(fields: [adjustmentItemId], references: [id], onDelete: Cascade)
+  authorName       String
+  authorRole       String?
+  body             String
+  createdAt        DateTime        @default(now())
 }
 
 enum AdjustmentAttachmentKind {
@@ -504,6 +547,7 @@ model TestTemplate {
   createdAt DateTime @default(now())
 
   items TestTemplateItem[]
+  tasksWithThisAsDefault Task[]
 }
 
 // title = nombre corto del check (ej. "Prueba de responsividad"); criteria =
@@ -606,4 +650,52 @@ model ReviewMessage {
   body          String
   editedAt      DateTime?
   createdAt     DateTime    @default(now())
+}
+
+// Punto 17 confirmado con el usuario: sistema de etiquetas por categoría
+// para seguir un mismo elemento/objetivo a través de varias tareas (ej.
+// categoría "Componentes", etiqueta "hero-banner" repetida en la tarea de
+// maquetación y en la de codificación). La CATEGORÍA es global (color de la
+// misma paleta que ya usan los proyectos + emoji opcional, se crea en
+// Configuración) — el NOMBRE de la etiqueta se crea al vuelo la primera vez
+// que se usa y queda guardado, pero solo dentro de ESE proyecto.
+model TagCategory {
+  id        String   @id @default(cuid())
+  name      String
+  colorHex  String
+  emoji     String?
+  createdAt DateTime @default(now())
+
+  tags Tag[]
+}
+
+model Tag {
+  id         String      @id @default(cuid())
+  categoryId String
+  category   TagCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  projectId  String
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  createdAt  DateTime    @default(now())
+
+  taskTags TaskTag[]
+
+  // El mismo nombre puede repetirse en categorías o proyectos distintos,
+  // pero no dos veces bajo la misma categoría en el mismo proyecto.
+  @@unique([projectId, categoryId, name])
+}
+
+// categoryId queda denormalizado acá (ya vive en Tag) a propósito: es lo que
+// permite la restricción "una sola etiqueta por categoría por tarea"
+// (confirmada con el usuario) como un @@unique de una sola tabla, sin tener
+// que validarla a mano en cada acción.
+model TaskTag {
+  id         String @id @default(cuid())
+  taskId     String
+  task       Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  @@unique([taskId, categoryId])
 }

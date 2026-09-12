@@ -220,7 +220,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
 
   return (
     <div ref={containerRef}>
-      <div className="group fixed bottom-6 right-6 z-40">
+      <div className="group fixed bottom-3 right-3 z-40">
         {!open && (
           <span className="pointer-events-none absolute right-full top-1/2 mr-4 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 opacity-0 shadow-[0_12px_30px_rgba(15,23,42,0.2)] transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100">
             Hablá con {botName}

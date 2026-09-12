@@ -4,15 +4,19 @@ import { useState, useTransition } from "react";
 import { updateTaskStatus } from "../../actions";
 import { useConfirm } from "@/components/Confirm";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
-import type { TaskStatus } from "@prisma/client";
+import type { TaskStatus, TaskType } from "@prisma/client";
 
-const OPTIONS = Object.keys(TASK_STATUS_LABEL) as TaskStatus[];
+// Orden fijo de la fila de botones: "Completada" siempre al final, y
+// "Devuelta" (solo la usa el revisor en tareas de tipo Prueba/QA) va antes,
+// entre "Bloqueada" y "Completada" — nunca al final ni en tareas de otro tipo.
+const ORDER: TaskStatus[] = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"];
 
-export function TaskStatusControl({ taskId, status }: { taskId: string; status: TaskStatus }) {
+export function TaskStatusControl({ taskId, status, type }: { taskId: string; status: TaskStatus; type: TaskType }) {
   const confirm = useConfirm();
   const [current, setCurrent] = useState(status);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const options = ORDER.filter((value) => value !== "RETURNED" || type === "QA");
 
   async function change(next: TaskStatus) {
     if (next === current) return;
@@ -38,7 +42,7 @@ export function TaskStatusControl({ taskId, status }: { taskId: string; status: 
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1.5">
-        {OPTIONS.map((value) => (
+        {options.map((value) => (
           <button
             key={value}
             type="button"

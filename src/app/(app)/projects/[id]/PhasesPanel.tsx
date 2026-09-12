@@ -81,10 +81,10 @@ export function PhasesPanel({
                   {p.requirementTitles.length > 0 ? `Atiende: ${p.requirementTitles.join(", ")}` : "Sin requerimiento vinculado todavía."}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-start gap-4">
+                <div className="flex items-start gap-2">
                   <ProgressRing pct={p.pct} overdue={p.taskCounts.overdue > 0} size={28} />
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 flex flex-col gap-1">
                     <p className="whitespace-nowrap">
                       {p.taskCounts.total > 0 ? `${p.taskCounts.completed}/${p.taskCounts.total} tareas` : "Sin tareas"}
                     </p>

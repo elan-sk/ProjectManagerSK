@@ -3,10 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "prisma generate && node ./scripts/lens-sk-resolve-port.js && node ./scripts/dev-tools-sync.js copy",
-    "dev": "next dev & node scripts/lens-sk-live-server.js",
-    "live": "node scripts/lens-sk-live-server.js",
-    "prebuild": "node ./scripts/dev-tools-sync.js clean",
+    "predev": "prisma generate",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

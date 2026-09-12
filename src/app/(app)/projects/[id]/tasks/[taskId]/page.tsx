@@ -21,6 +21,7 @@ import { InlinePhase } from "./InlinePhase";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
+import { ShareIcon } from "@/components/icons";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -28,6 +29,7 @@ import { NavLinkWithMemory } from "../../../../NavLinkWithMemory";
 import { getActiveShareLink } from "@/lib/shareLinks";
 import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
+import { TaskTagsEditor } from "./TaskTagsEditor";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -60,11 +62,12 @@ export default async function TaskDetailPage({
       },
       dependsOn: { include: { predecessor: true } },
       blocks: { include: { successor: { select: { id: true, title: true } } } },
+      taskTags: { include: { tag: { include: { category: true } } } },
     },
   });
   if (!task) notFound();
 
-  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates] = await Promise.all([
+  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
@@ -77,7 +80,19 @@ export default async function TaskDetailPage({
     prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
     getActiveShareLink("TASK", taskId),
     task.type === "QA" ? prisma.testTemplate.findMany({ orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
+    task.type === "QA"
+      ? prisma.responseCategory.findMany({ include: { responses: true }, orderBy: { name: "asc" } })
+      : Promise.resolve([]),
+    prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
+    prisma.tag.findMany({ where: { projectId }, select: { id: true, categoryId: true, name: true } }),
   ]);
+
+  // Mismo mapa que en projects/[id]/page.tsx: nombres ya usados en este
+  // proyecto por categoría, para sugerir (sin obligar) en el <datalist>.
+  const projectTagNamesByCategory: Record<string, string[]> = {};
+  for (const t of projectTags) {
+    (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
+  }
 
   const delayDays =
     task.status === "COMPLETED" ? await getTaskDelayDays(task.project.countryCode, task) : 0;
@@ -134,6 +149,24 @@ export default async function TaskDetailPage({
             </ModalTrigger>
           )}
         </div>
+
+        <div className="mt-1.5">
+          <TaskTagsEditor
+            taskId={taskId}
+            currentTags={task.taskTags.map((tt) => ({
+              taskTagId: tt.id,
+              categoryId: tt.categoryId,
+              categoryName: tt.tag.category.name,
+              colorHex: tt.tag.category.colorHex,
+              emoji: tt.tag.category.emoji,
+              name: tt.tag.name,
+            }))}
+            categories={tagCategories}
+            projectTagNamesByCategory={projectTagNamesByCategory}
+            canEdit={canEdit}
+          />
+        </div>
+
         <p className="mt-1 text-sm text-slate-500">
           Planeada: {task.plannedStart.toLocaleDateString("es-CO", DATE_FMT)} —{" "}
           {task.plannedEnd.toLocaleDateString("es-CO", DATE_FMT)}
@@ -217,9 +250,9 @@ export default async function TaskDetailPage({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <TaskStatusControl key={task.status} taskId={taskId} status={task.status} />
-          {canManage && (
-            <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact>
+          <TaskStatusControl key={task.status} taskId={taskId} status={task.status} type={task.type} />
+          {canEdit && (
+            <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
               <ShareLinkPanel
                 activeToken={activeShareLink?.token ?? null}
                 activeLinkId={activeShareLink?.id ?? null}
@@ -299,7 +332,7 @@ export default async function TaskDetailPage({
           </div>
 
           <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="font-medium text-slate-900">Resultados / evidencia</h2>
+            <h2 className="font-medium text-slate-900">Evidencias</h2>
             <AttachmentGrid
               items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
               canDelete={canManage}
@@ -329,6 +362,7 @@ export default async function TaskDetailPage({
           users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
           currentReviewerIds={task.reviewers.map((r) => r.userId)}
           templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}
+          responseCategories={responseCategories.map((c) => ({ name: c.name, responses: c.responses.map((r) => r.text) }))}
           rounds={task.reviewRounds.map((round) => ({
             id: round.id,
             roundNumber: round.roundNumber,

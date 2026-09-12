@@ -12,22 +12,28 @@ import { RECENT_PROJECT_IDS_KEY } from "./[id]/SaveLastProject";
  * traía el servidor, createdAt desc) se mantiene para los proyectos que
  * nunca se visitaron — sort() es estable, así que solo se reacomodan los
  * visitados, al frente, sin desordenar el resto.
+ *
+ * `limit` (vista "Recientes") se aplica DESPUÉS de ese reordenamiento: son
+ * los proyectos realmente abiertos/manipulados hace poco, no los últimos
+ * `limit` creados — si no aplicara acá sino en el servidor, un proyecto
+ * viejo recién abierto nunca llegaría a mostrarse.
  */
-export function ProjectCardsOrder({ items }: { items: { id: string; node: ReactNode }[] }) {
-  const [ordered, setOrdered] = useState(items);
+export function ProjectCardsOrder({ items, limit }: { items: { id: string; node: ReactNode }[]; limit?: number }) {
+  const [ordered, setOrdered] = useState(() => (limit ? items.slice(0, limit) : items));
 
   useEffect(() => {
+    let sorted = items;
     try {
       const recent: string[] = JSON.parse(localStorage.getItem(RECENT_PROJECT_IDS_KEY) ?? "[]");
-      if (recent.length === 0) return;
-      const rank = new Map(recent.map((id, i) => [id, i]));
-      setOrdered(
-        [...items].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity))
-      );
+      if (recent.length > 0) {
+        const rank = new Map(recent.map((id, i) => [id, i]));
+        sorted = [...items].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+      }
     } catch {
       // localStorage no disponible (modo privado, etc.) — se queda con el orden del servidor
     }
-  }, [items]);
+    setOrdered(limit ? sorted.slice(0, limit) : sorted);
+  }, [items, limit]);
 
   return (
     <>

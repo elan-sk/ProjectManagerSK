@@ -1,7 +1,9 @@
+import { ComboFilter } from "@/components/ComboFilter";
+import { CopyLinkButton } from "@/components/CopyLinkButton";
+import { LinkIcon } from "@/components/icons";
+import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
-import { ComboFilter } from "@/components/ComboFilter";
-import { SearchBox } from "@/components/SearchBox";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -22,6 +24,7 @@ export function ProjectFilesView({
   projectId,
   files,
   tasks,
+  sharedLinks,
   fileKind,
   fileType,
   fileTask,
@@ -32,17 +35,25 @@ export function ProjectFilesView({
   projectId: string;
   files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string }[];
   tasks: { id: string; title: string }[];
-  fileKind: "INSUMO" | "RESULTADO";
+  // Links de "Compartir" (acceso público al proyecto/tarea) activos —
+  // distintos de un adjunto tipo link (recurso externo pegado a mano),
+  // por eso van en su propia sección en vez de la grilla de AttachmentGrid.
+  sharedLinks: { id: string; label: string; token: string; href: string }[];
+  fileKind?: "INSUMO" | "RESULTADO";
   fileType?: string;
   fileTask?: string;
   fileQ?: string;
   canDelete: boolean;
   filesHref: (overrides: Record<string, string | undefined>) => string;
 }) {
+  const showSharedLinks = !fileType || fileType === "all" || fileType === "link";
   return (
     <div className="space-y-4">
       <div className="flex gap-2 text-sm">
-        <Link href={filesHref({ fileKind: undefined })} className={tabClass(fileKind !== "RESULTADO")}>
+        <Link href={filesHref({ fileKind: undefined })} className={tabClass(!fileKind)}>
+          Todos
+        </Link>
+        <Link href={filesHref({ fileKind: "INSUMO" })} className={tabClass(fileKind === "INSUMO")}>
           Insumos
         </Link>
         <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
@@ -50,7 +61,7 @@ export function ProjectFilesView({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox
@@ -86,8 +97,25 @@ export function ProjectFilesView({
         </div>
       </div>
 
+      {showSharedLinks && sharedLinks.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-400">Links compartidos</p>
+          <div className="space-y-1.5">
+            {sharedLinks.map((l) => (
+              <div key={l.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm mb-1">
+                <Link href={l.href} className="flex min-w-0 items-center gap-1.5 truncate text-slate-700 hover:underline">
+                  <LinkIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
+                  <span className="truncate">{l.label}</span>
+                </Link>
+                <CopyLinkButton token={l.token} className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {files.length === 0 ? (
-        <p className="text-sm text-slate-400">Sin archivos.</p>
+        (!showSharedLinks || sharedLinks.length === 0) && <p className="text-sm text-slate-400">Sin archivos.</p>
       ) : (
         <AttachmentGrid
           className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"

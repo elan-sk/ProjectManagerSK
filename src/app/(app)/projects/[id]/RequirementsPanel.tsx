@@ -80,10 +80,10 @@ export function RequirementsPanel({
                   {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-4">
+              <div className="flex shrink-0 items-start gap-4">
                 <div className="flex items-center gap-2">
                   <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} size={28} />
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 flex flex-col gap-1">
                     <p className="whitespace-nowrap">
                       {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
                     </p>

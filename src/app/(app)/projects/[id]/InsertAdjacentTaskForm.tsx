@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { insertAdjacentTask } from "./actions";
 import { CalendarDatePicker } from "@/components/CalendarDatePicker";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
+import { TASK_TYPE_LABEL } from "@/lib/statusColors";
 
-const TASK_TYPES = [
-  { value: "SIMPLE", label: "Simple" },
-  { value: "MILESTONE", label: "Entregable" },
-  { value: "QA", label: "Revisión" },
-  { value: "ADJUSTMENT", label: "Ajuste" },
-];
+const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((value) => ({
+  value,
+  label: TASK_TYPE_LABEL[value],
+}));
 
 // Formulario de "Crear predecesor"/"Crear sucesor" del menú contextual del
 // Gantt (ver GanttView.tsx): a diferencia de NewTaskForm, la fase y el
@@ -23,6 +23,7 @@ const TASK_TYPES = [
 // origin ya tenía predecesora, esa pasa a serlo de la nueva) — ese vínculo
 // sí se expone editable porque no lo fija la acción en sí.
 export function InsertAdjacentTaskForm({
+  projectId,
   originTaskId,
   role,
   phaseName,
@@ -31,6 +32,7 @@ export function InsertAdjacentTaskForm({
   phaseTasks,
   currentPredecessorId,
 }: {
+  projectId: string;
   originTaskId: string;
   role: "predecessor" | "successor";
   phaseName: string;
@@ -40,6 +42,7 @@ export function InsertAdjacentTaskForm({
   currentPredecessorId?: string;
 }) {
   const onDone = useModalClose();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [durationDays, setDurationDays] = useState(1);
   const [isPending, startTransition] = useTransition();
@@ -50,8 +53,12 @@ export function InsertAdjacentTaskForm({
         setError(null);
         startTransition(async () => {
           const result = await insertAdjacentTask(originTaskId, role, formData);
-          if (result.ok) onDone();
-          else setError(result.error ?? "No se pudo crear la tarea.");
+          if (result.ok) {
+            onDone();
+            router.push(`/projects/${projectId}/tasks/${result.id}`);
+          } else {
+            setError(result.error ?? "No se pudo crear la tarea.");
+          }
         });
       }}
       className="space-y-3"

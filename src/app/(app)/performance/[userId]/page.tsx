@@ -127,7 +127,7 @@ export default async function IndividualPerformancePage({
             meetsGoal={(summary?.tasksCompleted ?? 0) >= PERFORMANCE_GOALS.tasksCompleted}
           />
           <GoalTile
-            label="Aprobado al 1er intento (revisión)"
+            label="Aprobado al 1er intento (prueba)"
             value={
               firstTryRate === null
                 ? "—"

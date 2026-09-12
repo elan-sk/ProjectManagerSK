@@ -2,7 +2,7 @@
 
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
 import { deleteTask } from "./tasks/[taskId]/actions";
@@ -12,9 +12,11 @@ import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
 import { PaperclipIcon, OverlapIcon } from "@/components/icons";
+import { TagChip } from "@/components/TagChip";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -31,12 +33,15 @@ export type TaskCard = {
   riskLevel: string;
   assignees: { name: string; avatarUrl: string | null }[];
   assigneeIds: string[];
+  reviewers: { name: string; avatarUrl: string | null }[];
+  tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
   plannedStart: string;
   plannedEnd: string;
   stepsProgress: { done: number; total: number } | null;
   attachmentsCount: number;
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
+  shareToken: string | null;
 };
 
 // RETURNED comparte columna con BLOCKED (misma columna "Bloqueada"): el
@@ -44,6 +49,17 @@ export type TaskCard = {
 // arrastra manualmente, así que no necesita columna propia — solo un badge
 // en la card para distinguirla (ver CardBody).
 const COLUMNS = (Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).filter((s) => s !== "RETURNED");
+
+// Cambiar un filtro cambia los searchParams → la página se vuelve a
+// renderizar con un set de tareas distinto → el `key` de KanbanBoard (más
+// abajo) cambia y todo el tablero se remonta de cero, perdiendo el scroll
+// vertical propio de cada columna (Column tiene su propio overflow-y-auto).
+// Ese remount hace falta para que el estado interno recoja las tareas ya
+// filtradas, así que en vez de evitarlo, la posición se guarda acá afuera
+// (sobrevive al remount, no a un refresh de página — no hace falta más) y se
+// restaura al montar cada columna. Con estado en memoria alcanza: no hace
+// falta persistir entre sesiones.
+const columnScrollPositions = new Map<string, number>();
 
 const TYPE_BADGE: Record<string, string> = {
   SIMPLE: "bg-slate-100 text-slate-600",
@@ -81,6 +97,7 @@ function CardBody({
   users,
   deleting,
   onDelete,
+  collisionUrlBase,
 }: {
   task: TaskCard;
   showProjectName: boolean;
@@ -88,8 +105,10 @@ function CardBody({
   users: { id: string; name: string }[];
   deleting: boolean;
   onDelete: () => void;
+  collisionUrlBase: string;
 }) {
   const riskDot = RISK_DOT[task.riskLevel];
+  const myCollisionsHref = `${collisionUrlBase}${collisionUrlBase.includes("?") ? "&" : "?"}collision=${task.id}`;
 
   return (
     <>
@@ -106,7 +125,7 @@ function CardBody({
         </button>
       )}
 
-      <div className="flex items-start justify-between gap-2 pr-4">
+      <div className="flex items-start justify-between gap-2 pr-7">
         <div className="flex flex-wrap items-center gap-1">
           <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
@@ -117,7 +136,7 @@ function CardBody({
             </span>
           )}
         </div>
-        <div className="mt-1 flex flex-shrink-0 items-center gap-1.5">
+        <div className="mt-1 flex flex-shrink-0 items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
           {task.collidesWith && task.collidesWith.length > 0 && (
             <ReferencePopover
               trigger={<OverlapIcon className="h-3 w-3 text-indigo-500" />}
@@ -127,13 +146,14 @@ function CardBody({
                 label: `${c.title} (${c.projectName})`,
                 href: `/projects/${c.projectId}/tasks/${c.taskId}`,
               }))}
-              filteredHref="/projects?collision=1"
-              filteredLabel="Ver todas las colisiones"
+              filteredHref={myCollisionsHref}
+              filteredLabel="Ver mis colisiones"
               extraHref={`/collisions/${task.id}`}
               extraLabel="Ver detalle y alternativas"
               align="right"
             />
           )}
+          {task.shareToken && <CopyLinkButton token={task.shareToken} />}
           {riskDot && (
             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${riskDot}`} title={`Riesgo ${task.riskLevel}`} />
           )}
@@ -147,6 +167,14 @@ function CardBody({
         </p>
       )}
       <p className="text-sm font-medium leading-snug text-slate-900">{task.title}</p>
+
+      {task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.tags.map((tag) => (
+            <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} name={tag.name} />
+          ))}
+        </div>
+      )}
 
       <p className="text-[11px] text-slate-400">
         {fmtDate(task.plannedStart)} — {fmtDate(task.plannedEnd)}
@@ -180,9 +208,21 @@ function CardBody({
             <ModalTrigger label="Asignar" title="Asignar tarea" variant="secondary" compact>
               <ReassignAssigneesForm taskId={task.id} currentAssigneeIds={task.assigneeIds} users={users} />
             </ModalTrigger>
+            {task.type === "QA" && task.reviewers.length > 0 && (
+              <div title="Revisor(es)" className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
+                <AvatarGroup people={task.reviewers} />
+              </div>
+            )}
           </div>
         ) : (
-          <AvatarGroup people={task.assignees} />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <AvatarGroup people={task.assignees} />
+            {task.type === "QA" && task.reviewers.length > 0 && (
+              <div title="Revisor(es)" className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
+                <AvatarGroup people={task.reviewers} />
+              </div>
+            )}
+          </div>
         )}
         <div className="flex items-center gap-2">
           {task.attachmentsCount > 0 && (
@@ -213,12 +253,14 @@ function Card({
   canManage,
   users,
   onDeleted,
+  collisionUrlBase,
 }: {
   task: TaskCard;
   showProjectName: boolean;
   canManage: boolean;
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
+  collisionUrlBase: string;
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -262,8 +304,21 @@ function Card({
       // KanbanBoard, que al portalearse a <body> siempre queda por delante de
       // cualquier columna, sin depender del overflow/stacking de cada una.
       className={cardClassName(task, isDragging ? "cursor-grabbing opacity-0" : deleting ? "cursor-grab opacity-40" : "cursor-grab")}
+      // ponytail: content-visibility salta el render de cards fuera de vista
+      // en columnas largas — carga progresiva sin librería de virtualización.
+      // Alto variable (badges/tags/avatares), así que "auto Npx" reserva un
+      // estimado hasta que el navegador recuerde el alto real ya visto.
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 160px" }}
     >
-      <CardBody task={task} showProjectName={showProjectName} canManage={canManage} users={users} deleting={deleting} onDelete={handleDelete} />
+      <CardBody
+        task={task}
+        showProjectName={showProjectName}
+        canManage={canManage}
+        users={users}
+        deleting={deleting}
+        onDelete={handleDelete}
+        collisionUrlBase={collisionUrlBase}
+      />
     </div>
   );
 }
@@ -278,24 +333,32 @@ function TrashIcon({ className }: { className?: string }) {
 
 function Column({
   id,
+  scrollKey,
   tasks,
   showProjectName,
   canManage,
   users,
   onDeleted,
+  collisionUrlBase,
 }: {
   id: TaskCard["status"];
+  scrollKey: string;
   tasks: TaskCard[];
   showProjectName: boolean;
   canManage: boolean;
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
+  collisionUrlBase: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const color = TASK_STATUS_COLOR[id];
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        if (el) el.scrollTop = columnScrollPositions.get(scrollKey) ?? 0;
+      }}
+      onScroll={(e) => columnScrollPositions.set(scrollKey, e.currentTarget.scrollTop)}
       className={`flex h-full min-w-0 flex-col overflow-y-auto rounded-2xl transition-colors ${
         isOver ? "bg-slate-200/70" : "bg-slate-100"
       }`}
@@ -309,7 +372,15 @@ function Column({
       </h3>
       <div className="flex flex-col gap-2.5 px-3 pb-3">
         {tasks.map((t) => (
-          <Card key={t.id} task={t} showProjectName={showProjectName} canManage={canManage} users={users} onDeleted={onDeleted} />
+          <Card
+            key={t.id}
+            task={t}
+            showProjectName={showProjectName}
+            canManage={canManage}
+            users={users}
+            onDeleted={onDeleted}
+            collisionUrlBase={collisionUrlBase}
+          />
         ))}
       </div>
     </div>
@@ -321,14 +392,22 @@ export function KanbanBoard({
   showProjectName = false,
   canManage,
   users,
+  collisionUrlBase = "/projects",
 }: {
   initialTasks: TaskCard[];
   showProjectName?: boolean;
   canManage: boolean;
   users: { id: string; name: string }[];
+  // Base para "Ver mis colisiones" del popover de cada tarea: la URL de la
+  // vista actual (con sus filtros vigentes) sin el parámetro `collision` —
+  // solo lo pasa /projects/page.tsx (panorama general), único lugar donde el
+  // ícono de colisión llega a mostrarse (ver collidesWith siempre null en
+  // /projects/[id]/page.tsx).
+  collisionUrlBase?: string;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
+  const pathname = usePathname();
   const showToast = useToast();
   const confirm = useConfirm();
   const [, startTransition] = useTransition();
@@ -380,16 +459,18 @@ export function KanbanBoard({
           scroll vertical es de CADA columna por separado (ver Column más
           abajo), no de este contenedor — así "Completado" con 50 tareas no
           obliga a scrollear igual a "Bloqueado" con 2. */}
-      <div className="grid h-full grid-cols-1 gap-4 overflow-y-visible pb-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid h-full grid-cols-1 gap-4 overflow-y-visible pb-0 sm:grid-cols-2 lg:grid-cols-4">
         {COLUMNS.map((status) => (
           <Column
             key={status}
             id={status}
+            scrollKey={`${pathname}:${status}`}
             tasks={tasks.filter((t) => t.status === status || (status === "BLOCKED" && t.status === "RETURNED"))}
             showProjectName={showProjectName}
             canManage={canManage}
             users={users}
             onDeleted={handleDeleted}
+            collisionUrlBase={collisionUrlBase}
           />
         ))}
       </div>
@@ -408,6 +489,7 @@ export function KanbanBoard({
               users={[]}
               deleting={false}
               onDelete={() => {}}
+              collisionUrlBase={collisionUrlBase}
             />
           </div>
         )}

@@ -2,8 +2,30 @@
 // blanco encima) — mismo mecanismo determinístico que avatarColor(), pero en
 // hex (acá el color es a veces inline style, no siempre clase de Tailwind).
 // Tonos del Pacífico/Chocó (marea, selva, cielo nocturno, orquídea, berry,
-// oro mate) elegidos a propósito lejos del rojo/ámbar de alerta (DESIGN.md).
-const DEFAULT_COLORS = ["#0a6b78", "#17664e", "#1f4e70", "#7a4f9e", "#a3455f", "#8c7a2b"];
+// oro mate, cacao, añil, musgo, pizarra, ciruela, ceniza) elegidos a
+// propósito lejos del rojo/ámbar de alerta (DESIGN.md). En el rango de verdes
+// (musgo/selva) un tercer verde intermedio ("esmeralda", descartado) seguía
+// leyéndose como duplicado aunque estuviera a ~38° de distancia en la rueda
+// de color — ahí la saturación/luminosidad importan más que el matiz. Por eso
+// el 10° tono es un NEUTRO (pizarra, gris-azulado) en vez de forzar un tercer
+// verde: dos grises con temperatura distinta (cálido/frío) se distinguen
+// mejor que dos verdes apagados a un tercio de rueda de distancia. También
+// alimenta el selector de color de las categorías de etiqueta (punto 17,
+// Settings > Etiquetas).
+export const DEFAULT_COLORS = [
+  "#0a6b78",
+  "#17664e",
+  "#1f4e70",
+  "#7a4f9e",
+  "#a3455f",
+  "#8c7a2b",
+  "#6b4226",
+  "#3d3a7a",
+  "#4f6b2e",
+  "#586474",
+  "#8f3d84",
+  "#5b5750",
+];
 
 export function defaultProjectColor(name: string) {
   const hash = [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);

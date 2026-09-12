@@ -78,10 +78,10 @@ export function ObjectivesPanel({
                 <p className="font-medium text-slate-900">{o.title}</p>
                 {o.description && <p className="mt-0.5 text-sm text-slate-500">{o.description}</p>}
               </div>
-              <div className="flex shrink-0 items-center gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-start gap-4">
+                <div className="flex items-start gap-2">
                   <ProgressRing pct={o.pct} overdue={o.atRiskRequirementCount > 0} size={28} />
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 flex flex-col gap-1">
                     <p className="whitespace-nowrap">
                       {o.requirementTitles.length} requerimiento{o.requirementTitles.length === 1 ? "" : "s"}
                     </p>

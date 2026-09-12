@@ -24,7 +24,7 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 export const TASK_TYPE_LABEL: Record<string, string> = {
   SIMPLE: "Simple",
   MILESTONE: "Entregable",
-  QA: "Revisión",
+  QA: "Prueba",
   ADJUSTMENT: "Ajuste",
 };
 
@@ -101,6 +101,8 @@ export const NOTIFICATION_TYPE_COLOR: Record<NotificationType, string> = {
   RETURNED: "bg-orange-500",
   LATE_START: "bg-blue-400",
   LATE_START_CRITICAL: "bg-red-500",
+  REVIEW_REQUESTED: "bg-teal-500",
+  SHARE_ACTIVITY: "bg-sky-500",
 };
 
 export function taskCardTint(status: TaskStatus, alertLevel: TaskAlert["level"]) {
