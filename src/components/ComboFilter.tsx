@@ -30,7 +30,7 @@ export function ComboFilter({
   paramKey: string;
   basePath: string;
   currentParams: Record<string, string | undefined>;
-  /** Reemplaza el violeta genérico del botón cuando hay un valor elegido — para sets con color propio (estado, alerta). */
+  /** Reemplaza la marea genérica del botón cuando hay un valor elegido — para sets con color propio (estado, alerta). */
   triggerColorClass?: string;
   /** "right" cuando el trigger queda pegado al borde derecho del viewport (si no, el dropdown se sale). */
   align?: "left" | "right";
@@ -78,7 +78,7 @@ export function ComboFilter({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${value ? (triggerColorClass ?? "bg-violet-600 text-white") : "bg-slate-100 text-slate-600"}`}
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${value ? (triggerColorClass ?? "bg-[#0a6b78] text-white") : "bg-slate-100 text-slate-600"}`}
       >
         {!triggerColorClass && selected?.dotColorClass && (
           <span className={`h-2 w-2 flex-shrink-0 rounded-full ${selected.dotColorClass}`} />

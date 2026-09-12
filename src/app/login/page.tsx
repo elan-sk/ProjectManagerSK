@@ -7,12 +7,37 @@ export default function LoginPage() {
   const [error, formAction, pending] = useActionState(login, undefined);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <main className="pacific-shell relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <svg
+        aria-hidden
+        viewBox="0 0 1440 220"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full text-[color:var(--pacific-tide)] opacity-[0.12] sm:h-56"
+      >
+        <path
+          fill="currentColor"
+          d="M0,120 C240,180 480,40 720,90 C960,140 1200,60 1440,110 L1440,220 L0,220 Z"
+        />
+      </svg>
+      <svg
+        aria-hidden
+        viewBox="0 0 1440 220"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-32 w-full text-[color:var(--pacific-deep)] opacity-[0.09] sm:h-44"
+      >
+        <path
+          fill="currentColor"
+          d="M0,160 C300,90 660,190 960,130 C1160,90 1320,150 1440,120 L1440,220 L0,220 Z"
+        />
+      </svg>
       <form
         action={formAction}
-        className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-8 shadow-[0_2px_4px_rgba(15,23,42,0.06),0_12px_32px_rgba(15,23,42,0.10)]"
+        className="relative w-full max-w-sm space-y-4 rounded-2xl border border-slate-200/80 bg-white p-8 shadow-[0_12px_32px_rgba(7,59,76,0.13)]"
       >
-        <h1 className="text-xl font-semibold text-slate-900">Iniciar sesión</h1>
+        <div className="flex items-center gap-3">
+          <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 text-xs font-bold">P</span></span>
+          <div><h1 className="text-xl font-semibold tracking-[-0.025em] text-slate-900">Iniciar sesión</h1><p className="text-xs text-slate-500">ProjectManagerSK</p></div>
+        </div>
 
         <div className="space-y-1">
           <label htmlFor="email" className="text-sm font-medium text-slate-700">
@@ -23,7 +48,7 @@ export default function LoginPage() {
             name="email"
             type="email"
             required
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+            className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
           />
         </div>
 
@@ -36,7 +61,7 @@ export default function LoginPage() {
             name="password"
             type="password"
             required
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+            className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
           />
         </div>
 
@@ -45,7 +70,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+          className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(7,59,76,0.2)] hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? "Entrando…" : "Entrar"}
         </button>

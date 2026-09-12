@@ -54,7 +54,7 @@ export function TodayMarker({
       onMouseLeave={hideTooltip}
       onFocus={showTooltip}
       onBlur={hideTooltip}
-      className={`absolute top-0 z-20 h-full w-px cursor-pointer outline-none hover:w-0.5 ${colorClass}`}
+      className={`absolute top-0 z-[25] h-full w-px cursor-pointer outline-none hover:w-0.5 ${colorClass}`}
       style={{ left }}
     >
       {tooltipPos &&

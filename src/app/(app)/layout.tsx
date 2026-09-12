@@ -7,7 +7,6 @@ import { getBotSettings } from "@/lib/botSettings";
 import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
 import { PushSubscribeButton } from "./PushSubscribeButton";
-import { ProjectsNavLink } from "./ProjectsNavLink";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
 import { Avatar } from "@/components/Avatar";
@@ -50,11 +49,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
     <ConfirmProvider>
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
+    <div className="pacific-shell min-h-screen bg-slate-50">
+      <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-3 sm:px-6">
+        <nav className="pacific-nav flex items-center gap-4 text-sm font-medium">
           <BackButton />
-          <ProjectsNavLink />
+          <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="mr-1 flex items-center gap-2 text-slate-900">
+            <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">P</span></span>
+            <span className="hidden font-display tracking-[-0.02em] sm:inline">ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span></span>
+          </Link>
           <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
             Agenda
           </NavLinkWithMemory>
@@ -62,7 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/settings">Configuración</Link>
         </nav>
         <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-slate-400 sm:inline">
+          <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
             Hoy: {new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
           </span>
           <PushSubscribeButton />
@@ -83,7 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </div>
       </header>
-      <main className="p-6">{children}</main>
+      <main className="p-4 sm:p-6">{children}</main>
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
     </div>
     </ConfirmProvider>

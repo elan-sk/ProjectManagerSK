@@ -47,8 +47,13 @@ export const TASK_STATUS_COLOR: Record<
   TaskStatus,
   { dot: string; badge: string; solid: string; bar: string; tint: string }
 > = {
-  NOT_STARTED: { dot: "bg-slate-400", badge: "bg-slate-100 text-slate-700", solid: "bg-slate-700 hover:bg-slate-800", bar: "bg-slate-300", tint: "bg-white" },
-  IN_PROGRESS: { dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700", solid: "bg-blue-600 hover:bg-blue-700", bar: "bg-blue-500", tint: "bg-blue-50" },
+  // NOT_STARTED e IN_PROGRESS quedaban casi idénticos como badge (ambos un
+  // tinte pálido sobre la paleta "pacific" que ya de por sí no tiene un gris
+  // neutro puro) — bug real reportado por el usuario. Se separan a propósito:
+  // NOT_STARTED más apagado (bg-slate-50, casi blanco) e IN_PROGRESS más
+  // saturado (bg-blue-100) para que la tarea activa salte a la vista.
+  NOT_STARTED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-500", solid: "bg-slate-700 hover:bg-slate-800", bar: "bg-slate-300", tint: "bg-white" },
+  IN_PROGRESS: { dot: "bg-blue-500", badge: "bg-blue-100 text-blue-700", solid: "bg-blue-600 hover:bg-blue-700", bar: "bg-blue-500", tint: "bg-blue-50" },
   BLOCKED: { dot: "bg-red-500", badge: "bg-red-50 text-red-700", solid: "bg-red-600 hover:bg-red-700", bar: "bg-red-500", tint: "bg-red-50" },
   COMPLETED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700", bar: "bg-emerald-500", tint: "bg-emerald-50" },
   RETURNED: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700", solid: "bg-orange-600 hover:bg-orange-700", bar: "bg-orange-500", tint: "bg-orange-50" },

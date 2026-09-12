@@ -9,7 +9,7 @@ import { getAppCountryCode } from "@/lib/appSettings";
 import { findScheduleCollisions } from "@/lib/collisions";
 import { createProject } from "./actions";
 import { Avatar } from "@/components/Avatar";
-import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { ModalTrigger } from "@/components/Modal";
 import { OverlapIcon } from "@/components/icons";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -463,21 +463,15 @@ export default async function ProjectsPage({
           <ProjectCardsOrder
             items={rows.map(({ project: p, summary }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
-            // El color del proyecto (o uno automático si no eligió uno) va de
-            // fondo de la tarjeta — punto confirmado con el usuario. Siempre
-            // es un color CLARO (paleta acotada en ProjectIcon.tsx), así el
-            // texto slate normal es legible sin necesitar calcular contraste.
-            const cardColor = p.color ?? defaultProjectBgColor(p.name);
             return { id: p.id, node: (
               <NavLinkWithMemory
                 href={`/projects/${p.id}`}
                 storageKey={`project:${p.id}`}
-                className="block rounded-xl border border-slate-200 p-4 hover:brightness-95"
-                style={{ backgroundColor: cardColor }}
+                className="block h-full rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-2">
-                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-8 w-8 text-xs" />
+                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
                     <div className="min-w-0">
                     <p className="flex items-center gap-1.5 font-medium text-slate-900">
                       <span className="truncate">{p.name}</span>

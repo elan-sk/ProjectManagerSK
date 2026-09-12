@@ -1,11 +1,8 @@
-const AVATAR_COLORS = [
-  "bg-rose-600",
-  "bg-blue-600",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-violet-600",
-  "bg-teal-600",
-];
+// Hex (no clases de Tailwind): rose-600/violet-600/teal-600 no están
+// retonalizados en globals.css y amber-600 es justo el ámbar de alerta —
+// las cuatro se veían fuera de lugar contra el resto del rediseño. Mismo
+// mecanismo hex que ProjectIcon.tsx, tonos del Pacífico/Chocó.
+const AVATAR_COLORS = ["#096b7c", "#176b4c", "#35608a", "#7a4f9e", "#a3455f", "#1f8a7a"];
 
 export function initials(name: string) {
   return name
@@ -44,7 +41,8 @@ export function Avatar({
   return (
     <span
       title={name}
-      className={`flex flex-shrink-0 items-center justify-center rounded-full font-medium text-white ring-2 ring-white ${size} ${avatarColor(name)}`}
+      style={{ backgroundColor: avatarColor(name) }}
+      className={`flex flex-shrink-0 items-center justify-center rounded-full font-medium text-white ring-2 ring-white ${size}`}
     >
       {initials(name)}
     </span>

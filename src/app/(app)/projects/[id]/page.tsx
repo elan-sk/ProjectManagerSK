@@ -14,7 +14,7 @@ import { ModalTrigger } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { projectHealth } from "@/lib/projectHealth";
-import { ProjectIcon, defaultProjectBgColor } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { NewTaskForm } from "./NewTaskForm";
 import { ReassignPMForm } from "./ReassignPMForm";
 import { EditStartDateForm } from "./EditStartDateForm";
@@ -137,13 +137,6 @@ export default async function ProjectPage({
   ]);
 
   if (!project) notFound();
-
-  // El color del proyecto (o uno automático si no eligió uno) va de fondo de
-  // TODA esta vista — punto confirmado con el usuario, para reconocer de un
-  // vistazo en qué proyecto estás. Siempre es un color CLARO (paleta acotada
-  // en ProjectIcon.tsx), así el texto slate normal es legible sin necesitar
-  // calcular contraste.
-  const viewColor = project.color ?? defaultProjectBgColor(project.name);
 
   const bottleneckReasonById = new Map(bottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
@@ -313,15 +306,7 @@ export default async function ProjectPage({
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
 
   return (
-    // El color del proyecto va de fondo de TODA la vista, no solo del
-    // encabezado — por eso el -m-6/p-6 (cancela el padding de <main> para
-    // que el color llegue hasta los bordes) y el alto mínimo (para que
-    // cubra hasta el fondo de la pantalla, no solo lo que ocupe el
-    // contenido). 57px ≈ alto del header fijo del programa.
-    <div
-      className="-m-6 min-h-[calc(100vh-57px)] space-y-6 p-6"
-      style={{ backgroundColor: `color-mix(in srgb, ${viewColor} 20%, white)` }}
-    >
+    <div className="space-y-6">
       <SaveLastProject projectId={project.id} />
       <RememberViewState storageKey={`project:${project.id}`} />
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
@@ -587,7 +572,6 @@ export default async function ProjectPage({
         <DefinitionTab
           projectId={project.id}
           name={project.name}
-          color={project.color}
           iconUrl={project.iconUrl}
           description={project.description}
           canManage={canManage}

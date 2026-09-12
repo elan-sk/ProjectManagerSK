@@ -29,18 +29,14 @@ export async function updateProjectDescription(projectId: string, formData: Form
   return { ok: true as const };
 }
 
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-
 export async function updateProjectIdentity(projectId: string, formData: FormData) {
   const denied = await guard(projectId);
   if (denied) return denied;
 
-  const rawColor = formData.get("color");
   const rawIconUrl = formData.get("iconUrl");
-  const color = typeof rawColor === "string" && HEX_COLOR.test(rawColor) ? rawColor : null;
   const iconUrl = typeof rawIconUrl === "string" && rawIconUrl.trim() !== "" ? rawIconUrl : null;
 
-  await prisma.project.update({ where: { id: projectId }, data: { color, iconUrl } });
+  await prisma.project.update({ where: { id: projectId }, data: { iconUrl } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   return { ok: true as const };

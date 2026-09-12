@@ -13,7 +13,6 @@ import type { TaskStatus } from "@prisma/client";
 export function DefinitionTab({
   projectId,
   name,
-  color,
   iconUrl,
   description,
   canManage,
@@ -26,7 +25,6 @@ export function DefinitionTab({
 }: {
   projectId: string;
   name: string;
-  color: string | null;
   iconUrl: string | null;
   description: string | null;
   canManage: boolean;
@@ -63,8 +61,8 @@ export function DefinitionTab({
           </div>
         </div>
         {canManage && (
-          <ModalTrigger label="Ícono y color" title="Identidad del proyecto" variant="secondary" compact>
-            <ProjectIdentityForm projectId={projectId} name={name} color={color} iconUrl={iconUrl} />
+          <ModalTrigger label="Ícono" title="Identidad del proyecto" variant="secondary" compact>
+            <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} />
           </ModalTrigger>
         )}
       </div>

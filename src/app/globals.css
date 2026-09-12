@@ -9,8 +9,18 @@
    <body> quedando invisible sobre fondos blancos de Tailwind. */
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Bruma con presencia real de marea, no un gris casi blanco: el fondo es
+     parte del paisaje, no un lienzo neutro genérico (punto explícito del
+     usuario — "no quiero que el fondo sea blanco, es muy genérico"). */
+  --background: #dcece6;
+  --foreground: #102f3d;
+  --pacific-deep: #073b4c;
+  --pacific-tide: #0a6b78;
+  --pacific-foam: #d9eeea;
+  --pacific-foam-pale: #b9ded7;
+  --choco-canopy: #17664e;
+  --sand-warm: #e5c979;
+  --coral-alert: #c5403a;
 }
 
 @theme inline {
@@ -18,12 +28,202 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-space-grotesk);
+  /* Neutros de la interfaz: profundidades de mar y bruma costera.
+     slate-50 es su propio tono (casi blanco), NO --background: la mayoría
+     del código usa bg-slate-50/hover:bg-slate-50 como "un paso más oscuro
+     que el blanco" dentro de tarjetas/dropdowns/filas de tabla — si
+     coincidiera con el fondo de página, ese hover se vuelve invisible en
+     cuanto la página deja de ser blanca (bug real: tarjeta que "desaparece"
+     al pasar el cursor). 100/200/300 recalibrados con más separación que
+     antes — con el fondo más tinturado, quedaban casi idénticos y las
+     superficies/bordes secundarios (botones "fantasma", chips, bordes de
+     tarjeta) desaparecían. */
+  --color-slate-50: #eef6f3;
+  --color-slate-100: #c7e2da;
+  --color-slate-200: #a9d0c4;
+  --color-slate-300: #82b7a8;
+  --color-slate-400: #6f9997;
+  --color-slate-500: #4e7377;
+  --color-slate-600: #365a61;
+  --color-slate-700: #244851;
+  --color-slate-800: #173b48;
+  --color-slate-900: #102f3d;
+  --color-slate-950: #09242e;
+  /* Conservan el significado de cada familia semántica; solo se tropicaliza
+     su tono. Cubre 50/100/400/500/600/700/800 (y naranja 50/100) — un salto
+     de escala que faltara caía al azul/rojo/ámbar/verde/naranja de fábrica
+     de Tailwind y se veía fuera de tono contra el resto de la app (bug real
+     detectado por el usuario en las alertas). */
+  --color-blue-50: #e4f3f5;
+  --color-blue-100: #c7e7e9;
+  --color-blue-400: #4fa3ae;
+  --color-blue-500: #087d91;
+  --color-blue-600: #096b7c;
+  --color-blue-700: #075464;
+  --color-emerald-50: #e5f3ec;
+  --color-emerald-100: #c8e6d6;
+  --color-emerald-400: #4fa87d;
+  --color-emerald-500: #21835e;
+  --color-emerald-600: #176b4c;
+  --color-emerald-700: #12543d;
+  --color-emerald-800: #0e4230;
+  --color-amber-50: #fff7df;
+  --color-amber-100: #fbedbb;
+  --color-amber-400: #e0a740;
+  --color-amber-500: #cc8b18;
+  --color-amber-600: #9c6811;
+  --color-amber-700: #79500d;
+  --color-amber-800: #5f3f0a;
+  --color-red-50: #fff0ed;
+  --color-red-100: #ffdcd5;
+  --color-red-200: #ffc4b8;
+  --color-red-400: #e8887c;
+  --color-red-500: #d55349;
+  --color-red-600: #b83b35;
+  --color-red-700: #922d2a;
+  --color-red-800: #752520;
+  --color-orange-50: #fdf0e6;
+  --color-orange-100: #fadfc7;
+  --color-orange-500: #d86d28;
+  --color-orange-600: #ab531e;
+  --color-orange-700: #873f18;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+/* Voz de título: geométrica y con carácter, solo en encabezados — el resto
+   de la interfaz (datos, controles, formularios) se queda en Geist para no
+   perder velocidad de lectura (DESIGN.md > Typography). */
+h1, h2 {
+  font-family: var(--font-space-grotesk), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+::selection { background: #b9ded7; color: #09242e; }
+
+/* El fondo es agua, no un lienzo neutro: bruma cálida arriba a la derecha,
+   sombra de selva apenas insinuada abajo a la izquierda — presente pero
+   "con calma", nunca compitiendo con los datos. */
+.pacific-shell {
+  background:
+    radial-gradient(circle at 92% -14%, rgba(120, 199, 195, 0.32), transparent 34rem),
+    radial-gradient(circle at -8% 108%, rgba(23, 102, 78, 0.1), transparent 38rem),
+    linear-gradient(180deg, #d9eeea 0, var(--background) 22rem);
+}
+.pacific-header {
+  position: relative;
+  background: linear-gradient(115deg, var(--pacific-deep) 0%, #0a5866 62%, var(--pacific-tide) 100%);
+  box-shadow: 0 10px 28px rgba(7, 59, 76, 0.18);
+}
+.pacific-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--sand-warm), #78c7c3 54%, var(--sand-warm));
+}
+/* La cabecera lleva su propia paleta de texto (bruma sobre océano); estas
+   reglas alcanzan solo a sus hijos, así los mismos componentes (campana de
+   notificaciones, botón atrás) siguen sirviendo el resto de la app en claro
+   si algún día se reusan fuera del header. */
+.pacific-header,
+.pacific-header .text-slate-500,
+.pacific-header .text-slate-600,
+.pacific-header .text-slate-700 {
+  color: var(--pacific-foam);
+}
+.pacific-header .text-slate-900 { color: #fff; }
+.pacific-header .text-slate-400 { color: rgba(217, 238, 234, 0.65); }
+.pacific-header .bg-slate-100 { background-color: rgba(255, 255, 255, 0.14); }
+.pacific-header .hover\:bg-slate-100:hover,
+.pacific-header .hover\:bg-slate-200:hover { background-color: rgba(255, 255, 255, 0.2); }
+.pacific-header .hover\:text-slate-900:hover { color: #fff; }
+.pacific-header .ring-slate-200 { --tw-ring-color: rgba(217, 238, 234, 0.55); }
+/* Escape para paneles flotantes de fondo claro que cuelgan del header en el
+   DOM (ej. el desplegable de notificaciones) aunque visualmente floten
+   sobre la página: sin esto heredan el texto claro pensado para el océano
+   oscuro y se vuelven casi ilegibles sobre su propio fondo blanco. */
+.pacific-header .pacific-popover,
+.pacific-header .pacific-popover .text-slate-400,
+.pacific-header .pacific-popover .text-slate-500,
+.pacific-header .pacific-popover .text-slate-600,
+.pacific-header .pacific-popover .text-slate-700,
+.pacific-header .pacific-popover .text-slate-900 {
+  color: var(--color-slate-900);
+}
+.pacific-header .pacific-popover .text-slate-400 { color: var(--color-slate-400); }
+.pacific-header .pacific-popover .text-slate-500 { color: var(--color-slate-500); }
+.pacific-header .pacific-popover .text-slate-600 { color: var(--color-slate-600); }
+.pacific-header .pacific-popover .text-slate-700 { color: var(--color-slate-700); }
+.pacific-header .pacific-popover .bg-slate-100 { background-color: var(--color-slate-100); }
+.pacific-header .pacific-popover .hover\:bg-slate-100:hover,
+.pacific-header .pacific-popover .hover\:bg-slate-200:hover { background-color: var(--color-slate-200); }
+.pacific-header .pacific-popover .hover\:text-slate-900:hover { color: var(--color-slate-900); }
+.pacific-brand-mark {
+  position: relative;
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.7rem 0.7rem 0.7rem 0.2rem;
+  background: var(--sand-warm);
+  color: var(--pacific-deep);
+  box-shadow: 0 5px 12px rgba(7, 59, 76, 0.25);
+}
+.pacific-brand-mark::after {
+  content: "";
+  position: absolute;
+  width: 2.5rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  border-top: 2px solid rgba(7, 59, 76, 0.4);
+  transform: translateY(0.42rem) rotate(-8deg);
+}
+.pacific-nav a {
+  position: relative;
+  padding: 0.45rem 0.15rem;
+  transition: color 180ms ease;
+}
+.pacific-nav a:hover { color: var(--sand-warm); }
+.pacific-nav a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(10, 107, 120, 0.28);
+  outline-offset: 2px;
+}
+.pacific-header :focus-visible {
+  outline-color: rgba(229, 201, 121, 0.6);
+}
+
+button, a, input, select, textarea { transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+
+/* Tacto sutil en botones rellenos (fondo propio, no transparente): un leve
+   respiro al pasar el cursor y una micro-presión al hacer clic — sin tocar
+   cada botón de la app uno por uno, igual que la paleta de colores. */
+button:not(:disabled) {
+  will-change: transform;
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    filter: brightness(1.04);
+  }
+  .pacific-header button:not(:disabled):hover {
+    filter: none;
+  }
 }
 
 /* Scrollbar delgado en toda la app (Firefox vía scrollbar-width, Chrome/Safari
@@ -39,20 +239,24 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: #9cbdb8;
   border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: #5d8c8b;
 }
 
 /* Flash de "acá está" al usar la lupa del Gantt (GanttView.tsx) — 3
    pulsos de un anillo indigo sobre la barra encontrada. */
 @keyframes gantt-flash {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-  15%, 45%, 75% { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.9); }
-  30%, 60%, 90% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(8, 125, 145, 0); }
+  15%, 45%, 75% { box-shadow: 0 0 0 3px rgba(8, 125, 145, 0.85); }
+  30%, 60%, 90% { box-shadow: 0 0 0 0 rgba(8, 125, 145, 0); }
 }
 .gantt-flash {
   animation: gantt-flash 1.8s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

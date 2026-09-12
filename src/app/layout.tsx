@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { DevToolsLoader } from "./DevToolsLoader";
 
@@ -13,6 +13,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Voz tipográfica de títulos ("Bitácora de marea"): geométrica y con carácter
+// propio, distinta de Geist (que sigue llevando toda la UI operativa/datos
+// para no sacrificar legibilidad — ver DESIGN.md > Typography).
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "ProjectManagerSK",
   description: "Gestión de proyectos, tareas y cronogramas",
@@ -20,14 +28,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#073b4c",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

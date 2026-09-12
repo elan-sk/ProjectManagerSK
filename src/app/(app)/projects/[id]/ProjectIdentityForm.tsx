@@ -4,23 +4,20 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateProjectIdentity } from "./definitionActions";
 import { useModalClose } from "@/components/Modal";
-import { ProjectIcon, LIGHT_PROJECT_COLORS, defaultProjectBgColor } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
 
 export function ProjectIdentityForm({
   projectId,
   name,
-  color,
   iconUrl,
 }: {
   projectId: string;
   name: string;
-  color: string | null;
   iconUrl: string | null;
 }) {
   const router = useRouter();
   const onDone = useModalClose();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pickedColor, setPickedColor] = useState(color ?? defaultProjectBgColor(name));
   const [pickedIconUrl, setPickedIconUrl] = useState(iconUrl);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,26 +79,6 @@ export function ProjectIdentityForm({
             </button>
           )}
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-sm text-slate-600">Color</label>
-        <input type="hidden" name="color" value={pickedColor} />
-        <div className="flex flex-wrap gap-2">
-          {LIGHT_PROJECT_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setPickedColor(c)}
-              aria-label={`Elegir color ${c}`}
-              style={{ backgroundColor: c }}
-              className={`h-8 w-8 rounded-full border-2 ${
-                pickedColor === c ? "border-slate-900" : "border-transparent"
-              }`}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-slate-400">Se usa de fondo en el resumen de proyectos y en la vista del proyecto, para identificarlo de un vistazo.</p>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

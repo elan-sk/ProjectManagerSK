@@ -601,10 +601,13 @@ export function GanttView({
     });
   }
 
-  const today = new Date();
-  const todayKey = today.toISOString().slice(0, 10);
+  // "Hoy" es la fecha calendario en Colombia, no en UTC: pasadas las 7pm hora
+  // local, new Date().toISOString() ya cae en el día siguiente en UTC (bug
+  // real — hacía que la línea desapareciera de noche, y si ese "día
+  // siguiente" era sábado, ni figuraba en businessDays).
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
   const todayIndex = businessDays.findIndex((d) => d.toISOString().slice(0, 10) === todayKey);
-  const todayLabel = fmtDate(today.toISOString());
+  const todayLabel = fmtDate(`${todayKey}T00:00:00.000Z`);
   const targetEndKey = targetEndDate ? targetEndDate.slice(0, 10) : null;
   const targetEndIndex = targetEndKey
     ? businessDays.findIndex((d) => d.toISOString().slice(0, 10) === targetEndKey)
