@@ -22,10 +22,17 @@ Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid
 4. hPanel → Despliegues → subir ese zip → Deploy. Esperar que pase de "Compilando" a "Se ha completado".
 5. Probar el sitio real.
 
-## Las dos trampas que ya causaron una caída real
+## Las tres trampas que ya causaron una caída real (2026-09-13)
 
 1. **Las migraciones de Prisma tienen que ir DENTRO de `npm run build`** (`package.json`: `"build": "prisma migrate deploy && next build"`). Como Hostinger no corre nada más, si sacás la migración de ahí y la dejás como paso "aparte", nunca se va a ejecutar en producción.
 2. **Ninguna tarea de fondo puede usar `void promesa()` a secas** en `src/lib/scheduler.ts` ni `src/instrumentation.ts` — siempre `.catch(err => console.error(...))`. Un rechazo de promesa sin atajar en Node **tumba todo el proceso**, no solo esa función — así se cayó el sitio entero (no solo una página) cuando una migración quedó pendiente y el poller de WhatsApp intentó leer una columna que no existía.
+3. **La base de producción no tiene el historial de migraciones de las primeras tablas** (se crearon a mano/por SQL suelto en algún momento, no vía `prisma migrate dev`/`deploy`). La PRIMERA vez que `prisma migrate deploy` corrió de verdad (al arreglar la trampa 1), tiró `Error: P3005 — The database schema is not empty` y **falló el build entero** — no es un problema del zip ni del código, es que Prisma no confía en aplicar migraciones sobre una base que no reconoce.
+   - **Ya se resolvió una vez** (bautizado/"baseline" de `20260913053310_init_mysql` y `20260913084341_archive_project_deactivate_user` — ver commit `ee06cf1` y su revert en el siguiente commit). No hace falta repetirlo: la base de producción ya tiene el historial completo desde ahí.
+   - **Si vuelve a pasar** (ej. en otra base/entorno nuevo, o si alguien corre `prisma db push` a mano de nuevo en vez de migraciones): el arreglo es marcar como aplicadas las migraciones que ya están reflejadas en las tablas existentes, SIN tocar datos —
+     ```bash
+     npx prisma migrate resolve --applied <nombre_de_la_migración>
+     ```
+     Esto solo escribe una fila en la tabla interna `_prisma_migrations` (que Prisma usa para saber qué migró y cuándo) — no ejecuta el SQL de esa migración, no toca ninguna tabla ni fila de datos reales. Como no hay SSH con acceso al entorno de la app (ver arriba), la única forma de correrlo es meterlo TEMPORALMENTE en el script de `build` (antes de `prisma migrate deploy`), desplegar UNA vez, y apenas confirme que anduvo, **revertir ese cambio de inmediato** — `migrate resolve --applied` tira `Error: P3008` si se corre de nuevo sobre una migración ya marcada, así que dejarlo puesto rompe el build de cualquier deploy futuro.
 
 ## Si el sitio se cae después de un deploy
 
@@ -37,4 +44,6 @@ ls -la hbuilds/versions/          # la última carpeta = la activa (current apun
 cat hbuilds/logs/<uuid-mas-reciente>/*
 ```
 
-Si el log de build no tiene errores, el problema es de **arranque/runtime** (falta variable de entorno, migración pendiente, promesa sin atajar — ver arriba), no del contenido del zip.
+Si el log de build tiene un error (ej. `Error: P3005`, `P3008`, o cualquier error de `prisma migrate`/`next build`), **el deploy queda marcado "Falló la compilación"** en hPanel y ni siquiera llega a activarse — el sitio sigue sirviendo la última versión que sí compiló (que puede estar rota igual, ver trampa 2). Leé el error tal cual lo imprime el log, no asumas que es el contenido del zip.
+
+Si el log de build NO tiene errores pero el sitio igual no responde ("This page couldn't load / A server error occurred" del navegador, no una página de error de la app), es un problema de **arranque/runtime** (promesa sin atajar tumbando el proceso — trampa 2), no del build en sí.
