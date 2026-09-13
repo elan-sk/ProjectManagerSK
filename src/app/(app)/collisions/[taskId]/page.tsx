@@ -54,7 +54,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
         project: { select: { id: true, name: true, iconUrl: true } },
       },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, avatarUrl: true } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, avatarUrl: true } }),
   ]);
 
   const collisionsById = findScheduleCollisions(

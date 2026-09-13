@@ -34,6 +34,9 @@ const NOT_CONFIGURED_TEXT =
   "Todavía no me conectaron con Anthropic — decile a un admin que ponga la clave en Configuración y ya puedo ayudarte, melo.";
 const LIMIT_REACHED_TEXT =
   "Uy melo, se me acabaron las preguntas de este mes 😅 Hablá con un admin para subir el tope en Configuración, o esperá al próximo mes — ¡nos vemos pronto, vea pues!";
+const INVALID_KEY_TEXT =
+  "La clave de Anthropic que tienen configurada no funciona — decile a un admin que revise o cambie la clave en Configuración, melo.";
+const API_ERROR_TEXT = "Tuve un problema hablando con Anthropic — probá de nuevo en un rato, vea pues.";
 const REFUSAL_TEXT = "Uy, esa la tengo que dejar pasar — probá preguntando de otra forma.";
 const PENDING_ACTION_TEXT = "Todavía tenés una acción pendiente de confirmar arriba — confirmala o cancelala antes de seguir, melo.";
 const LOOP_LIMIT_TEXT = "Me enredé consultando datos — probá preguntando de nuevo, más puntual.";
@@ -174,14 +177,22 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
   let messages = await loadHistory(userId);
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-    const response = await client.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 4096,
-      system: buildSystemBlocks(settings.name, persona, pathname),
-      tools,
-      tool_choice: { type: "auto", disable_parallel_tool_use: true },
-      messages,
-    });
+    let response: Anthropic.Message;
+    try {
+      response = await client.messages.create({
+        model: "claude-opus-5",
+        max_tokens: 4096,
+        system: buildSystemBlocks(settings.name, persona, pathname),
+        tools,
+        tool_choice: { type: "auto", disable_parallel_tool_use: true },
+        messages,
+      });
+    } catch (err) {
+      console.error("[chontatec] falló la llamada a Anthropic:", err);
+      const text = err instanceof Anthropic.AuthenticationError ? INVALID_KEY_TEXT : API_ERROR_TEXT;
+      await persistRow(userId, "assistant", [{ type: "text", text }]);
+      return;
+    }
 
     if (response.stop_reason === "refusal") {
       await persistRow(userId, "assistant", [{ type: "text", text: REFUSAL_TEXT }]);

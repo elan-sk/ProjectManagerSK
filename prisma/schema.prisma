@@ -21,6 +21,12 @@ enum ProjectStatus {
   ACTIVE
   ON_HOLD
   COMPLETED
+  // Reemplaza al borrado real de un proyecto — un delete en cascada sobre un
+  // proyecto con historial real (miles de notificaciones/tareas/revisiones)
+  // bloquea las tablas el tiempo suficiente para colgar toda la app en un
+  // hosting compartido con recursos limitados. Archivar es una sola fila
+  // (instantáneo) y deja el historial intacto.
+  ARCHIVED
 }
 
 // Punto 2 (unificación): CHECKLIST y MEETING dejaron de ser tipos — ahora
@@ -111,6 +117,12 @@ model User {
   email                String?   @unique
   passwordHash         String
   role                 Role      @default(MEMBER)
+  // Reemplaza al borrado real de un usuario — varias tablas (PM de proyecto,
+  // autor de revisión, etc.) exigen que el usuario exista para no perder de
+  // quién es un dato histórico, así que "eliminar" pasa a ser desactivar: no
+  // puede loguearse ni se lo puede asignar a nada nuevo, pero su historial
+  // queda intacto.
+  active               Boolean   @default(true)
   avatarUrl            String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
   phone                String?

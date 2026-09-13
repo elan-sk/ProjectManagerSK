@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -50,7 +50,9 @@ export async function saveUploadedFile(file: File): Promise<UploadResult> {
 
   const fileName = `${randomUUID()}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(process.cwd(), "public/uploads", fileName), buffer);
+  const uploadsDir = path.join(process.cwd(), "public/uploads");
+  await mkdir(uploadsDir, { recursive: true });
+  await writeFile(path.join(uploadsDir, fileName), buffer);
 
   return { ok: true, url: `/uploads/${fileName}`, name: file.name, mimeType };
 }

@@ -122,6 +122,7 @@ export default async function ProjectsPage({
 
   const [projects, users, allTasksForCollisions, activeShareLinks, tagCategories] = await Promise.all([
     prisma.project.findMany({
+      where: { status: { not: "ARCHIVED" } },
       include: {
         pm: true,
         tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
@@ -133,7 +134,7 @@ export default async function ProjectsPage({
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.task.findMany({
       select: {
         id: true,

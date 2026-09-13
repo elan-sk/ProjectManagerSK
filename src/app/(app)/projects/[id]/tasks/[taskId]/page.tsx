@@ -85,7 +85,7 @@ export default async function TaskDetailPage({
     getProjectAdmin(projectId).then(Boolean),
     canEditTask(taskId),
     canReviewTask(taskId),
-    prisma.user.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     getTaskAlert(task.project.countryCode, task),
     prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
     getActiveShareLink("TASK", taskId),

@@ -25,8 +25,10 @@ import { notFound } from "next/navigation";
 import { NavLinkWithMemory } from "../../NavLinkWithMemory";
 import { RememberViewState } from "../../RememberViewState";
 import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
+import { ArchiveProjectButton } from "./ArchiveProjectButton";
 import { CriticalPathButton } from "./CriticalPathButton";
 import { DefinitionTab } from "./DefinitionTab";
+import { EditProjectNameForm } from "./EditProjectNameForm";
 import { EditRepoUrlForm } from "./EditRepoUrlForm";
 import { EditStartDateForm } from "./EditStartDateForm";
 import { EditTargetEndDateForm } from "./EditTargetEndDateForm";
@@ -65,6 +67,7 @@ export default async function ProjectPage({
   const { view, date, mode, status, type, userId, risk, q, tag, fileKind, fileType, fileTask, fileQ } = await searchParams;
   const session = await auth();
   const myUserId = session?.user?.id ?? null;
+  const isGlobalAdmin = session?.user?.role === "ADMIN";
   const now = new Date();
   const calendarMode: CalendarMode = mode === "week" || mode === "day" ? mode : "month";
   const [dy, dm, dd] = date ? date.split("-").map(Number) : [];
@@ -141,7 +144,7 @@ export default async function ProjectPage({
         },
       },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     getProjectAdmin(id).then(Boolean),
     getBottlenecks(id),
     getProjectCascadeProgress(id),
@@ -435,6 +438,9 @@ export default async function ProjectPage({
             </div>
             {canManage && (
               <div className="mt-1.5 flex flex-wrap gap-2">
+                <ModalTrigger label="Nombre" title="Editar nombre del proyecto" variant="secondary" small>
+                  <EditProjectNameForm projectId={project.id} currentName={project.name} />
+                </ModalTrigger>
                 <ModalTrigger label="Fecha de inicio" title="Editar fecha de inicio" variant="secondary" small>
                   <EditStartDateForm
                     projectId={project.id}
@@ -450,6 +456,11 @@ export default async function ProjectPage({
                 <ModalTrigger label="Repositorio" title="Editar URL del repositorio" variant="secondary" small>
                   <EditRepoUrlForm projectId={project.id} currentRepoUrl={project.repoUrl} />
                 </ModalTrigger>
+                {isGlobalAdmin && (
+                  <div className="ml-1.5 border-l border-slate-200 pl-2.5">
+                    <ArchiveProjectButton projectId={project.id} projectName={project.name} />
+                  </div>
+                )}
               </div>
             )}
           </div>

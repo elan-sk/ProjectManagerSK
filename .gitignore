@@ -59,3 +59,4 @@ next-env.d.ts
 
 # Sesión de WhatsApp (Baileys) — credenciales del dispositivo vinculado
 /.baileys-auth
+projectmanagersk-deploy.zip

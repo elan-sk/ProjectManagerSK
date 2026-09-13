@@ -10,6 +10,6 @@ export async function GET(request: Request) {
   const auth = await requireApiUser(request);
   if ("error" in auth) return auth.error;
 
-  const users = await prisma.user.findMany({ select: PUBLIC_USER_SELECT, orderBy: { name: "asc" } });
+  const users = await prisma.user.findMany({ where: { active: true }, select: PUBLIC_USER_SELECT, orderBy: { name: "asc" } });
   return NextResponse.json(users);
 }

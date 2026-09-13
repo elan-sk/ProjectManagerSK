@@ -155,6 +155,43 @@ export async function updateAppCountry(countryCode: string) {
   return { ok: true };
 }
 
+// Antes esto era un borrado real (prisma.user.delete). Varias tablas exigen
+// que el usuario exista (PM de un proyecto, autor de un mensaje de revisión,
+// quien subió un archivo, etc. — esas relaciones no tienen onDelete: Cascade
+// a propósito, para no perder de quién es un dato histórico), y para
+// alguien con mucho historial ese delete en cascada podía colgar toda la
+// app en el hosting compartido. Ahora "eliminar" desactiva: no puede
+// loguearse ni se lo puede asignar a nada nuevo, pero su fila (y su
+// historial) queda intacta — invisible en la práctica, sin tocar nada.
+export async function deactivateUser(userId: string) {
+  try {
+    await requireAdmin();
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  const session = await auth();
+  if (session?.user?.id === userId) {
+    return { ok: false, error: "No podés eliminar tu propio usuario." };
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { active: false } });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function reactivateUser(userId: string) {
+  try {
+    await requireAdmin();
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { active: true } });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export async function updateUserAvatar(userId: string, avatarUrl: string) {
   try {
     await requireAdmin();

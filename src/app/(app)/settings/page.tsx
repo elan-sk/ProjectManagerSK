@@ -35,8 +35,8 @@ export default async function SettingsPage({
     prisma.googleCalendarConnection.findUnique({ where: { userId: session.user.id } }),
     isAdmin
       ? prisma.user.findMany({
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true },
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true, active: true },
         })
       : Promise.resolve(null),
     isAdmin ? prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
@@ -58,7 +58,7 @@ export default async function SettingsPage({
         <ChangePasswordForm />
       </section>
 
-      {users && <UsersAdmin users={users} />}
+      {users && <UsersAdmin users={users} currentUserId={session.user.id} />}
 
       {countryCode && countries && (
         <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">

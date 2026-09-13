@@ -63,7 +63,7 @@ export default async function AgendaPage({
       where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } } },
       orderBy: { name: "asc" },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
   const tasksWithAlert = await Promise.all(

@@ -10,6 +10,43 @@ import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, type 
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
+export async function updateProjectName(projectId: string, formData: FormData) {
+  try {
+    await requireProjectAdmin(projectId);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+  const parsed = z.string().trim().min(1, "El nombre no puede estar vacío.").safeParse(formData.get("name"));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Nombre inválido." };
+
+  await prisma.project.update({ where: { id: projectId }, data: { name: parsed.data } });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  return { ok: true };
+}
+
+// Solo un administrador global (no el PM del proyecto) puede archivarlo.
+// Antes esto era un borrado real (prisma.project.delete), pero el cascade
+// sobre un proyecto con historial real (miles de notificaciones/tareas/
+// revisiones) bloqueaba esas tablas el tiempo suficiente para colgar toda
+// la app en el hosting compartido. Archivar es un solo UPDATE — instantáneo,
+// sin cascade — y el proyecto queda invisible en /projects y en cualquier
+// selector, exactamente como un borrado desde la perspectiva de uso normal.
+export async function archiveProject(projectId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { ok: false, error: "Solo un administrador puede eliminar un proyecto." };
+  }
+
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) return { ok: false, error: "Proyecto no encontrado." };
+
+  await prisma.project.update({ where: { id: projectId }, data: { status: "ARCHIVED" } });
+
+  revalidatePath("/projects");
+  return { ok: true };
+}
+
 export async function addPhase(projectId: string, formData: FormData) {
   try {
     await requireProjectAdmin(projectId);

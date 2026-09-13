@@ -23,7 +23,7 @@ export async function loginWithPassword(identifier: string, password: string) {
   if (!trimmed || !password) return { ok: false as const, error: "Faltan usuario/correo o contraseña." };
 
   const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] } });
-  if (!user) return { ok: false as const, error: "Credenciales inválidas." };
+  if (!user || !user.active) return { ok: false as const, error: "Credenciales inválidas." };
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return { ok: false as const, error: "Credenciales inválidas." };
