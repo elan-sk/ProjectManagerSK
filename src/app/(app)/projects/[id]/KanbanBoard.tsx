@@ -17,7 +17,7 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
 import { PaperclipIcon, OverlapIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
 import type { TaskStatus } from "@prisma/client";
@@ -192,6 +192,15 @@ function CardBody({
 
       {(task.alert.level === "overdue" || task.alert.level === "warning" || task.alert.level === "lateStart") && (
         <AlertBadge alert={task.alert} />
+      )}
+
+      {/* Preventivo (punto pedido por el usuario): solo para quien
+          administra este proyecto — a un asignado normal no le suma nada
+          saber cuántos días faltan para que arranque. */}
+      {task.canManage && isStartingSoon(task.alert) && (
+        <span className="inline-flex items-center rounded-md bg-cyan-50 px-1.5 py-0.5 text-[11px] font-medium text-cyan-700">
+          Empieza en {task.alert.daysUntilStart}d
+        </span>
       )}
 
       {task.stepsProgress && (

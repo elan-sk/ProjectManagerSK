@@ -131,6 +131,9 @@ model User {
   // primer mensaje va con la presentación del bot + foto de perfil; de ahí
   // en más, solo ícono 🤖 + nombre, sin foto.
   whatsappIntroducedAt DateTime?
+  // Último día (calendario Bogotá) en que se le mandó el resumen diario de
+  // WhatsApp — evita reenviarlo en cada tick del poller de scheduler.ts.
+  lastDigestSentAt    DateTime?
   createdAt            DateTime  @default(now())
 
   // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
@@ -383,6 +386,10 @@ model TaskAssignee {
   task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // null = este asignado todavía no entró al detalle de la tarea. Se completa
+  // la primera vez que abre /projects/[id]/tasks/[taskId] (ver page.tsx) — es
+  // por (tarea, usuario) porque una tarea puede tener varios asignados.
+  viewedAt DateTime?
 
   @@id([taskId, userId])
 }

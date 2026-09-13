@@ -29,7 +29,7 @@ export function utcToBogotaLocalInputValue(date: Date) {
 // no justo en el borde donde isWorkingMoment ya lo considera cerrado.
 const CLOSE_OF_DAY_MARGIN_MINUTES = 5;
 
-function localParts(date: Date) {
+export function localParts(date: Date) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: TIMEZONE,
     year: "numeric",
@@ -63,6 +63,23 @@ export async function isWorkingMoment(date: Date, countryCode: string, startHour
   const { hour } = localParts(date);
   if (hour < startHour || hour >= endHour) return false;
   return isBusinessDay(countryCode, localDateOnlyUTC(date));
+}
+
+// "YYYY-MM-DD" en hora local — usado para comparar si el resumen diario de
+// WhatsApp (ver dispatchDailyDigests en notifications.ts) ya se mandó hoy.
+export function localDateKey(date: Date) {
+  const { year, month, day } = localParts(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// Primera hora del día laboral: a diferencia de isWorkingMoment (cualquier
+// momento dentro del horario), esto exige que sea justo la hora de apertura
+// — el poller de scheduler.ts corre cada minuto, así que "primera hora"
+// alcanza sin necesitar un cron exacto al minuto 0.
+export async function isFirstWorkingHour(date: Date, countryCode: string, startHour: number, endHour: number) {
+  const { hour } = localParts(date);
+  if (hour !== startHour) return false;
+  return isWorkingMoment(date, countryCode, startHour, endHour);
 }
 
 // Si `meetingAt - 30min` cae en horario laboral, ese es el momento del

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendGroupAlert, sendRawMessage } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, meetingReminderTargetTime } from "@/lib/workingHours";
+import { dispatchDailyDigests } from "@/lib/notifications";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -66,5 +67,6 @@ export function startScheduler() {
   setInterval(() => {
     void dispatchQueuedAlerts();
     void dispatchMeetingReminders();
+    void dispatchDailyDigests();
   }, POLL_INTERVAL_MS);
 }

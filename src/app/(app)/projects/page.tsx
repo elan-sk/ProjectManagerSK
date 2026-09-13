@@ -1,42 +1,33 @@
 import { auth } from "@/auth";
-import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
-import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { OverlapIcon } from "@/components/icons";
-import { ModalTrigger } from "@/components/Modal";
-import { ProjectIcon } from "@/components/ProjectIcon";
-import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
-import { ReferencePopover } from "@/components/ReferencePopover";
 import { SearchBox } from "@/components/SearchBox";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { findScheduleCollisions } from "@/lib/collisions";
-import { getProjectTaskSlack } from "@/lib/criticalPath";
-import { getBottlenecks, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
+import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { businessDaysRange } from "@/lib/holidays";
 import { prisma } from "@/lib/prisma";
-import { HEALTH_LABEL, projectHealth } from "@/lib/projectHealth";
+import { getProjectSummaryRows } from "@/lib/projectSummaries";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { PROJECT_PHASE_LABEL, projectPhase, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { RememberViewState } from "../RememberViewState";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
-import { CreateProjectForm } from "./CreateProjectForm";
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
-import { ProjectCardsOrder } from "./ProjectCardsOrder";
+import { ProjectSummaryGrid } from "./ProjectSummaryGrid";
 
 export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    risk?: "overdue" | "warning" | "lateStart";
+    risk?: "overdue" | "warning" | "lateStart" | "startingSoon";
     view?: string;
     date?: string;
     mode?: string;
@@ -121,11 +112,12 @@ export default async function ProjectsPage({
   const collisionUrlBase = boardHref({ collision: undefined });
 
   const [projects, users, allTasksForCollisions, activeShareLinks, tagCategories] = await Promise.all([
+    // Liviano a propósito: pm/tasks (salud, progreso, alertas) ya los trae
+    // getProjectSummaryRows por su cuenta — acá solo hace falta lo que
+    // alimenta la vista Archivos del panorama general y el selector "Buscar".
     prisma.project.findMany({
       where: { status: { not: "ARCHIVED" } },
       include: {
-        pm: true,
-        tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
         // Insumos del proyecto cargados en Definición (repositorio de
         // archivos + links de referencia) — se mezclan más abajo con los
         // adjuntos de tarea en la vista Archivos del panorama general.
@@ -178,60 +170,6 @@ export default async function ProjectsPage({
     }))
   );
 
-  const taskSlackByProject = new Map(
-    await Promise.all(projects.map(async (p) => [p.id, await getProjectTaskSlack(p.id)] as const))
-  );
-
-  const summaries = await Promise.all(
-    projects.map(async (p) => {
-      const alerts = await Promise.all(p.tasks.map((t) => getTaskAlert(p.countryCode, t)));
-      const overdueTasks = p.tasks.filter((_, i) => alerts[i].level === "overdue").map((t) => ({ id: t.id, title: t.title }));
-      const warningTasks = p.tasks.filter((_, i) => alerts[i].level === "warning").map((t) => ({ id: t.id, title: t.title }));
-      const lateStartTasks = p.tasks.filter((_, i) => alerts[i].level === "lateStart").map((t) => ({ id: t.id, title: t.title }));
-      const bottlenecks = await getBottlenecks(p.id);
-      const total = p.tasks.length;
-      const completed = p.tasks.filter((t) => t.status === "COMPLETED").length;
-      const started = p.tasks.some((t) => t.status !== "NOT_STARTED");
-      const collisionTasks = canSeeCollisions
-        ? p.tasks.filter((t) => collisionsById.has(t.id)).map((t) => ({ id: t.id, title: t.title }))
-        : [];
-      const openTasks = p.tasks.filter((t) => t.status !== "COMPLETED");
-      const openSlackDays =
-        openTasks.length > 0
-          ? (() => {
-              const slack = taskSlackByProject.get(p.id)!;
-              const values = openTasks.map((t) => slack.get(t.id)?.slackDays).filter((v): v is number => v != null);
-              return values.length > 0 ? Math.min(...values) : null;
-            })()
-          : null;
-      // Holgura/retraso REAL acumulado (plannedEnd vs. actualEnd de tareas ya
-      // completadas) — distinto de openSlackDays (margen CPM de las abiertas).
-      const completedWithActualEnd = p.tasks.filter((t) => t.status === "COMPLETED" && t.actualEnd);
-      const scheduleVarianceDays =
-        completedWithActualEnd.length > 0
-          ? (
-              await Promise.all(completedWithActualEnd.map((t) => getTaskScheduleVariance(p.countryCode, t)))
-            ).reduce((sum: number, v) => sum + (v ?? 0), 0)
-          : null;
-      return {
-        overdueCount: overdueTasks.length,
-        warningCount: warningTasks.length,
-        lateStartCount: lateStartTasks.length,
-        overdueTasks,
-        warningTasks,
-        lateStartTasks,
-        bottlenecks,
-        total,
-        completed,
-        health: projectHealth(overdueTasks.length, total),
-        phase: projectPhase(total, completed, started),
-        collisionTasks,
-        openSlackDays,
-        scheduleVarianceDays,
-      };
-    })
-  );
-
   // Punto 9: un miembro sin proyectos propios (no admin, no PM de ninguno)
   // no debe ver en la lista proyectos donde no tiene ni una tarea asignada
   // — antes veía TODOS los proyectos de la app, con o sin asignación.
@@ -247,16 +185,20 @@ export default async function ProjectsPage({
         ).map((t) => t.projectId)
       );
 
-  // Vista por defecto ("Recientes"): solo 2 proyectos, elegidos por
-  // ProjectCardsOrder en el cliente según el último abierto (localStorage),
-  // no por fecha de creación — por eso acá van todos los `rows` y el límite
-  // se aplica después. Al elegir "Todos los proyectos", un proyecto puntual,
-  // o filtrar por salud, se muestran todos los que calcen.
-  const rows = projects
-    .map((p, i) => ({ project: p, summary: summaries[i] }))
-    .filter(({ summary }) => !health || summary.health === health)
-    .filter(({ project: p }) => !pid || pid === "all" || p.id === pid)
-    .filter(({ project: p }) => !myAssignedProjectIds || myAssignedProjectIds.has(p.id));
+  // "Vista resumen" (card de proyecto con salud/progreso/alertas) — misma
+  // función que usa el bloque "Mis proyectos" de Agenda (ver
+  // projectSummaries.ts), reusando acá el `collisionsById` ya calculado
+  // arriba para el Panorama general en vez de volver a escanear todas las
+  // tareas del sistema. El filtro Buscar/Alerta (pid/health) vive dentro de
+  // ProjectSummaryGrid; acá solo se acota QUÉ proyectos entran.
+  const projectRows = await getProjectSummaryRows(
+    {
+      status: { not: "ARCHIVED" },
+      ...(myAssignedProjectIds ? { id: { in: [...myAssignedProjectIds] } } : {}),
+    },
+    canSeeCollisions,
+    collisionsById
+  );
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
   // visibles para este usuario (según sus "superpoderes" de arriba), pensado
@@ -341,7 +283,7 @@ export default async function ProjectsPage({
     reviewRounds: { outcome: string | null }[];
     taskTags: { tagId: string; categoryId: string }[];
   }) =>
-    (!risk || boardAlertById.get(t.id)!.level === risk) &&
+    matchesRiskFilter(boardAlertById.get(t.id)!, risk) &&
     matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     matchesTagFilter(tag, t.taskTags) &&
@@ -542,121 +484,17 @@ export default async function ProjectsPage({
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
-          <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">
-            <CreateProjectForm users={users} />
-          </ModalTrigger>
         </div>
 
-        <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Buscar</span>
-            <ComboFilter
-              allLabel="Recientes"
-              value={pid}
-              options={[{ id: "all", label: "Todos los proyectos" }, ...projects.map((p) => ({ id: p.id, label: p.name }))]}
-              paramKey="pid"
-              basePath="/projects"
-              currentParams={{ health }}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Alerta</span>
-            <ComboFilter
-              allLabel="Toda la salud"
-              value={health}
-              options={[
-                { id: "ok", label: HEALTH_LABEL.ok, dotColorClass: "bg-emerald-500" },
-                { id: "warn", label: HEALTH_LABEL.warn, dotColorClass: "bg-amber-500" },
-                { id: "bad", label: HEALTH_LABEL.bad, dotColorClass: "bg-red-500" },
-              ]}
-              paramKey="health"
-              basePath="/projects"
-              currentParams={{ pid }}
-              triggerColorClass={health === "bad" ? "bg-red-600 text-white" : health === "warn" ? "bg-amber-500 text-white" : health === "ok" ? "bg-emerald-600 text-white" : undefined}
-            />
-          </div>
-          {(pid || health) && (
-            <Link
-              href={boardHref({})}
-              className="self-end text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline"
-            >
-              Ver proyectos recientes
-            </Link>
-          )}
-        </div>
-
-        <div className="grid max-h-110 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
-          {rows.length === 0 && (
-            <p className="text-sm text-slate-500 sm:col-span-2">
-              {pid
-                ? "Ningún proyecto coincide con la búsqueda."
-                : health
-                ? "Ningún proyecto tiene esta salud."
-                : "Todavía no tenés proyectos."}
-            </p>
-          )}
-          <ProjectCardsOrder
-            limit={pid || health ? undefined : 2}
-            items={rows.map(({ project: p, summary }) => {
-            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
-            return { id: p.id, node: (
-              <NavLinkWithMemory
-                href={`/projects/${p.id}`}
-                storageKey={`project:${p.id}`}
-                className="block h-full rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
-                    <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 font-medium text-slate-900">
-                      <span className="truncate">{p.name}</span>
-                      {collisionTasks.length > 0 && (
-                        <ReferencePopover
-                          trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}
-                          hoverText="Alguna de sus tareas coincide en fechas con otro proyecto (misma persona)"
-                          items={collisionTasks.map((t) => ({ id: t.id, label: t.title, href: `/collisions/${t.id}` }))}
-                          filteredHref="/projects?collision=1"
-                          filteredLabel="Ver todas las colisiones"
-                        />
-                      )}
-                      {projectShareTokenById.get(p.id) && <CopyLinkButton token={projectShareTokenById.get(p.id)!} />}
-                    </p>
-                    <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
-                    </div>
-                  </div>
-                  {/* Alertas en su propia fila con wrap (pedido explícito del
-                      usuario): si van en la misma fila que el nombre, muchas
-                      alertas lo comprimen o lo empujan fuera de la tarjeta.
-                      Mismo patrón que /projects/[id] (ver ProjectSummary.tsx). */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ProjectHealthBadges
-                      projectId={p.id}
-                      health={health}
-                      overdueCount={overdueCount}
-                      overdueTasks={overdueTasks}
-                      warningCount={warningCount}
-                      warningTasks={warningTasks}
-                      lateStartCount={lateStartCount}
-                      lateStartTasks={lateStartTasks}
-                      openSlackDays={openSlackDays}
-                      scheduleVarianceDays={scheduleVarianceDays}
-                    />
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                      {PROJECT_PHASE_LABEL[phase]}
-                    </span>
-                    <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} />
-                </div>
-              </NavLinkWithMemory>
-            ) };
-            })}
-          />
-        </div>
+        <ProjectSummaryGrid
+          rows={projectRows}
+          basePath="/projects"
+          pid={pid}
+          health={health}
+          currentParams={{}}
+          users={users}
+          projectShareTokenById={projectShareTokenById}
+        />
       </div>
 
       <section className="space-y-3">
@@ -788,6 +626,8 @@ export default async function ProjectsPage({
                 allLabel="Todas las alertas"
                 value={risk}
                 options={[
+                  // Preventivo — solo para quien administra el panorama general.
+                  ...(canManageBoard ? [{ id: "startingSoon", label: "Empieza pronto", dotColorClass: "bg-cyan-500" }] : []),
                   { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
                   { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
                   { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
@@ -795,7 +635,17 @@ export default async function ProjectsPage({
                 paramKey="risk"
                 basePath="/projects"
                 currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag, collision }}
-                triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
+                triggerColorClass={
+                  risk === "overdue"
+                    ? "bg-red-600 text-white"
+                    : risk === "warning"
+                    ? "bg-amber-500 text-white"
+                    : risk === "lateStart"
+                    ? "bg-blue-500 text-white"
+                    : risk === "startingSoon"
+                    ? "bg-cyan-500 text-white"
+                    : undefined
+                }
               />
             </div>
             {canSeeCollisions && (

@@ -10,7 +10,7 @@ import { ShareIcon } from "@/components/icons";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
-import { getBottlenecks, getTaskAlert } from "@/lib/delays";
+import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -54,7 +54,7 @@ export default async function ProjectPage({
     status?: TaskStatus;
     type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE";
     userId?: string;
-    risk?: "overdue" | "warning" | "lateStart";
+    risk?: "overdue" | "warning" | "lateStart" | "startingSoon";
     q?: string;
     tag?: string;
     fileKind?: string;
@@ -200,7 +200,7 @@ export default async function ProjectPage({
     .filter((v): v is number => v !== null);
   const summaryScheduleVarianceDays = phaseVarianceValues.length > 0 ? phaseVarianceValues.reduce((s, v) => s + v, 0) : null;
 
-  const matchesRisk = (taskId: string) => !risk || alertByTaskId.get(taskId)!.level === risk;
+  const matchesRisk = (taskId: string) => matchesRiskFilter(alertByTaskId.get(taskId)!, risk);
   // "Devueltas"/"Revisión" del filtro Tipo (punto 11 confirmado): no son un
   // TaskType real, son un atajo personal — "me devolvieron a mí" y "tengo
   // que revisarle a otro" — sobre los mismos datos que ya alimentan las
@@ -664,6 +664,8 @@ export default async function ProjectPage({
             allLabel="Todas las alertas"
             value={risk}
             options={[
+              // Preventivo — solo para quien administra este proyecto.
+              ...(canManage ? [{ id: "startingSoon", label: "Empieza pronto", dotColorClass: "bg-cyan-500" }] : []),
               { id: "lateStart", label: "Inicio retrasado", dotColorClass: "bg-blue-400" },
               { id: "warning", label: "Por vencer", dotColorClass: "bg-amber-500" },
               { id: "overdue", label: "Final retrasado", dotColorClass: "bg-red-500" },
@@ -671,7 +673,17 @@ export default async function ProjectPage({
             paramKey="risk"
             basePath={`/projects/${project.id}`}
             currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag }}
-            triggerColorClass={risk === "overdue" ? "bg-red-600 text-white" : risk === "warning" ? "bg-amber-500 text-white" : risk === "lateStart" ? "bg-blue-500 text-white" : undefined}
+            triggerColorClass={
+              risk === "overdue"
+                ? "bg-red-600 text-white"
+                : risk === "warning"
+                ? "bg-amber-500 text-white"
+                : risk === "lateStart"
+                ? "bg-blue-500 text-white"
+                : risk === "startingSoon"
+                ? "bg-cyan-500 text-white"
+                : undefined
+            }
           />
         </div>
 

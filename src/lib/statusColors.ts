@@ -1,6 +1,18 @@
 import type { TaskStatus, NotificationType } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 
+// Vive acá (no en delays.ts) por el mismo motivo que TASK_TYPE_LABEL de más
+// abajo: delays.ts importa `prisma` en la cabecera, así que cualquier import
+// de valor desde ahí en un "use client" (KanbanBoard.tsx necesita esto para
+// el indicador "Empieza en Xd") arrastraría el cliente de Prisma al bundle
+// del navegador. Este archivo no tiene esa importación, así que es seguro
+// para ambos lados.
+export const STARTING_SOON_THRESHOLD_DAYS = 2;
+
+export function isStartingSoon(alert: Pick<TaskAlert, "daysUntilStart">) {
+  return alert.daysUntilStart !== null && alert.daysUntilStart <= STARTING_SOON_THRESHOLD_DAYS;
+}
+
 // Fuente única del color/etiqueta de cada estado de tarea — se usa en el
 // Kanban, Gantt, red de dependencias, agenda, calendario y los botones de
 // cambio de estado, para que el mismo color siempre signifique lo mismo en

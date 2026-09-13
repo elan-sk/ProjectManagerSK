@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { businessDaysBetween, todayUTC } from "@/lib/holidays";
 import { mondayOnOrBefore, addDays } from "@/lib/calendarGrid";
+import { isStartingSoon } from "@/lib/statusColors";
 import type { Task } from "@prisma/client";
 
 export type TaskWithDelay = Task & {
@@ -83,7 +84,24 @@ export type TaskAlert = {
   businessDaysOverdue: number;
   /** Días hábiles que faltan hasta la fecha fin planeada (solo "warning"/"onTrack"). */
   daysRemaining: number;
+  /**
+   * Días hábiles hasta plannedStart — solo cuando la tarea sigue NOT_STARTED
+   * y esa fecha todavía no llega (si ya pasó es "lateStart"; si ya arrancó,
+   * no aplica). Independiente de `level` a propósito (señal preventiva
+   * nueva, pedida por el usuario para PM/admin) — así no pisa los niveles
+   * existentes ni obliga a tocar cada lugar que hace switch sobre `level`.
+   */
+  daysUntilStart: number | null;
 };
+
+// Único lugar que entiende el filtro "Alerta" (incluye el valor especial
+// "startingSoon", que no es un TaskAlertLevel real) — reusado por Agenda,
+// /projects y /projects/[id] para no repetir el ternario cuatro veces.
+export function matchesRiskFilter(alert: Pick<TaskAlert, "level" | "daysUntilStart">, risk?: string) {
+  if (!risk) return true;
+  if (risk === "startingSoon") return isStartingSoon(alert);
+  return alert.level === risk;
+}
 
 /**
  * Alerta de agenda (punto 4): a diferencia de getTaskDelayDays (que solo
@@ -103,8 +121,8 @@ export async function getTaskAlert(
   countryCode: string,
   task: Pick<Task, "status" | "plannedStart" | "plannedEnd">
 ): Promise<TaskAlert> {
-  if (task.status === "COMPLETED") return { level: "done", businessDaysOverdue: 0, daysRemaining: 0 };
-  if (task.status === "BLOCKED") return { level: "blocked", businessDaysOverdue: 0, daysRemaining: 0 };
+  if (task.status === "COMPLETED") return { level: "done", businessDaysOverdue: 0, daysRemaining: 0, daysUntilStart: null };
+  if (task.status === "BLOCKED") return { level: "blocked", businessDaysOverdue: 0, daysRemaining: 0, daysUntilStart: null };
 
   const today = todayUTC();
   // Se compara por día calendario, no por instante — algunas tareas quedaron
@@ -118,19 +136,21 @@ export async function getTaskAlert(
     const dayAfterStart = new Date(plannedStart);
     dayAfterStart.setUTCDate(dayAfterStart.getUTCDate() + 1);
     const businessDaysLate = await businessDaysBetween(countryCode, dayAfterStart, today);
-    return { level: "lateStart", businessDaysOverdue: businessDaysLate, daysRemaining: 0 };
+    return { level: "lateStart", businessDaysOverdue: businessDaysLate, daysRemaining: 0, daysUntilStart: null };
   }
 
   if (today > plannedEnd) {
     const dayAfterEnd = new Date(plannedEnd);
     dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
     const businessDaysOverdue = await businessDaysBetween(countryCode, dayAfterEnd, today);
-    return { level: "overdue", businessDaysOverdue, daysRemaining: 0 };
+    return { level: "overdue", businessDaysOverdue, daysRemaining: 0, daysUntilStart: null };
   }
 
   const daysToDeadline = await businessDaysBetween(countryCode, today, plannedEnd);
-  if (daysToDeadline <= 2) return { level: "warning", businessDaysOverdue: 0, daysRemaining: daysToDeadline };
-  return { level: "onTrack", businessDaysOverdue: 0, daysRemaining: daysToDeadline };
+  const daysUntilStart =
+    task.status === "NOT_STARTED" && today < plannedStart ? await businessDaysBetween(countryCode, today, plannedStart) : null;
+  if (daysToDeadline <= 2) return { level: "warning", businessDaysOverdue: 0, daysRemaining: daysToDeadline, daysUntilStart };
+  return { level: "onTrack", businessDaysOverdue: 0, daysRemaining: daysToDeadline, daysUntilStart };
 }
 
 export async function getProjectDelaySummary(projectId: string) {

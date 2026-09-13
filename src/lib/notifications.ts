@@ -2,15 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
-import { isWorkingMoment } from "@/lib/workingHours";
+import { isWorkingMoment, isFirstWorkingHour, localDateKey } from "@/lib/workingHours";
+import { getAgendaCounts, getPmProjectsSummary } from "@/lib/agendaSummary";
 import type { NotificationType } from "@prisma/client";
 
-// Escalamiento acordado con el usuario: lo que solo le compete a una persona
-// o es de bajo impacto va directo a su WhatsApp; lo grave (vencidas,
-// bloqueos, devoluciones) va al grupo del proyecto (o al de por defecto)
-// mencionando a los involucrados y al PM.
+// Escalamiento acordado con el usuario: lo grave (vencidas, bloqueos,
+// devoluciones) va en tiempo real al grupo del proyecto (o al de por
+// defecto), mencionando a los involucrados y al PM. Lo que solo le compete a
+// una persona (asignación, por vencer, revisión, etc. — antes iba directo a
+// su WhatsApp evento por evento) ya NO se manda individual: queda en el
+// resumen diario (ver dispatchDailyDigests más abajo) para no saturarle el
+// WhatsApp con un mensaje por cada cosa. Sigue creando la Notification
+// in-app y el push de todos modos, eso no cambió.
 const GROUP_ALERT_TYPES: NotificationType[] = ["OVERDUE", "BLOCKED", "RETURNED", "LATE_START_CRITICAL"];
-const DIRECT_ALERT_TYPES: NotificationType[] = ["ASSIGNED", "DEADLINE_APPROACHING", "LATE_START", "REVIEW_REQUESTED", "SHARE_ACTIVITY"];
 
 // Semáforo de severidad (mismo criterio que NOTIFICATION_TYPE_COLOR en
 // statusColors.ts: rojo = urgente, ámbar = por vencer, azul = informativo,
@@ -73,15 +77,6 @@ async function dispatchGroup(groupJid: string, body: string, mentionUserIds: str
   }
 }
 
-async function dispatchDirect(phone: string, body: string, link?: string) {
-  const text = link ? `${body}\n\n🔗 ${link}` : body;
-  if (await isCurrentlyWorkingHour()) {
-    void sendDirectAlert(phone, text);
-  } else {
-    await prisma.whatsAppQueueItem.create({ data: { target: `${phone}@s.whatsapp.net`, message: text } });
-  }
-}
-
 // Toda alarma pasa por acá: queda in-app (columna Notification) Y se manda
 // como Web Push a cada dispositivo suscrito del usuario asignado — así llega
 // aunque no tenga la app abierta, como pidió el punto 14 del manuscrito.
@@ -115,12 +110,6 @@ export async function notify(
     if (!options?.projectId) return;
     const groupJid = await resolveProjectGroupJid(options.projectId);
     if (groupJid) await dispatchGroup(groupJid, body, options.mentionUserIds ?? userIds, link);
-  } else if (DIRECT_ALERT_TYPES.includes(type)) {
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds }, phone: { not: null } },
-      select: { phone: true },
-    });
-    await Promise.all(users.map((u) => dispatchDirect(u.phone!, body, link)));
   }
 }
 
@@ -261,5 +250,74 @@ export async function checkDeadlineAlerts(userId: string) {
         }
       }
     }
+  }
+}
+
+// Resumen diario por WhatsApp (reemplaza el aviso individual evento por
+// evento para lo que antes era DIRECT_ALERT_TYPES) — un solo mensaje en la
+// primera hora laboral, con conteos en vez de tarea por tarea. Mismos números
+// que ve la persona en los tiles de /agenda (ver agendaSummary.ts).
+export async function buildDailyDigestText(userId: string, name: string) {
+  const [counts, pmProjects] = await Promise.all([getAgendaCounts(userId), getPmProjectsSummary(userId)]);
+  const firstName = name.split(" ")[0];
+
+  // Mismo orden de importancia que en /agenda y /projects: inicio retrasado
+  // (todavía se puede evitar el daño) → por vencer → final retrasado (ya es
+  // tarde) → bloqueada.
+  const lines = [
+    `👋 *¡Buenos días, ${firstName}!*`,
+    "",
+    "📋 *Tu agenda de hoy:*",
+    `• ${counts.lateStart} con inicio retrasado`,
+    `• ${counts.warning} por vencer`,
+    `• ${counts.overdue} con final retrasado`,
+    `• ${counts.blocked} bloqueada(s)`,
+    `• ${counts.unopened} tarea(s) nueva(s) sin abrir`,
+  ];
+
+  if (pmProjects.length > 0) {
+    lines.push("", "📁 *Tus proyectos:*");
+    for (const p of pmProjects) {
+      const flags = [
+        // Preventivo primero (todavía a tiempo de evitarlo) — solo le llega a
+        // quien administra el proyecto, por eso vive acá y no en el conteo
+        // personal de arriba.
+        p.startingSoonCount > 0 ? `${p.startingSoonCount} empiezan pronto` : null,
+        p.lateStartCount > 0 ? `${p.lateStartCount} inicio retrasado` : null,
+        p.overdueCount > 0 ? `${p.overdueCount} final retrasado` : null,
+        p.blockedCount > 0 ? `${p.blockedCount} bloqueada(s)` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      lines.push(`• ${p.name}: ${p.completed}/${p.total} completadas${flags ? ` · ${flags}` : ""}`);
+    }
+  }
+
+  lines.push("", `🔗 ${absoluteUrl("/agenda")}`);
+  return lines.join("\n");
+}
+
+// Llamado desde el poller de scheduler.ts (cada 60s): la mayoría de los
+// ticks no hacen nada (isFirstWorkingHour filtra), y una vez que manda el
+// digest de un usuario marca lastDigestSentAt para no repetirlo el resto de
+// esa hora. Secuencial (no Promise.all) para no ráfaguear el socket de
+// WhatsApp con muchos envíos simultáneos.
+export async function dispatchDailyDigests() {
+  const { workHoursStart, workHoursEnd } = await getWhatsAppSettings();
+  const countryCode = await getAppCountryCode();
+  const now = new Date();
+  if (!(await isFirstWorkingHour(now, countryCode, workHoursStart, workHoursEnd))) return;
+
+  const todayKey = localDateKey(now);
+  const users = await prisma.user.findMany({
+    where: { active: true, phone: { not: null } },
+    select: { id: true, name: true, phone: true, lastDigestSentAt: true },
+  });
+
+  for (const user of users) {
+    if (user.lastDigestSentAt && localDateKey(user.lastDigestSentAt) === todayKey) continue;
+    const text = await buildDailyDigestText(user.id, user.name);
+    const sent = await sendDirectAlert(user.phone!, text);
+    if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now } });
   }
 }

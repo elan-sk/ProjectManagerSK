@@ -20,7 +20,9 @@
     "verify:late-start-alert": "tsx scripts/verify-late-start-alert.ts",
     "verify:insert-adjacent-task": "tsx scripts/verify-insert-adjacent-task.ts",
     "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts",
-    "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts"
+    "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts",
+    "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
+    "package:hostinger": "bash scripts/package-for-hostinger.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

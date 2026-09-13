@@ -49,6 +49,12 @@ export default async function TaskDetailPage({
       where: { userId: session.user.id, taskId, read: false },
       data: { read: true },
     });
+    // Resumen de agenda/WhatsApp: cuenta como "abierta" apenas el asignado
+    // entra al detalle, sin importar si hace algo más ahí adentro.
+    await prisma.taskAssignee.updateMany({
+      where: { taskId, userId: session.user.id, viewedAt: null },
+      data: { viewedAt: new Date() },
+    });
   }
 
   const task = await prisma.task.findUnique({
