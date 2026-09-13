@@ -34,6 +34,11 @@ export type GanttTask = {
   phaseId: string;
   phaseName: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
+  // Punto 9: permiso de ESTA tarea (según su proyecto) — igual que en
+  // KanbanBoard, nunca un booleano único para todo el panorama general.
+  canManage: boolean;
+  // Punto 12: mismo bloqueo optimista que KanbanBoard, ver assertNotStale.
+  updatedAt: string;
   startIndex: number;
   span: number;
   minStartIndex: number;
@@ -202,6 +207,7 @@ export function GanttView({
   targetEndDate,
   users,
   collisionUrlBase = "/projects",
+  focusCollision = false,
 }: {
   businessDays: Date[];
   tasks: GanttTask[];
@@ -211,6 +217,12 @@ export function GanttView({
   // Ver mismo comentario en KanbanBoard: base de "Ver mis colisiones", solo
   // relevante cuando la pasa /projects/page.tsx.
   collisionUrlBase?: string;
+  // Punto 2: true cuando la URL trae ?collision=<taskId> (no el "1" genérico
+  // de "Solo colisiones") — en ese caso `tasks` ya viene filtrado a solo las
+  // tareas que chocan entre sí, y hace falta mover el scroll horizontal
+  // hasta la fecha de inicio MÁS TEMPRANA de ese bloque, en vez de dejar al
+  // usuario buscarlo a mano.
+  focusCollision?: boolean;
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -247,6 +259,19 @@ export function GanttView({
   const closeHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const criticalTasksOrderedRef = useRef<GanttTask[]>([]);
+
+  // Punto 2: "Ver mis colisiones" ya filtra `tasks` (server-side, vía
+  // matchesBoardFilters) a solo las tareas que chocan entre sí — acá solo
+  // falta mover el scroll horizontal a la fecha de inicio MÁS TEMPRANA de
+  // ese bloque, mismo mecanismo que scrollToPhaseStart.
+  useEffect(() => {
+    if (!focusCollision || tasks.length === 0) return;
+    const earliestStart = Math.min(...tasks.map((t) => t.startIndex));
+    scrollRef.current?.scrollTo({ left: Math.max(0, earliestStart * DAY_WIDTH - DAY_WIDTH), behavior: "smooth" });
+    // Solo al entrar en modo colisión (no en cada cambio de `tasks`, que
+    // cambia de referencia en cada render del servidor).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCollision]);
 
   // Botón "Ruta crítica" del filtro (fuera de este componente, ver
   // CriticalPathButton.tsx): mismo efecto que clickear a mano una flecha de
@@ -404,12 +429,19 @@ export function GanttView({
       return;
     }
     const taskIds = Array.from(selectedIds);
+    // Punto 12: updatedAt de cada tarea del grupo, tal cual la tenía este
+    // cliente al armar la selección — ver assertNotStale-equivalente en
+    // moveTaskGroup (actions.ts).
+    const expectedUpdatedAts = Object.fromEntries(
+      taskIds.map((id) => [id, taskById.get(id)?.updatedAt]).filter((entry): entry is [string, string] => Boolean(entry[1]))
+    );
     startTransition(async () => {
       try {
-        const result = await moveTaskGroup(taskIds, deltaIndex);
+        const result = await moveTaskGroup(taskIds, deltaIndex, expectedUpdatedAts);
         setGroupDrag(null);
         if (!result.ok) {
           showToast(result.error ?? "No se pudo mover el grupo.");
+          router.refresh();
           return;
         }
         if (result.appliedDelta !== deltaIndex) {
@@ -457,6 +489,10 @@ export function GanttView({
   }
 
   function onContainerContextMenu(e: React.MouseEvent) {
+    // Punto 9: `canManage` acá es solo un bail-out barato (¿administra ALGO
+    // en absoluto?) — el permiso real que importa es por tarea/vínculo,
+    // chequeado abajo con taskById, para que en el panorama general no se
+    // pueda tocar una tarea de un proyecto ajeno.
     if (!canManage) return;
     const target = e.target as Element;
     // Un tramo de flecha primero: es más específico que la barra, aunque en
@@ -465,7 +501,13 @@ export function GanttView({
     if (edgeGroup) {
       const dependencyId = edgeGroup.getAttribute("data-dependency-id");
       const successorId = edgeGroup.getAttribute("data-successor-id");
-      if (dependencyId && successorId) {
+      const predecessorId = edgeGroup.getAttribute("data-predecessor-id");
+      if (
+        dependencyId &&
+        successorId &&
+        taskById.get(successorId)?.canManage &&
+        (!predecessorId || taskById.get(predecessorId)?.canManage)
+      ) {
         e.preventDefault();
         setConnect(null);
         setContextMenu({ kind: "edge", dependencyId, successorId, x: e.clientX, y: e.clientY });
@@ -474,9 +516,11 @@ export function GanttView({
     }
     const barEl = target.closest('[id^="gantt-bar-"]');
     if (!barEl) return;
+    const taskId = barEl.id.replace("gantt-bar-", "");
+    if (!taskById.get(taskId)?.canManage) return;
     e.preventDefault();
     setConnect(null);
-    setContextMenu({ kind: "task", taskId: barEl.id.replace("gantt-bar-", ""), x: e.clientX, y: e.clientY });
+    setContextMenu({ kind: "task", taskId, x: e.clientX, y: e.clientY });
   }
 
   function startConnect(originTaskId: string, role: "predecessor" | "successor") {
@@ -974,6 +1018,7 @@ export function GanttView({
                         businessDaysISO={businessDaysISO}
                         plannedStart={t.plannedStart}
                         plannedEnd={t.plannedEnd}
+                        updatedAt={t.updatedAt}
                         dependsOn={t.dependsOn}
                         blocks={t.blocks}
                         attachmentsCount={t.attachmentsCount}
@@ -982,12 +1027,12 @@ export function GanttView({
                         reviewers={t.reviewers}
                         tags={t.tags}
                         ctrlHeld={ctrlHeld}
-                        canResize={canManage}
+                        canResize={t.canManage}
                         highlighted={highlightedIds?.has(t.id)}
                         critical={criticalTaskIds.has(t.id) && !criticalSelected}
                         criticalSelected={criticalTaskIds.has(t.id) && criticalSelected}
                         selected={selectedIds.has(t.id)}
-                        onToggleSelect={canManage ? (multi) => toggleSelect(t.id, multi) : undefined}
+                        onToggleSelect={t.canManage ? (multi) => toggleSelect(t.id, multi) : undefined}
                         groupArmed={groupMoveArmed && selectedIds.has(t.id)}
                         moveOffsetIndex={groupDrag && selectedIds.has(t.id) ? groupDrag.deltaIndex : 0}
                         onGroupDragStart={onGroupDragStart}
@@ -1093,7 +1138,7 @@ export function GanttView({
                     }
                     style={{ pointerEvents: "none" }}
                   />
-                  {canManage && (
+                  {canManage && taskById.get(e.predecessorId)?.canManage && taskById.get(e.successorId)?.canManage && (
                     <>
                       <circle
                         cx={e.x1}

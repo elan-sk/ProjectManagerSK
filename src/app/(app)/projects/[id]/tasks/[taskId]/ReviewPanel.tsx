@@ -4,8 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
+import { useConfirm } from "@/components/Confirm";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
+import { AttachmentLightbox } from "./AttachmentLightbox";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import {
   setTaskReviewers,
@@ -16,14 +19,17 @@ import {
   addReviewCheck,
   removeReviewCheck,
   setReviewCheckResult,
+  revertReviewCheckResult,
   setCheckResponseCategory,
   addReviewCheckEvidence,
+  addReviewCheckEvidenceLink,
   removeReviewCheckEvidence,
   closeReviewRound,
+  completeReviewTask,
   addReviewMessage,
   editReviewMessage,
 } from "./reviewActions";
-import type { CheckResult } from "@prisma/client";
+import type { CheckResult, TaskStatus } from "@prisma/client";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -49,27 +55,87 @@ type Round = {
   messages: Message[];
 };
 
-const RESULT_LABEL: Record<CheckResult, string> = { APPROVED: "Aprobada", FLAGGED: "Con hallazgos", FAILED: "Con errores" };
+const RESULT_LABEL: Record<CheckResult, string> = {
+  APPROVED: "Aprobada",
+  FLAGGED: "Con hallazgos",
+  FAILED: "Con errores",
+  NOT_APPLICABLE: "No aplica",
+};
 const RESULT_COLOR: Record<CheckResult, string> = {
   APPROVED: "bg-emerald-600 text-white",
   FLAGGED: "bg-amber-500 text-white",
   FAILED: "bg-red-600 text-white",
+  NOT_APPLICABLE: "bg-slate-400 text-white",
 };
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
 
-function FileChip({ file }: { file: FileRef }) {
+function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const isLink = file.mimeType === LINK_MIME_TYPE;
-  return (
-    <a
-      href={file.url}
-      target="_blank"
-      rel="noreferrer"
-      download={isLink ? undefined : file.name}
-      className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-    >
+  const className = "flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50";
+  const content = (
+    <>
       {isLink ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
       <span className="max-w-[10rem] truncate">{file.name}</span>
+    </>
+  );
+  // Punto 2: si hay preview disponible (imagen o doc previsualizable), el
+  // chip abre el mismo visor que ya usan Insumos/Evidencias de la tarea en
+  // vez de descargar directo — para lo no previsualizable, se mantiene el
+  // link de siempre.
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+  return (
+    <a href={file.url} target="_blank" rel="noreferrer" download={isLink ? undefined : file.name} className={className}>
+      {content}
     </a>
+  );
+}
+
+// Agrupa un conjunto de chips (deliverables de una ronda, o evidencia de un
+// check) y reusa el mismo visor de imágenes/documentos que Insumos y
+// Evidencias de la tarea (AttachmentLightbox / AttachmentPreviewModal) — sin
+// tocar esos componentes, en modo solo-lectura (canDelete=false / sin
+// onDelete) ya que el borrado de evidencia acá tiene su propio botón ✕.
+function FileChips({ files, onRemove }: { files: FileRef[]; onRemove?: (id: string) => void }) {
+  const [openImageId, setOpenImageId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<FileRef | null>(null);
+  const images = files.filter((f) => f.mimeType.startsWith("image/"));
+
+  return (
+    <>
+      {files.map((file) => {
+        const isImage = file.mimeType.startsWith("image/");
+        const onClick = isImage
+          ? () => setOpenImageId(file.id)
+          : isPreviewable(file.mimeType)
+            ? () => setPreviewDoc(file)
+            : undefined;
+        return (
+          <div key={file.id} className="group relative">
+            <FileChip file={file} onClick={onClick} />
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(file.id)}
+                aria-label="Eliminar evidencia"
+                className="absolute -top-1 -right-1 rounded-full bg-white p-0.5 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {openImageId && (
+        <AttachmentLightbox images={images} openId={openImageId} onClose={() => setOpenImageId(null)} onNavigate={setOpenImageId} canDelete={false} />
+      )}
+      {previewDoc && <AttachmentPreviewModal file={previewDoc} onClose={() => setPreviewDoc(null)} />}
+    </>
   );
 }
 
@@ -84,6 +150,7 @@ export function ReviewPanel({
   templates,
   responseCategories,
   rounds,
+  taskStatus,
 }: {
   taskId: string;
   userId: string | null;
@@ -95,10 +162,18 @@ export function ReviewPanel({
   templates: { id: string; name: string }[];
   responseCategories: { name: string; responses: string[] }[];
   rounds: Round[];
+  // Punto 16: una vez COMPLETED, no se puede reenviar ni completar de
+  // nuevo — la evidencia sigue siendo visible/descargable más abajo (ver
+  // closedRounds), pero ya nada acá permite subir algo nuevo.
+  taskStatus: TaskStatus;
 }) {
   const activeRound = rounds.find((r) => r.outcome === null) ?? null;
   const closedRounds = rounds.filter((r) => r.outcome !== null);
+  // `rounds` llega ordenado desc por roundNumber (ver page.tsx) — el primero
+  // es siempre el más reciente, cerrado o no.
+  const lastRound = rounds[0] ?? null;
   const reviewers = users.filter((u) => currentReviewerIds.includes(u.id));
+  const isDone = taskStatus === "COMPLETED";
 
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -107,7 +182,7 @@ export function ReviewPanel({
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">Revisores:</span>
           <AvatarGroup people={reviewers.map((r) => ({ name: r.name, avatarUrl: r.avatarUrl }))} />
-          {canManage && (
+          {canManage && !isDone && (
             <ModalTrigger label="Cambiar" title="Asignar revisores" variant="secondary" compact>
               <ReassignAssigneesForm
                 taskId={taskId}
@@ -132,7 +207,29 @@ export function ReviewPanel({
           responseCategories={responseCategories}
         />
       ) : (
-        canEdit && <SubmitRoundForm taskId={taskId} nextRoundNumber={rounds.length + 1} />
+        !isDone && (
+          <>
+            {/* Punto 8: si la última ronda quedó devuelta, antes de poder
+                reenviar el asignado tiene que responder + mandar evidencia
+                de la corrección de cada prueba que falló. */}
+            {canEdit && lastRound?.outcome === "RETURNED" && (
+              <CorrectionPanel round={lastRound} responseCategories={responseCategories} />
+            )}
+            {canEdit && (
+              <SubmitRoundForm
+                taskId={taskId}
+                nextRoundNumber={rounds.length + 1}
+                initialItems={lastRound?.outcome === "RETURNED" ? lastRound.deliverables : undefined}
+              />
+            )}
+          </>
+        )
+      )}
+
+      {/* Punto 15: solo el revisor (o PM/admin) finaliza la Prueba, con un
+          botón dedicado acá — no desde el control de estado genérico. */}
+      {canReview && !isDone && !activeRound && lastRound?.outcome === "APPROVED" && (
+        <CompleteTaskButton taskId={taskId} />
       )}
 
       {closedRounds.length > 0 && (
@@ -159,23 +256,126 @@ export function ReviewPanel({
   );
 }
 
-function SubmitRoundForm({ taskId, nextRoundNumber }: { taskId: string; nextRoundNumber: number }) {
+// Punto 8: pruebas "Con errores" de la última ronda devuelta, editables SOLO
+// para responder (categoría de respuesta) y adjuntar evidencia de la
+// corrección — nunca para volver a calificarlas (eso es del revisor, en la
+// ronda siguiente). Reusa RoundChecks/CheckRow sin canReview, así ninguno de
+// los controles de revisor (Quitar, calificar) aparece acá.
+function CorrectionPanel({ round, responseCategories }: { round: Round; responseCategories: { name: string; responses: string[] }[] }) {
+  const failedChecks = round.checks.filter((c) => c.result === "FAILED");
+  if (failedChecks.length === 0) return null;
+  const allAnswered = failedChecks.every((c) => c.responseCategory?.trim() && c.evidence.length > 0);
+  return (
+    <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
+      <p className="text-sm font-medium text-orange-800">
+        Antes de reenviar — respondé y subí evidencia de la corrección de cada prueba con error (ronda {round.roundNumber})
+      </p>
+      <RoundChecks checks={failedChecks} canEdit responseCategories={responseCategories} />
+      {!allAnswered && <p className="text-xs text-orange-600">Faltan pruebas por responder con evidencia.</p>}
+    </div>
+  );
+}
+
+function CompleteTaskButton({ taskId }: { taskId: string }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
+  const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function handleSubmit() {
-    if (!name.trim() || !url.trim()) return;
+  async function handleClick() {
+    const ok = await confirm(
+      "Una vez que la marques como completada, no vas a poder subir más evidencia para esta tarea. ¿Querés continuar?",
+      { confirmLabel: "Sí, completar" }
+    );
+    if (!ok) return;
     setError(null);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("name", name);
-      formData.set("url", url);
-      const result = await submitReviewRound(taskId, formData);
+      const result = await completeReviewTask(taskId);
       if (result.ok) router.refresh();
-      else setError(result.error ?? "No se pudo enviar a revisión.");
+      else setError(result.error ?? "No se pudo completar la tarea.");
+    });
+  }
+
+  return (
+    <div className="space-y-1 border-t border-slate-100 pt-3">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={handleClick}
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+      >
+        Completar tarea
+      </button>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// Punto 7: el envío/reenvío admite CUALQUIER combinación de links y archivos
+// (uno o varios de cada tipo) — antes solo aceptaba un único link.
+// Punto 3b: al reenviar (ronda 2+), `initialItems` trae lo entregado en la
+// ronda anterior — para el asignado se ve prellenado, pero cada ítem
+// conserva su `id` original así el servidor reasigna esa misma fila a la
+// ronda nueva en vez de duplicarla (ver submitReviewRound).
+function SubmitRoundForm({
+  taskId,
+  nextRoundNumber,
+  initialItems = [],
+}: {
+  taskId: string;
+  nextRoundNumber: number;
+  initialItems?: { id: string; name: string; url: string; mimeType: string }[];
+}) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [items, setItems] = useState<{ id?: string; name: string; url: string; mimeType: string }[]>(initialItems);
+  const [addingLink, setAddingLink] = useState(false);
+  const [linkName, setLinkName] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function uploadFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error ?? "No se pudo subir el archivo.");
+        return;
+      }
+      setItems((prev) => [...prev, { name: body.name, url: body.url, mimeType: body.mimeType }]);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  function addLink() {
+    if (!linkName.trim() || !linkUrl.trim()) return;
+    setItems((prev) => [...prev, { name: linkName.trim(), url: linkUrl.trim(), mimeType: LINK_MIME_TYPE }]);
+    setLinkName("");
+    setLinkUrl("");
+    setAddingLink(false);
+  }
+
+  function removeItem(i: number) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleSubmit() {
+    if (items.length === 0) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await submitReviewRound(taskId, items);
+      if (result.ok) {
+        setItems([]);
+        router.refresh();
+      } else setError(result.error ?? "No se pudo enviar a revisión.");
     });
   }
 
@@ -184,18 +384,49 @@ function SubmitRoundForm({ taskId, nextRoundNumber }: { taskId: string; nextRoun
       <p className="text-sm text-slate-600">
         {nextRoundNumber === 1 ? "Enviar a revisión" : `Reenviar (ronda ${nextRoundNumber})`}
       </p>
-      <div className="flex gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del entregable" className="w-40 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
-        <button
-          type="button"
-          disabled={isPending || !name.trim() || !url.trim()}
-          onClick={handleSubmit}
-          className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          Enviar
-        </button>
-      </div>
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {items.map((it, i) => (
+            <span key={i} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600">
+              {it.mimeType === LINK_MIME_TYPE ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
+              <span className="max-w-[10rem] truncate">{it.name}</span>
+              <button type="button" onClick={() => removeItem(i)} className="text-slate-400 hover:text-red-600">
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {addingLink ? (
+        <div className="flex gap-1.5">
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={addLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-sm text-white disabled:opacity-50">
+            OK
+          </button>
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-500">
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="cursor-pointer rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400">
+            {uploading ? "Subiendo…" : "+ Archivo"}
+            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+          </label>
+          <button type="button" onClick={() => setAddingLink(true)} className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400">
+            + Link
+          </button>
+          <button
+            type="button"
+            disabled={isPending || items.length === 0}
+            onClick={handleSubmit}
+            className="ml-auto flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            Enviar
+          </button>
+        </div>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
@@ -212,6 +443,11 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Punto 8: la gestión completa de plantilla (aplicar/agregar puntos nuevos)
+  // solo tiene sentido en la ronda 1 — de ahí en más, la ronda nace ya con
+  // las mismas pruebas que fallaron (misma prueba, otra ronda), el revisor
+  // no arma una revisión nueva de cero.
+  const isFirstRound = round.roundNumber === 1;
 
   function handleApplyTemplate(templateId: string) {
     if (!templateId) return;
@@ -239,14 +475,12 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
           Ronda {round.roundNumber} — enviada por {round.submittedByName}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          {round.deliverables.map((d) => (
-            <FileChip key={d.id} file={d} />
-          ))}
+          <FileChips files={round.deliverables} />
           {canEdit && <AddDeliverableForm reviewRoundId={round.id} />}
         </div>
       </div>
 
-      {canReview && templates.length > 0 && (
+      {canReview && isFirstRound && templates.length > 0 && (
         <select
           onChange={(e) => handleApplyTemplate(e.target.value)}
           defaultValue=""
@@ -266,7 +500,7 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
 
       <RoundChecks checks={round.checks} canReview={canReview} canEdit={canEdit} responseCategories={responseCategories} />
 
-      {canReview && <AddCheckForm reviewRoundId={round.id} />}
+      {canReview && isFirstRound && <AddCheckForm reviewRoundId={round.id} />}
 
       {canReview && (
         <div>
@@ -318,10 +552,18 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
   responseCategories: { name: string; responses: string[] }[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [note, setNote] = useState(check.note ?? "");
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [addingLink, setAddingLink] = useState(false);
+  const [linkName, setLinkName] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  // Punto 8: quien corrige (canEdit) también puede adjuntar evidencia de su
+  // corrección sobre una prueba que ya quedó "Con errores" — antes esto era
+  // exclusivo del revisor.
+  const canAttachEvidence = canReview || (canEdit && check.result === "FAILED");
 
   function setResult(result: CheckResult) {
     startTransition(async () => {
@@ -330,11 +572,36 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
     });
   }
 
+  // Punto 4: revertir vuelve el resultado a blanco mientras la ronda siga
+  // abierta (acá `canReview` ya viene en false en modo readOnly/ronda
+  // cerrada — ver RoundChecks) para que el revisor la vuelva a calificar.
+  async function handleRevert() {
+    const ok = await confirm("¿Revertir la calificación de esta prueba? Vas a tener que volver a calificarla.", {
+      confirmLabel: "Sí, revertir",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const result = await revertReviewCheckResult(check.id);
+      if (result.ok) router.refresh();
+    });
+  }
+
   function handleRemove() {
     startTransition(async () => {
       await removeReviewCheck(check.id);
       router.refresh();
     });
+  }
+
+  async function handleAddEvidenceLink() {
+    if (!linkName.trim() || !linkUrl.trim()) return;
+    const result = await addReviewCheckEvidenceLink(check.id, linkUrl.trim(), linkName.trim());
+    if (result.ok) {
+      setLinkName("");
+      setLinkUrl("");
+      setAddingLink(false);
+      router.refresh();
+    }
   }
 
   function handleResponseCategory(category: string) {
@@ -393,7 +660,16 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
           )}
         </div>
         {check.result ? (
-          <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[check.result]}`}>{RESULT_LABEL[check.result]}</span>
+          <div className="flex flex-shrink-0 items-center gap-1.5">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[check.result]}`}>{RESULT_LABEL[check.result]}</span>
+            {/* Punto 4: revertir solo mientras la ronda siga abierta — en modo
+                readOnly (ronda cerrada) CheckRow ya recibe canReview=false. */}
+            {canReview && (
+              <button type="button" onClick={handleRevert} disabled={isPending} className="text-xs text-slate-400 hover:text-red-600">
+                Revertir
+              </button>
+            )}
+          </div>
         ) : (
           canReview && (
             <button type="button" onClick={handleRemove} disabled={isPending} className="flex-shrink-0 text-xs text-slate-400 hover:text-red-600">
@@ -411,19 +687,29 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
             placeholder="Nota (opcional)…"
             className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
           />
-          <div className="flex gap-1.5">
-            {(["APPROVED", "FLAGGED", "FAILED"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                disabled={isPending}
-                onClick={() => setResult(r)}
-                className={`rounded-lg px-2 py-1 text-xs font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
-              >
-                {RESULT_LABEL[r]}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            {/* Punto 6: calificar con error o con hallazgo exige evidencia ya
+                cargada — deshabilitado desde el primer render (punto 5), no
+                después de intentarlo. */}
+            {(["APPROVED", "FLAGGED", "FAILED", "NOT_APPLICABLE"] as const).map((r) => {
+              const needsEvidence = (r === "FAILED" || r === "FLAGGED") && check.evidence.length === 0;
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={isPending || needsEvidence}
+                  title={needsEvidence ? "Subí evidencia antes de calificar con error o con hallazgo." : undefined}
+                  onClick={() => setResult(r)}
+                  className={`rounded-lg px-2 py-1 text-xs font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
+                >
+                  {RESULT_LABEL[r]}
+                </button>
+              );
+            })}
           </div>
+          {check.evidence.length === 0 && (
+            <p className="text-[11px] text-slate-400">Para calificar con error o con hallazgo, subí evidencia primero.</p>
+          )}
         </div>
       )}
 
@@ -431,28 +717,31 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
 
       {check.evidence.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {check.evidence.map((e) => (
-            <div key={e.id} className="group relative">
-              <FileChip file={e} />
-              {canReview && (
-                <button
-                  type="button"
-                  onClick={() => handleRemoveEvidence(e.id)}
-                  aria-label="Eliminar evidencia"
-                  className="absolute -top-1 -right-1 rounded-full bg-white p-0.5 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          ))}
+          <FileChips files={check.evidence} onRemove={canAttachEvidence ? handleRemoveEvidence : undefined} />
         </div>
       )}
-      {canReview && (
-        <label className="inline-block cursor-pointer text-xs text-slate-400 hover:text-slate-600 hover:underline">
-          {uploading ? "Subiendo…" : "+ Evidencia"}
-          <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
-        </label>
+      {canAttachEvidence && !addingLink && (
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer text-xs text-slate-400 hover:text-slate-600 hover:underline">
+            {uploading ? "Subiendo…" : "+ Evidencia"}
+            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
+          </label>
+          <button type="button" onClick={() => setAddingLink(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+            + Link
+          </button>
+        </div>
+      )}
+      {canAttachEvidence && addingLink && (
+        <div className="flex gap-1">
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
+            OK
+          </button>
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500">
+            ✕
+          </button>
+        </div>
       )}
 
       {check.result === "FAILED" && canEdit && (
@@ -543,10 +832,14 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   );
 }
 
+// Punto 13: ahora también junta `criteria` (los puntos concretos de la
+// prueba, uno por línea) — antes no había forma de agregarlos al crear una
+// prueba a mano, solo llegaban copiados de una plantilla.
 function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
+  const [criteria, setCriteria] = useState("");
   const [isPending, startTransition] = useTransition();
 
   function handleAdd() {
@@ -555,27 +848,38 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
       const formData = new FormData();
       formData.set("title", title);
       formData.set("category", category);
+      formData.set("criteria", criteria);
       const result = await addReviewCheck(reviewRoundId, formData);
       if (result.ok) {
         setTitle("");
         setCategory("");
+        setCriteria("");
         router.refresh();
       }
     });
   }
 
   return (
-    <div className="flex gap-1.5">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva prueba…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
-      <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
-      <button
-        type="button"
-        disabled={isPending || !title.trim()}
-        onClick={handleAdd}
-        className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-      >
-        Agregar
-      </button>
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva prueba…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
+        <button
+          type="button"
+          disabled={isPending || !title.trim()}
+          onClick={handleAdd}
+          className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          Agregar
+        </button>
+      </div>
+      <textarea
+        value={criteria}
+        onChange={(e) => setCriteria(e.target.value)}
+        placeholder="Puntos específicos, uno por línea (opcional)…"
+        rows={2}
+        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs min-h-24"
+      />
     </div>
   );
 }

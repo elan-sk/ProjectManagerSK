@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
-import { requireProjectAdmin, canEditTask, getProjectAdmin } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
@@ -42,8 +42,9 @@ export async function updateProjectStartDate(projectId: string, formData: FormDa
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
-  const startDate = z.coerce.date().parse(formData.get("startDate"));
-  await prisma.project.update({ where: { id: projectId }, data: { startDate } });
+  const parsedDate = z.coerce.date().safeParse(formData.get("startDate"));
+  if (!parsedDate.success) return { ok: false, error: "Elegí una fecha válida." };
+  await prisma.project.update({ where: { id: projectId }, data: { startDate: parsedDate.data } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   return { ok: true };
@@ -56,7 +57,12 @@ export async function updateProjectTargetEndDate(projectId: string, formData: Fo
     return { ok: false, error: (err as Error).message };
   }
   const raw = formData.get("targetEndDate");
-  const targetEndDate = typeof raw === "string" && raw.trim() !== "" ? z.coerce.date().parse(raw) : null;
+  let targetEndDate: Date | null = null;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsedDate = z.coerce.date().safeParse(raw);
+    if (!parsedDate.success) return { ok: false, error: "Elegí una fecha válida." };
+    targetEndDate = parsedDate.data;
+  }
   await prisma.project.update({ where: { id: projectId }, data: { targetEndDate } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
@@ -107,7 +113,7 @@ export async function addTask(projectId: string, formData: FormData) {
   const rawDescription = formData.get("description");
   const rawPredecessorId = formData.get("predecessorId");
   const rawTemplateId = formData.get("defaultTestTemplateId");
-  const data = createTaskSchema.parse({
+  const parsed = createTaskSchema.safeParse({
     phaseId: formData.get("phaseId"),
     title: formData.get("title"),
     type: formData.get("type"),
@@ -119,6 +125,29 @@ export async function addTask(projectId: string, formData: FormData) {
     reviewerIds: formData.getAll("reviewerIds"),
     defaultTestTemplateId: typeof rawTemplateId === "string" && rawTemplateId !== "" ? rawTemplateId : undefined,
   });
+  if (!parsed.success) {
+    // Punto (bug real): antes esto tiraba un ZodError crudo sin capturar —
+    // el caso más común es crear una tarea sin marcar ningún asignado
+    // (el checklist de checkboxes no tiene forma nativa de exigir "al
+    // menos uno"). Mensaje claro en vez de la pantalla de error de Next.
+    const missingAssignee = parsed.error.issues.some((i) => i.path[0] === "assigneeIds");
+    const missingDate = parsed.error.issues.some((i) => i.path[0] === "plannedStart");
+    return {
+      ok: false,
+      error: missingAssignee
+        ? "Elegí al menos un asignado."
+        : missingDate
+          ? "Elegí una fecha de inicio válida."
+          : parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
+  }
+  const data = parsed.data;
+
+  // Un asignado no puede ser también revisor de la misma tarea (Prueba) —
+  // se pierde el sentido de la revisión si alguien se corrige a sí mismo.
+  if (data.type === "QA" && data.reviewerIds.some((id) => data.assigneeIds.includes(id))) {
+    return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
+  }
 
   const plannedEnd =
     data.durationDays <= 1
@@ -284,7 +313,7 @@ export async function insertAdjacentTask(originTaskId: string, role: "predecesso
 
   const rawDescription = formData.get("description");
   const rawPredecessorId = formData.get("predecessorId");
-  const data = insertAdjacentTaskSchema.parse({
+  const parsed = insertAdjacentTaskSchema.safeParse({
     title: formData.get("title"),
     type: formData.get("type"),
     description: typeof rawDescription === "string" && rawDescription.trim() !== "" ? rawDescription : null,
@@ -293,6 +322,19 @@ export async function insertAdjacentTask(originTaskId: string, role: "predecesso
     assigneeIds: formData.getAll("assigneeIds"),
     predecessorId: typeof rawPredecessorId === "string" && rawPredecessorId !== "" ? rawPredecessorId : undefined,
   });
+  if (!parsed.success) {
+    const missingAssignee = parsed.error.issues.some((i) => i.path[0] === "assigneeIds");
+    const missingDate = parsed.error.issues.some((i) => i.path[0] === "plannedStart");
+    return {
+      ok: false,
+      error: missingAssignee
+        ? "Elegí al menos un asignado."
+        : missingDate
+          ? "Elegí una fecha de inicio válida."
+          : parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
+  }
+  const data = parsed.data;
 
   const createdId = await insertAdjacentTaskCore(originTaskId, role, { ...data, type: data.type as TaskType });
 
@@ -303,11 +345,19 @@ export async function insertAdjacentTask(originTaskId: string, role: "predecesso
   return { ok: true, id: createdId };
 }
 
-export async function updateTaskStatus(taskId: string, status: TaskStatus) {
-  if (!(await canEditTask(taskId))) {
-    return { ok: false, error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden cambiar su estado." };
+// Punto 12: bloqueo optimista — `expectedUpdatedAt` es el updatedAt que el
+// cliente tenía cargado cuando arrancó el arrastre. Si alguien más ya
+// modificó la tarea desde entonces, se rechaza en vez de pisar ese cambio
+// (el cliente ya revierte su UI optimista y el próximo refresh —automático,
+// ver LiveRefresh— trae la versión real). Opcional para no romper otros
+// llamadores (ej. TaskStatusControl) que todavía no mandan este dato.
+function assertNotStale(task: { updatedAt: Date }, expectedUpdatedAt?: string) {
+  if (expectedUpdatedAt && task.updatedAt.toISOString() !== expectedUpdatedAt) {
+    throw new Error("Alguien más actualizó esta tarea justo ahora — se refrescó sola, fijate el estado real antes de reintentar.");
   }
+}
 
+export async function updateTaskStatus(taskId: string, status: TaskStatus, expectedUpdatedAt?: string) {
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
     include: {
@@ -317,6 +367,36 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
       reviewRounds: { orderBy: { roundNumber: "desc" }, take: 1 },
     },
   });
+
+  try {
+    assertNotStale(task, expectedUpdatedAt);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  // Punto 15: completar una Prueba es del revisor (canReviewTask ya incluye
+  // PM/admin, igual que en el resto de la app) — un asignado que no es
+  // también revisor no puede finalizarla, aunque sí siga pudiendo editar el
+  // resto de la tarea. Para cualquier otro caso, sigue la regla de siempre.
+  const canChangeStatus =
+    status === "COMPLETED" && task.type === "QA" ? await canReviewTask(taskId) : await canEditTask(taskId);
+  if (!canChangeStatus) {
+    return {
+      ok: false,
+      error:
+        status === "COMPLETED" && task.type === "QA"
+          ? "Solo el revisor, el PM del proyecto o un administrador pueden completar esta prueba."
+          : "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden cambiar su estado.",
+    };
+  }
+
+  // Punto 17: el estado Devuelto de una Prueba está ligado a sus rondas —
+  // nadie, ni siquiera PM/admin, puede sacarla de Devuelta a mano. La única
+  // salida es reenviar la ronda (submitReviewRound) hasta que quede
+  // aprobada, que sí puede volver a poner la tarea en curso.
+  if (task.type === "QA" && task.status === "RETURNED") {
+    return { ok: false, error: "Esta tarea está devuelta por revisión — no se puede cambiar el estado hasta pasar la prueba (reenviá una nueva ronda)." };
+  }
 
   // Un miembro sin permisos de PM/admin no puede reabrir una tarea ya
   // completada, ni devolver una "En curso"/"Bloqueada" a "Sin iniciar".
@@ -483,13 +563,35 @@ export async function propagateToSuccessors(tx: Prisma.TransactionClient, countr
   }
 }
 
+// Punto 10: una vez que una tarea tipo Ajuste o Prueba ya arrancó su
+// procedimiento (al menos una evidencia/adjunto cargado, o al menos una
+// ronda de revisión iniciada), NADIE — ni PM ni admin — puede seguir
+// moviendo sus fechas: correrlas desincroniza lo que el asignado/revisor ya
+// está corrigiendo o revisando sobre el cronograma original.
+async function assertDatesEditable(taskId: string) {
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: {
+      type: true,
+      reviewRounds: { select: { id: true }, take: 1 },
+      adjustmentItems: { select: { attachments: { select: { id: true }, take: 1 } } },
+    },
+  });
+  const started =
+    (task.type === "QA" && task.reviewRounds.length > 0) ||
+    (task.type === "ADJUSTMENT" && task.adjustmentItems.some((i) => i.attachments.length > 0));
+  if (started) {
+    throw new Error("Esta tarea ya inició su procedimiento (evidencia cargada o ronda de revisión) — no se puede cambiar su fecha.");
+  }
+}
+
 /**
  * Arrastre de los extremos de la barra en el Gantt (punto 6). `edge`
  * indica qué extremo se movió; el otro extremo de ESA tarea queda fijo (así
  * cambia su duración). El cliente ya clampeó visualmente el arrastre, pero
  * el servidor vuelve a validar con datos frescos antes de guardar.
  */
-export async function resizeTask(taskId: string, edge: "start" | "end", newDateStr: string) {
+export async function resizeTask(taskId: string, edge: "start" | "end", newDateStr: string, expectedUpdatedAt?: string) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -502,7 +604,12 @@ export async function resizeTask(taskId: string, edge: "start" | "end", newDateS
   if (!task) return { ok: false, error: "Tarea no encontrada." };
 
   try {
+    // Punto 12: chequeo de "tarea desactualizada" primero, antes de permisos
+    // — mismo orden que updateTaskStatus, para que el rechazo por choque sea
+    // siempre el mismo mensaje sin importar quién esté mirando.
+    assertNotStale(task, expectedUpdatedAt);
     await requireProjectAdmin(task.projectId);
+    await assertDatesEditable(taskId);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -558,7 +665,7 @@ export async function resizeTask(taskId: string, edge: "start" | "end", newDateS
  * restricción que el handle izquierdo de resizeTask — reescribe el inicio,
  * así que solo aplica a tareas que todavía no arrancaron.
  */
-export async function moveTask(taskId: string, newStartDateStr: string) {
+export async function moveTask(taskId: string, newStartDateStr: string, expectedUpdatedAt?: string) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -571,7 +678,9 @@ export async function moveTask(taskId: string, newStartDateStr: string) {
   if (!task) return { ok: false, error: "Tarea no encontrada." };
 
   try {
+    assertNotStale(task, expectedUpdatedAt);
     await requireProjectAdmin(task.projectId);
+    await assertDatesEditable(taskId);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -606,10 +715,26 @@ export async function moveTask(taskId: string, newStartDateStr: string) {
  * rechaza todo el movimiento, y todas las tareas del grupo se mueven el
  * mismo delta ya recortado (nunca delta distinto entre ellas).
  */
-export async function moveTaskGroup(taskIds: string[], deltaDays: number) {
+// Punto 12: `expectedUpdatedAts` trae el updatedAt que el cliente tenía
+// cargado de CADA tarea del grupo al momento de arrancar el arrastre — si
+// alguna ya cambió desde entonces (otro usuario la tocó mientras tanto), se
+// rechaza el movimiento COMPLETO del grupo en vez de mover el resto pisando
+// esa tarea a medias.
+export async function moveTaskGroup(taskIds: string[], deltaDays: number, expectedUpdatedAts?: Record<string, string>) {
   if (taskIds.length === 0 || deltaDays === 0) return { ok: true, appliedDelta: 0 };
 
   const projectId = (await prisma.task.findUniqueOrThrow({ where: { id: taskIds[0] } })).projectId;
+
+  // Punto 12: chequeo de "tarea desactualizada" primero, antes de permisos —
+  // mismo orden que las demás acciones de arrastre.
+  if (expectedUpdatedAts) {
+    const current = await prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, updatedAt: true } });
+    const stale = current.find((t) => expectedUpdatedAts[t.id] && expectedUpdatedAts[t.id] !== t.updatedAt.toISOString());
+    if (stale) {
+      return { ok: false, error: "Alguien más actualizó una de estas tareas justo ahora — se refrescó sola, fijate el estado real antes de reintentar." };
+    }
+  }
+
   try {
     await requireProjectAdmin(projectId);
   } catch (err) {
@@ -646,6 +771,13 @@ export async function applyGroupMove(taskIds: string[], deltaDays: number) {
 
   if (tasks.some((t) => t.status !== "NOT_STARTED")) {
     return { ok: false, error: "Solo se pueden mover en bloque tareas que todavía no iniciaron." };
+  }
+
+  // Punto 10: mismo bloqueo que resizeTask/moveTask, ver assertDatesEditable.
+  try {
+    await Promise.all(taskIds.map(assertDatesEditable));
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
   }
 
   const countryCode = tasks[0].project.countryCode;

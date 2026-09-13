@@ -63,7 +63,7 @@ export async function getPublicProjectData(projectId: string): Promise<PublicPro
 }
 
 export async function getPublicDefinition(projectId: string) {
-  const [progress, phaseTasks] = await Promise.all([
+  const [progress, phaseTasks, comments] = await Promise.all([
     getProjectCascadeProgress(projectId),
     // Solo título — el resto de PhaseSummary (holgura, variación, tareas
     // atrasadas) es información interna que nunca debe salir por el link
@@ -72,12 +72,21 @@ export async function getPublicDefinition(projectId: string) {
       where: { projectId },
       select: { id: true, tasks: { select: { title: true }, orderBy: { plannedStart: "asc" } } },
     }),
+    // Punto 4: comentarios generales de la pestaña Definición — mismo
+    // ShareComment que ya existe para tareas, ahora colgado de projectId en
+    // vez de taskId (ver PublicCommentThread/shareActions.ts).
+    prisma.shareComment.findMany({
+      where: { projectId, parentId: null },
+      include: { replies: { orderBy: { createdAt: "asc" } } },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   const taskTitlesByPhaseId = new Map(phaseTasks.map((p) => [p.id, p.tasks.map((t) => t.title)]));
   return {
     objectives: progress.objectives.map((o) => ({ id: o.id, title: o.title, description: o.description, pct: o.pct })),
     requirements: progress.requirements.map((r) => ({ id: r.id, title: r.title, description: r.description, pct: r.pct })),
     phases: progress.phases.map((p) => ({ id: p.id, name: p.name, pct: p.pct, taskTitles: taskTitlesByPhaseId.get(p.id) ?? [] })),
+    comments: comments.map(toPublicCommentWithReplies),
   };
 }
 
@@ -105,10 +114,36 @@ export type PublicAdjustmentItem = {
   answered: boolean;
   before: PublicFile[];
   after: PublicFile[];
-  comments: PublicComment[];
+  comments: PublicCommentWithReplies[];
 };
 
 export type PublicComment = { id: string; authorName: string; authorRole: string | null; body: string; createdAt: string };
+// Punto 4: una respuesta (un solo nivel de anidamiento, no hilos recursivos).
+export type PublicCommentWithReplies = PublicComment & { replies: PublicComment[] };
+
+function toPublicCommentWithReplies(c: {
+  id: string;
+  authorName: string;
+  authorRole: string | null;
+  body: string;
+  createdAt: Date;
+  replies: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: Date }[];
+}): PublicCommentWithReplies {
+  return {
+    id: c.id,
+    authorName: c.authorName,
+    authorRole: c.authorRole,
+    body: c.body,
+    createdAt: c.createdAt.toISOString(),
+    replies: c.replies.map((r) => ({
+      id: r.id,
+      authorName: r.authorName,
+      authorRole: r.authorRole,
+      body: r.body,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  };
+}
 
 // Punto 16 confirmado con el usuario: para tipo Prueba (QA) nunca se traen
 // reviewRounds/checks acá — son datos internos privados, solo sale la
@@ -119,7 +154,7 @@ export async function getPublicTask(taskId: string): Promise<{
   insumos: PublicFile[];
   evidencia: PublicFile[];
   adjustmentItems: PublicAdjustmentItem[];
-  comments: PublicComment[];
+  comments: PublicCommentWithReplies[];
 } | null> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -128,10 +163,21 @@ export async function getPublicTask(taskId: string): Promise<{
       project: { select: { id: true, name: true, iconUrl: true } },
       attachments: true,
       adjustmentItems: {
-        include: { attachments: true, shareComments: { orderBy: { createdAt: "asc" } } },
+        include: {
+          attachments: true,
+          shareComments: {
+            where: { parentId: null },
+            include: { replies: { orderBy: { createdAt: "asc" } } },
+            orderBy: { createdAt: "asc" },
+          },
+        },
         orderBy: { order: "asc" },
       },
-      shareComments: { where: { adjustmentItemId: null }, orderBy: { createdAt: "asc" } },
+      shareComments: {
+        where: { adjustmentItemId: null, parentId: null },
+        include: { replies: { orderBy: { createdAt: "asc" } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
   if (!task) return null;
@@ -141,13 +187,6 @@ export async function getPublicTask(taskId: string): Promise<{
     url: a.fileUrl,
     name: a.fileName,
     mimeType: a.mimeType,
-  });
-  const toComment = (c: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: Date }): PublicComment => ({
-    id: c.id,
-    authorName: c.authorName,
-    authorRole: c.authorRole,
-    body: c.body,
-    createdAt: c.createdAt.toISOString(),
   });
 
   return {
@@ -171,8 +210,8 @@ export async function getPublicTask(taskId: string): Promise<{
       answered: Boolean(item.note) || item.attachments.some((a) => a.kind === "AFTER"),
       before: item.attachments.filter((a) => a.kind === "BEFORE").map(toFile),
       after: item.attachments.filter((a) => a.kind === "AFTER").map(toFile),
-      comments: item.shareComments.map(toComment),
+      comments: item.shareComments.map(toPublicCommentWithReplies),
     })),
-    comments: task.shareComments.map(toComment),
+    comments: task.shareComments.map(toPublicCommentWithReplies),
   };
 }

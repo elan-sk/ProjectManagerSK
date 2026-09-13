@@ -6,13 +6,13 @@ import { AuthError } from "next-auth";
 export async function login(_prevState: string | undefined, formData: FormData) {
   try {
     await signIn("credentials", {
-      email: formData.get("email"),
+      identifier: formData.get("identifier"),
       password: formData.get("password"),
       redirectTo: "/agenda",
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return "Email o contraseña incorrectos.";
+      return "Correo/usuario o contraseña incorrectos.";
     }
     throw error;
   }

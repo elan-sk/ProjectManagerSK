@@ -5,7 +5,7 @@ import { PublicFileGrid } from "./PublicFileGrid";
 import { PublicUploadWidget } from "./PublicUploadWidget";
 import { PublicCommentThread } from "./PublicCommentThread";
 import { addPublicTaskInsumo, addPublicTaskInsumoLink } from "./shareActions";
-import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicComment } from "@/lib/publicView";
+import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicCommentWithReplies } from "@/lib/publicView";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -36,7 +36,7 @@ export function PublicTaskDetail({
     insumos: PublicFile[];
     evidencia: PublicFile[];
     adjustmentItems: PublicAdjustmentItem[];
-    comments: PublicComment[];
+    comments: PublicCommentWithReplies[];
   };
 }) {
   const { project, task, insumos, evidencia, adjustmentItems, comments } = data;

@@ -4,6 +4,7 @@ import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { checkDeadlineAlerts } from "@/lib/notifications";
 import { getBotSettings } from "@/lib/botSettings";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
 import { HeaderAlerts } from "./HeaderAlerts";
@@ -44,7 +45,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     message: n.message,
     type: n.type,
     taskId: n.taskId,
-    projectId: n.task?.projectId ?? null,
+    // Punto 4: sin tarea (ej. comentario en Definición), el link es al
+    // propio Notification.projectId — antes esto quedaba siempre null y la
+    // campana no tenía cómo armar el link para ese caso.
+    projectId: n.task?.projectId ?? n.projectId ?? null,
   }));
 
   // Alertas fijas del header (punto 10 confirmado con el usuario): siempre
@@ -70,6 +74,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
     <ConfirmProvider>
+    {/* Punto 1: montado acá (una sola vez, global) en vez de en páginas
+        sueltas — antes la campana de notificaciones solo se refrescaba en
+        las 3 páginas que la traían a mano, y en cualquier otra ruta
+        (/agenda, /settings, etc.) quedaba pisada hasta recargar a mano. */}
+    <LiveRefresh />
     <div className="pacific-shell min-h-screen bg-slate-50">
       <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-1 sm:px-6">
         <nav className="pacific-nav flex items-center gap-4 text-sm font-medium">

@@ -30,11 +30,14 @@ export default async function SettingsPage({
   const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
-      select: { name: true, email: true, avatarUrl: true, phone: true },
+      select: { name: true, email: true, username: true, avatarUrl: true, phone: true },
     }),
     prisma.googleCalendarConnection.findUnique({ where: { userId: session.user.id } }),
     isAdmin
-      ? prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true, avatarUrl: true, phone: true } })
+      ? prisma.user.findMany({
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true },
+        })
       : Promise.resolve(null),
     isAdmin ? prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
     isAdmin ? getAppCountryCode() : Promise.resolve(null),
@@ -50,7 +53,7 @@ export default async function SettingsPage({
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-medium text-slate-900">Mi cuenta</h2>
-        <ProfileForm name={me.name} email={me.email} phone={me.phone} avatarUrl={me.avatarUrl} />
+        <ProfileForm name={me.name} username={me.username} email={me.email} phone={me.phone} avatarUrl={me.avatarUrl} />
         <hr className="border-slate-100" />
         <ChangePasswordForm />
       </section>

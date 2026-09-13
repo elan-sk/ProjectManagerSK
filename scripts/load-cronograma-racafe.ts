@@ -31,9 +31,9 @@ async function api(path: string, init?: RequestInit) {
 // entidades externas sin cuenta en el sistema: las tareas donde son el único
 // responsable quedan asignadas a Elan (líder de proyecto) como dueño interno.
 const TEAM_SEED = [
-  { key: "max", name: "Max", email: "max@equipo.local" },
-  { key: "nata", name: "Nata", email: "nata@equipo.local" },
-  { key: "david", name: "David Hoyos", email: "david.hoyos@equipo.local" },
+  { key: "max", name: "Max", username: "max", email: "max@equipo.local" },
+  { key: "nata", name: "Nata", username: "nata", email: "nata@equipo.local" },
+  { key: "david", name: "David Hoyos", username: "david.hoyos", email: "david.hoyos@equipo.local" },
 ] as const;
 
 const PHASES = [
@@ -91,15 +91,15 @@ const TASKS: TaskDef[] = [
 ];
 
 async function main() {
-  const elan = await prisma.user.findUniqueOrThrow({ where: { email: "ecovia2@gmail.com" } });
+  const elan = await prisma.user.findUniqueOrThrow({ where: { username: "elan" } });
 
   const userIds: Record<Assignee, string> = { elan: elan.id, max: "", nata: "", david: "" };
   for (const member of TEAM_SEED) {
     const passwordHash = await bcrypt.hash("cambiar-esta-clave", 10);
     const user = await prisma.user.upsert({
-      where: { email: member.email },
+      where: { username: member.username },
       update: {},
-      create: { name: member.name, email: member.email, passwordHash, role: "MEMBER" },
+      create: { name: member.name, username: member.username, email: member.email, passwordHash, role: "MEMBER" },
     });
     userIds[member.key] = user.id;
   }

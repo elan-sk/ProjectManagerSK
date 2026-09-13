@@ -19,12 +19,16 @@ export async function createProject(formData: FormData) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const data = createProjectSchema.parse({
+  const parsed = createProjectSchema.safeParse({
     name: formData.get("name"),
     clientName: formData.get("clientName") || undefined,
     startDate: formData.get("startDate"),
     pmId: formData.get("pmId"),
   });
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const data = parsed.data;
 
   const project = await prisma.project.create({
     data: {

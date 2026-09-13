@@ -9,13 +9,15 @@ import { Avatar } from "@/components/Avatar";
 export function EditUserForm({
   userId,
   name,
+  username,
   email,
   phone,
   avatarUrl,
 }: {
   userId: string;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   phone: string | null;
   avatarUrl: string | null;
 }) {
@@ -82,8 +84,12 @@ export function EditUserForm({
           <input name="name" required defaultValue={name} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-slate-600">Email</label>
-          <input type="email" name="email" required defaultValue={email} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <label className="text-sm text-slate-600">Nombre de usuario</label>
+          <input name="username" required defaultValue={username} placeholder="ej. juan.perez" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Email (opcional)</label>
+          <input type="email" name="email" defaultValue={email ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div className="space-y-1">
           <label className="text-sm text-slate-600">WhatsApp</label>

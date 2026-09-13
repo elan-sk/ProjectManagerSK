@@ -31,6 +31,11 @@ export type TaskCard = {
   type: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   riskLevel: string;
+  // Punto 9: permiso de ESTA tarea puntual (según el proyecto al que
+  // pertenece) — nunca un booleano único para todo el tablero, que en el
+  // panorama general (varios proyectos mezclados) mostraba "Asignar" en
+  // tareas de proyectos ajenos a quien mira.
+  canManage: boolean;
   assignees: { name: string; avatarUrl: string | null }[];
   assigneeIds: string[];
   reviewers: { name: string; avatarUrl: string | null }[];
@@ -42,6 +47,10 @@ export type TaskCard = {
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
   shareToken: string | null;
+  // Punto 12: bloqueo optimista — se manda de vuelta en updateTaskStatus tal
+  // cual se cargó, para que el servidor detecte si alguien más ya cambió
+  // esta tarea desde entonces y no pisar ese cambio.
+  updatedAt: string;
 };
 
 // RETURNED comparte columna con BLOCKED (misma columna "Bloqueada"): el
@@ -250,14 +259,12 @@ function CardBody({
 function Card({
   task,
   showProjectName,
-  canManage,
   users,
   onDeleted,
   collisionUrlBase,
 }: {
   task: TaskCard;
   showProjectName: boolean;
-  canManage: boolean;
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
   collisionUrlBase: string;
@@ -313,7 +320,7 @@ function Card({
       <CardBody
         task={task}
         showProjectName={showProjectName}
-        canManage={canManage}
+        canManage={task.canManage}
         users={users}
         deleting={deleting}
         onDelete={handleDelete}
@@ -336,7 +343,6 @@ function Column({
   scrollKey,
   tasks,
   showProjectName,
-  canManage,
   users,
   onDeleted,
   collisionUrlBase,
@@ -345,7 +351,6 @@ function Column({
   scrollKey: string;
   tasks: TaskCard[];
   showProjectName: boolean;
-  canManage: boolean;
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
   collisionUrlBase: string;
@@ -376,7 +381,6 @@ function Column({
             key={t.id}
             task={t}
             showProjectName={showProjectName}
-            canManage={canManage}
             users={users}
             onDeleted={onDeleted}
             collisionUrlBase={collisionUrlBase}
@@ -390,13 +394,11 @@ function Column({
 export function KanbanBoard({
   initialTasks,
   showProjectName = false,
-  canManage,
   users,
   collisionUrlBase = "/projects",
 }: {
   initialTasks: TaskCard[];
   showProjectName?: boolean;
-  canManage: boolean;
   users: { id: string; name: string }[];
   // Base para "Ver mis colisiones" del popover de cada tarea: la URL de la
   // vista actual (con sus filtros vigentes) sin el parámetro `collision` —
@@ -407,6 +409,7 @@ export function KanbanBoard({
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
+  const router = useRouter();
   const pathname = usePathname();
   const showToast = useToast();
   const confirm = useConfirm();
@@ -421,7 +424,8 @@ export function KanbanBoard({
     const { active, over } = event;
     if (!over) return;
     const newStatus = over.id as TaskCard["status"];
-    const previousStatus = tasks.find((t) => t.id === active.id)?.status;
+    const draggedTask = tasks.find((t) => t.id === active.id);
+    const previousStatus = draggedTask?.status;
     if (!previousStatus || previousStatus === newStatus) return;
     if (newStatus === "COMPLETED") {
       const ok = await confirm(
@@ -435,12 +439,16 @@ export function KanbanBoard({
       prev.map((t) => (t.id === active.id ? { ...t, status: newStatus } : t))
     );
     startTransition(async () => {
-      const result = await updateTaskStatus(active.id as string, newStatus);
+      // Punto 12: manda el updatedAt que este cliente tenía cargado — si
+      // alguien más ya tocó la tarea desde entonces, el servidor rechaza en
+      // vez de pisarlo (ver assertNotStale en actions.ts).
+      const result = await updateTaskStatus(active.id as string, newStatus, draggedTask.updatedAt);
       if (!result.ok) {
         setTasks((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, status: previousStatus } : t))
         );
         showToast(result.error ?? "Ocurrió un error.");
+        router.refresh();
       }
     });
   }
@@ -467,7 +475,6 @@ export function KanbanBoard({
             scrollKey={`${pathname}:${status}`}
             tasks={tasks.filter((t) => t.status === status || (status === "BLOCKED" && t.status === "RETURNED"))}
             showProjectName={showProjectName}
-            canManage={canManage}
             users={users}
             onDeleted={handleDeleted}
             collisionUrlBase={collisionUrlBase}

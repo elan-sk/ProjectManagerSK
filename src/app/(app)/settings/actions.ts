@@ -15,9 +15,35 @@ async function requireAdmin() {
   return session.user;
 }
 
+// Identificador principal para entrar — obligatorio. Solo
+// minúsculas/números/./_/- para que sea fácil de escribir sin errores.
+const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9._-]{3,30}$/, "El usuario solo puede tener minúsculas, números, puntos, guiones y guion bajo (3 a 30 caracteres)");
+
+// Opcional a partir de ahora (username es el principal) — si se carga, tiene
+// que ser un email válido.
+const emailSchema = z.string().trim().email().optional().or(z.literal(""));
+
+async function assertUsernameAvailable(username: string, excludeUserId?: string) {
+  const existing = await prisma.user.findUnique({ where: { username } });
+  if (existing && existing.id !== excludeUserId) return "Ya existe un usuario con ese nombre de usuario.";
+  return null;
+}
+
+async function assertEmailAvailable(email: string | undefined, excludeUserId?: string) {
+  if (!email) return null;
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.id !== excludeUserId) return "Ya existe un usuario con ese email.";
+  return null;
+}
+
 const createUserSchema = z.object({
   name: z.string().min(1),
-  email: z.string().email(),
+  username: usernameSchema,
+  email: emailSchema,
   role: z.enum(["ADMIN", "MEMBER"]),
   password: z.string().min(6, "Mínimo 6 caracteres"),
 });
@@ -31,6 +57,7 @@ export async function createUser(formData: FormData) {
 
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
+    username: formData.get("username"),
     email: formData.get("email"),
     role: formData.get("role"),
     password: formData.get("password"),
@@ -39,12 +66,20 @@ export async function createUser(formData: FormData) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing) return { ok: false, error: "Ya existe un usuario con ese email." };
+  const usernameError = await assertUsernameAvailable(parsed.data.username);
+  if (usernameError) return { ok: false, error: usernameError };
+  const emailError = await assertEmailAvailable(parsed.data.email || undefined);
+  if (emailError) return { ok: false, error: emailError };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.user.create({
-    data: { name: parsed.data.name, email: parsed.data.email, role: parsed.data.role, passwordHash },
+    data: {
+      name: parsed.data.name,
+      username: parsed.data.username,
+      email: parsed.data.email || null,
+      role: parsed.data.role,
+      passwordHash,
+    },
   });
 
   revalidatePath("/settings");
@@ -87,19 +122,20 @@ export async function updateUserProfile(userId: string, formData: FormData) {
 
   const parsed = updateProfileSchema.safeParse({
     name: formData.get("name"),
+    username: formData.get("username"),
     email: formData.get("email"),
     phone: formData.get("phone"),
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
-  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing && existing.id !== userId) {
-    return { ok: false, error: "Ya existe un usuario con ese email." };
-  }
+  const usernameError = await assertUsernameAvailable(parsed.data.username, userId);
+  if (usernameError) return { ok: false, error: usernameError };
+  const emailError = await assertEmailAvailable(parsed.data.email || undefined, userId);
+  if (emailError) return { ok: false, error: emailError };
 
   await prisma.user.update({
     where: { id: userId },
-    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone || null },
+    data: { name: parsed.data.name, username: parsed.data.username, email: parsed.data.email || null, phone: parsed.data.phone || null },
   });
   revalidatePath("/settings");
   return { ok: true };
@@ -132,7 +168,8 @@ export async function updateUserAvatar(userId: string, avatarUrl: string) {
 
 const updateProfileSchema = z.object({
   name: z.string().min(1),
-  email: z.string().email(),
+  username: usernameSchema,
+  email: emailSchema,
   phone: z
     .string()
     .regex(/^[0-9]{8,15}$/, "Solo números, con indicativo de país y sin espacios ni +")
@@ -146,19 +183,20 @@ export async function updateProfile(formData: FormData) {
 
   const parsed = updateProfileSchema.safeParse({
     name: formData.get("name"),
+    username: formData.get("username"),
     email: formData.get("email"),
     phone: formData.get("phone"),
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
-  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing && existing.id !== session.user.id) {
-    return { ok: false, error: "Ya existe un usuario con ese email." };
-  }
+  const usernameError = await assertUsernameAvailable(parsed.data.username, session.user.id);
+  if (usernameError) return { ok: false, error: usernameError };
+  const emailError = await assertEmailAvailable(parsed.data.email || undefined, session.user.id);
+  if (emailError) return { ok: false, error: emailError };
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone || null },
+    data: { name: parsed.data.name, username: parsed.data.username, email: parsed.data.email || null, phone: parsed.data.phone || null },
   });
   revalidatePath("/", "layout");
   return { ok: true };

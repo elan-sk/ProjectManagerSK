@@ -9,15 +9,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        identifier: { label: "Correo o usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials) {
-        const email = credentials?.email as string | undefined;
+        const identifier = (credentials?.identifier as string | undefined)?.trim();
         const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
+        if (!identifier || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        // Entra con correo o con nombre de usuario, lo que haya escrito —
+        // username es opcional (no todos lo tienen cargado), el correo
+        // siempre sirve igual que antes.
+        const user = await prisma.user.findFirst({
+          where: { OR: [{ email: identifier }, { username: identifier }] },
+        });
         if (!user) return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);

@@ -98,8 +98,12 @@ export async function notify(
   options?: { projectId?: string; mentionUserIds?: string[] }
 ) {
   if (userIds.length === 0) return;
+  // Punto 4: options.projectId ya existía para resolver el grupo de WhatsApp
+  // de los avisos grupales (que siempre traen taskId igual) — se reusa acá
+  // para guardarlo también en la Notification cuando NO hay tarea (ej.
+  // comentario en la pestaña Definición), así la campana puede armar el link.
   await prisma.notification.createMany({
-    data: userIds.map((userId) => ({ userId, type, message, taskId })),
+    data: userIds.map((userId) => ({ userId, type, message, taskId, projectId: options?.projectId })),
   });
 
   await Promise.all(userIds.map((userId) => sendPushToUser(userId, message, url)));

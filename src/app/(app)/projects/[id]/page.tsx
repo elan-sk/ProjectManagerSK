@@ -249,6 +249,8 @@ export default async function ProjectPage({
     type: t.type,
     status: t.status,
     riskLevel: t.riskLevel,
+    canManage,
+    updatedAt: t.updatedAt.toISOString(),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     assigneeIds: t.assignees.map((a) => a.userId),
     reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
@@ -324,6 +326,8 @@ export default async function ProjectPage({
       phaseId: t.phaseId,
       phaseName: project.phases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,
+      canManage,
+      updatedAt: t.updatedAt.toISOString(),
       startIndex,
       span: endIndex - startIndex + 1,
       minStartIndex,
@@ -734,7 +738,6 @@ export default async function ProjectPage({
           <KanbanBoard
             key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
             initialTasks={taskCards}
-            canManage={canManage}
             users={users}
           />
         </div>

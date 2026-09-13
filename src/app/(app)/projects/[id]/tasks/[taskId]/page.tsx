@@ -41,6 +41,16 @@ export default async function TaskDetailPage({
   const { id: projectId, taskId } = await params;
   const session = await auth();
 
+  // Punto 18: abrir la tarea relacionada cuenta como "atendida" — antes las
+  // notificaciones solo se limpiaban a mano (botón "Descartar"/"Marcar todas
+  // como leídas"), nunca por el simple hecho de entrar a ver de qué se trataban.
+  if (session?.user) {
+    await prisma.notification.updateMany({
+      where: { userId: session.user.id, taskId, read: false },
+      data: { read: true },
+    });
+  }
+
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -110,6 +120,30 @@ export default async function TaskDetailPage({
 
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
+
+  // Punto 5: mismas reglas de "¿puede completarse ya?" que updateTaskStatus
+  // valida del lado servidor (actions.ts) — se resuelven acá (con los datos
+  // que la página ya trae) para que TaskStatusControl pueda deshabilitar el
+  // botón "Completada" desde el primer render, no después de un clic
+  // rechazado.
+  let completionBlockedReason: string | null = null;
+  if (task.steps.some((s) => !s.done)) {
+    completionBlockedReason = "Todavía hay pasos del checklist sin completar.";
+  } else if (task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
+    completionBlockedReason = "Este entregable necesita al menos una evidencia cargada para poder completarse.";
+  } else if (task.type === "ADJUSTMENT") {
+    const pendingCount = task.adjustmentItems.filter(
+      (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
+    ).length;
+    if (pendingCount > 0) {
+      completionBlockedReason = `Todavía hay ${pendingCount} cambio(s) sin responder (falta el "Después" o una nota).`;
+    }
+  } else if (task.type === "QA") {
+    const lastReviewRound = task.reviewRounds[0];
+    if (!lastReviewRound || lastReviewRound.outcome !== "APPROVED") {
+      completionBlockedReason = "Esta revisión necesita una ronda aprobada antes de poder completarse.";
+    }
+  }
 
   const addStepWithId = addStep.bind(null, taskId);
   const setDependencyWithId = setDependency.bind(null, taskId);
@@ -250,7 +284,16 @@ export default async function TaskDetailPage({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <TaskStatusControl key={task.status} taskId={taskId} status={task.status} type={task.type} />
+          <TaskStatusControl
+            key={task.status}
+            taskId={taskId}
+            status={task.status}
+            type={task.type}
+            canEdit={canEdit}
+            canReview={canReview}
+            canManage={canManage}
+            completionBlockedReason={completionBlockedReason}
+          />
           {canEdit && (
             <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
               <ShareLinkPanel
@@ -356,9 +399,18 @@ export default async function TaskDetailPage({
         <ReviewPanel
           taskId={taskId}
           userId={session?.user?.id ?? null}
-          canManage={canManage}
+          canManage={
+            // Punto 11: además de PM/admin, puede cambiar el revisor el
+            // propio revisor actual (para pasarle la posta a otro), o el
+            // asignado cuando todavía no hay ninguno (autoasignación única
+            // — reviewActions.ts vuelve a validar esto igual del lado server).
+            canManage ||
+            task.reviewers.some((r) => r.userId === session?.user?.id) ||
+            (task.reviewers.length === 0 && canEdit)
+          }
           canEdit={canEdit}
           canReview={canReview}
+          taskStatus={task.status}
           users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
           currentReviewerIds={task.reviewers.map((r) => r.userId)}
           templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}

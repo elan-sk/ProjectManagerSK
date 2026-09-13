@@ -15,6 +15,14 @@ const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((v
   label: TASK_TYPE_LABEL[value],
 }));
 
+// Mismo bug y mismo arreglo que NewTaskForm: sin defaultValue el picker
+// arranca vacío y, si el usuario no lo toca, se manda plannedStart="" —
+// el servidor ahora lo rechaza con un mensaje claro (safeParse), pero es
+// mejor que ni siquiera pase eso: "hoy" es el default razonable.
+function todayInBogota() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+}
+
 // Formulario de "Crear predecesor"/"Crear sucesor" del menú contextual del
 // Gantt (ver GanttView.tsx): a diferencia de NewTaskForm, la fase y el
 // vínculo con la tarea de origen ya los determina la propia acción, así que
@@ -108,7 +116,7 @@ export function InsertAdjacentTaskForm({
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <CalendarDatePicker name="plannedStart" label="Fecha de inicio" previewDays={durationDays} />
+        <CalendarDatePicker name="plannedStart" label="Fecha de inicio" previewDays={durationDays} defaultValue={todayInBogota()} />
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Días hábiles</label>
           <input

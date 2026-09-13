@@ -25,7 +25,7 @@ const taskSchema = z.object({
   plannedEnd: z.string(),
   actualStart: z.string().nullable(),
   actualEnd: z.string().nullable(),
-  assigneeEmails: z.array(z.string()),
+  assigneeUsernames: z.array(z.string()),
   steps: z.array(stepSchema),
   dependsOn: z.array(dependsOnSchema),
 });
@@ -35,7 +35,7 @@ const projectSchema = z.object({
   countryCode: z.string().length(2),
   status: z.enum(["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"]),
   startDate: z.string(),
-  pmEmail: z.string(),
+  pmUsername: z.string(),
   phases: z.array(z.object({ name: z.string().min(1), order: z.number() })),
   tasks: z.array(taskSchema),
 });
@@ -68,8 +68,8 @@ export async function POST(request: Request) {
 
   for (const p of parsed.data.projects) {
     try {
-      const pm = await prisma.user.findUnique({ where: { email: p.pmEmail } });
-      if (!pm) throw new Error(`no existe un usuario con email ${p.pmEmail} para ser PM`);
+      const pm = await prisma.user.findUnique({ where: { username: p.pmUsername } });
+      if (!pm) throw new Error(`no existe un usuario con usuario ${p.pmUsername} para ser PM`);
 
       await prisma.$transaction(async (tx) => {
         const project = await tx.project.create({
@@ -93,8 +93,8 @@ export async function POST(request: Request) {
         for (const t of p.tasks) {
           const phaseId = phaseIdByName.get(t.phaseName);
           if (!phaseId) throw new Error(`fase "${t.phaseName}" no encontrada para la tarea "${t.title}"`);
-          const assigneeUsers = t.assigneeEmails.length
-            ? await tx.user.findMany({ where: { email: { in: t.assigneeEmails } } })
+          const assigneeUsers = t.assigneeUsernames.length
+            ? await tx.user.findMany({ where: { username: { in: t.assigneeUsernames } } })
             : [];
           const createdTask = await tx.task.create({
             data: {

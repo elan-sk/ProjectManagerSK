@@ -16,7 +16,8 @@
     "verify:move-task-group": "tsx scripts/verify-move-task-group.ts",
     "verify:late-start-alert": "tsx scripts/verify-late-start-alert.ts",
     "verify:insert-adjacent-task": "tsx scripts/verify-insert-adjacent-task.ts",
-    "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts"
+    "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts",
+    "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

@@ -26,8 +26,12 @@ export function CreateUserForm() {
         <input name="name" required autoFocus className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>
       <div className="space-y-1">
-        <label className="text-sm text-slate-600">Email</label>
-        <input type="email" name="email" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <label className="text-sm text-slate-600">Nombre de usuario</label>
+        <input name="username" required placeholder="ej. juan.perez" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm text-slate-600">Email (opcional)</label>
+        <input type="email" name="email" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">

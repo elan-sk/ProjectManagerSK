@@ -181,13 +181,19 @@ export async function removeDependency(dependencyId: string, taskId: string) {
 export async function setTaskAssignees(taskId: string, formData: FormData) {
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
-    include: { assignees: true },
+    include: { assignees: true, reviewers: true },
   });
   if (!(await canEditTask(taskId))) {
     return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
 
   const assigneeIds = formData.getAll("assigneeIds") as string[];
+  // Un asignado no puede ser también revisor de la misma tarea (Prueba) —
+  // mismo criterio que setTaskReviewers, del otro lado.
+  const reviewerIds = task.reviewers.map((r) => r.userId);
+  if (assigneeIds.some((id) => reviewerIds.includes(id))) {
+    return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
+  }
   const currentIds = task.assignees.map((a) => a.userId);
   const newlyAdded = assigneeIds.filter((id) => !currentIds.includes(id));
 

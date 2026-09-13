@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { DocumentIcon, LinkIcon } from "@/components/icons";
+import { useMemo, useState } from "react";
+import { DocumentIcon, LinkIcon, SearchIcon } from "@/components/icons";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "@/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { normalizeSearchText } from "@/lib/search";
 import type { PublicFile } from "@/lib/publicView";
 
 // Grilla de archivos compartida entre el "Archivos" del proyecto y los
@@ -14,17 +15,38 @@ import type { PublicFile } from "@/lib/publicView";
 // visor de PDF/Word/Excel (AttachmentPreviewModal). Nunca se pasa onDelete
 // ni canDelete=true acá — ninguno de los dos muestra el botón de eliminar
 // sin eso.
+// Punto 4: buscador por nombre de archivo — solo se muestra a partir de una
+// cantidad razonable de archivos (con pocos, un input encima solo estorba).
+const SEARCH_THRESHOLD = 6;
+
 export function PublicFileGrid({ files }: { files: PublicFile[] }) {
   const [preview, setPreview] = useState<PublicFile | null>(null);
   const [openImageId, setOpenImageId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const images = files.filter((f) => f.mimeType.startsWith("image/"));
+  const filtered = useMemo(
+    () => (query.trim() ? files.filter((f) => normalizeSearchText(f.name).includes(normalizeSearchText(query))) : files),
+    [files, query]
+  );
 
   if (files.length === 0) return <p className="text-xs text-slate-400">Sin archivos.</p>;
 
   return (
     <>
+      {files.length >= SEARCH_THRESHOLD && (
+        <div className="relative mb-2">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nombre…"
+            className="w-full rounded-lg border border-slate-300 py-1.5 pl-8 pr-2.5 text-xs"
+          />
+        </div>
+      )}
+      {filtered.length === 0 && <p className="text-xs text-slate-400">Sin resultados.</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {files.map((f) => {
+        {filtered.map((f) => {
           const isImage = f.mimeType.startsWith("image/");
           const isLink = f.mimeType === LINK_MIME_TYPE;
           const previewable = isPreviewable(f.mimeType);

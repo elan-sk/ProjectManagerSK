@@ -65,7 +65,13 @@ export function NotificationBell({ items, userId }: { items: NotificationItem[];
                 aria-hidden
               />
               <Link
-                href={n.taskId ? `/projects/${n.projectId}/tasks/${n.taskId}` : "#"}
+                href={
+                  n.taskId
+                    ? `/projects/${n.projectId}/tasks/${n.taskId}`
+                    : n.projectId
+                      ? `/projects/${n.projectId}?view=definition`
+                      : "#"
+                }
                 className="flex-1 text-slate-700"
                 onClick={() => setOpen(false)}
               >

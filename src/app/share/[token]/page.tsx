@@ -82,7 +82,7 @@ export default async function SharePage({
             ))}
           </div>
 
-          {activeTab === "definition" && <PublicDefinitionViewLoader projectId={project.id} description={project.description} />}
+          {activeTab === "definition" && <PublicDefinitionViewLoader token={token} projectId={project.id} description={project.description} />}
           {activeTab === "tasks" && <PublicTasksList tasks={project.tasks} phases={project.phases} />}
           {activeTab === "files" && <PublicFilesViewLoader token={token} projectId={project.id} />}
         </main>
@@ -91,9 +91,9 @@ export default async function SharePage({
   );
 }
 
-async function PublicDefinitionViewLoader({ projectId, description }: { projectId: string; description: string | null }) {
+async function PublicDefinitionViewLoader({ token, projectId, description }: { token: string; projectId: string; description: string | null }) {
   const definition = await getPublicDefinition(projectId);
-  return <PublicDefinitionView description={description} {...definition} />;
+  return <PublicDefinitionView token={token} description={description} {...definition} />;
 }
 
 async function PublicFilesViewLoader({ token, projectId }: { token: string; projectId: string }) {

@@ -47,6 +47,7 @@ export function GanttBar({
   businessDaysISO,
   plannedStart,
   plannedEnd,
+  updatedAt,
   dependsOn,
   blocks,
   attachmentsCount,
@@ -79,6 +80,8 @@ export function GanttBar({
   businessDaysISO: string[];
   plannedStart: string;
   plannedEnd: string;
+  // Punto 12: bloqueo optimista — se reenvía tal cual a resizeTask/moveTask.
+  updatedAt: string;
   dependsOn: string[];
   blocks: string[];
   attachmentsCount: number;
@@ -235,24 +238,24 @@ export function GanttBar({
     if (edge === "left" && liveStartIndex !== startIndex) {
       const newDateISO = businessDaysISO[liveStartIndex];
       startTransition(async () => {
-        const result = await resizeTask(taskId, "start", newDateISO);
+        const result = await resizeTask(taskId, "start", newDateISO, updatedAt);
         if (!result.ok) {
           setLiveStartIndex(startIndex);
           showToast(result.error ?? "Ocurrió un error.");
-        } else {
-          router.refresh();
         }
+        // Punto 12: siempre refresca (haya salido bien o no) — si otro
+        // usuario ya la había tocado, esto trae de una la versión real.
+        router.refresh();
       });
     } else if (edge === "right" && liveEndIndex !== endIndex) {
       const newDateISO = businessDaysISO[liveEndIndex];
       startTransition(async () => {
-        const result = await resizeTask(taskId, "end", newDateISO);
+        const result = await resizeTask(taskId, "end", newDateISO, updatedAt);
         if (!result.ok) {
           setLiveEndIndex(endIndex);
           showToast(result.error ?? "Ocurrió un error.");
-        } else {
-          router.refresh();
         }
+        router.refresh();
       });
     }
   }
@@ -312,14 +315,13 @@ export function GanttBar({
 
     const newDateISO = businessDaysISO[liveStartIndex];
     startTransition(async () => {
-      const result = await moveTask(taskId, newDateISO);
+      const result = await moveTask(taskId, newDateISO, updatedAt);
       if (!result.ok) {
         setLiveStartIndex(startIndex);
         setLiveEndIndex(endIndex);
         showToast(result.error ?? "Ocurrió un error.");
-      } else {
-        router.refresh();
       }
+      router.refresh();
     });
   }
 

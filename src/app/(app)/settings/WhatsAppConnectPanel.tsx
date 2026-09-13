@@ -21,21 +21,23 @@ export function WhatsAppConnectPanel({
   const [hours, setHours] = useState({ start: workHoursStart, end: workHoursEnd });
   const [hoursSaved, setHoursSaved] = useState(false);
 
-  useEffect(() => {
-    whatsAppStatus().then((s) => {
+  function refreshStatus() {
+    return whatsAppStatus().then((s) => {
       setStatus(s.status);
       setQrDataUrl(s.qrDataUrl);
     });
-  }, []);
+  }
 
   useEffect(() => {
-    if (status === "connected") return;
-    const interval = setInterval(() => {
-      whatsAppStatus().then((s) => {
-        setStatus(s.status);
-        setQrDataUrl(s.qrDataUrl);
-      });
-    }, 3000);
+    refreshStatus();
+  }, []);
+
+  // Sigue sondeando SIEMPRE, también ya "connected" — si no, una
+  // desconexión real (se cierra sesión desde el teléfono, se cae el socket)
+  // deja la pantalla congelada mostrando "Conectado" para siempre, sin forma
+  // de llegar al botón "Conectar" sin recargar la página a mano.
+  useEffect(() => {
+    const interval = setInterval(refreshStatus, status === "connected" ? 8000 : 3000);
     return () => clearInterval(interval);
   }, [status]);
 
@@ -54,7 +56,12 @@ export function WhatsAppConnectPanel({
         <button
           type="button"
           disabled={isPending}
-          onClick={() => startTransition(() => disconnectWhatsApp())}
+          onClick={() =>
+            startTransition(async () => {
+              await disconnectWhatsApp();
+              await refreshStatus();
+            })
+          }
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 mr-3"
         >
           Desconectar
@@ -64,7 +71,12 @@ export function WhatsAppConnectPanel({
       {status !== "connected" && (
         <button
           disabled={isPending}
-          onClick={() => startTransition(() => connectWhatsApp())}
+          onClick={() =>
+            startTransition(async () => {
+              await connectWhatsApp();
+              await refreshStatus();
+            })
+          }
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
           {isPending || status === "connecting" ? "Conectando…" : "Conectar WhatsApp"}

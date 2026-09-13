@@ -22,12 +22,12 @@ export async function GET(request: Request) {
     where: projectIds ? { id: { in: projectIds } } : undefined,
     orderBy: { name: "asc" },
     include: {
-      pm: { select: { email: true } },
+      pm: { select: { username: true } },
       phases: { orderBy: { order: "asc" } },
       tasks: {
         include: {
           phase: { select: { name: true } },
-          assignees: { include: { user: { select: { email: true } } } },
+          assignees: { include: { user: { select: { username: true } } } },
           steps: { orderBy: { order: "asc" } },
           dependsOn: { include: { predecessor: { select: { title: true } } } },
         },
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       countryCode: p.countryCode,
       status: p.status,
       startDate: p.startDate.toISOString(),
-      pmEmail: p.pm.email,
+      pmUsername: p.pm.username,
       phases: p.phases.map((ph) => ({ name: ph.name, order: ph.order })),
       tasks: p.tasks.map((t) => ({
         phaseName: t.phase.name,
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
         plannedEnd: t.plannedEnd.toISOString(),
         actualStart: t.actualStart ? t.actualStart.toISOString() : null,
         actualEnd: t.actualEnd ? t.actualEnd.toISOString() : null,
-        assigneeEmails: t.assignees.map((a) => a.user.email),
+        assigneeUsernames: t.assignees.map((a) => a.user.username),
         steps: t.steps.map((s) => ({ description: s.description, done: s.done, order: s.order })),
         dependsOn: t.dependsOn.map((d) => ({ predecessorTitle: d.predecessor.title, type: d.type })),
       })),

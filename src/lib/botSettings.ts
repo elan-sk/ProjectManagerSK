@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { APP_SETTING_ID } from "@/lib/appSettings";
 
@@ -49,6 +51,25 @@ export async function getBotApiKey(): Promise<string | null> {
 export async function getBotName(): Promise<string> {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
   return s?.botName ?? "Chontatec";
+}
+
+// Punto 5: imagen de perfil del bot para adjuntar a sus mensajes de
+// WhatsApp — mismo archivo que ya se sube desde Configuración (Avatar,
+// botAvatarUrl apunta a un path bajo public/). No hay conversión a webp
+// (no hay ninguna librería de imágenes instalada en el proyecto — agregar
+// una solo para esto sería una dependencia nueva para lo que Baileys ya
+// resuelve mandando el PNG/JPG como imagen normal, ver whatsapp.ts) — por
+// eso se manda como imagen adjunta con texto, no como sticker real de
+// WhatsApp (eso sí exige webp). Devuelve null si no hay avatar configurado
+// o si el archivo no se puede leer (best-effort, nunca rompe el envío).
+export async function getBotAvatarBuffer(): Promise<Buffer | null> {
+  const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
+  if (!s?.botAvatarUrl) return null;
+  try {
+    return await readFile(path.join(process.cwd(), "public", s.botAvatarUrl));
+  } catch {
+    return null;
+  }
 }
 
 export async function setBotProfile(name: string, avatarUrl: string | null) {

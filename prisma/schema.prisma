@@ -85,9 +85,10 @@ enum ReviewOutcome {
 }
 
 enum CheckResult {
-  APPROVED // Aprobada
-  FLAGGED  // Con hallazgos
-  FAILED   // Con errores
+  APPROVED       // Aprobada
+  FLAGGED        // Con hallazgos
+  FAILED         // Con errores
+  NOT_APPLICABLE // Punto 14: no cuenta para aprobar ni para devolver la ronda
 }
 
 // FINISH_TO_START (la de siempre): la sucesora no puede empezar antes de
@@ -102,13 +103,23 @@ enum DependencyType {
 model User {
   id           String   @id @default(cuid())
   name         String
-  email        String   @unique
+  // Identificador principal para entrar — obligatorio y único.
+  username     String   @unique
+  // Opcional a partir de ahora (username es el principal). Único cuando está
+  // definido; varios usuarios pueden tener null a la vez.
+  email        String?  @unique
   passwordHash String
   role         Role     @default(MEMBER)
   avatarUrl    String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
   phone        String?
   createdAt    DateTime @default(now())
+
+  // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
+  // token en texto plano) para que una lectura de la base no alcance para
+  // usarlo — de un solo uso y con vencimiento corto (ver forgotActions.ts).
+  resetTokenHash      String?   @unique
+  resetTokenExpiresAt DateTime?
 
   pmOfProjects        Project[]            @relation("ProjectPM")
   assignments         TaskAssignee[]
@@ -186,6 +197,11 @@ model Project {
   attachments  ProjectAttachment[]
   shareLinks   ShareLink[]
   tags         Tag[]
+  // Punto 4 (link compartido): comentarios generales de la pestaña
+  // Definición — a diferencia de ShareComment.taskId, estos no cuelgan de
+  // ninguna tarea puntual.
+  shareComments ShareComment[]
+  notifications Notification[]
 }
 
 // Enlaces/archivos importantes del proyecto (punto 3.2) — se prioriza el
@@ -289,6 +305,12 @@ model Task {
   actualEnd    DateTime?
 
   createdAt DateTime @default(now())
+  // Punto 12 (tiempo real sin pisadas): marca de tiempo de la última
+  // modificación, usada como bloqueo optimista en las acciones de mayor
+  // riesgo de choque (arrastrar/redimensionar en Gantt, arrastrar en
+  // Kanban) — si alguien más ya modificó la tarea desde que el cliente la
+  // cargó, la acción se rechaza en vez de pisar el cambio ajeno.
+  updatedAt DateTime @updatedAt
 
   assignees    TaskAssignee[]
   steps        TaskStep[]
@@ -398,12 +420,22 @@ model AdjustmentItem {
 // cuenta: se identifica con nombre (y cargo opcional) en vez de un userId.
 // adjustmentItemId ancla el comentario a un cambio puntual de una tarea tipo
 // Ajuste; queda null para un comentario general de la tarea.
+// Punto 4: taskId pasó a ser opcional y se sumó projectId — un comentario
+// cuelga de UNA tarea O de un proyecto (pestaña Definición del link
+// compartido), nunca de los dos ni de ninguno (lo valida shareActions.ts,
+// no hay constraint de DB para esto). parentId permite responder un
+// comentario ya existente (un solo nivel de anidamiento, no hilos recursivos).
 model ShareComment {
   id               String          @id @default(cuid())
-  taskId           String
-  task             Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId           String?
+  task             Task?           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId        String?
+  project          Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   adjustmentItemId String?
   adjustmentItem   AdjustmentItem? @relation(fields: [adjustmentItemId], references: [id], onDelete: Cascade)
+  parentId         String?
+  parent           ShareComment?   @relation("ShareCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          ShareComment[]  @relation("ShareCommentReplies")
   authorName       String
   authorRole       String?
   body             String
@@ -446,6 +478,11 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   taskId    String?
   task      Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // Punto 4: para avisos sin tarea puntual (ej. comentario en la pestaña
+  // Definición de un proyecto) — sin esto, la campana no tenía cómo armar
+  // el link (antes lo derivaba solo de task.projectId, que acá es null).
+  projectId String?
+  project   Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   type      NotificationType
   message   String
   read      Boolean          @default(false)
@@ -625,6 +662,13 @@ model ReviewCheck {
   reviewedById     String?
   reviewedBy       User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])
   order            Int
+  // Puntos 8/13: id del TestTemplateItem del que nació este check (null si
+  // se agregó a mano). Sin relación formal a propósito (el template puede
+  // cambiar/borrarse sin que esto deba romperse) — solo sirve para que
+  // copyTemplateItemsToRound sea idempotente: reaplicar la plantilla nunca
+  // duplica un punto que ya está en la ronda, así que "aplicar plantilla" de
+  // nuevo es también la forma de recuperar uno que se había quitado.
+  sourceTemplateItemId String?
 
   evidence ReviewCheckEvidence[]
 }

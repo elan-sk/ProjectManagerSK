@@ -28,7 +28,7 @@ import { RememberViewState } from "../RememberViewState";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
-import { createProject } from "./actions";
+import { CreateProjectForm } from "./CreateProjectForm";
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
 
@@ -231,6 +231,21 @@ export default async function ProjectsPage({
     })
   );
 
+  // Punto 9: un miembro sin proyectos propios (no admin, no PM de ninguno)
+  // no debe ver en la lista proyectos donde no tiene ni una tarea asignada
+  // — antes veía TODOS los proyectos de la app, con o sin asignación.
+  const myAssignedProjectIds = isAdmin || isPM
+    ? null
+    : new Set(
+        (
+          await prisma.task.findMany({
+            where: { assignees: { some: { userId: session.user.id } } },
+            select: { projectId: true },
+            distinct: ["projectId"],
+          })
+        ).map((t) => t.projectId)
+      );
+
   // Vista por defecto ("Recientes"): solo 2 proyectos, elegidos por
   // ProjectCardsOrder en el cliente según el último abierto (localStorage),
   // no por fecha de creación — por eso acá van todos los `rows` y el límite
@@ -239,7 +254,8 @@ export default async function ProjectsPage({
   const rows = projects
     .map((p, i) => ({ project: p, summary: summaries[i] }))
     .filter(({ summary }) => !health || summary.health === health)
-    .filter(({ project: p }) => !pid || pid === "all" || p.id === pid);
+    .filter(({ project: p }) => !pid || pid === "all" || p.id === pid)
+    .filter(({ project: p }) => !myAssignedProjectIds || myAssignedProjectIds.has(p.id));
 
   // --- Panorama general: tablero/Gantt/calendario de TODOS los proyectos
   // visibles para este usuario (según sus "superpoderes" de arriba), pensado
@@ -350,6 +366,13 @@ export default async function ProjectsPage({
   const dateKey = (d: Date) => d.toISOString().slice(0, 10);
   const boardBusinessDayIndex = new Map(boardBusinessDays.map((d, i) => [dateKey(d), i]));
 
+  // Punto 9: "Asignar"/eliminar en el panorama general no puede depender de
+  // un único booleano para TODO el tablero (bug real: un PM de un proyecto
+  // veía el botón hasta en tareas de otros proyectos donde no administra
+  // nada) — cada card/barra lleva su propio permiso, según a QUÉ proyecto
+  // pertenece esa tarea puntual.
+  const canManageProject = (projectId: string) => isAdmin || Boolean(myPmProjectIds?.includes(projectId));
+
   const boardTaskCards: TaskCard[] = boardTasksRaw
     .filter(matchesBoardFilters)
     .map((t) => ({
@@ -361,6 +384,8 @@ export default async function ProjectsPage({
       type: t.type,
       status: t.status,
       riskLevel: t.riskLevel,
+      canManage: canManageProject(t.projectId),
+      updatedAt: t.updatedAt.toISOString(),
       assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
       assigneeIds: t.assignees.map((a) => a.userId),
       reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
@@ -395,6 +420,8 @@ export default async function ProjectsPage({
         phaseId: t.phaseId,
         phaseName: t.phase.name,
         status: t.status,
+        canManage: canManageProject(t.projectId),
+        updatedAt: t.updatedAt.toISOString(),
         startIndex,
         span: endIndex - startIndex + 1,
         minStartIndex,
@@ -515,41 +542,7 @@ export default async function ProjectsPage({
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
           <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">
-            <form action={createProject} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Nombre</label>
-                <input name="name" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Cliente (opcional)</label>
-                <input name="clientName" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Inicio</label>
-                <input
-                  type="date"
-                  name="startDate"
-                  required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm text-slate-600">Product Manager</label>
-                <select name="pmId" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                Crear proyecto
-              </button>
-            </form>
+            <CreateProjectForm users={users} />
           </ModalTrigger>
         </div>
 
@@ -858,6 +851,7 @@ export default async function ProjectsPage({
               canManage={canManageBoard}
               users={users}
               collisionUrlBase={collisionUrlBase}
+              focusCollision={Boolean(collision && collision !== "1")}
             />
           </div>
         ) : view === "calendar" ? (
@@ -874,7 +868,6 @@ export default async function ProjectsPage({
               key={boardTaskCards.map((t) => `${t.id}:${t.status}`).join(",")}
               initialTasks={boardTaskCards}
               showProjectName
-              canManage={canManageBoard}
               users={users}
               collisionUrlBase={collisionUrlBase}
             />

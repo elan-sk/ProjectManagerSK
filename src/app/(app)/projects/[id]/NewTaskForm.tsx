@@ -20,6 +20,17 @@ const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((v
   label: TASK_TYPE_LABEL[value],
 }));
 
+// Bug real: sin "Depende de" elegido, el picker no tenía ningún defaultValue
+// y arrancaba vacío — el `required` de su <input type="hidden"> no lo frena
+// (los navegadores ignoran `required` en inputs ocultos), así que si el
+// usuario no tocaba el calendario a mano, se mandaba plannedStart="" y el
+// servidor tiraba un ZodError feo en vez de un error claro. "Hoy" es el
+// default más razonable para "nueva tarea" (misma zona horaria que ya usa
+// GanttView para "Hoy" en el propio Gantt).
+function todayInBogota() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+}
+
 export function NewTaskForm({
   projectId,
   phases,
@@ -102,7 +113,7 @@ export function NewTaskForm({
           name="plannedStart"
           label="Fecha de inicio"
           previewDays={durationDays}
-          defaultValue={selectedPredecessor?.nextAvailableStart.slice(0, 10)}
+          defaultValue={selectedPredecessor?.nextAvailableStart.slice(0, 10) ?? todayInBogota()}
         />
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Días hábiles</label>

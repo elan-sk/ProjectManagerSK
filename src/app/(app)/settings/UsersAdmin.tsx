@@ -8,7 +8,7 @@ import { CreateUserForm } from "./CreateUserForm";
 import { ResetPasswordForm } from "./ResetPasswordForm";
 import { EditUserForm } from "./EditUserForm";
 
-type UserRow = { id: string; name: string; email: string; role: "ADMIN" | "MEMBER"; avatarUrl: string | null; phone: string | null };
+type UserRow = { id: string; name: string; username: string; email: string | null; role: "ADMIN" | "MEMBER"; avatarUrl: string | null; phone: string | null };
 
 function RoleSelect({ userId, role }: { userId: string; role: UserRow["role"] }) {
   const [isPending, startTransition] = useTransition();
@@ -47,13 +47,16 @@ export function UsersAdmin({ users }: { users: UserRow[] }) {
               <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-8 w-8 text-xs" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">{u.name}</p>
-                <p className="truncate text-xs text-slate-400">{u.email}</p>
+                <p className="truncate text-xs text-slate-400">
+                  @{u.username}
+                  {u.email && <span className="text-slate-300"> · {u.email}</span>}
+                </p>
               </div>
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
               <RoleSelect userId={u.id} role={u.role} />
               <ModalTrigger label="Editar" title={`Editar usuario — ${u.name}`} variant="secondary">
-                <EditUserForm userId={u.id} name={u.name} email={u.email} phone={u.phone} avatarUrl={u.avatarUrl} />
+                <EditUserForm userId={u.id} name={u.name} username={u.username} email={u.email} phone={u.phone} avatarUrl={u.avatarUrl} />
               </ModalTrigger>
               <ModalTrigger label="Restablecer clave" title={`Restablecer contraseña — ${u.name}`} variant="secondary">
                 <ResetPasswordForm userId={u.id} />

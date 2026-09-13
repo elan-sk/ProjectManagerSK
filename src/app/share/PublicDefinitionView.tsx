@@ -1,3 +1,5 @@
+import { PublicCommentThread } from "./PublicCommentThread";
+
 function ProgressBar({ pct }: { pct: number }) {
   return (
     <div className="flex items-center gap-2">
@@ -9,17 +11,30 @@ function ProgressBar({ pct }: { pct: number }) {
   );
 }
 
-/** Objetivos, requerimientos y fases de solo lectura para el link compartido — sin edición, sin holguras/variaciones internas. */
+type CommentData = {
+  id: string;
+  authorName: string;
+  authorRole: string | null;
+  body: string;
+  createdAt: string;
+  replies: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: string }[];
+};
+
+/** Objetivos, requerimientos y fases de solo lectura para el link compartido — sin edición, sin holguras/variaciones internas. Punto 4: ahora también admite comentarios (con respuestas) sobre la Definición del proyecto. */
 export function PublicDefinitionView({
+  token,
   description,
   objectives,
   requirements,
   phases,
+  comments,
 }: {
+  token: string;
   description: string | null;
   objectives: { id: string; title: string; description: string | null; pct: number }[];
   requirements: { id: string; title: string; description: string | null; pct: number }[];
   phases: { id: string; name: string; pct: number; taskTitles: string[] }[];
+  comments: CommentData[];
 }) {
   return (
     <div className="space-y-4">
@@ -75,6 +90,11 @@ export function PublicDefinitionView({
             )}
           </div>
         ))}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="font-medium text-slate-900">Comentarios</h2>
+        <PublicCommentThread token={token} comments={comments} />
       </div>
     </div>
   );

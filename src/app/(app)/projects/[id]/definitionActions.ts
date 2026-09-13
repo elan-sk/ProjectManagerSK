@@ -68,10 +68,12 @@ export async function addObjective(projectId: string, formData: FormData) {
   const denied = await guard(projectId);
   if (denied) return denied;
 
-  const data = objectiveSchema.parse({
+  const parsed = objectiveSchema.safeParse({
     title: formData.get("title"),
     description: parseTextField(formData, "description"),
   });
+  if (!parsed.success) return { ok: false as const, error: "Ponele un título al objetivo." };
+  const data = parsed.data;
   const count = await prisma.objective.count({ where: { projectId } });
   await prisma.objective.create({ data: { projectId, title: data.title, description: data.description, order: count } });
   revalidatePath(`/projects/${projectId}`);
@@ -83,10 +85,12 @@ export async function updateObjective(objectiveId: string, formData: FormData) {
   const denied = await guard(objective.projectId);
   if (denied) return denied;
 
-  const data = objectiveSchema.parse({
+  const parsed = objectiveSchema.safeParse({
     title: formData.get("title"),
     description: parseTextField(formData, "description"),
   });
+  if (!parsed.success) return { ok: false as const, error: "Ponele un título al objetivo." };
+  const data = parsed.data;
   await prisma.objective.update({ where: { id: objectiveId }, data: { title: data.title, description: data.description } });
   revalidatePath(`/projects/${objective.projectId}`);
   return { ok: true as const };
@@ -112,11 +116,13 @@ export async function addRequirement(projectId: string, formData: FormData) {
   const denied = await guard(projectId);
   if (denied) return denied;
 
-  const data = requirementSchema.parse({
+  const parsed = requirementSchema.safeParse({
     title: formData.get("title"),
     description: parseTextField(formData, "description"),
     objectiveIds: formData.getAll("objectiveIds"),
   });
+  if (!parsed.success) return { ok: false as const, error: "Ponele un título al requerimiento." };
+  const data = parsed.data;
   const count = await prisma.requirement.count({ where: { projectId } });
   await prisma.requirement.create({
     data: {
@@ -136,11 +142,13 @@ export async function updateRequirement(requirementId: string, formData: FormDat
   const denied = await guard(requirement.projectId);
   if (denied) return denied;
 
-  const data = requirementSchema.parse({
+  const parsed = requirementSchema.safeParse({
     title: formData.get("title"),
     description: parseTextField(formData, "description"),
     objectiveIds: formData.getAll("objectiveIds"),
   });
+  if (!parsed.success) return { ok: false as const, error: "Ponele un título al requerimiento." };
+  const data = parsed.data;
   await prisma.requirement.update({
     where: { id: requirementId },
     data: {
@@ -170,10 +178,12 @@ export async function updatePhase(phaseId: string, formData: FormData) {
   const denied = await guard(phase.projectId);
   if (denied) return denied;
 
-  const data = phaseSchema.parse({
+  const parsed = phaseSchema.safeParse({
     name: formData.get("name"),
     requirementIds: formData.getAll("requirementIds"),
   });
+  if (!parsed.success) return { ok: false as const, error: "Ponele un nombre a la fase." };
+  const data = parsed.data;
   await prisma.phase.update({
     where: { id: phaseId },
     data: {
