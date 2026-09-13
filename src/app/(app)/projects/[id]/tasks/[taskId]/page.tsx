@@ -455,7 +455,13 @@ export default async function TaskDetailPage({
                   {d.predecessor.title}
                 </Link>
                 {canManage && (
-                  <form action={removeDependency.bind(null, d.id, taskId)} className="flex-shrink-0">
+                  <form
+                    action={async () => {
+                      "use server";
+                      await removeDependency(d.id, taskId);
+                    }}
+                    className="flex-shrink-0"
+                  >
                     <button className="text-xs text-slate-400 hover:text-red-600">Quitar</button>
                   </form>
                 )}

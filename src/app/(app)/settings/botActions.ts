@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { getBotSettings, setBotProfile, setBotApiKey, setBotMonthlyLimit, setBotPersonaPrompt } from "@/lib/botSettings";
+import { getBotSettings, setBotProfile, setBotApiKey, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage } from "@/lib/botSettings";
 
 async function requireAdmin() {
   const session = await auth();
@@ -45,6 +45,14 @@ export async function clearBotApiKey() {
 export async function updateBotPersonaPrompt(text: string) {
   await requireAdmin();
   await setBotPersonaPrompt(text);
+  revalidatePath("/settings");
+  return { ok: true as const };
+}
+
+// text vacío/null restaura el mensaje de presentación de fábrica (setBotIntroMessage ya lo maneja).
+export async function updateBotIntroMessage(text: string) {
+  await requireAdmin();
+  await setBotIntroMessage(text);
   revalidatePath("/settings");
   return { ok: true as const };
 }

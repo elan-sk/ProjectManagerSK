@@ -7,16 +7,37 @@ import { prisma } from "../src/lib/prisma";
 // .claude/skills/project-manager-sk/SKILL.md. Idempotente: si el proyecto ya
 // existe (por nombre) no lo duplica.
 
-const BASE_URL = "http://localhost:3000";
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) throw new Error("Falta API_KEY en .env");
+// Misma URL que usa la propia app (NEXTAUTH_URL) — nunca hardcodear
+// localhost, así este script sigue sirviendo si algún día corre contra el
+// servidor ya desplegado.
+const BASE_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+// La API ya no acepta una API_KEY compartida — hace falta loguearse como un
+// usuario real (PM/admin) igual que el skill. Definir en .env solo para
+// correr este script puntual, nunca commitear.
+const API_LOGIN_USERNAME = process.env.API_LOGIN_USERNAME;
+const API_LOGIN_PASSWORD = process.env.API_LOGIN_PASSWORD;
+if (!API_LOGIN_USERNAME || !API_LOGIN_PASSWORD) {
+  throw new Error("Faltan API_LOGIN_USERNAME / API_LOGIN_PASSWORD en .env (credenciales de un PM/admin real).");
+}
+
+let apiToken: string | null = null;
 
 async function api(path: string, init?: RequestInit) {
+  if (!apiToken) {
+    const loginRes = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: API_LOGIN_USERNAME, password: API_LOGIN_PASSWORD }),
+    });
+    if (!loginRes.ok) throw new Error(`Login falló: ${loginRes.status}: ${await loginRes.text()}`);
+    apiToken = (await loginRes.json()).token;
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
+      Authorization: `Bearer ${apiToken}`,
       ...init?.headers,
     },
   });

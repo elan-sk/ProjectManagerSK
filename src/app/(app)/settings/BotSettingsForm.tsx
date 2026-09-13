@@ -9,6 +9,7 @@ import {
   clearBotApiKey,
   updateBotMonthlyLimit,
   updateBotPersonaPrompt,
+  updateBotIntroMessage,
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
 
@@ -21,6 +22,8 @@ export function BotSettingsForm({
   usedThisPeriod,
   personaPrompt,
   personaIsCustom,
+  introMessage,
+  introMessageIsCustom,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -30,6 +33,8 @@ export function BotSettingsForm({
   usedThisPeriod: number;
   personaPrompt: string;
   personaIsCustom: boolean;
+  introMessage: string;
+  introMessageIsCustom: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +148,54 @@ export function BotSettingsForm({
                 className="text-xs font-medium text-slate-500 hover:underline"
               >
                 Restaurar tono predeterminado
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="space-y-1.5 border-t border-slate-100 pt-4">
+        <label className="block text-sm text-slate-600">Mensaje de presentación</label>
+        <p className="text-xs text-slate-400">
+          Se manda junto con la foto de perfil del bot la primera vez que le escribe a alguien por WhatsApp — de ahí en adelante, ya solo va el ícono 🤖 y el nombre.
+        </p>
+        <form
+          action={(formData: FormData) => {
+            setError(null);
+            startTransition(async () => {
+              const value = (formData.get("intro") as string) ?? "";
+              await updateBotIntroMessage(value);
+              router.refresh();
+            });
+          }}
+          className="space-y-1.5"
+        >
+          <textarea
+            name="intro"
+            defaultValue={introMessage}
+            rows={4}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              disabled={isPending}
+              className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {isPending ? "Guardando…" : "Guardar mensaje"}
+            </button>
+            {introMessageIsCustom && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() =>
+                  startTransition(async () => {
+                    await updateBotIntroMessage("");
+                    router.refresh();
+                  })
+                }
+                className="text-xs font-medium text-slate-500 hover:underline"
+              >
+                Restaurar mensaje predeterminado
               </button>
             )}
           </div>

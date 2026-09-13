@@ -10,6 +10,16 @@ import { APP_SETTING_ID } from "@/lib/appSettings";
 export const DEFAULT_BOT_PERSONA =
   'Tu tono es amable, alegre y respetuoso, con un toque sutil del habla del Chocó (Colombia) — expresiones como "melo", "vea pues", "¡qué más!" de vez en cuando, sin abusar ni forzarlo en cada frase. Sos cercano pero profesional: la gente te consulta para trabajar, no para el show.';
 
+// Mensaje de presentación de fábrica — se usa cuando nadie configuró uno
+// propio (botIntroMessage null/vacío). Es el ÚNICO mensaje de WhatsApp que
+// va con la foto de perfil del bot (ver sendRawMessage en whatsapp.ts); de
+// ahí en más, la persona ya lo conoce y solo ve ícono 🤖 + nombre. Editable
+// desde Configuración porque este software puede correr para otra empresa
+// con otro nombre y otras funciones que describir acá.
+export function buildDefaultBotIntroMessage(botName: string) {
+  return `¡Hola! Mi nombre es ${botName}, soy un bot de ProjectManagerSK, la aplicación donde tu equipo lleva el seguimiento de los proyectos y las tareas.\nPor acá te voy a avisar cuando te asignen algo nuevo, cuando una tarea esté por vencer o ya esté vencida, cuando te devuelvan un trabajo en revisión, o cuando te toque revisar el de alguien más.\nY si entrás a la aplicación, también podés preguntarme tus dudas o pedirme que te analice el estado de un proyecto — ¡para eso también estoy, vea pues!`;
+}
+
 export async function getBotSettings() {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
   return {
@@ -21,6 +31,8 @@ export async function getBotSettings() {
     usedThisPeriod: s?.botQuestionsUsedThisPeriod ?? 0,
     personaPrompt: s?.botPersonaPrompt?.trim() || DEFAULT_BOT_PERSONA,
     personaIsCustom: Boolean(s?.botPersonaPrompt?.trim()),
+    introMessage: s?.botIntroMessage?.trim() || buildDefaultBotIntroMessage(s?.botName ?? "Chontatec"),
+    introMessageIsCustom: Boolean(s?.botIntroMessage?.trim()),
   };
 }
 
@@ -38,6 +50,22 @@ export async function setBotPersonaPrompt(text: string | null) {
     where: { id: APP_SETTING_ID },
     create: { id: APP_SETTING_ID, botPersonaPrompt: value },
     update: { botPersonaPrompt: value },
+  });
+}
+
+// Server-only, usado por sendRawMessage al armar el primer WhatsApp directo.
+export async function getBotIntroMessage(): Promise<string> {
+  const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
+  return s?.botIntroMessage?.trim() || buildDefaultBotIntroMessage(s?.botName ?? "Chontatec");
+}
+
+// text vacío o null restaura el mensaje de presentación de fábrica.
+export async function setBotIntroMessage(text: string | null) {
+  const value = text?.trim() || null;
+  await prisma.appSetting.upsert({
+    where: { id: APP_SETTING_ID },
+    create: { id: APP_SETTING_ID, botIntroMessage: value },
+    update: { botIntroMessage: value },
   });
 }
 

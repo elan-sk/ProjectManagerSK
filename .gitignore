@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# URL del servidor cacheada por la skill project-manager-sk — no es secreta,
+# pero es específica de cada entorno (local, staging, producción).
+.claude/skills/project-manager-sk/.cached-base-url
+
 # vercel
 .vercel
 

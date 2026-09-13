@@ -100,6 +100,8 @@ export default async function SettingsPage({
             usedThisPeriod={botSettings.usedThisPeriod}
             personaPrompt={botSettings.personaPrompt}
             personaIsCustom={botSettings.personaIsCustom}
+            introMessage={botSettings.introMessage}
+            introMessageIsCustom={botSettings.introMessageIsCustom}
           />
         </section>
       )}

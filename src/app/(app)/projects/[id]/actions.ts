@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
-import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, type Actor } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
@@ -23,9 +23,9 @@ export async function addPhase(projectId: string, formData: FormData) {
   return { ok: true };
 }
 
-export async function reassignPM(projectId: string, formData: FormData) {
+export async function reassignPM(projectId: string, formData: FormData, actor?: Actor) {
   try {
-    await requireProjectAdmin(projectId);
+    await requireProjectAdmin(projectId, actor);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -357,7 +357,10 @@ function assertNotStale(task: { updatedAt: Date }, expectedUpdatedAt?: string) {
   }
 }
 
-export async function updateTaskStatus(taskId: string, status: TaskStatus, expectedUpdatedAt?: string) {
+// `actor` es opcional: sin él usa la sesión del navegador (auth()) como
+// siempre; la API pública (login por usuario/contraseña) pasa el suyo
+// explícito para reusar EXACTAMENTE estas mismas reglas sin duplicarlas.
+export async function updateTaskStatus(taskId: string, status: TaskStatus, expectedUpdatedAt?: string, actor?: Actor) {
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
     include: {
@@ -379,7 +382,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   // también revisor no puede finalizarla, aunque sí siga pudiendo editar el
   // resto de la tarea. Para cualquier otro caso, sigue la regla de siempre.
   const canChangeStatus =
-    status === "COMPLETED" && task.type === "QA" ? await canReviewTask(taskId) : await canEditTask(taskId);
+    status === "COMPLETED" && task.type === "QA" ? await canReviewTask(taskId, actor) : await canEditTask(taskId, actor);
   if (!canChangeStatus) {
     return {
       ok: false,
@@ -400,7 +403,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
 
   // Un miembro sin permisos de PM/admin no puede reabrir una tarea ya
   // completada, ni devolver una "En curso"/"Bloqueada" a "Sin iniciar".
-  if (!(await getProjectAdmin(task.projectId))) {
+  if (!(await getProjectAdmin(task.projectId, actor))) {
     if (task.status === "COMPLETED" && status !== "COMPLETED") {
       return { ok: false, error: "Solo el PM del proyecto o un administrador pueden cambiar el estado de una tarea completada." };
     }
@@ -471,8 +474,8 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   });
 
   if (status === "BLOCKED" && task.status !== "BLOCKED" && pmId) {
-    const session = await auth();
-    if (pmId !== session?.user?.id) {
+    const actingUserId = actor?.id ?? (await auth())?.user?.id;
+    if (pmId !== actingUserId) {
       await notifyBlocked(taskId, pmId);
     }
   }
@@ -591,7 +594,13 @@ async function assertDatesEditable(taskId: string) {
  * cambia su duración). El cliente ya clampeó visualmente el arrastre, pero
  * el servidor vuelve a validar con datos frescos antes de guardar.
  */
-export async function resizeTask(taskId: string, edge: "start" | "end", newDateStr: string, expectedUpdatedAt?: string) {
+export async function resizeTask(
+  taskId: string,
+  edge: "start" | "end",
+  newDateStr: string,
+  expectedUpdatedAt?: string,
+  actor?: Actor
+) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -608,7 +617,7 @@ export async function resizeTask(taskId: string, edge: "start" | "end", newDateS
     // — mismo orden que updateTaskStatus, para que el rechazo por choque sea
     // siempre el mismo mensaje sin importar quién esté mirando.
     assertNotStale(task, expectedUpdatedAt);
-    await requireProjectAdmin(task.projectId);
+    await requireProjectAdmin(task.projectId, actor);
     await assertDatesEditable(taskId);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -665,7 +674,7 @@ export async function resizeTask(taskId: string, edge: "start" | "end", newDateS
  * restricción que el handle izquierdo de resizeTask — reescribe el inicio,
  * así que solo aplica a tareas que todavía no arrancaron.
  */
-export async function moveTask(taskId: string, newStartDateStr: string, expectedUpdatedAt?: string) {
+export async function moveTask(taskId: string, newStartDateStr: string, expectedUpdatedAt?: string, actor?: Actor) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -679,7 +688,7 @@ export async function moveTask(taskId: string, newStartDateStr: string, expected
 
   try {
     assertNotStale(task, expectedUpdatedAt);
-    await requireProjectAdmin(task.projectId);
+    await requireProjectAdmin(task.projectId, actor);
     await assertDatesEditable(taskId);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -720,7 +729,12 @@ export async function moveTask(taskId: string, newStartDateStr: string, expected
 // alguna ya cambió desde entonces (otro usuario la tocó mientras tanto), se
 // rechaza el movimiento COMPLETO del grupo en vez de mover el resto pisando
 // esa tarea a medias.
-export async function moveTaskGroup(taskIds: string[], deltaDays: number, expectedUpdatedAts?: Record<string, string>) {
+export async function moveTaskGroup(
+  taskIds: string[],
+  deltaDays: number,
+  expectedUpdatedAts?: Record<string, string>,
+  actor?: Actor
+) {
   if (taskIds.length === 0 || deltaDays === 0) return { ok: true, appliedDelta: 0 };
 
   const projectId = (await prisma.task.findUniqueOrThrow({ where: { id: taskIds[0] } })).projectId;
@@ -736,7 +750,7 @@ export async function moveTaskGroup(taskIds: string[], deltaDays: number, expect
   }
 
   try {
-    await requireProjectAdmin(projectId);
+    await requireProjectAdmin(projectId, actor);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

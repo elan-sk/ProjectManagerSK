@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey, safeJson } from "@/lib/apiAuth";
+import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getAppCountryCode } from "@/lib/appSettings";
 
 export async function GET(request: Request) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const projects = await prisma.project.findMany({
     include: {
@@ -28,8 +28,8 @@ const createProjectSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const parsedBody = await safeJson(request);
   if ("error" in parsedBody) return parsedBody.error;

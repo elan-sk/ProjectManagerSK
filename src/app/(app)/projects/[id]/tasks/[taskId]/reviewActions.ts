@@ -6,7 +6,7 @@ import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { getProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
+import { getProjectAdmin, canEditTask, canReviewTask, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import type { CheckResult } from "@prisma/client";
@@ -22,10 +22,10 @@ async function revalidateTask(taskId: string) {
 // elegir uno UNA sola vez (nunca a sí mismo) — después de eso, cambiar de
 // revisor queda reservado a PM, admin, o el revisor actual (para poder
 // pasarle la posta a otro revisor).
-export async function setTaskReviewers(taskId: string, formData: FormData) {
+export async function setTaskReviewers(taskId: string, formData: FormData, actor?: Actor) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { reviewers: true, assignees: true } });
-  const session = await auth();
-  if (!session?.user) return { ok: false as const, error: "Sesión inválida." };
+  const session = actor ?? (await auth())?.user;
+  if (!session) return { ok: false as const, error: "Sesión inválida." };
 
   // Una vez completada, el revisor queda fijo — nadie (ni PM ni admin) puede
   // cambiarlo, ni siquiera el propio revisor.
@@ -35,8 +35,8 @@ export async function setTaskReviewers(taskId: string, formData: FormData) {
 
   const reviewerIds = formData.getAll("reviewerIds") as string[];
   const currentReviewerIds = task.reviewers.map((r) => r.userId);
-  const isAdminOrPm = Boolean(await getProjectAdmin(task.projectId));
-  const isCurrentReviewer = currentReviewerIds.includes(session.user.id);
+  const isAdminOrPm = Boolean(await getProjectAdmin(task.projectId, actor));
+  const isCurrentReviewer = currentReviewerIds.includes(session.id);
 
   // Regla dura, sin excepción de rol (ni PM ni admin): un asignado a la
   // tarea no puede ser también su revisor — se pierde el sentido de la
@@ -50,7 +50,7 @@ export async function setTaskReviewers(taskId: string, formData: FormData) {
     if (currentReviewerIds.length > 0) {
       return { ok: false as const, error: "Solo el PM, un administrador o el revisor actual pueden cambiar el revisor." };
     }
-    if (!(await canEditTask(taskId))) {
+    if (!(await canEditTask(taskId, actor))) {
       return { ok: false as const, error: "No tenés permiso para asignar un revisor a esta tarea." };
     }
     if (reviewerIds.length === 0) {
@@ -88,13 +88,14 @@ const deliverableInputSchema = z.object({
 // de corrección antes de poder reenviar.
 export async function submitReviewRound(
   taskId: string,
-  deliverables: { id?: string; name: string; url: string; mimeType: string }[]
+  deliverables: { id?: string; name: string; url: string; mimeType: string }[],
+  actor?: Actor
 ) {
-  if (!(await canEditTask(taskId))) {
+  if (!(await canEditTask(taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
-  const session = await auth();
-  if (!session?.user) return { ok: false as const, error: "Sesión inválida." };
+  const session = actor ?? (await auth())?.user;
+  if (!session) return { ok: false as const, error: "Sesión inválida." };
 
   const parsed = z.array(deliverableInputSchema).min(1).safeParse(deliverables);
   if (!parsed.success) {
@@ -142,7 +143,7 @@ export async function submitReviewRound(
 
   const round = await prisma.$transaction(async (tx) => {
     const created = await tx.reviewRound.create({
-      data: { taskId, roundNumber, submittedById: session.user!.id },
+      data: { taskId, roundNumber, submittedById: session.id },
     });
     // Punto 3b: reenviar no duplica el entregable — si ya existía (viene de
     // la ronda anterior, el asignado solo lo dejó igual o lo editó), se
@@ -303,21 +304,21 @@ export async function removeReviewCheck(checkId: string) {
 
 // Punto 6: calificar "Con errores" o "Con hallazgos" exige evidencia ya
 // cargada en la prueba — "Aprobada"/"No aplica" no la necesitan.
-export async function setReviewCheckResult(checkId: string, result: CheckResult, note: string) {
+export async function setReviewCheckResult(checkId: string, result: CheckResult, note: string, actor?: Actor) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({
     where: { id: checkId },
     include: { reviewRound: true, evidence: true },
   });
-  if (!(await canReviewTask(check.reviewRound.taskId))) {
+  if (!(await canReviewTask(check.reviewRound.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
   if ((result === "FAILED" || result === "FLAGGED") && check.evidence.length === 0) {
     return { ok: false as const, error: "Para calificar con error o con hallazgo, primero subí evidencia." };
   }
-  const session = await auth();
+  const reviewedById = actor?.id ?? (await auth())?.user?.id;
   await prisma.reviewCheck.update({
     where: { id: checkId },
-    data: { result, note: note.trim() || null, reviewedById: session?.user?.id },
+    data: { result, note: note.trim() || null, reviewedById },
   });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };
@@ -326,9 +327,9 @@ export async function setReviewCheckResult(checkId: string, result: CheckResult,
 // Punto 4: el revisor puede revertir su propia calificación (volverla a
 // dejar sin resultado) mientras la ronda siga abierta — una vez cerrada
 // (outcome ya definido), queda fija.
-export async function revertReviewCheckResult(checkId: string) {
+export async function revertReviewCheckResult(checkId: string, actor?: Actor) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, include: { reviewRound: true } });
-  if (!(await canReviewTask(check.reviewRound.taskId))) {
+  if (!(await canReviewTask(check.reviewRound.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
   if (check.reviewRound.outcome !== null) {
@@ -419,12 +420,12 @@ export async function removeReviewCheckEvidence(evidenceId: string) {
 // 2.6: se abre el ciclo de devolución). Si no -> outcome=APPROVED, la tarea
 // vuelve a poder completarse por el flujo normal (punto 15: con el botón
 // dedicado del panel, no desde el control de estado genérico).
-export async function closeReviewRound(reviewRoundId: string) {
+export async function closeReviewRound(reviewRoundId: string, actor?: Actor) {
   const round = await prisma.reviewRound.findUniqueOrThrow({
     where: { id: reviewRoundId },
     include: { checks: true },
   });
-  if (!(await canReviewTask(round.taskId))) {
+  if (!(await canReviewTask(round.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
   if (round.checks.length === 0) {
@@ -452,12 +453,12 @@ export async function closeReviewRound(reviewRoundId: string) {
 // puede finalizar una Prueba, y solo cuando la última ronda quedó aprobada
 // — reusa exactamente la misma condición que ya valida updateTaskStatus del
 // lado servidor (actions.ts), esto es nada más el botón dedicado del panel.
-export async function completeReviewTask(taskId: string) {
+export async function completeReviewTask(taskId: string, actor?: Actor) {
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: taskId },
     include: { reviewRounds: { orderBy: { roundNumber: "desc" }, take: 1 } },
   });
-  if (!(await canReviewTask(taskId))) {
+  if (!(await canReviewTask(taskId, actor))) {
     return { ok: false as const, error: "Solo el revisor, el PM del proyecto o un administrador pueden completar esta prueba." };
   }
   const lastRound = task.reviewRounds[0];

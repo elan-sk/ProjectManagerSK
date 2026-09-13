@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey, safeJson } from "@/lib/apiAuth";
+import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { getTaskDelayDays } from "@/lib/delays";
-import { notifyBlocked } from "@/lib/notifications";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { canEditTask } from "@/lib/permissions";
+import { updateTaskStatus } from "@/app/(app)/projects/[id]/actions";
+import { deleteTask } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
   const task = await prisma.task.findUnique({
@@ -40,20 +42,19 @@ const updateTaskSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const task = await prisma.task.findUnique({
-    where: { id },
-    include: {
-      steps: true,
-      project: { select: { pmId: true } },
-      attachments: { select: { kind: true } },
-      adjustmentItems: { include: { attachments: { select: { kind: true } } } },
-    },
-  });
+  const task = await prisma.task.findUnique({ where: { id }, select: { status: true, projectId: true } });
   if (!task) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
+
+  if (!(await canEditTask(id, auth.actor))) {
+    return NextResponse.json(
+      { error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden editarla." },
+      { status: 403 }
+    );
+  }
 
   const parsedBody = await safeJson(request);
   if ("error" in parsedBody) return parsedBody.error;
@@ -62,47 +63,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const data = parsed.data;
+  const { status, ...rest } = parsed.data;
 
-  // Mismas reglas que la UI (punto 12 y punto 2): con pasos pendientes, sin
-  // evidencia (Entregable) o con cambios sin responder (Ajuste) no se completa.
-  if (data.status === "COMPLETED" && task.steps.some((s) => !s.done)) {
-    return NextResponse.json(
-      { error: "Todavía hay pasos del checklist sin completar" },
-      { status: 409 }
-    );
-  }
-  if (data.status === "COMPLETED" && task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
-    return NextResponse.json(
-      { error: "Este entregable necesita al menos una evidencia cargada para poder completarse" },
-      { status: 409 }
-    );
-  }
-  if (data.status === "COMPLETED" && task.type === "ADJUSTMENT") {
-    const pending = task.adjustmentItems.filter(
-      (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
-    );
-    if (pending.length > 0) {
-      return NextResponse.json(
-        { error: `Todavía hay ${pending.length} cambio(s) sin responder` },
-        { status: 409 }
-      );
-    }
+  // El estado tiene reglas propias bastante más finas (checklist, evidencia,
+  // ronda de revisión aprobada, "Devuelta" bloqueada, reabrir una completada
+  // exige PM/admin) y ya dispara sola la notificación de "Bloqueada" — se
+  // delega en la MISMA función que usa la app web en vez de reimplementarlas
+  // acá aparte (esta ruta ya tenía una copia vieja e incompleta de esas
+  // reglas — quedaba corregida a medias).
+  if (status) {
+    const result = await updateTaskStatus(id, status, undefined, auth.actor);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 409 });
   }
 
-  const updated = await prisma.task.update({
-    where: { id },
-    data: {
-      ...data,
-      actualStart:
-        data.status && data.status !== "NOT_STARTED" && !task.actualStart ? new Date() : undefined,
-      actualEnd: data.status === "COMPLETED" ? new Date() : data.status ? null : undefined,
-    },
-  });
-
-  if (data.status === "BLOCKED" && task.status !== "BLOCKED" && task.project.pmId) {
-    await notifyBlocked(id, task.project.pmId);
-  }
+  const hasOtherFields = Object.keys(rest).length > 0;
+  const updated = hasOtherFields
+    ? await prisma.task.update({ where: { id }, data: rest })
+    : await prisma.task.findUniqueOrThrow({ where: { id } });
 
   return NextResponse.json(updated);
+}
+
+// Solo PM del proyecto o admin (mismo criterio que borrar desde la app web).
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
+
+  const { id } = await params;
+  const result = await deleteTask(id, auth.actor);
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 403 });
+  return NextResponse.json({ ok: true });
 }

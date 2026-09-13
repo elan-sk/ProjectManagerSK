@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiKey, safeJson } from "@/lib/apiAuth";
+import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { getProjectAdmin } from "@/lib/permissions";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
   const project = await prisma.project.findUnique({
@@ -42,10 +43,14 @@ const updateProjectSchema = z.object({
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = requireApiKey(request);
-  if (denied) return denied;
+  const auth = await requireApiUser(request);
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
+  if (!(await getProjectAdmin(id, auth.actor))) {
+    return NextResponse.json({ error: "Solo el PM de este proyecto o un administrador pueden editarlo." }, { status: 403 });
+  }
+
   const parsedBody = await safeJson(request);
   if ("error" in parsedBody) return parsedBody.error;
 

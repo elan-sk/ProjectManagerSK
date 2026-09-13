@@ -5,12 +5,12 @@ import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireProjectAdmin } from "@/lib/permissions";
+import { requireProjectAdmin, type Actor } from "@/lib/permissions";
 import { listGroups } from "@/lib/whatsapp";
 
-async function guard(projectId: string) {
+async function guard(projectId: string, actor?: Actor) {
   try {
-    await requireProjectAdmin(projectId);
+    await requireProjectAdmin(projectId, actor);
     return null;
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
@@ -64,8 +64,8 @@ function parseTextField(formData: FormData, name: string) {
   return typeof raw === "string" && raw.trim() !== "" ? raw : null;
 }
 
-export async function addObjective(projectId: string, formData: FormData) {
-  const denied = await guard(projectId);
+export async function addObjective(projectId: string, formData: FormData, actor?: Actor) {
+  const denied = await guard(projectId, actor);
   if (denied) return denied;
 
   const parsed = objectiveSchema.safeParse({
@@ -80,9 +80,9 @@ export async function addObjective(projectId: string, formData: FormData) {
   return { ok: true as const };
 }
 
-export async function updateObjective(objectiveId: string, formData: FormData) {
+export async function updateObjective(objectiveId: string, formData: FormData, actor?: Actor) {
   const objective = await prisma.objective.findUniqueOrThrow({ where: { id: objectiveId } });
-  const denied = await guard(objective.projectId);
+  const denied = await guard(objective.projectId, actor);
   if (denied) return denied;
 
   const parsed = objectiveSchema.safeParse({
@@ -96,9 +96,9 @@ export async function updateObjective(objectiveId: string, formData: FormData) {
   return { ok: true as const };
 }
 
-export async function deleteObjective(objectiveId: string) {
+export async function deleteObjective(objectiveId: string, actor?: Actor) {
   const objective = await prisma.objective.findUniqueOrThrow({ where: { id: objectiveId } });
-  const denied = await guard(objective.projectId);
+  const denied = await guard(objective.projectId, actor);
   if (denied) return denied;
 
   await prisma.objective.delete({ where: { id: objectiveId } });
@@ -112,8 +112,8 @@ const requirementSchema = z.object({
   objectiveIds: z.array(z.string()),
 });
 
-export async function addRequirement(projectId: string, formData: FormData) {
-  const denied = await guard(projectId);
+export async function addRequirement(projectId: string, formData: FormData, actor?: Actor) {
+  const denied = await guard(projectId, actor);
   if (denied) return denied;
 
   const parsed = requirementSchema.safeParse({
@@ -137,9 +137,9 @@ export async function addRequirement(projectId: string, formData: FormData) {
   return { ok: true as const };
 }
 
-export async function updateRequirement(requirementId: string, formData: FormData) {
+export async function updateRequirement(requirementId: string, formData: FormData, actor?: Actor) {
   const requirement = await prisma.requirement.findUniqueOrThrow({ where: { id: requirementId } });
-  const denied = await guard(requirement.projectId);
+  const denied = await guard(requirement.projectId, actor);
   if (denied) return denied;
 
   const parsed = requirementSchema.safeParse({
@@ -161,9 +161,9 @@ export async function updateRequirement(requirementId: string, formData: FormDat
   return { ok: true as const };
 }
 
-export async function deleteRequirement(requirementId: string) {
+export async function deleteRequirement(requirementId: string, actor?: Actor) {
   const requirement = await prisma.requirement.findUniqueOrThrow({ where: { id: requirementId } });
-  const denied = await guard(requirement.projectId);
+  const denied = await guard(requirement.projectId, actor);
   if (denied) return denied;
 
   await prisma.requirement.delete({ where: { id: requirementId } });
@@ -173,9 +173,9 @@ export async function deleteRequirement(requirementId: string) {
 
 const phaseSchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()) });
 
-export async function updatePhase(phaseId: string, formData: FormData) {
+export async function updatePhase(phaseId: string, formData: FormData, actor?: Actor) {
   const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
-  const denied = await guard(phase.projectId);
+  const denied = await guard(phase.projectId, actor);
   if (denied) return denied;
 
   const parsed = phaseSchema.safeParse({
@@ -195,9 +195,9 @@ export async function updatePhase(phaseId: string, formData: FormData) {
   return { ok: true as const };
 }
 
-export async function deletePhase(phaseId: string) {
+export async function deletePhase(phaseId: string, actor?: Actor) {
   const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
-  const denied = await guard(phase.projectId);
+  const denied = await guard(phase.projectId, actor);
   if (denied) return denied;
 
   // Task.phaseId es obligatorio (sin onDelete en el schema, o sea Restrict) —
@@ -263,10 +263,10 @@ export async function removeProjectLink(linkId: string) {
   return { ok: true as const };
 }
 
-export async function addProjectAttachment(projectId: string, file: { url: string; name: string; mimeType: string }) {
+export async function addProjectAttachment(projectId: string, file: { url: string; name: string; mimeType: string }, actor?: Actor) {
   let user;
   try {
-    user = await requireProjectAdmin(projectId);
+    user = await requireProjectAdmin(projectId, actor);
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -278,9 +278,9 @@ export async function addProjectAttachment(projectId: string, file: { url: strin
   return { ok: true as const };
 }
 
-export async function removeProjectAttachment(attachmentId: string) {
+export async function removeProjectAttachment(attachmentId: string, actor?: Actor) {
   const attachment = await prisma.projectAttachment.findUniqueOrThrow({ where: { id: attachmentId } });
-  const denied = await guard(attachment.projectId);
+  const denied = await guard(attachment.projectId, actor);
   if (denied) return denied;
 
   await prisma.projectAttachment.delete({ where: { id: attachmentId } });

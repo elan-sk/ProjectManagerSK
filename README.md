@@ -32,7 +32,6 @@ Ver `.env.example` para la lista completa y cómo generar cada una. Resumen:
 | `DATABASE_URL` | SQLite en dev (`file:./dev.db`); Postgres/Supabase en producción | Sí |
 | `AUTH_SECRET` | Firma de sesión (Auth.js) | Sí |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Notificaciones push (PWA) | Sí |
-| `API_KEY` | Autenticación de `/api/v1/*` (API pública + skill de Claude) | Sí |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Sincronizar tareas a Google Calendar | **Pendiente** — ver abajo |
 
 ## Pendiente: Google Calendar
@@ -61,7 +60,7 @@ Sin esto, el sistema funciona igual — las alarmas ya llegan in-app y por Web P
 ## Estructura
 
 - `src/app/(app)/` — todo lo que requiere sesión (layout hace el chequeo de `auth()`, Next 16 ya no usa `middleware.ts`/`proxy.ts` para esto).
-- `src/app/api/v1/` — API pública (protegida por `API_KEY`), documentada en `.claude/skills/project-manager-sk/SKILL.md`.
+- `src/app/api/v1/` — API pública (login por usuario/contraseña, sesión de 8hs), documentada en `.claude/skills/project-manager-sk/SKILL.md`.
 - `src/lib/` — lógica de negocio pura (festivos/días hábiles, responsabilidad de atrasos, notificaciones, push, Google Calendar).
 - `prisma/schema.prisma` — modelo de datos completo (proyectos, fases, tareas, dependencias, adjuntos, notificaciones).
 

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAnyUser } from "@/lib/apiAuth";
 import { saveUploadedFile } from "@/lib/uploadFile";
 
 // ponytail: guarda en public/uploads/ para el prototipo local. Al pasar a
 // Hostinger/producción, cambiar esto por un put() a Supabase Storage — el
 // resto del flujo (Attachment.fileUrl) no cambia, solo saveUploadedFile.
+// Acepta sesión de navegador (app web) o token de login (skill) — ver
+// requireAnyUser.
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const auth = await requireAnyUser(request);
+  if ("error" in auth) return auth.error;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

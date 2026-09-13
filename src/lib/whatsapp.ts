@@ -1,7 +1,7 @@
 import type { WASocket } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { getBotName, getBotAvatarBuffer } from "@/lib/botSettings";
+import { getBotName, getBotAvatarBuffer, getBotIntroMessage } from "@/lib/botSettings";
 
 // Alertas de WhatsApp vía sesión personal (estilo WhatsApp Web, no la API
 // oficial de Meta) — ver AGENTS.md. Se conecta una sola vez (al bootear el
@@ -174,6 +174,11 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
 // Despacho a un JID ya resuelto (persona o grupo, sin menciones) — usado
 // tanto por sendDirectAlert como por el poller (scheduler.ts) al vaciar la
 // cola de horario laboral, donde el target ya viene resuelto de antemano.
+//
+// Solo para JID de persona (no de grupo): la foto de perfil del bot viaja
+// ÚNICAMENTE en el primer mensaje que recibe esa persona, junto con un
+// mensaje de presentación (quién es el bot, qué hace) — de ahí en más, ya
+// la conoce, así que solo se ve el ícono 🤖 + nombre en el texto.
 export async function sendRawMessage(jid: string, text: string) {
   if (!state.sock) {
     console.error(`[whatsapp] no se pudo enviar a ${jid}: no hay conexión activa.`);
@@ -182,10 +187,30 @@ export async function sendRawMessage(jid: string, text: string) {
   try {
     const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
     const fullText = `🤖 *${botName}*\n${text}`;
-    if (avatar) {
-      await state.sock.sendMessage(jid, { image: avatar, caption: fullText });
-    } else {
+    const isDirect = jid.endsWith("@s.whatsapp.net");
+    const user = isDirect
+      ? await prisma.user.findFirst({
+          where: { phone: jid.split("@")[0] },
+          select: { id: true, whatsappIntroducedAt: true },
+        })
+      : null;
+
+    if (user && !user.whatsappIntroducedAt) {
+      const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}`;
+      if (avatar) {
+        await state.sock.sendMessage(jid, { image: avatar, caption: introText });
+      } else {
+        await state.sock.sendMessage(jid, { text: introText });
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
       await state.sock.sendMessage(jid, { text: fullText });
+      return true;
+    }
+
+    if (isDirect || !avatar) {
+      await state.sock.sendMessage(jid, { text: fullText });
+    } else {
+      await state.sock.sendMessage(jid, { image: avatar, caption: fullText });
     }
     return true;
   } catch (err) {

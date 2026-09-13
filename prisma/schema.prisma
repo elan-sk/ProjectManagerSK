@@ -113,6 +113,11 @@ model User {
   avatarUrl    String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
   phone        String?
+  // null = el bot todavía no le mandó ningún WhatsApp directo a esta persona.
+  // Se completa al primer envío (ver sendRawMessage en whatsapp.ts): ese
+  // primer mensaje va con la presentación del bot + foto de perfil; de ahí
+  // en más, solo ícono 🤖 + nombre, sin foto.
+  whatsappIntroducedAt DateTime?
   createdAt    DateTime @default(now())
 
   // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
@@ -120,6 +125,13 @@ model User {
   // usarlo — de un solo uso y con vencimiento corto (ver forgotActions.ts).
   resetTokenHash      String?   @unique
   resetTokenExpiresAt DateTime?
+
+  // Sesión de la API pública (skills) vía login con usuario/contraseña —
+  // igual que resetTokenHash, se guarda el HASH, nunca el token en texto
+  // plano. De vida corta y de una sola sesión activa a la vez: pedir un
+  // login nuevo revoca cualquier sesión anterior de ese usuario.
+  apiSessionTokenHash String?   @unique
+  apiSessionExpiresAt DateTime?
 
   pmOfProjects        Project[]            @relation("ProjectPM")
   assignments         TaskAssignee[]
@@ -543,6 +555,12 @@ model AppSetting {
   // Las reglas operativas no negociables (usar las tools, nunca inventar
   // datos) NO viven acá, están fijas en src/lib/chontatec.ts.
   botPersonaPrompt           String?
+  // Mensaje de presentación que el bot manda (con foto de perfil) la
+  // primera vez que le escribe por WhatsApp a alguien — null usa el default
+  // de fábrica (ver DEFAULT_BOT_INTRO_MESSAGE en botSettings.ts). Editable
+  // porque este mismo software puede correr para otra empresa con otro
+  // nombre/funciones que describir acá.
+  botIntroMessage            String?
   botMonthlyQuestionLimit    Int       @default(300)
   botQuestionsUsedThisPeriod Int       @default(0)
   botUsagePeriodStart        DateTime?

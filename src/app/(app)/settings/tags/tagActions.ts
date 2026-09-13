@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { isPmOrAdminAnywhere, canEditTask } from "@/lib/permissions";
+import { isPmOrAdminAnywhere, canEditTask, type Actor } from "@/lib/permissions";
 import { DEFAULT_COLORS } from "@/components/ProjectIcon";
 import { upsertTag } from "@/lib/tags";
 
@@ -78,8 +78,8 @@ export async function deleteTagCategory(categoryId: string) {
 // etiqueta nueva queda guardada, pero solo para ese proyecto). Al haber ya
 // una etiqueta de esa categoría en la tarea, la reemplaza (una por
 // categoría, también confirmado).
-export async function setTaskTag(taskId: string, categoryId: string, rawName: string) {
-  if (!(await canEditTask(taskId))) {
+export async function setTaskTag(taskId: string, categoryId: string, rawName: string, actor?: Actor) {
+  if (!(await canEditTask(taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
   const name = z.string().trim().min(1).safeParse(rawName);
@@ -100,9 +100,9 @@ export async function setTaskTag(taskId: string, categoryId: string, rawName: st
   return { ok: true as const };
 }
 
-export async function removeTaskTag(taskTagId: string) {
+export async function removeTaskTag(taskTagId: string, actor?: Actor) {
   const taskTag = await prisma.taskTag.findUniqueOrThrow({ where: { id: taskTagId }, include: { task: true } });
-  if (!(await canEditTask(taskTag.taskId))) {
+  if (!(await canEditTask(taskTag.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
   await prisma.taskTag.delete({ where: { id: taskTagId } });
