@@ -86,9 +86,9 @@ enum ReviewOutcome {
 }
 
 enum CheckResult {
-  APPROVED       // Aprobada
-  FLAGGED        // Con hallazgos
-  FAILED         // Con errores
+  APPROVED // Aprobada
+  FLAGGED // Con hallazgos
+  FAILED // Con errores
   NOT_APPLICABLE // Punto 14: no cuenta para aprobar ni para devolver la ronda
 }
 
@@ -102,24 +102,24 @@ enum DependencyType {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
+  id                   String    @id @default(cuid())
+  name                 String
   // Identificador principal para entrar — obligatorio y único.
-  username     String   @unique
+  username             String    @unique
   // Opcional a partir de ahora (username es el principal). Único cuando está
   // definido; varios usuarios pueden tener null a la vez.
-  email        String?  @unique
-  passwordHash String
-  role         Role     @default(MEMBER)
-  avatarUrl    String?
+  email                String?   @unique
+  passwordHash         String
+  role                 Role      @default(MEMBER)
+  avatarUrl            String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
-  phone        String?
+  phone                String?
   // null = el bot todavía no le mandó ningún WhatsApp directo a esta persona.
   // Se completa al primer envío (ver sendRawMessage en whatsapp.ts): ese
   // primer mensaje va con la presentación del bot + foto de perfil; de ahí
   // en más, solo ícono 🤖 + nombre, sin foto.
   whatsappIntroducedAt DateTime?
-  createdAt    DateTime @default(now())
+  createdAt            DateTime  @default(now())
 
   // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
   // token en texto plano) para que una lectura de la base no alcance para
@@ -134,20 +134,20 @@ model User {
   apiSessionTokenHash String?   @unique
   apiSessionExpiresAt DateTime?
 
-  pmOfProjects        Project[]            @relation("ProjectPM")
-  assignments         TaskAssignee[]
-  attachments         Attachment[]
-  projectAttachments  ProjectAttachment[]
-  notifications       Notification[]
-  pushSubscriptions   PushSubscription[]
-  googleCalendarConn  GoogleCalendarConnection?
-  shareLinksCreated   ShareLink[]
+  pmOfProjects          Project[]                 @relation("ProjectPM")
+  assignments           TaskAssignee[]
+  attachments           Attachment[]
+  projectAttachments    ProjectAttachment[]
+  notifications         Notification[]
+  pushSubscriptions     PushSubscription[]
+  googleCalendarConn    GoogleCalendarConnection?
+  shareLinksCreated     ShareLink[]
   adjustmentAttachments AdjustmentAttachment[]
-  reviewerOf          TaskReviewer[] @relation("TaskReviewerUser")
-  reviewRoundsSubmitted ReviewRound[] @relation("ReviewRoundSubmitter")
-  reviewChecksReviewed ReviewCheck[] @relation("ReviewCheckReviewer")
-  reviewMessages      ReviewMessage[]
-  botMessages         BotMessage[]
+  reviewerOf            TaskReviewer[]            @relation("TaskReviewerUser")
+  reviewRoundsSubmitted ReviewRound[]             @relation("ReviewRoundSubmitter")
+  reviewChecksReviewed  ReviewCheck[]             @relation("ReviewCheckReviewer")
+  reviewMessages        ReviewMessage[]
+  botMessages           BotMessage[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -170,31 +170,35 @@ model PushSubscription {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique
+  // Los endpoints reales de push (FCM/Mozilla/Apple) pueden superar los 191
+  // caracteres por defecto de MySQL — @unique exige un largo acotado (MySQL
+  // no indexa TEXT sin prefijo), así que se declara explícito en vez de
+  // arriesgar un insert roto.
+  endpoint  String   @unique @db.VarChar(500)
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
 }
 
 model Project {
-  id          String        @id @default(cuid())
-  name        String
-  clientName  String?
-  countryCode String        @default("CO")
-  status      ProjectStatus @default(PLANNING)
-  startDate   DateTime
+  id            String        @id @default(cuid())
+  name          String
+  clientName    String?
+  countryCode   String        @default("CO")
+  status        ProjectStatus @default(PLANNING)
+  startDate     DateTime
   // Deadline comprometido del proyecto (no se deriva del cronograma de
   // tareas) — opcional porque los proyectos existentes no tienen uno.
   targetEndDate DateTime?
-  repoUrl     String?
-  pmId        String
-  pm          User          @relation("ProjectPM", fields: [pmId], references: [id])
-  createdAt   DateTime      @default(now())
+  repoUrl       String?
+  pmId          String
+  pm            User          @relation("ProjectPM", fields: [pmId], references: [id])
+  createdAt     DateTime      @default(now())
 
   // Pestaña "Definición" (gestión de proyecto, vocabulario alineado con las
   // Fases 1-2 de la skill /dev-project-definer — Problema/Requerimientos —
   // para poder transcribir directo lo que salga de esa skill).
-  description String? // HTML del editor WYSIWYG, igual que Task.description
+  description String? @db.Text // HTML del editor WYSIWYG, igual que Task.description
   color       String? // hex; identidad visual rápida en resúmenes/tarjetas
   iconUrl     String? // logo/ícono subido; si no hay, se usa color + inicial
 
@@ -202,14 +206,14 @@ model Project {
   // null, se usa AppSetting.whatsappGroupJid (el grupo por defecto).
   whatsappGroupJid String?
 
-  phases       Phase[]
-  tasks        Task[]
-  objectives   Objective[]
-  requirements Requirement[]
-  links        ProjectLink[]
-  attachments  ProjectAttachment[]
-  shareLinks   ShareLink[]
-  tags         Tag[]
+  phases        Phase[]
+  tasks         Task[]
+  objectives    Objective[]
+  requirements  Requirement[]
+  links         ProjectLink[]
+  attachments   ProjectAttachment[]
+  shareLinks    ShareLink[]
+  tags          Tag[]
   // Punto 4 (link compartido): comentarios generales de la pestaña
   // Definición — a diferencia de ShareComment.taskId, estos no cuelgan de
   // ninguna tarea puntual.
@@ -233,20 +237,20 @@ model ProjectLink {
 // contenido externo) — mismo par fileUrl/fileName/mimeType que Attachment,
 // pero a nivel de proyecto en vez de tarea.
 model ProjectAttachment {
-  id           String   @id @default(cuid())
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  fileUrl      String
-  fileName     String
-  mimeType     String
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileUrl              String
+  fileName             String
+  mimeType             String
   // Nulo cuando lo sube un visitante externo por el link compartido (punto
   // 15) — no tiene cuenta en la app, así que se identifica con su nombre en
   // vez de un uploadedById.
-  uploadedById String?
-  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  uploadedById         String?
+  uploadedBy           User?    @relation(fields: [uploadedById], references: [id])
   externalUploaderName String?
   externalUploaderRole String?
-  uploadedAt   DateTime @default(now())
+  uploadedAt           DateTime @default(now())
 }
 
 model Phase {
@@ -268,7 +272,7 @@ model Objective {
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title       String
-  description String?
+  description String?  @db.Text
   order       Int
   createdAt   DateTime @default(now())
 
@@ -283,7 +287,7 @@ model Requirement {
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title       String
-  description String?
+  description String?  @db.Text
   order       Int
   createdAt   DateTime @default(now())
 
@@ -292,25 +296,25 @@ model Requirement {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  phaseId     String
-  phase       Phase      @relation(fields: [phaseId], references: [id])
-  type        TaskType   @default(SIMPLE)
-  title       String
-  description String?
-  status      TaskStatus @default(NOT_STARTED)
-  riskLevel   RiskLevel  @default(LOW)
+  id                    String     @id @default(cuid())
+  projectId             String
+  project               Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phaseId               String
+  phase                 Phase      @relation(fields: [phaseId], references: [id])
+  type                  TaskType   @default(SIMPLE)
+  title                 String
+  description           String?    @db.Text
+  status                TaskStatus @default(NOT_STARTED)
+  riskLevel             RiskLevel  @default(LOW)
   // Punto 2.4: cualquier tarea puede tener un link de reunión — el día es
   // la propia plannedStart/plannedEnd de la tarea, y "vincular con Google"
   // ya lo cubre el botón de Google Calendar existente por tarea. meetingAt
   // guarda la hora exacta (independiente del rango de días del cronograma)
   // para poder calcular el recordatorio 30 min antes por WhatsApp;
   // meetingReminderSentAt evita mandarlo dos veces.
-  meetingUrl             String?
-  meetingAt              DateTime?
-  meetingReminderSentAt  DateTime?
+  meetingUrl            String?
+  meetingAt             DateTime?
+  meetingReminderSentAt DateTime?
 
   plannedStart DateTime
   plannedEnd   DateTime
@@ -325,15 +329,15 @@ model Task {
   // cargó, la acción se rechaza en vez de pisar el cambio ajeno.
   updatedAt DateTime @updatedAt
 
-  assignees    TaskAssignee[]
-  steps        TaskStep[]
-  attachments  Attachment[]
-  notifications Notification[]
+  assignees       TaskAssignee[]
+  steps           TaskStep[]
+  attachments     Attachment[]
+  notifications   Notification[]
   adjustmentItems AdjustmentItem[]
-  reviewers    TaskReviewer[]
-  reviewRounds ReviewRound[]
-  shareComments ShareComment[]
-  taskTags     TaskTag[]
+  reviewers       TaskReviewer[]
+  reviewRounds    ReviewRound[]
+  shareComments   ShareComment[]
+  taskTags        TaskTag[]
 
   // Punto 10: plantilla elegida desde la creación de la tarea tipo Prueba —
   // se copia sola como checks apenas nace la ronda 1 (ver submitReviewRound),
@@ -387,7 +391,7 @@ model TaskStep {
   id          String  @id @default(cuid())
   taskId      String
   task        Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  description String
+  description String  @db.Text
   done        Boolean @default(false)
   order       Int
 }
@@ -395,21 +399,21 @@ model TaskStep {
 // Insumos (archivos/imágenes de entrada) y Resultados (evidencia) de una
 // tarea. Cubre también el patrón antes/después de Ajustes.xlsx.
 model Attachment {
-  id           String         @id @default(cuid())
-  taskId       String
-  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  kind         AttachmentKind
-  fileUrl      String
-  fileName     String
-  mimeType     String
+  id                   String         @id @default(cuid())
+  taskId               String
+  task                 Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  kind                 AttachmentKind
+  fileUrl              String
+  fileName             String
+  mimeType             String
   // Nulo cuando lo sube un visitante externo por el link compartido de la
   // tarea (punto 16, solo INSUMO) — se identifica con su nombre en vez de
   // un uploadedById.
-  uploadedById String?
-  uploadedBy   User?          @relation(fields: [uploadedById], references: [id])
+  uploadedById         String?
+  uploadedBy           User?          @relation(fields: [uploadedById], references: [id])
   externalUploaderName String?
   externalUploaderRole String?
-  uploadedAt   DateTime       @default(now())
+  uploadedAt           DateTime       @default(now())
 }
 
 // Punto 2.5: un cambio solicitado dentro de una tarea tipo ADJUSTMENT. Se
@@ -419,12 +423,12 @@ model AdjustmentItem {
   id          String   @id @default(cuid())
   taskId      String
   task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  description String
-  note        String?
+  description String   @db.Text
+  note        String?  @db.Text
   order       Int
   createdAt   DateTime @default(now())
 
-  attachments AdjustmentAttachment[]
+  attachments   AdjustmentAttachment[]
   shareComments ShareComment[]
 }
 
@@ -451,7 +455,7 @@ model ShareComment {
   replies          ShareComment[]  @relation("ShareCommentReplies")
   authorName       String
   authorRole       String?
-  body             String
+  body             String          @db.Text
   createdAt        DateTime        @default(now())
 }
 
@@ -497,7 +501,7 @@ model Notification {
   projectId String?
   project   Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   type      NotificationType
-  message   String
+  message   String           @db.Text
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
 }
@@ -555,13 +559,13 @@ model AppSetting {
   // en src/lib/botSettings.ts) — null significa "usar el default de fábrica".
   // Las reglas operativas no negociables (usar las tools, nunca inventar
   // datos) NO viven acá, están fijas en src/lib/chontatec.ts.
-  botPersonaPrompt           String?
+  botPersonaPrompt           String?   @db.Text
   // Mensaje de presentación que el bot manda (con foto de perfil) la
   // primera vez que le escribe por WhatsApp a alguien — null usa el default
   // de fábrica (ver DEFAULT_BOT_INTRO_MESSAGE en botSettings.ts). Editable
   // porque este mismo software puede correr para otra empresa con otro
   // nombre/funciones que describir acá.
-  botIntroMessage            String?
+  botIntroMessage            String?   @db.Text
   botMonthlyQuestionLimit    Int       @default(300)
   botQuestionsUsedThisPeriod Int       @default(0)
   botUsagePeriodStart        DateTime?
@@ -576,8 +580,8 @@ model BotMessage {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String   // "user" | "assistant"
-  content   String   // JSON.stringify(content blocks[])
+  role      String // "user" | "assistant"
+  content   String   @db.LongText // JSON.stringify(content blocks[])
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
@@ -590,7 +594,7 @@ model BotMessage {
 model WhatsAppQueueItem {
   id        String    @id @default(cuid())
   target    String
-  message   String
+  message   String    @db.Text
   createdAt DateTime  @default(now())
   sentAt    DateTime?
 }
@@ -602,7 +606,7 @@ model TestTemplate {
   name      String
   createdAt DateTime @default(now())
 
-  items TestTemplateItem[]
+  items                  TestTemplateItem[]
   tasksWithThisAsDefault Task[]
 }
 
@@ -615,7 +619,7 @@ model TestTemplateItem {
   templateId String
   template   TestTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   title      String       @map("description")
-  criteria   String?
+  criteria   String?      @db.Text
   category   String?
   order      Int
 }
@@ -669,18 +673,18 @@ model ReviewDeliverable {
 // Instancia editable de un ítem de plantilla (o agregado ad-hoc) dentro de
 // UNA ronda — quitar/editar acá nunca toca TestTemplateItem.
 model ReviewCheck {
-  id               String       @id @default(cuid())
-  reviewRoundId    String
-  reviewRound      ReviewRound  @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
-  title            String       @map("description")
-  criteria         String?
-  category         String?
-  result           CheckResult?
-  note             String?
-  responseCategory String?
-  reviewedById     String?
-  reviewedBy       User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])
-  order            Int
+  id                   String       @id @default(cuid())
+  reviewRoundId        String
+  reviewRound          ReviewRound  @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  title                String       @map("description")
+  criteria             String?      @db.Text
+  category             String?
+  result               CheckResult?
+  note                 String?      @db.Text
+  responseCategory     String?      @db.Text
+  reviewedById         String?
+  reviewedBy           User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])
+  order                Int
   // Puntos 8/13: id del TestTemplateItem del que nació este check (null si
   // se agregó a mano). Sin relación formal a propósito (el template puede
   // cambiar/borrarse sin que esto deba romperse) — solo sirve para que
@@ -710,7 +714,7 @@ model ReviewMessage {
   reviewRound   ReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
   authorId      String
   author        User        @relation(fields: [authorId], references: [id])
-  body          String
+  body          String      @db.Text
   editedAt      DateTime?
   createdAt     DateTime    @default(now())
 }
