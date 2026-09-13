@@ -64,9 +64,13 @@ let started = false;
 export function startScheduler() {
   if (started) return;
   started = true;
+  // Cada tarea ataja su propio error: una falla de una (ej. una columna que
+  // todavía no llegó por una migración pendiente) no debe tumbar el proceso
+  // entero — un rechazo de promesa sin atajar en Node mata el server completo,
+  // como pasó en producción el 2026-09-13 (ver notifications.ts).
   setInterval(() => {
-    void dispatchQueuedAlerts();
-    void dispatchMeetingReminders();
-    void dispatchDailyDigests();
+    dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts falló", err));
+    dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders falló", err));
+    dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests falló", err));
   }, POLL_INTERVAL_MS);
 }

@@ -3,7 +3,9 @@ export async function register() {
 
   if (process.env.WHATSAPP_ENABLED === "true") {
     const { startWhatsApp } = await import("@/lib/whatsapp");
-    void startWhatsApp();
+    // Mismo criterio que scheduler.ts: si falla la conexión, que quede en
+    // el log, no que tumbe el arranque de todo el server.
+    startWhatsApp().catch((err) => console.error("[instrumentation] startWhatsApp falló", err));
   }
 
   // Poller de escalamiento (cola de horario laboral + recordatorios de
