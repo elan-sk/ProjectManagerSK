@@ -3,11 +3,12 @@ generator client {
 }
 
 datasource db {
-  // ponytail: SQLite para desarrollo local sin fricción. Para producción en
-  // Hostinger, cambiar provider a "postgresql" y DATABASE_URL (en
-  // prisma.config.ts) a la cadena de Supabase — el resto del schema no cambia.
-  // Prisma 7: la URL de conexión vive en prisma.config.ts, no aquí.
-  provider = "sqlite"
+  // MySQL — el que ya viene incluido en el plan de hosting de Hostinger
+  // (antes SQLite en desarrollo). DATABASE_URL vive en prisma.config.ts
+  // (Prisma 7), no acá; dev y producción usan el mismo proveedor de ahora en
+  // más (Prisma no admite un provider distinto por entorno en un mismo
+  // schema).
+  provider = "mysql"
 }
 
 enum Role {

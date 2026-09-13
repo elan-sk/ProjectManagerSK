@@ -38,6 +38,10 @@ yarn-error.log*
 # pero es específica de cada entorno (local, staging, producción).
 .claude/skills/project-manager-sk/.cached-base-url
 
+# Export puntual de usuarios (con password hasheado) para sembrar la base de
+# producción en la migración a Hostinger — nunca commitear.
+scripts/production-users-seed.json
+
 # vercel
 .vercel
 
