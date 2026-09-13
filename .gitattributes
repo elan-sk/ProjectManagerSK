@@ -1,0 +1,11 @@
+# Quedan trackeados en el repo (historial/contexto), pero se excluyen del
+# paquete que genera scripts/package-for-hostinger.sh (`git archive`) por no
+# ser código de la app: insumos pesados, cache de una skill, y dumps SQL
+# sueltos de la migración SQLite→MySQL ya aplicada (la producción actual
+# tiene sus propios datos — no hace falta reejecutarlos).
+# /*.sql con "/" al inicio: solo la raíz, nunca prisma/migrations/**/migration.sql
+# (esas sí las necesita `npx prisma migrate deploy` en el servidor).
+Documentacion/ export-ignore
+.lens-sk-cache/ export-ignore
+.impeccable/ export-ignore
+/*.sql export-ignore
