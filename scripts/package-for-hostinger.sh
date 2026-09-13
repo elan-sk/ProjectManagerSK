@@ -17,8 +17,6 @@ rm -f "$OUT"
 git archive --format=zip -o "$OUT" HEAD
 
 echo "Listo: $OUT ($(du -h "$OUT" | cut -f1))"
-echo "En Hostinger (por SSH, dentro de la carpeta del sitio):"
-echo "  1. Extraer el zip (reemplaza el código, no toca node_modules/.env que ya estén ahí)."
-echo "  2. npm install"
-echo "  3. npx prisma migrate deploy"
-echo "  4. npm run build && npm run start (o reiniciar la app Node desde hPanel)"
+echo "En hPanel → Sitios web → tu sitio → Despliegues: subí este zip y confirmá el deploy."
+echo "Hostinger corre \"npm install\" + \"npm run build\" solo — no hay paso de SSH ni de"
+echo "migración aparte, así que \"prisma migrate deploy\" ya va incluido en \"npm run build\"."

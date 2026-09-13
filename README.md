@@ -70,17 +70,14 @@ Sin esto, el sistema funciona igual — las alarmas ya llegan in-app y por Web P
 
 ## Despliegue en Hostinger (hosting de Node.js, hPanel)
 
-Hostinger conecta el sitio a un repositorio de GitHub y hace rebuild automático en cada push a la rama conectada — no es "subir un zip".
+**Confirmado en producción (2026-09-13):** este sitio está en modo "Subido manualmente" — el deploy es subir un zip en hPanel → tu sitio → **Despliegues**, no un push a Git. Hostinger corre **únicamente** `npm install` + `npm run build` sobre ese zip — no hay ningún paso de SSH, consola ni migración aparte disponible dentro de ese proceso (el SSH interactivo del hosting compartido ni siquiera tiene `node`/`npm` en el PATH: es un entorno distinto al que arma ese deploy administrado).
+
+Por eso `prisma migrate deploy` va **incluido en el propio script de build** (`package.json`): es el único paso que Hostinger ejecuta, así que ahí es donde tiene que pasar. No lo saques de ahí sin agregar otra forma de correr migraciones en producción.
 
 1. **Base de datos**: crear una base MySQL desde hPanel (Bases de datos → MySQL) y anotar host/usuario/contraseña/nombre de base.
-2. En hPanel → **Sitios web → Añadir sitio web → Node.js web app → Import Git repository** → conectar la cuenta de GitHub y elegir este repo/rama.
-3. Hostinger detecta Next.js y precarga los comandos de build/start (`npm run build` / `npm run start`) — revisar que queden así.
-4. **Variables de entorno**: en el panel del sitio → *Environment variables* → *Import .env* — subir un `.env` de producción con los mismos nombres que `.env.example`, con `DATABASE_URL` apuntando a la base MySQL del paso 1 y `NEXTAUTH_URL` con el dominio real.
-5. Deploy. Una vez arriba, por SSH o la consola que dé hPanel para el Node app:
-   ```bash
-   npx prisma migrate deploy   # crea las tablas en la base nueva
-   npm run db:restore-users    # recrea los usuarios existentes (mismas contraseñas)
-   ```
-   `db:restore-users` lee `scripts/production-users-seed.json` (exportado de la base de desarrollo, con los password ya hasheados) — no se commitea a git, hay que llevarlo aparte.
+2. **Variables de entorno**: en el panel del sitio → *Environment variables* — mismos nombres que `.env.example`, con `DATABASE_URL` apuntando a la base del paso 1 y `NEXTAUTH_URL` con el dominio real. Se inyectan tanto en el build como en la app corriendo.
+3. **Armar el paquete**: `npm run package:hostinger` (exige árbol de git limpio — commiteá primero). Genera `projectmanagersk-deploy.zip` en la raíz (gitignorado), usando `git archive` — respeta `.gitattributes`/`.gitignore`, así que no hace falta mantener una lista de exclusión aparte.
+4. **Subir el paquete**: hPanel → Sitios web → el sitio → **Despliegues** → subir `projectmanagersk-deploy.zip` → Deploy. Hostinger corre `npm install` y `npm run build` (que ya incluye la migración) y activa la nueva versión solo.
+5. Primera vez únicamente, `npm run db:restore-users` (lee `scripts/production-users-seed.json`, no se commitea, hay que llevarlo aparte) para recrear los usuarios existentes con sus mismas contraseñas.
 6. `WHATSAPP_ENABLED=true` en las variables de entorno si se quiere que conecte solo al arrancar; si no, conectar a mano una vez desde Configuración (va a pedir escanear el QR de nuevo — la sesión vieja no se migra).
-7. Cada redeploy futuro es automático con cada push — no hace falta repetir estos pasos, solo si la base de datos cambia de host/credenciales.
+7. Cada scheduler.ts/instrumentation.ts que arranca en el proceso ataja sus propios errores (`.catch()`, no `void` a secas) — un rechazo de promesa sin atajar tumba **todo el servidor Node**, no solo esa función, y así fue como se cayó el sitio la primera vez que una migración quedó pendiente.
