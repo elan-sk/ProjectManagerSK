@@ -1121,7 +1121,19 @@ export function GanttView({
               <marker id="gantt-dep-arrow-active" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M0,0 L8,4 L0,8 Z" fill="#6366f1" />
               </marker>
+              {/* Punto confirmado con el usuario: con overflow-visible, un
+                  trazo que retrocede hacia la izquierda (dependencyPath, ej.
+                  tareas casi pegadas) podía terminar dibujándose por encima
+                  de la columna de nombres/encabezados de fase (sticky) —
+                  overflow-visible en el <svg> no recorta nada, así que ganar
+                  el z-index ahí no alcanza. Este clipPath recorta TODO el
+                  contenido a la propia área del Gantt (nunca a la izquierda
+                  de x=0, que es justo el borde de esa columna). */}
+              <clipPath id="gantt-visible-area">
+                <rect x={0} y={0} width={timelineWidth} height={totalRowsHeight} />
+              </clipPath>
             </defs>
+            <g clipPath="url(#gantt-visible-area)">
             {dependencyEdges.map((e, i) => {
               const isHighlighted = highlightedIds?.has(e.successorId) ?? false;
               const isCritical = criticalDependencyIds.has(e.dependencyId);
@@ -1228,6 +1240,7 @@ export function GanttView({
                 markerEnd="url(#gantt-dep-arrow-active)"
               />
             )}
+            </g>
           </svg>
 
         </div>
