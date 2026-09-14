@@ -223,6 +223,30 @@ export function GanttView({
   const router = useRouter();
   const showToast = useToast();
   const [, startTransition] = useTransition();
+
+  // Orden de filas "congelado" (confirmado con el usuario): el server ya
+  // manda `tasks` ordenado por fecha de inicio, pero si cambiás la fecha de
+  // una tarea de forma que le tocaría otra posición, no debe saltar ahí
+  // mismo apenas se guarda (con la página todavía abierta) — solo al volver
+  // a cargarla. Se captura el orden de ids una sola vez al montar; un
+  // refresh posterior (router.refresh() tras guardar) solo actualiza los
+  // DATOS de cada tarea (fecha, estado, etc.), nunca reordena filas
+  // existentes. Tareas nuevas que no estaban se agregan al final; tareas
+  // borradas se quitan. Volver a montar el componente (nueva carga de la
+  // página) reinicia este estado con el orden fresco del server.
+  const [rowOrder, setRowOrder] = useState<string[]>(() => tasks.map((t) => t.id));
+  useEffect(() => {
+    setRowOrder((prev) => {
+      const currentIds = new Set(tasks.map((t) => t.id));
+      const stillPresent = prev.filter((id) => currentIds.has(id));
+      const newIds = tasks.map((t) => t.id).filter((id) => !prev.includes(id));
+      if (newIds.length === 0 && stillPresent.length === prev.length) return prev;
+      return [...stillPresent, ...newIds];
+    });
+  }, [tasks]);
+  const taskByIdForOrder = new Map(tasks.map((t) => [t.id, t]));
+  const orderedTasks = rowOrder.map((id) => taskByIdForOrder.get(id)).filter((t): t is GanttTask => Boolean(t));
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
@@ -737,7 +761,7 @@ export function GanttView({
   }
 
   const grouped = new Map<string, GanttTask[]>();
-  for (const t of tasks) {
+  for (const t of orderedTasks) {
     const key = `${t.projectId}:${t.phaseId}`;
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(t);
