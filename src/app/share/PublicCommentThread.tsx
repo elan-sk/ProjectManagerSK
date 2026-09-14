@@ -39,10 +39,12 @@ function CommentBubble({ author, role, body }: { author: string; role: string | 
 export function PublicCommentThread({
   token,
   adjustmentItemId,
+  requireAdjustmentApproval = false,
   comments,
 }: {
   token: string;
   adjustmentItemId?: string;
+  requireAdjustmentApproval?: boolean;
   comments: CommentData[];
 }) {
   const router = useRouter();
@@ -55,6 +57,7 @@ export function PublicCommentThread({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [adjustmentApproval, setAdjustmentApproval] = useState<boolean | null>(null);
 
   useEffect(() => {
     const stored = loadShareIdentity();
@@ -82,6 +85,7 @@ export function PublicCommentThread({
         authorRole: role.trim() || undefined,
         body: body.trim(),
         adjustmentItemId,
+        adjustmentApproval: requireAdjustmentApproval ? adjustmentApproval ?? undefined : undefined,
       });
       if (!result.ok) {
         setError(result.error ?? "No se pudo enviar el comentario.");
@@ -105,6 +109,7 @@ export function PublicCommentThread({
         authorRole: role.trim() || undefined,
         body: replyBody.trim(),
         adjustmentItemId,
+        adjustmentApproval: requireAdjustmentApproval ? adjustmentApproval ?? undefined : undefined,
         parentId,
       });
       if (!result.ok) {
@@ -194,6 +199,13 @@ export function PublicCommentThread({
             />
           </div>
         )}
+        {requireAdjustmentApproval && (
+          <fieldset className="flex gap-3 text-xs text-slate-600">
+            <legend className="mb-1 font-medium">Tu aprobación para este ajuste <span className="text-red-500">*</span></legend>
+            <label className="flex items-center gap-1"><input type="radio" checked={adjustmentApproval === true} onChange={() => setAdjustmentApproval(true)} /> Apruebo</label>
+            <label className="flex items-center gap-1"><input type="radio" checked={adjustmentApproval === false} onChange={() => setAdjustmentApproval(false)} /> Necesita cambios</label>
+          </fieldset>
+        )}
         <div className="flex gap-1.5">
           <input
             value={body}
@@ -204,7 +216,7 @@ export function PublicCommentThread({
           />
           <button
             type="button"
-            disabled={sending || !name.trim() || !body.trim()}
+            disabled={sending || !name.trim() || !body.trim() || (requireAdjustmentApproval && adjustmentApproval === null)}
             onClick={handleSend}
             className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >

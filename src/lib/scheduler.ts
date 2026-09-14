@@ -64,6 +64,11 @@ let started = false;
 export function startScheduler() {
   if (started) return;
   started = true;
+  // No esperar el primer minuto tras un reinicio: si WhatsApp ya estaba
+  // conectado, las colas/digests pendientes deben poder salir de inmediato.
+  void dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts inicial falló", err));
+  void dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders inicial falló", err));
+  void dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests inicial falló", err));
   // Cada tarea ataja su propio error: una falla de una (ej. una columna que
   // todavía no llegó por una migración pendiente) no debe tumbar el proceso
   // entero — un rechazo de promesa sin atajar en Node mata el server completo,

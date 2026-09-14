@@ -135,6 +135,9 @@ export type PublicAdjustmentItem = {
   description: string;
   note: string | null;
   answered: boolean;
+  clientApproval: boolean | null;
+  clientApprovalAt: string | null;
+  clientApprovalBy: string | null;
   before: PublicFile[];
   after: PublicFile[];
   comments: PublicCommentWithReplies[];
@@ -242,6 +245,9 @@ export async function getPublicTask(taskId: string): Promise<{
       description: item.description,
       note: item.note,
       answered: Boolean(item.note) || item.attachments.some((a) => a.kind === "AFTER"),
+      clientApproval: item.clientApproval,
+      clientApprovalAt: item.clientApprovalAt?.toISOString() ?? null,
+      clientApprovalBy: item.clientApprovalBy,
       before: item.attachments.filter((a) => a.kind === "BEFORE").map(toFile),
       after: item.attachments.filter((a) => a.kind === "AFTER").map(toFile),
       comments: item.shareComments.map(toPublicCommentWithReplies),

@@ -8,6 +8,7 @@ import { LINK_MIME_TYPE } from "@/lib/attachments";
 import {
   addAdjustmentItem,
   removeAdjustmentItem,
+  updateAdjustmentItem,
   setAdjustmentNote,
   addAdjustmentAttachment,
   addAdjustmentLinkAttachment,
@@ -107,8 +108,12 @@ function AdjustmentItemRow({ item, userId, canEdit, canDelete }: {
   const confirm = useConfirm();
   const [editingNote, setEditingNote] = useState(false);
   const [note, setNote] = useState(item.note ?? "");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [description, setDescription] = useState(item.description);
   const [savingNote, setSavingNote] = useState(false);
+  const [savingDescription, setSavingDescription] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const answered = !!item.note || item.after.length > 0;
 
@@ -138,19 +143,47 @@ function AdjustmentItemRow({ item, userId, canEdit, canDelete }: {
     }
   }
 
+  async function handleSaveDescription() {
+    setSavingDescription(true);
+    setError(null);
+    try {
+      const result = await updateAdjustmentItem(item.id, description);
+      if (!result.ok) {
+        setError(result.error ?? "No se pudo editar el cambio.");
+        return;
+      }
+      setEditingDescription(false);
+      router.refresh();
+    } finally {
+      setSavingDescription(false);
+    }
+  }
+
   return (
     <div className="space-y-2 rounded-lg border border-slate-100 p-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
           <span className={`h-2 w-2 flex-shrink-0 rounded-full ${answered ? "bg-emerald-500" : "bg-amber-500"}`} title={answered ? "Respondido" : "Pendiente"} />
-          <p className="text-sm font-medium text-slate-800">{item.description}</p>
+          {editingDescription ? (
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <input value={description} onChange={(e) => setDescription(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSaveDescription()} className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm" autoFocus />
+              <button type="button" disabled={savingDescription || !description.trim()} onClick={handleSaveDescription} className="text-xs font-medium text-slate-700 hover:underline disabled:opacity-50">Guardar</button>
+              <button type="button" disabled={savingDescription} onClick={() => { setDescription(item.description); setEditingDescription(false); }} className="text-xs text-slate-400 hover:underline">Cancelar</button>
+            </div>
+          ) : (
+            <p className="min-w-0 text-sm font-medium text-slate-800">{item.description}</p>
+          )}
+          </div>
         </div>
-        {canDelete && (
-          <button type="button" onClick={handleDeleteItem} disabled={deleting} className="flex-shrink-0 text-xs text-slate-400 hover:text-red-600">
-            Eliminar
-          </button>
+        {canEdit && !editingDescription && (
+          <div className="flex flex-shrink-0 items-center gap-2 text-xs">
+            <button type="button" onClick={() => setEditingDescription(true)} className="text-slate-400 hover:text-slate-700 hover:underline">Editar</button>
+            <button type="button" onClick={handleDeleteItem} disabled={deleting} className="text-slate-400 hover:text-red-600 hover:underline">Eliminar</button>
+          </div>
         )}
       </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <AdjustmentSide label="Antes" kind="BEFORE" itemId={item.id} attachments={item.before} userId={userId} canEdit={canEdit} canDelete={canDelete} />

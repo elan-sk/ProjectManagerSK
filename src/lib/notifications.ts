@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
-import { isWorkingMoment, isFirstWorkingHour, localDateKey } from "@/lib/workingHours";
-import { getAgendaCounts, getPmProjectsSummary } from "@/lib/agendaSummary";
+import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
+import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
+import { HEALTH_LABEL } from "@/lib/projectHealth";
 import type { NotificationType } from "@prisma/client";
 
 // Escalamiento acordado con el usuario: lo grave (vencidas, bloqueos,
@@ -198,6 +199,10 @@ export async function checkDeadlineAlerts(userId: string) {
   today.setHours(0, 0, 0, 0);
   const warningThreshold = new Date(today);
   warningThreshold.setDate(warningThreshold.getDate() + DEADLINE_WARNING_DAYS);
+  // Una alerta de agenda es un estado diario, no un evento por cada render
+  // del layout. Aunque el usuario marque la campana como leída, no se vuelve
+  // a crear ni reenviar hasta el siguiente día laboral.
+  const notifiedSince = today;
 
   for (const task of tasks) {
     const plannedEnd = new Date(task.plannedEnd);
@@ -209,7 +214,7 @@ export async function checkDeadlineAlerts(userId: string) {
     const type = plannedEnd < today ? "OVERDUE" : plannedEnd <= warningThreshold ? "DEADLINE_APPROACHING" : null;
     if (type) {
       const alreadyNotified = await prisma.notification.findFirst({
-        where: { userId, taskId: task.id, type, read: false },
+        where: { userId, taskId: task.id, type, createdAt: { gte: notifiedSince } },
       });
       if (!alreadyNotified) {
         const message =
@@ -234,7 +239,7 @@ export async function checkDeadlineAlerts(userId: string) {
       const lateType: NotificationType = daysLate > LATE_START_CRITICAL_AFTER_DAYS ? "LATE_START_CRITICAL" : "LATE_START";
 
       const alreadyNotifiedLate = await prisma.notification.findFirst({
-        where: { userId, taskId: task.id, type: lateType, read: false },
+        where: { userId, taskId: task.id, type: lateType, createdAt: { gte: notifiedSince } },
       });
       if (!alreadyNotifiedLate) {
         const lateMessage =
@@ -254,11 +259,15 @@ export async function checkDeadlineAlerts(userId: string) {
 }
 
 // Resumen diario por WhatsApp (reemplaza el aviso individual evento por
-// evento para lo que antes era DIRECT_ALERT_TYPES) — un solo mensaje en la
-// primera hora laboral, con conteos en vez de tarea por tarea. Mismos números
+// evento) — un solo mensaje a la hora configurada, con conteos en vez de tarea
+// por tarea. Mismos números
 // que ve la persona en los tiles de /agenda (ver agendaSummary.ts).
 export async function buildDailyDigestText(userId: string, name: string) {
-  const [counts, pmProjects] = await Promise.all([getAgendaCounts(userId), getPmProjectsSummary(userId)]);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  const [counts, managedProjects] = await Promise.all([
+    getAgendaCounts(userId),
+    user.role === "ADMIN" ? getProjectsSummary() : getPmProjectsSummary(userId),
+  ]);
   const firstName = name.split(" ")[0];
 
   // Mismo orden de importancia que en /agenda y /projects: inicio retrasado
@@ -275,9 +284,9 @@ export async function buildDailyDigestText(userId: string, name: string) {
     `• ${counts.unopened} tarea(s) nueva(s) sin abrir`,
   ];
 
-  if (pmProjects.length > 0) {
-    lines.push("", "📁 *Tus proyectos:*");
-    for (const p of pmProjects) {
+  if (managedProjects.length > 0) {
+    lines.push("", user.role === "ADMIN" ? "📁 *Resumen de todos los proyectos:*" : "📁 *Tus proyectos administrados:*");
+    for (const p of managedProjects) {
       const flags = [
         // Preventivo primero (todavía a tiempo de evitarlo) — solo le llega a
         // quien administra el proyecto, por eso vive acá y no en el conteo
@@ -289,7 +298,15 @@ export async function buildDailyDigestText(userId: string, name: string) {
       ]
         .filter(Boolean)
         .join(", ");
-      lines.push(`• ${p.name}: ${p.completed}/${p.total} completadas${flags ? ` · ${flags}` : ""}`);
+      const progress = p.total === 0 ? 0 : Math.round((p.completed / p.total) * 100);
+      const healthIcon = p.health === "ok" ? "🟢" : p.health === "warn" ? "🟡" : "🔴";
+      lines.push(
+        "",
+        `• *${p.name}*`,
+        `  ↳ _Avance_ · ${progress}% (${p.completed}/${p.total} completadas)`,
+        `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}`,
+        `  ↳ _Alertas_ · ${flags || "sin alertas"}`
+      );
     }
   }
 
@@ -298,26 +315,39 @@ export async function buildDailyDigestText(userId: string, name: string) {
 }
 
 // Llamado desde el poller de scheduler.ts (cada 60s): la mayoría de los
-// ticks no hacen nada (isFirstWorkingHour filtra), y una vez que manda el
-// digest de un usuario marca lastDigestSentAt para no repetirlo el resto de
-// esa hora. Secuencial (no Promise.all) para no ráfaguear el socket de
-// WhatsApp con muchos envíos simultáneos.
+// ticks no hacen nada fuera de la hora configurada. Cada horario se entrega
+// una vez por usuario y día; si se cambia la hora, el nuevo horario genera un
+// segundo resumen para ese mismo día. Secuencial (no Promise.all) para no
+// ráfaguear el socket de WhatsApp con muchos envíos simultáneos.
 export async function dispatchDailyDigests() {
-  const { workHoursStart, workHoursEnd } = await getWhatsAppSettings();
+  const { workHoursStart, workHoursEnd, dailyDigestHour, dailyDigestMinute } = await getWhatsAppSettings();
   const countryCode = await getAppCountryCode();
   const now = new Date();
-  if (!(await isFirstWorkingHour(now, countryCode, workHoursStart, workHoursEnd))) return;
+  if (!(await isWorkingMoment(now, countryCode, workHoursStart, workHoursEnd))) return;
+  const localNow = localParts(now);
+  // El resumen es un evento programado, no una tarea de "ponerse al día".
+  // Así, reiniciar el servidor, reconectar WhatsApp o recuperar una clave
+  // después de la hora no puede generar un resumen inesperado. El poller
+  // corre cada minuto, por lo que el minuto configurado sigue cubierto.
+  const configuredMinutes = dailyDigestHour * 60 + dailyDigestMinute;
+  const currentMinutes = localNow.hour * 60 + localNow.minute;
+  if (currentMinutes !== configuredMinutes) return;
 
   const todayKey = localDateKey(now);
+  const scheduleKey = `${todayKey}|${String(dailyDigestHour).padStart(2, "0")}:${String(dailyDigestMinute).padStart(2, "0")}`;
   const users = await prisma.user.findMany({
     where: { active: true, phone: { not: null } },
-    select: { id: true, name: true, phone: true, lastDigestSentAt: true },
+    select: { id: true, name: true, phone: true, lastDigestSentAt: true, lastDigestScheduleKey: true },
   });
 
   for (const user of users) {
-    if (user.lastDigestSentAt && localDateKey(user.lastDigestSentAt) === todayKey) continue;
+    if (user.lastDigestScheduleKey === scheduleKey) continue;
+    // Compatibilidad con los resúmenes enviados antes de guardar su horario:
+    // históricamente siempre salían a la apertura, así que no se duplica uno
+    // ya enviado hoy al instalar esta mejora.
+    if (!user.lastDigestScheduleKey && dailyDigestHour === workHoursStart && dailyDigestMinute === 0 && user.lastDigestSentAt && localDateKey(user.lastDigestSentAt) === todayKey) continue;
     const text = await buildDailyDigestText(user.id, user.name);
     const sent = await sendDirectAlert(user.phone!, text);
-    if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now } });
+    if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now, lastDigestScheduleKey: scheduleKey } });
   }
 }

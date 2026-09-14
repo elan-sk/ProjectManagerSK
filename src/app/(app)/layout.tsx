@@ -7,6 +7,7 @@ import { getBotSettings } from "@/lib/botSettings";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
+import { InternalMessageBell } from "./InternalMessageBell";
 import { HeaderAlerts } from "./HeaderAlerts";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
@@ -22,24 +23,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  await checkDeadlineAlerts(session.user.id);
   const isAdmin = session.user.role === "ADMIN";
   const [me, pmProjectCount, botSettings] = await Promise.all([
-    prisma.user.findUniqueOrThrow({
+    prisma.user.findUnique({
       where: { id: session.user.id },
       select: { name: true, avatarUrl: true },
     }),
     isAdmin ? Promise.resolve(0) : prisma.project.count({ where: { pmId: session.user.id } }),
     getBotSettings(),
   ]);
+  // Una restauración completa puede reemplazar los usuarios y dejar en el
+  // navegador una sesión JWT de la base anterior. No es un error de página:
+  // mandamos a iniciar sesión otra vez, en lugar de hacer fallar todo el
+  // layout con findUniqueOrThrow.
+  if (!me) redirect("/login");
+  await checkDeadlineAlerts(session.user.id);
   // Admin/PM van al informe grupal; un miembro normal va directo a su propio
   // rendimiento (ver performance/page.tsx y performance/[userId]/page.tsx).
   const performanceHref = isAdmin || pmProjectCount > 0 ? "/performance" : `/performance/${session.user.id}`;
-  const notifications = await prisma.notification.findMany({
+  const [notifications, internalMessages] = await Promise.all([prisma.notification.findMany({
     where: { userId: session.user.id, read: false },
     include: { task: { select: { projectId: true } } },
     orderBy: { createdAt: "desc" },
-  });
+  }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { project: { OR: [{ pmId: session.user.id }, { tasks: { some: { OR: [{ assignees: { some: { userId: session.user.id } } }, { reviewers: { some: { userId: session.user.id } } }] } } }] } }) }, include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
   const bellItems = notifications.map((n) => ({
     id: n.id,
     message: n.message,
@@ -103,6 +109,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
           />
           <NotificationBell items={bellItems} userId={session.user.id} />
+          <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name }))} />
           <Link href="/settings" className="flex items-center gap-2">
             <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />
           </Link>

@@ -33,6 +33,26 @@ export async function toggleStep(stepId: string, done: boolean, actor?: Actor) {
   await revalidateTask(step.taskId);
 }
 
+export async function updateStep(stepId: string, description: string, actor?: Actor) {
+  const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
+  if (!(await canEditTask(step.taskId, actor))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  const parsed = z.string().trim().min(1, "Describí el paso.").max(500).safeParse(description);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Paso inválido.");
+  await prisma.taskStep.update({ where: { id: stepId }, data: { description: parsed.data } });
+  await revalidateTask(step.taskId);
+}
+
+export async function removeStep(stepId: string, actor?: Actor) {
+  const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
+  if (!(await canEditTask(step.taskId, actor))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await prisma.taskStep.delete({ where: { id: stepId } });
+  await revalidateTask(step.taskId);
+}
+
 // Un Entregable, una Revisión, o cualquier tarea con checklist "avisan solas"
 // de que arrancaron en cuanto alguien chulea un paso o sube evidencia — nadie
 // tiene que acordarse de moverlas a mano a "En curso".
@@ -319,10 +339,24 @@ export async function addAdjustmentItem(taskId: string, formData: FormData) {
 }
 
 export async function removeAdjustmentItem(itemId: string) {
-  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId }, include: { task: true } });
-  await requireProjectAdmin(item.task.projectId);
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (!(await canEditTask(item.taskId))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
   await prisma.adjustmentItem.delete({ where: { id: itemId } });
   await revalidateTask(item.taskId);
+}
+
+export async function updateAdjustmentItem(itemId: string, description: string) {
+  const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
+  if (!(await canEditTask(item.taskId))) {
+    return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
+  }
+  const parsed = z.string().trim().min(1, "Describí el cambio solicitado.").max(1000).safeParse(description);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Cambio inválido." };
+  await prisma.adjustmentItem.update({ where: { id: itemId }, data: { description: parsed.data } });
+  await revalidateTask(item.taskId);
+  return { ok: true as const };
 }
 
 export async function setAdjustmentNote(itemId: string, note: string) {

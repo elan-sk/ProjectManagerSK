@@ -36,6 +36,7 @@ export function localParts(date: Date) {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
     hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
@@ -45,6 +46,7 @@ export function localParts(date: Date) {
     day: Number(parts.day),
     // Intl con hour12:false a veces devuelve "24" para la medianoche.
     hour: Number(parts.hour) % 24,
+    minute: Number(parts.minute),
   };
 }
 

@@ -256,6 +256,16 @@ button:not(:disabled):active {
   animation: gantt-flash 1.8s ease-in-out;
 }
 
+/* Indicador de escritura del chat: tres pulsos suaves, como una ola corta,
+   para comunicar actividad sin competir con el contenido ni usar texto. */
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0) scale(0.86); }
+  30% { opacity: 1; transform: translateY(-2px) scale(1); }
+}
+.typing-dot {
+  animation: typing-dot 900ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

@@ -1,4 +1,6 @@
 import type { WASocket } from "@whiskeysockets/baileys";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { getBotName, getBotAvatarBuffer, getBotIntroMessage } from "@/lib/botSettings";
@@ -50,6 +52,7 @@ const MAX_AUTO_RETRIES = 2;
 // exponencial) — alcanza para no golpear como abuso a ojos de WhatsApp;
 // subir a backoff creciente si algún día vuelve a haber flapping real.
 const RETRY_DELAY_MS = 2000;
+const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
 
 export function getWhatsAppStatus() {
   return { status: state.status, qrDataUrl: state.qrDataUrl };
@@ -83,7 +86,7 @@ async function connect() {
     useMultiFileAuthState: loadAuthState,
     DisconnectReason,
   } = await import("@whiskeysockets/baileys");
-  const { state: authState, saveCreds } = await loadAuthState(".baileys-auth");
+  const { state: authState, saveCreds } = await loadAuthState(AUTH_DIR);
   const socket = makeWASocket({ auth: authState });
   state.rawSocket = socket;
   socket.ev.on("creds.update", saveCreds);
@@ -102,9 +105,16 @@ async function connect() {
       state.qrDataUrl = null;
       state.retryCount = 0;
       console.log("[whatsapp] conectado. Elegí el grupo de alertas desde Configuración.");
+      // Conectarse (o reconectarse) no es un evento de resumen. El resumen
+      // diario lo controla exclusivamente el scheduler en su minuto exacto;
+      // de otro modo una acción sin relación —por ejemplo recuperar la
+      // contraseña— podía abrir una instancia y disparar un resumen atrasado.
     }
 
     if (connection === "close") {
+      // Un socket viejo puede terminar de cerrar después de que ya exista
+      // otro nuevo. No debe tumbar ni cambiar el estado de esa conexión.
+      if (state.rawSocket !== socket) return;
       state.sock = null;
       state.rawSocket = null;
       state.qrDataUrl = null;
@@ -116,6 +126,13 @@ async function connect() {
         ?.statusCode;
       if (statusCode === DisconnectReason.loggedOut) {
         state.status = "disconnected";
+        // Esas claves ya fueron revocadas por WhatsApp. Conservarlas hace
+        // que cada "Conectar" repita el cierre sin entregar QR. Se borran
+        // solo tras este motivo inequívoco; una desconexión manual conserva
+        // la sesión como antes.
+        await rm(AUTH_DIR, { recursive: true, force: true }).catch((err) =>
+          console.error("[whatsapp] no se pudo limpiar la sesión revocada", err)
+        );
         console.error("[whatsapp] sesión cerrada desde el teléfono, hay que volver a escanear el QR.");
       } else if (state.retryCount < MAX_AUTO_RETRIES) {
         state.retryCount++;
@@ -143,7 +160,7 @@ export async function listGroups() {
 // El link va al final (después de las menciones) en su propia línea, sin
 // nada pegado, para que WhatsApp lo detecte como clickeable.
 export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string) {
-  if (!state.sock) return;
+  if (!state.sock) return false;
 
   try {
     const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
@@ -166,8 +183,10 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
     } else {
       await state.sock.sendMessage(groupJid, { text, mentions });
     }
+    return true;
   } catch (err) {
     console.error("[whatsapp] no se pudo enviar la alerta", err);
+    return false;
   }
 }
 
@@ -191,12 +210,15 @@ export async function sendRawMessage(jid: string, text: string) {
     const user = isDirect
       ? await prisma.user.findFirst({
           where: { phone: jid.split("@")[0] },
-          select: { id: true, whatsappIntroducedAt: true },
+          select: { id: true, username: true, whatsappIntroducedAt: true },
         })
       : null;
 
     if (user && !user.whatsappIntroducedAt) {
-      const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}`;
+      // La presentación resuelve de una vez el dato que la persona necesita
+      // para entrar. Nunca incluye ni solicita contraseña: esa recuperación
+      // sigue exclusivamente por el flujo seguro de restablecimiento.
+      const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}\n\nTu usuario para entrar es: *${user.username}*. Si olvidaste la contraseña, usá “¿Olvidaste tu contraseña?” en la pantalla de ingreso.`;
       if (avatar) {
         await state.sock.sendMessage(jid, { image: avatar, caption: introText });
       } else {

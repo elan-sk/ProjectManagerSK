@@ -138,8 +138,10 @@ model User {
   // en más, solo ícono 🤖 + nombre, sin foto.
   whatsappIntroducedAt DateTime?
   // Último día (calendario Bogotá) en que se le mandó el resumen diario de
-  // WhatsApp — evita reenviarlo en cada tick del poller de scheduler.ts.
+  // WhatsApp. La clave conserva además la hora configurada para permitir un
+  // nuevo envío el mismo día si un administrador cambia ese horario.
   lastDigestSentAt    DateTime?
+  lastDigestScheduleKey String?
   createdAt            DateTime  @default(now())
 
   // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
@@ -169,6 +171,8 @@ model User {
   reviewChecksReviewed  ReviewCheck[]             @relation("ReviewCheckReviewer")
   reviewMessages        ReviewMessage[]
   botMessages           BotMessage[]
+  internalMessages      InternalMessage[]
+  internalMessageReads  InternalMessageRead[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -240,6 +244,7 @@ model Project {
   // ninguna tarea puntual.
   shareComments ShareComment[]
   notifications Notification[]
+  internalMessages InternalMessage[]
 }
 
 // Enlaces/archivos importantes del proyecto (punto 3.2) — se prioriza el
@@ -372,6 +377,36 @@ model Task {
   blocks    TaskDependency[] @relation("PredecessorTask")
 
   shareLinks ShareLink[]
+  internalMessages InternalMessage[]
+}
+
+// Conversación estrictamente interna: nunca se consulta desde /share ni se
+// serializa en enlaces públicos. Un mensaje pertenece al proyecto o a una
+// tarea concreta del mismo proyecto.
+model InternalMessage {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  reads     InternalMessageRead[]
+
+  @@index([projectId, taskId, createdAt])
+}
+
+model InternalMessageRead {
+  messageId String
+  message   InternalMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@id([messageId, userId])
+  @@index([userId, readAt])
 }
 
 // Punto 2.6: segundo grupo de personas de una tarea tipo Revisión — quienes
@@ -450,6 +485,12 @@ model AdjustmentItem {
   task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   description String   @db.Text
   note        String?  @db.Text
+  // Confirmación del cliente desde el link compartido. Es trazabilidad de
+  // entrega, no una compuerta: el equipo puede completar el ajuste aunque el
+  // cliente todavía no haya respondido.
+  clientApproval Boolean?
+  clientApprovalAt DateTime?
+  clientApprovalBy String?
   order       Int
   createdAt   DateTime @default(now())
 
@@ -566,6 +607,10 @@ model AppSetting {
   whatsappGroupJid String?
   workHoursStart   Int     @default(8)
   workHoursEnd     Int     @default(18)
+  // Hora local exacta para el único resumen individual diario.
+  // Debe permanecer dentro de [workHoursStart, workHoursEnd).
+  dailyDigestHour  Int     @default(8)
+  dailyDigestMinute Int    @default(0)
 
   // Chontatec (bot asistente in-app, ver src/lib/botSettings.ts y
   // src/lib/chontatec.ts). La API key vive acá (DB) en vez de env porque

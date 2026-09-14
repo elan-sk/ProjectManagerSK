@@ -20,6 +20,8 @@ import {
   deleteTask,
 } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 import type { TaskStatus } from "@prisma/client";
+import { sendDirectAlert, sendGroupAlert } from "@/lib/whatsapp";
+import { getWhatsAppSettings } from "@/lib/appSettings";
 
 const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 
@@ -31,6 +33,11 @@ const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 // se restringe explícitamente: el chat no muestra info de un proyecto
 // donde la persona no es PM, asignada ni revisora de ninguna tarea.
 export const READ_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "list_team_members",
+    description: "Lista miembros activos (id, nombre, usuario y si tienen WhatsApp). Usala para identificar a quién enviar un WhatsApp o para recordar un usuario. Nunca muestra contraseñas.",
+    input_schema: { type: "object", properties: {} },
+  },
   {
     name: "list_projects",
     description: "Lista los proyectos a los que el usuario tiene acceso (id, nombre, cliente, estado). Usala primero para resolver el id de un proyecto que el usuario mencionó por nombre.",
@@ -121,6 +128,29 @@ export const READ_TOOLS: Anthropic.Tool[] = [
 // ejecutan directo: el loop en chontatec.ts las pausa para que el usuario
 // confirme explícitamente antes de correr runWriteTool.
 export const WRITE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "send_whatsapp_message",
+    description: "Envía un mensaje directo de WhatsApp a un usuario activo con teléfono registrado. Requiere confirmación del usuario antes de enviar.",
+    input_schema: {
+      type: "object",
+      properties: { userId: { type: "string" }, message: { type: "string", description: "Texto del mensaje, sin contraseña ni secretos." } },
+      required: ["userId", "message"],
+    },
+  },
+  {
+    name: "send_whatsapp_group_message",
+    description:
+      "Envía un mensaje al grupo de WhatsApp de un proyecto y menciona automáticamente al PM, asignados y revisores de la tarea indicada. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        taskId: { type: "string", description: "Tarea cuyos implicados deben ser mencionados." },
+        message: { type: "string", description: "Texto del mensaje, sin contraseña ni secretos." },
+      },
+      required: ["projectId", "taskId", "message"],
+    },
+  },
   {
     name: "update_task_status",
     description: "Cambia el estado de una tarea (ej. marcarla como Completada, En curso, Bloqueada).",
@@ -246,16 +276,18 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
 export const ALL_TOOLS: Anthropic.Tool[] = [...READ_TOOLS, ...WRITE_TOOLS, ...ADVANCED_WRITE_TOOLS];
 export const WRITE_TOOL_NAMES = new Set([...WRITE_TOOLS, ...ADVANCED_WRITE_TOOLS].map((t) => t.name));
 export const DESTRUCTIVE_TOOL_NAMES = new Set(["delete_task", "remove_attachment"]);
+const MEMBER_WRITE_TOOLS = WRITE_TOOLS.filter(
+  (tool) => tool.name !== "send_whatsapp_message" && tool.name !== "send_whatsapp_group_message"
+);
 
-// Tools ofrecidas a ESTE usuario en esta conversación: las básicas siempre,
-// las avanzadas solo si es admin o PM de al menos un proyecto — así un
-// miembro normal ni siquiera ve la opción de crear/borrar/etc. (además del
-// chequeo de permiso real que cada acción vuelve a hacer al ejecutar).
+// Solo admins y PM pueden proponer mensajes individuales de WhatsApp. Para
+// miembros, la única comunicación individual automática es el resumen diario;
+// por eso ni siquiera reciben esta tool en el chat.
 export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const isAdmin = user.role === "ADMIN";
   const isPM = isAdmin || (await prisma.project.count({ where: { pmId: userId } })) > 0;
-  return isPM ? ALL_TOOLS : [...READ_TOOLS, ...WRITE_TOOLS];
+  return isPM ? ALL_TOOLS : [...READ_TOOLS, ...MEMBER_WRITE_TOOLS];
 }
 
 async function currentUserId(): Promise<string> {
@@ -348,6 +380,14 @@ export async function runReadTool(name: string, input: unknown): Promise<string>
   const userId = await currentUserId();
 
   switch (name) {
+    case "list_team_members": {
+      const users = await prisma.user.findMany({
+        where: { active: true },
+        select: { id: true, name: true, username: true, phone: true },
+        orderBy: { name: "asc" },
+      });
+      return JSON.stringify(users.map((user) => ({ id: user.id, name: user.name, username: user.username, hasWhatsApp: Boolean(user.phone) })));
+    }
     case "list_projects": {
       const accessibleIds = await getAccessibleProjectIds(userId);
       const projects = await prisma.project.findMany({
@@ -542,6 +582,10 @@ export async function runReadTool(name: string, input: unknown): Promise<string>
 
 export function summarizeWriteTool(name: string, input: unknown): string {
   switch (name) {
+    case "send_whatsapp_message":
+      return "Enviar un mensaje directo por WhatsApp";
+    case "send_whatsapp_group_message":
+      return "Enviar un mensaje al grupo del proyecto y mencionar a los implicados";
     case "update_task_status": {
       const { status } = input as { status?: string };
       return `Cambiar el estado de la tarea a "${status ?? "?"}"`;
@@ -587,6 +631,65 @@ export function summarizeWriteTool(name: string, input: unknown): string {
 // pendiente, se rechaza solo, sin código nuevo acá.
 export async function runWriteTool(name: string, input: unknown): Promise<{ ok: boolean; message: string }> {
   switch (name) {
+    case "send_whatsapp_message": {
+      try {
+        const { userId, message } = z.object({ userId: z.string(), message: z.string().trim().min(1).max(2000) }).parse(input);
+        const senderId = await currentUserId();
+        const [sender, managedProjects] = await Promise.all([
+          prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
+          prisma.project.count({ where: { pmId: senderId } }),
+        ]);
+        if (sender.role !== "ADMIN" && managedProjects === 0) {
+          return { ok: false, message: "Solo un administrador o PM puede enviar WhatsApp individuales desde el chat." };
+        }
+        const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { phone: true, name: true } });
+        if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
+        if (/contrase(?:ñ|n)a|password/i.test(message)) return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
+        const sent = await sendDirectAlert(recipient.phone, message);
+        return { ok: sent, message: sent ? `Listo, se envió el WhatsApp a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar el mensaje." };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "send_whatsapp_group_message": {
+      try {
+        const { projectId, taskId, message } = z
+          .object({ projectId: z.string(), taskId: z.string(), message: z.string().trim().min(1).max(2000) })
+          .parse(input);
+        if (/contrase(?:ñ|n)a|password/i.test(message)) {
+          return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
+        }
+
+        const senderId = await currentUserId();
+        const [sender, project, task, whatsapp] = await Promise.all([
+          prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
+          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, whatsappGroupJid: true } }),
+          prisma.task.findFirst({
+            where: { id: taskId, projectId },
+            select: { title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } },
+          }),
+          getWhatsAppSettings(),
+        ]);
+        if (!project) return { ok: false, message: "No existe ese proyecto." };
+        if (sender.role !== "ADMIN" && project.pmId !== senderId) {
+          return { ok: false, message: "Solo el PM de este proyecto o un administrador pueden escribir en su grupo." };
+        }
+        if (!task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
+
+        const groupJid = project.whatsappGroupJid ?? whatsapp.groupJid;
+        if (!groupJid) return { ok: false, message: "Este proyecto no tiene un grupo de WhatsApp configurado." };
+        const implicatedUserIds = Array.from(new Set([project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]));
+        const sent = await sendGroupAlert(groupJid, message, implicatedUserIds);
+        return {
+          ok: sent,
+          message: sent
+            ? `Listo, se envió el mensaje al grupo de ${project.name} y se mencionó a los implicados de “${task.title}”.`
+            : "WhatsApp no está conectado; no se pudo enviar el mensaje al grupo.",
+        };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
     case "update_task_status": {
       const { taskId, status } = z.object({ taskId: z.string(), status: z.string() }).parse(input);
       const result = await updateTaskStatus(taskId, status as TaskStatus);

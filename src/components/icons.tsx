@@ -14,6 +14,10 @@ export function BellIcon({ className }: IconProps) {
   );
 }
 
+export function MessageIcon({ className }: IconProps) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 10.5h7.5m-7.5 3h4.5M21 12c0 4.142-4.03 7.5-9 7.5a10.9 10.9 0 0 1-3.42-.545L3 20.25l1.294-4.315A7.14 7.14 0 0 1 3 12c0-4.142 4.03-7.5 9-7.5s9 3.358 9 7.5Z" /></svg>;
+}
+
 export function ArrowLeftIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>

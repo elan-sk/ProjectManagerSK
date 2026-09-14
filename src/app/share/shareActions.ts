@@ -172,7 +172,7 @@ const commentSchema = z.object({
 // nivel de anidamiento, no hilos recursivos).
 export async function addShareComment(
   token: string,
-  data: { authorName: string; authorRole?: string; body: string; adjustmentItemId?: string; parentId?: string }
+  data: { authorName: string; authorRole?: string; body: string; adjustmentItemId?: string; parentId?: string; adjustmentApproval?: boolean }
 ) {
   const link = await resolveShareToken(token);
   if (!link) return { ok: false as const, error: "Link inválido o vencido." };
@@ -187,6 +187,11 @@ export async function addShareComment(
     if (data.adjustmentItemId) {
       const item = await prisma.adjustmentItem.findUnique({ where: { id: data.adjustmentItemId }, select: { taskId: true } });
       if (!item || item.taskId !== taskId) return { ok: false as const, error: "Ese cambio no pertenece a esta tarea." };
+      // La aprobación obligatoria acompaña el comentario principal del
+      // cliente; las respuestas solo continúan ese hilo ya identificado.
+      if (!data.parentId && typeof data.adjustmentApproval !== "boolean") {
+        return { ok: false as const, error: "Indicá si aprobás el ajuste o necesitás cambios antes de comentar." };
+      }
     }
   } else if (link.targetType === "PROJECT") {
     projectId = link.projectId!;
@@ -204,16 +209,24 @@ export async function addShareComment(
     }
   }
 
-  await prisma.shareComment.create({
-    data: {
-      taskId,
-      projectId,
-      adjustmentItemId: data.adjustmentItemId ?? null,
-      parentId: data.parentId ?? null,
-      authorName: parsed.data.authorName,
-      authorRole: parsed.data.authorRole || null,
-      body: parsed.data.body,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.shareComment.create({
+      data: {
+        taskId,
+        projectId,
+        adjustmentItemId: data.adjustmentItemId ?? null,
+        parentId: data.parentId ?? null,
+        authorName: parsed.data.authorName,
+        authorRole: parsed.data.authorRole || null,
+        body: parsed.data.body,
+      },
+    });
+    if (data.adjustmentItemId && !data.parentId && typeof data.adjustmentApproval === "boolean") {
+      await tx.adjustmentItem.update({
+        where: { id: data.adjustmentItemId },
+        data: { clientApproval: data.adjustmentApproval, clientApprovalAt: new Date(), clientApprovalBy: parsed.data.authorName },
+      });
+    }
   });
 
   // Notifica por WA + app (punto 4): al PM y, si es un comentario de tarea,

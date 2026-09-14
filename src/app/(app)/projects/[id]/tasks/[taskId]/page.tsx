@@ -31,6 +31,7 @@ import { getActiveShareLink } from "@/lib/shareLinks";
 import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { TaskTagsEditor } from "./TaskTagsEditor";
+import { InternalConversation } from "@/components/InternalConversation";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -492,6 +493,8 @@ export default async function TaskDetailPage({
           }))}
         />
       )}
+
+      <InternalConversation projectId={projectId} taskId={taskId} title="Conversación de la tarea" />
 
       <section>
         <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4">

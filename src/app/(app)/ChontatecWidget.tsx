@@ -134,6 +134,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
+  const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
   const [text, setText] = useState("");
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
@@ -161,7 +162,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   useEffect(() => {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, open]);
+  }, [messages, optimisticMessage, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,9 +181,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     const value = text.trim();
     if (!value || isPending) return;
     setText("");
+    setOptimisticMessage({ id: `pending-${Date.now()}`, role: "user", text: value });
     startTransition(async () => {
-      const updated = await sendChontatecMessage(value, pathname);
-      setMessages(updated);
+      try {
+        const updated = await sendChontatecMessage(value, pathname);
+        setMessages(updated);
+      } finally {
+        setOptimisticMessage(null);
+      }
     });
   }
 
@@ -333,6 +339,23 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                 </div>
               );
             })}
+            {optimisticMessage && (
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl rounded-br-md bg-slate-900 px-3 py-2 text-sm text-white">
+                  <span className="whitespace-pre-wrap">{optimisticMessage.text}</span>
+                </div>
+              </div>
+            )}
+            {isPending && (
+              <div className="flex justify-start" aria-live="polite" aria-label={`${botName} está procesando tu mensaje`}>
+                <div className="flex h-8 items-center gap-1 rounded-2xl bg-slate-100 px-3" role="status">
+                  <span className="sr-only">{botName} está escribiendo</span>
+                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:0ms] motion-reduce:animate-none" />
+                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:120ms] motion-reduce:animate-none" />
+                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:240ms] motion-reduce:animate-none" />
+                </div>
+              </div>
+            )}
           </div>
 
           <footer className="border-t border-slate-100 p-2">

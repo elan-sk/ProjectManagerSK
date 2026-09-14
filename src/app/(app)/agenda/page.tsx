@@ -251,6 +251,19 @@ export default async function AgendaPage({
     return `/agenda?${p.toString()}`;
   }
 
+  // Los indicadores superiores son accesos directos, no filtros que se
+  // acumulen: al elegir uno se empieza desde una Agenda limpia y queda una
+  // única condición activa. Si se pulsa el que ya estaba activo, se vuelve a
+  // la Agenda sin filtros.
+  function tileHref(tile: (typeof TILES)[number], active: boolean) {
+    if (active) return "/agenda";
+    const p = new URLSearchParams();
+    for (const [key, value] of Object.entries(tile.overrides(false))) {
+      if (value) p.set(key, value);
+    }
+    return `/agenda?${p.toString()}`;
+  }
+
   return (
     <div className="space-y-4">
       <RememberViewState storageKey="lastAgendaView" />
@@ -262,7 +275,7 @@ export default async function AgendaPage({
           return (
             <Link
               key={tile.key}
-              href={agendaHref(tile.overrides(active))}
+              href={tileHref(tile, active)}
               className={`flex flex-col gap-1 rounded-xl border-2 px-3 py-2.5 transition hover:shadow-sm ${tile.border} ${
                 active ? tile.activeBg : "bg-white"
               }`}

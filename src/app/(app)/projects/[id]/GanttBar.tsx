@@ -347,9 +347,14 @@ export function GanttBar({
 
   const displayStartIndex = liveStartIndex + (moveOffsetIndex ?? 0);
   const displayEndIndex = liveEndIndex + (moveOffsetIndex ?? 0);
-  const left = displayStartIndex * DAY_WIDTH;
+  // Si una tarea inicia en el primer día visible, el borde redondeado no
+  // puede arrancar pegado al límite de la columna fija: visualmente parece
+  // cortado. Se reserva 2px solo ahí y se compensa el ancho para no alterar
+  // la fecha final ni el cálculo de arrastre.
+  const firstDayInset = displayStartIndex === 0 ? 2 : 0;
+  const left = displayStartIndex * DAY_WIDTH + firstDayInset;
   const liveSpan = Math.max(displayEndIndex - displayStartIndex + 1, 1);
-  const width = liveSpan * DAY_WIDTH - 4;
+  const width = liveSpan * DAY_WIDTH - 4 - firstDayInset;
 
   const tooltipLayer = typeof document !== "undefined" ? document.getElementById(GANTT_TOOLTIP_LAYER_ID) : null;
 

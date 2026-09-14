@@ -11,6 +11,7 @@ import { getBotSettings } from "@/lib/botSettings";
 import { getAvailableCountries } from "@/lib/holidays";
 import { WhatsAppConnectPanel } from "./WhatsAppConnectPanel";
 import { BotSettingsForm } from "./BotSettingsForm";
+import { FullBackupPanel } from "./FullBackupPanel";
 
 export default async function SettingsPage({
   searchParams,
@@ -20,12 +21,14 @@ export default async function SettingsPage({
     imported?: string;
     importFailed?: string;
     importError?: string;
+    backupRestored?: string;
+    backupError?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { google_calendar, imported, importFailed, importError } = await searchParams;
+  const { google_calendar, imported, importFailed, importError, backupRestored, backupError } = await searchParams;
   const isAdmin = session.user.role === "ADMIN";
   const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings] = await Promise.all([
     prisma.user.findUniqueOrThrow({
@@ -81,6 +84,8 @@ export default async function SettingsPage({
             currentGroupJid={whatsappSettings!.groupJid}
             workHoursStart={whatsappSettings!.workHoursStart}
             workHoursEnd={whatsappSettings!.workHoursEnd}
+            dailyDigestHour={whatsappSettings!.dailyDigestHour}
+            dailyDigestMinute={whatsappSettings!.dailyDigestMinute}
           />
         </section>
       )}
@@ -192,6 +197,14 @@ export default async function SettingsPage({
             </form>
           </div>
         </section>
+      )}
+
+      {isAdmin && (
+        <>
+          {backupRestored && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Respaldo total restaurado correctamente.</p>}
+          {backupError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{backupError}</p>}
+          <FullBackupPanel />
+        </>
       )}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">

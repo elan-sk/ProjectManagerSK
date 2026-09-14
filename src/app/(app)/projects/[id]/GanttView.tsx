@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon } from "@/components/icons";
-import { TodayMarker } from "./TodayMarker";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -175,6 +174,30 @@ function dayLabel(date: Date) {
   return date.toLocaleDateString("es-CO", { day: "2-digit", timeZone: "UTC" });
 }
 
+// Marcadores de fecha dentro de la zona temporal de una sola fila. A
+// diferencia del marcador global, este nunca puede cruzar visualmente la
+// columna sticky de fases/tareas cuando se hace scroll horizontal.
+function TimelineDateMarkers({ todayIndex, targetEndIndex }: { todayIndex: number; targetEndIndex: number }) {
+  return (
+    <>
+      {todayIndex >= 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-10 w-px bg-amber-400"
+          style={{ left: todayIndex * DAY_WIDTH + DAY_WIDTH / 2 }}
+        />
+      )}
+      {targetEndIndex >= 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-10 w-px bg-red-400"
+          style={{ left: targetEndIndex * DAY_WIDTH + DAY_WIDTH / 2 }}
+        />
+      )}
+    </>
+  );
+}
+
 function weekdayLabel(date: Date) {
   const weekday = date.toLocaleDateString("es-CO", { weekday: "long", timeZone: "UTC" });
   return weekday.charAt(0).toUpperCase() + weekday.slice(1);
@@ -257,6 +280,11 @@ export function GanttView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+  // La columna de nombres queda sticky al desplazar horizontalmente. El SVG,
+  // aunque esté detrás de esa columna, se mueve con el contenido; por eso
+  // recortamos sus conectores según el desplazamiento para que nunca asomen
+  // por encima del encabezado o de un nombre de fase/tarea.
+  const [timelineClipStart, setTimelineClipStart] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const [highlightedIds, setHighlightedIds] = useState<Set<string> | null>(null);
   const [reconnect, setReconnect] = useState<ReconnectState | null>(null);
@@ -668,6 +696,10 @@ export function GanttView({
     el.scrollTop = pan.scrollTop - (e.clientY - pan.y);
   }
 
+  function onGanttScroll(e: React.UIEvent<HTMLDivElement>) {
+    setTimelineClipStart(e.currentTarget.scrollLeft);
+  }
+
   function onContainerPointerUp(e: React.PointerEvent) {
     if (!panRef.current) return;
     panRef.current = null;
@@ -898,6 +930,7 @@ export function GanttView({
         de ese alto. */}
     <div
       ref={scrollRef}
+      onScroll={onGanttScroll}
       onPointerDown={onContainerPointerDown}
       onPointerMove={onContainerPointerMove}
       onPointerUp={onContainerPointerUp}
@@ -930,7 +963,7 @@ export function GanttView({
                   key={i}
                   title={weekdayLabel(d)}
                   style={{ width: DAY_WIDTH }}
-                  className={`py-1 text-center text-[10px] ${
+                  className={`cursor-default select-none py-1 text-center text-[10px] ${
                     highlightedDayIndices.has(i) ? "bg-indigo-100 font-semibold text-indigo-700" : "font-normal text-slate-400"
                   }`}
                 >
@@ -972,7 +1005,8 @@ export function GanttView({
                       <p className="text-[10px] text-slate-400">{phasePct}% completado</p>
                     </div>
                   </div>
-                  <div data-gantt-timeline className="relative flex-1 cursor-grab" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
+                  <div data-gantt-timeline className="relative z-10 flex-1 cursor-grab" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
+                    <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
                     <div
                       className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-full bg-slate-200"
                       style={{ left: phaseStart * DAY_WIDTH, width: (phaseEnd - phaseStart) * DAY_WIDTH }}
@@ -1042,7 +1076,8 @@ export function GanttView({
                         <SearchIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div data-gantt-timeline className="relative cursor-grab" style={{ width: timelineWidth, height: TASK_ROW_HEIGHT }}>
+                    <div data-gantt-timeline className="relative z-10 cursor-grab" style={{ width: timelineWidth, height: TASK_ROW_HEIGHT }}>
+                      <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
                       <GanttBar
                         key={`${t.id}:${t.plannedStart}:${t.plannedEnd}`}
                         taskId={t.id}
@@ -1083,20 +1118,6 @@ export function GanttView({
             );
           })}
 
-          {/* Líneas de "hoy" y "cierre del proyecto" a lo alto de todo el
-              Gantt (no por fila): así quedan por encima del fondo de los
-              encabezados de fase en vez de cortarse en cada uno. */}
-          {todayIndex >= 0 && (
-            <TodayMarker left={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2} height={totalRowsHeight} />
-          )}
-          {targetEndIndex >= 0 && (
-            <TodayMarker
-              left={LABEL_WIDTH + targetEndIndex * DAY_WIDTH + DAY_WIDTH / 2}
-              height={totalRowsHeight}
-              colorClass="bg-red-400"
-            />
-          )}
-
           {/* Conectores de dependencia — mismo lenguaje visual que cualquier
               Gantt (Smartsheet/MS Project): línea sólida "termina antes de
               que esta empiece", punteada "en paralelo" (mismo inicio). El
@@ -1130,7 +1151,12 @@ export function GanttView({
                   contenido a la propia área del Gantt (nunca a la izquierda
                   de x=0, que es justo el borde de esa columna). */}
               <clipPath id="gantt-visible-area">
-                <rect x={0} y={0} width={timelineWidth} height={totalRowsHeight} />
+                <rect
+                  x={timelineClipStart}
+                  y={0}
+                  width={Math.max(0, timelineWidth - timelineClipStart)}
+                  height={totalRowsHeight}
+                />
               </clipPath>
             </defs>
             <g clipPath="url(#gantt-visible-area)">

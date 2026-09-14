@@ -3,6 +3,7 @@ import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
+import { InternalConversation } from "@/components/InternalConversation";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
@@ -583,6 +584,7 @@ export default async function ProjectPage({
           >
             Archivos
           </Link>
+          <Link href={filterHref({ view: "conversation" })} className={`rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -602,7 +604,7 @@ export default async function ProjectPage({
         )}
       </div>
 
-      {view !== "definition" && view !== "files" && (
+      {view !== "definition" && view !== "files" && view !== "conversation" && (
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
@@ -727,7 +729,7 @@ export default async function ProjectPage({
         </div>
       )}
 
-      {view === "files" ? (
+      {view === "conversation" ? <InternalConversation projectId={project.id} title="Conversación del proyecto" /> : view === "files" ? (
         <ProjectFilesView
           projectId={project.id}
           files={projectFiles.map((f) => ({

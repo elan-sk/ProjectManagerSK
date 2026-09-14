@@ -44,23 +44,23 @@ const importSchema = z.object({ version: z.number(), projects: z.array(projectSc
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/settings?importError=No+autorizado", request.url));
+    return NextResponse.redirect(new URL("/settings?importError=No+autorizado", request.url), 303);
   }
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.redirect(new URL("/settings?importError=Falta+el+archivo", request.url));
+  if (!file) return NextResponse.redirect(new URL("/settings?importError=Falta+el+archivo", request.url), 303);
 
   let raw: unknown;
   try {
     raw = JSON.parse(await file.text());
   } catch {
-    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+es+JSON+válido", request.url));
+    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+es+JSON+válido", request.url), 303);
   }
 
   const parsed = importSchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+tiene+el+formato+esperado", request.url));
+    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+tiene+el+formato+esperado", request.url), 303);
   }
 
   let created = 0;
@@ -136,5 +136,8 @@ export async function POST(request: Request) {
   const url = new URL("/settings", request.url);
   url.searchParams.set("imported", String(created));
   if (failures.length > 0) url.searchParams.set("importFailed", failures.join(" | "));
-  return NextResponse.redirect(url);
+  // Tras un POST de un formulario normal, 303 obliga al navegador a abrir
+  // Configuración mediante GET. El 307 por defecto repite el POST en
+  // /settings y Next intenta interpretarlo como una Server Action antigua.
+  return NextResponse.redirect(url, 303);
 }

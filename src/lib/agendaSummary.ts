@@ -54,14 +54,12 @@ export type PmProjectSummary = {
   startingSoonCount: number;
 };
 
-// Resumen liviano por proyecto para un PM — a diferencia de getAgendaCounts,
-// mira TODAS las tareas del proyecto (no solo las asignadas al PM). Usado
-// por el bloque "Mis proyectos" de Agenda (versión compacta: ícono+nombre+
-// salud+conteos, no la card completa de /projects) y por el resumen diario
-// de WhatsApp — sin bottlenecks/holgura/colisiones, que ahí no hacen falta.
-export async function getPmProjectsSummary(userId: string): Promise<PmProjectSummary[]> {
+// Resumen liviano por proyecto — mira TODAS las tareas del proyecto (no solo
+// las asignadas al PM). Para un PM se filtra por sus proyectos; para admin se
+// usa sin filtro y cubre toda la cartera activa.
+export async function getProjectsSummary(pmId?: string): Promise<PmProjectSummary[]> {
   const projects = await prisma.project.findMany({
-    where: { pmId: userId, status: { not: "ARCHIVED" } },
+    where: { ...(pmId ? { pmId } : {}), status: { not: "ARCHIVED" } },
     select: {
       id: true,
       name: true,
@@ -95,4 +93,10 @@ export async function getPmProjectsSummary(userId: string): Promise<PmProjectSum
     });
   }
   return summaries;
+}
+
+// Alias explícito para la Agenda y los sitios donde el alcance debe ser solo
+// lo administrado por una persona.
+export async function getPmProjectsSummary(userId: string) {
+  return getProjectsSummary(userId);
 }

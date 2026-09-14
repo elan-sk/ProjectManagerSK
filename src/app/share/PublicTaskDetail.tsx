@@ -121,7 +121,12 @@ export function PublicTaskDetail({
                 </div>
               </div>
               {item.note && <p className="text-xs text-slate-500">Nota: {item.note}</p>}
-              <PublicCommentThread token={token} adjustmentItemId={item.id} comments={item.comments} />
+              {item.clientApproval !== null && (
+                <p className={`text-xs ${item.clientApproval ? "text-emerald-700" : "text-amber-700"}`}>
+                  Cliente: {item.clientApproval ? "aprobó el ajuste" : "solicitó cambios"}{item.clientApprovalBy ? ` · ${item.clientApprovalBy}` : ""}.
+                </p>
+              )}
+              <PublicCommentThread token={token} adjustmentItemId={item.id} requireAdjustmentApproval comments={item.comments} />
             </div>
           ))}
         </div>
