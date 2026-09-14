@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { resizeTask, moveTask } from "./actions";
 import { AlertBadge } from "@/components/AlertBadge";
+import { LockIcon } from "@/components/icons";
 import { Avatar } from "@/components/Avatar";
 import { TagChip } from "@/components/TagChip";
 import { useToast } from "@/components/Toast";
@@ -376,7 +377,11 @@ export function GanttBar({
         onClick={onBodyClick}
         onDoubleClick={() => router.push(`/projects/${projectId}/tasks/${taskId}`)}
       >
-        <span className="pointer-events-none flex h-full w-full select-none items-center justify-center text-[10px] font-semibold text-white/90">
+        <span className="pointer-events-none flex h-full w-full select-none items-center justify-center gap-0.5 text-[10px] font-semibold text-white/90">
+          {/* Punto confirmado con el usuario: Bloqueada (rojo) y Completada
+              (verde) se confunden a simple vista — el candado da una señal
+              que no depende del color. */}
+          {status === "BLOCKED" && <LockIcon className="h-2.5 w-2.5 flex-shrink-0" />}
           {liveSpan}d
         </span>
       </div>
