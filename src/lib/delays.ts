@@ -77,6 +77,33 @@ export async function getTaskScheduleVariance(
   return -(await businessDaysBetween(countryCode, task.plannedEnd, task.actualEnd));
 }
 
+/**
+ * Punto confirmado con el usuario (reemplaza el uso de getTaskScheduleVariance
+ * sumado por tarea como "retraso del proyecto" — esa suma solo mira tareas YA
+ * completadas, ignora todo lo que falta, y confundía al compararla contra el
+ * Gantt): esta mide, del PROYECTO completo, la fecha en la que terminaría de
+ * verdad — la más tardía entre actualEnd (tareas ya completadas) o
+ * plannedEnd (el resto; ya refleja el corrimiento en cascada de sus
+ * predecesoras reales, ver propagateToSuccessors) — contra targetEndDate (el
+ * cierre comprometido). Positivo = terminaría antes del deadline (holgura),
+ * negativo = después (retraso), null = sin targetEndDate o sin tareas.
+ */
+export async function getProjectCompletionVariance(
+  countryCode: string,
+  targetEndDate: Date | null,
+  tasks: Pick<Task, "status" | "plannedEnd" | "actualEnd">[]
+): Promise<number | null> {
+  if (!targetEndDate || tasks.length === 0) return null;
+  const projectedEnd = new Date(
+    Math.max(...tasks.map((t) => (t.status === "COMPLETED" && t.actualEnd ? t.actualEnd.getTime() : t.plannedEnd.getTime())))
+  );
+  if (projectedEnd.getTime() === targetEndDate.getTime()) return 0;
+  if (projectedEnd < targetEndDate) {
+    return await businessDaysBetween(countryCode, projectedEnd, targetEndDate);
+  }
+  return -(await businessDaysBetween(countryCode, targetEndDate, projectedEnd));
+}
+
 export type TaskAlertLevel = "done" | "blocked" | "overdue" | "lateStart" | "warning" | "onTrack";
 export type TaskAlert = {
   level: TaskAlertLevel;

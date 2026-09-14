@@ -10,7 +10,7 @@ import { ShareIcon } from "@/components/icons";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
-import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
+import { getBottlenecks, getTaskAlert, matchesRiskFilter, getProjectCompletionVariance } from "@/lib/delays";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -208,10 +208,17 @@ export default async function ProjectPage({
   const summaryHealth = projectHealth(summaryOverdueTasks.length, summaryTotal);
   const phaseSlackValues = cascadeProgress.phases.map((p) => p.openSlackDays).filter((v): v is number => v !== null);
   const summaryOpenSlackDays = phaseSlackValues.length > 0 ? Math.min(...phaseSlackValues) : null;
-  const phaseVarianceValues = cascadeProgress.phases
-    .map((p) => p.scheduleVarianceDays)
-    .filter((v): v is number => v !== null);
-  const summaryScheduleVarianceDays = phaseVarianceValues.length > 0 ? phaseVarianceValues.reduce((s, v) => s + v, 0) : null;
+  // Punto confirmado con el usuario: el badge general del proyecto compara
+  // el cierre comprometido (targetEndDate) contra cuándo terminaría de
+  // verdad el proyecto completo (la tarea de cierre más tardía, real o
+  // planeada) — no la suma de cuánto se atrasaron las tareas YA completadas
+  // (esa suma ignoraba todo lo que falta y confundía al compararla con el
+  // Gantt). Ver getProjectCompletionVariance en delays.ts.
+  const summaryScheduleVarianceDays = await getProjectCompletionVariance(
+    project.countryCode,
+    project.targetEndDate,
+    project.tasks
+  );
 
   const matchesRisk = (taskId: string) => matchesRiskFilter(alertByTaskId.get(taskId)!, risk);
   // "Devueltas"/"Revisión" del filtro Tipo (punto 11 confirmado): no son un

@@ -8,11 +8,15 @@ import type { getBottlenecks } from "@/lib/delays";
 // layouts (la card las mezcla con el badge de fase y el avatar del PM en una
 // misma fila; /projects/[id] las apila aparte) sin duplicar el JSX.
 
-// Holgura/retraso REAL (plannedEnd vs. actualEnd de tareas ya completadas,
-// ver getTaskScheduleVariance) — distinto del openSlackDays de al lado
-// (margen estructural CPM de las tareas todavía abiertas). Positivo =
-// terminaron adelantadas en conjunto, negativo = atrasadas. null = ninguna
-// tarea completada todavía en ese alcance.
+// Punto confirmado con el usuario: compara targetEndDate (cierre
+// comprometido del proyecto) contra cuándo terminaría de verdad el
+// proyecto completo — la fecha de cierre más tardía entre todas sus
+// tareas, real para las ya completadas y planeada (ya corrida en cascada
+// por sus predecesoras reales) para el resto — ver
+// getProjectCompletionVariance en delays.ts. Distinto de openSlackDays de
+// al lado (margen estructural CPM de las tareas todavía abiertas).
+// Positivo = terminaría antes del deadline (holgura), negativo = después
+// (retraso), null = sin targetEndDate o sin tareas en ese alcance.
 export function ScheduleVarianceBadge({ days }: { days: number | null }) {
   if (days === null || days === 0) return null;
   return (

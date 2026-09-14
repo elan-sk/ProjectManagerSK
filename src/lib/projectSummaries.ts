@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getBottlenecks, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
+import { getBottlenecks, getTaskAlert, getProjectCompletionVariance } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { findScheduleCollisions, type CollisionInfo } from "@/lib/collisions";
 import { projectHealth, HEALTH_LABEL } from "@/lib/projectHealth";
@@ -111,13 +111,11 @@ export async function getProjectSummaryRows(
               return values.length > 0 ? Math.min(...values) : null;
             })()
           : null;
-      const completedWithActualEnd = p.tasks.filter((t) => t.status === "COMPLETED" && t.actualEnd);
-      const scheduleVarianceDays =
-        completedWithActualEnd.length > 0
-          ? (
-              await Promise.all(completedWithActualEnd.map((t) => getTaskScheduleVariance(p.countryCode, t)))
-            ).reduce((sum: number, v) => sum + (v ?? 0), 0)
-          : null;
+      // Punto confirmado con el usuario: compara el cierre comprometido
+      // (targetEndDate) contra cuándo terminaría de verdad el proyecto
+      // completo — no la suma de cuánto se atrasaron las tareas YA
+      // completadas (ver getProjectCompletionVariance en delays.ts).
+      const scheduleVarianceDays = await getProjectCompletionVariance(p.countryCode, p.targetEndDate, p.tasks);
       return {
         project: p,
         summary: {
