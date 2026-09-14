@@ -22,7 +22,7 @@ Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid
 4. hPanel → Despliegues → subir ese zip → Deploy. Esperar que pase de "Compilando" a "Se ha completado".
 5. Probar el sitio real.
 
-## Las tres trampas que ya causaron una caída real (2026-09-13)
+## Las trampas que ya causaron un problema real
 
 1. **Las migraciones de Prisma tienen que ir DENTRO de `npm run build`** (`package.json`: `"build": "prisma migrate deploy && next build"`). Como Hostinger no corre nada más, si sacás la migración de ahí y la dejás como paso "aparte", nunca se va a ejecutar en producción.
 2. **Ninguna tarea de fondo puede usar `void promesa()` a secas** en `src/lib/scheduler.ts` ni `src/instrumentation.ts` — siempre `.catch(err => console.error(...))`. Un rechazo de promesa sin atajar en Node **tumba todo el proceso**, no solo esa función — así se cayó el sitio entero (no solo una página) cuando una migración quedó pendiente y el poller de WhatsApp intentó leer una columna que no existía.
@@ -33,6 +33,16 @@ Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid
      npx prisma migrate resolve --applied <nombre_de_la_migración>
      ```
      Esto solo escribe una fila en la tabla interna `_prisma_migrations` (que Prisma usa para saber qué migró y cuándo) — no ejecuta el SQL de esa migración, no toca ninguna tabla ni fila de datos reales. Como no hay SSH con acceso al entorno de la app (ver arriba), la única forma de correrlo es meterlo TEMPORALMENTE en el script de `build` (antes de `prisma migrate deploy`), desplegar UNA vez, y apenas confirme que anduvo, **revertir ese cambio de inmediato** — `migrate resolve --applied` tira `Error: P3008` si se corre de nuevo sobre una migración ya marcada, así que dejarlo puesto rompe el build de cualquier deploy futuro.
+
+4. **Los archivos subidos (íconos de proyecto, adjuntos, avatares — `public/uploads/`, ver `src/lib/uploadFile.ts`) se pierden en CADA deploy nuevo** si `PERSISTENT_UPLOADS_DIR` no está configurada. Cada deploy activa una carpeta de versión nueva (`hbuilds/versions/<uuid>/`) sin heredar nada de la anterior, y `public/uploads/` está (correctamente) excluido del zip — así que cualquier archivo subido antes de un deploy queda huérfano en la versión vieja, invisible después. Síntoma real (2026-09-14): un ícono de proyecto se veía como el `alt` roto de la imagen, y un `.docx` adjunto tiraba "No se pudo mostrar este archivo" en el visor — ninguno de los dos es un bug de esos componentes, el archivo físico ya no existía.
+   - **Arreglo (ya implementado, `src/lib/persistentUploads.ts` + `instrumentation.ts`)**: al arrancar, si `PERSISTENT_UPLOADS_DIR` (env var) está seteada, `public/uploads/` se convierte en symlink hacia esa carpeta — fuera del árbol de versiones, así que sobrevive a cualquier deploy futuro. Sin esa env var no hace nada (dev local queda igual que siempre).
+   - **Setup en el servidor (una sola vez, por SSH — el mismo SSH de solo-lectura de archivos que ya se usa para ver logs, ver arriba)**:
+     ```bash
+     mkdir -p ~/domains/<sitio>/persistent-uploads
+     pwd  # confirmá la ruta ABSOLUTA real (depende del usuario del sistema, algo como /home/u123456789/domains/...) — Node no expande "~"
+     ```
+   - **Setup en hPanel**: Sitios web → el sitio → variables de entorno de la app Node.js → agregar `PERSISTENT_UPLOADS_DIR` con esa ruta absoluta. Aplica desde el próximo restart/deploy.
+   - **Los archivos que ya se perdieron antes de este fix no se recuperan solos** — hay que volver a subirlos a mano una vez que el symlink esté activo.
 
 ## Si el sitio se cae después de un deploy
 

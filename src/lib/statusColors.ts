@@ -78,7 +78,13 @@ export const TASK_STATUS_COLOR: Record<
   // saturado (bg-blue-100) para que la tarea activa salte a la vista.
   NOT_STARTED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-500", solid: "bg-slate-700 hover:bg-slate-800", bar: "bg-slate-300", tint: "bg-white" },
   IN_PROGRESS: { dot: "bg-blue-500", badge: "bg-blue-100 text-blue-700", solid: "bg-blue-600 hover:bg-blue-700", bar: "bg-blue-500", tint: "bg-blue-50" },
-  BLOCKED: { dot: "bg-red-500", badge: "bg-red-50 text-red-700", solid: "bg-red-600 hover:bg-red-700", bar: "bg-red-500", tint: "bg-red-50" },
+  // Punto confirmado con el usuario: en la barra del Gantt el rojo queda
+  // reservado EXCLUSIVAMENTE para "vencida" (overdue, ver barColor en
+  // GanttView.tsx) — Bloqueada ya se distingue con el candado (GanttBar.tsx),
+  // así que su barra usa un gris más oscuro en vez de competir por el rojo.
+  // dot/badge/solid/tint (Kanban, control de estado, etc.) siguen en rojo,
+  // sin cambios — el pedido fue puntual sobre la barra.
+  BLOCKED: { dot: "bg-red-500", badge: "bg-red-50 text-red-700", solid: "bg-red-600 hover:bg-red-700", bar: "bg-slate-600", tint: "bg-red-50" },
   COMPLETED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700", bar: "bg-emerald-500", tint: "bg-emerald-50" },
   RETURNED: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700", solid: "bg-orange-600 hover:bg-orange-700", bar: "bg-orange-500", tint: "bg-orange-50" },
 };

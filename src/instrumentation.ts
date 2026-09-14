@@ -1,6 +1,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  const { ensurePersistentUploads } = await import("@/lib/persistentUploads");
+  await ensurePersistentUploads().catch((err) => console.error("[instrumentation] ensurePersistentUploads falló", err));
+
   if (process.env.WHATSAPP_ENABLED === "true") {
     const { startWhatsApp } = await import("@/lib/whatsapp");
     // Mismo criterio que scheduler.ts: si falla la conexión, que quede en
