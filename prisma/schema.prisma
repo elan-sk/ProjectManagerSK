@@ -38,6 +38,12 @@ enum TaskType {
   MILESTONE
   QA
   ADJUSTMENT
+  // Lista de características/funcionalidades entregadas, descritas con
+  // evidencia opcional, que el CLIENTE (sin cuenta, por el link compartido)
+  // va aceptando o devolviendo una por una — mismo motor de rondas que QA
+  // (ReviewRound/ReviewCheck), pero quien califica es externo, no un
+  // TaskReviewer interno (ver ReviewCheck.externalReviewerName más abajo).
+  ACCEPTANCE
 }
 
 // RETURNED ("Devuelta", punto 2.6): una ronda de Revisión cerró con al menos
@@ -703,6 +709,12 @@ model ReviewCheck {
   responseCategory     String?      @db.Text
   reviewedById         String?
   reviewedBy           User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])
+  // Tarea tipo ACCEPTANCE: quien califica es el cliente sin cuenta desde el
+  // link compartido, no un User — se identifica por nombre (obligatorio) y
+  // rol (opcional), mismo patrón que ShareComment.authorName/authorRole.
+  // Queda null para un check de tarea QA (lo calificó reviewedById).
+  externalReviewerName String?
+  externalReviewerRole String?
   order                Int
   // Puntos 8/13: id del TestTemplateItem del que nació este check (null si
   // se agregó a mano). Sin relación formal a propósito (el template puede

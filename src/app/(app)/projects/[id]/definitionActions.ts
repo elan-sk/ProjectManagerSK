@@ -33,10 +33,13 @@ export async function updateProjectIdentity(projectId: string, formData: FormDat
   const denied = await guard(projectId);
   if (denied) return denied;
 
+  const parsedName = z.string().trim().min(1, "El nombre no puede estar vacío.").safeParse(formData.get("name"));
+  if (!parsedName.success) return { ok: false as const, error: parsedName.error.issues[0]?.message ?? "Nombre inválido." };
+
   const rawIconUrl = formData.get("iconUrl");
   const iconUrl = typeof rawIconUrl === "string" && rawIconUrl.trim() !== "" ? rawIconUrl : null;
 
-  await prisma.project.update({ where: { id: projectId }, data: { iconUrl } });
+  await prisma.project.update({ where: { id: projectId }, data: { name: parsedName.data, iconUrl } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   return { ok: true as const };

@@ -233,7 +233,7 @@ export async function updateTaskType(taskId: string, type: string) {
     return { ok: false, error: (err as Error).message };
   }
 
-  const parsed = z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]).safeParse(type);
+  const parsed = z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]).safeParse(type);
   if (!parsed.success) return { ok: false, error: "Tipo inválido." };
 
   await prisma.task.update({ where: { id: taskId }, data: { type: parsed.data } });

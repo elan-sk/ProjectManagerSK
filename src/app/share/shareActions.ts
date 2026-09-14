@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { resolveShareToken } from "@/lib/shareLinks";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { notify, notifyShareActivity } from "@/lib/notifications";
+import { notify, notifyShareActivity, notifyReturned } from "@/lib/notifications";
 
 // Todas estas acciones son públicas a propósito (punto 15/16 confirmado con
 // el usuario): las llama /share/[token] sin sesión — el token del link ES la
@@ -81,6 +81,81 @@ export async function addPublicTaskInsumoLink(token: string, url: string, name: 
   });
   await notifyShareActivity(taskId, `Se agregó un link de insumo desde el link compartido de "${taskTitle}"`);
   revalidatePath(`/share/${token}`);
+  return { ok: true as const };
+}
+
+// Tarea tipo ACCEPTANCE (Aceptación): el cliente, sin cuenta, acepta o
+// devuelve cada característica de la ronda activa — mismo mecanismo de
+// identificación que ShareComment (nombre obligatorio, rol opcional). Al
+// devolver, la nota es obligatoria (el equipo necesita saber qué corregir).
+// Cuando el cliente califica la última característica pendiente, la ronda se
+// cierra sola (mismo criterio que closeReviewRound puertas adentro): si
+// quedó alguna devuelta -> Task.status=RETURNED + notifyReturned; si no ->
+// queda Aceptada, y el equipo completa la tarea a mano desde AcceptancePanel.
+const acceptanceDecisionSchema = z.object({
+  decision: z.enum(["ACCEPTED", "RETURNED"]),
+  name: z.string().trim().min(1),
+  role: z.string().trim().optional(),
+  note: z.string().trim().optional(),
+});
+
+export async function setPublicAcceptanceDecision(
+  token: string,
+  checkId: string,
+  data: { decision: "ACCEPTED" | "RETURNED"; name: string; role?: string; note?: string }
+) {
+  const taskId = await requireTaskLink(token);
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { type: true, title: true, projectId: true } });
+  if (task.type !== "ACCEPTANCE") return { ok: false as const, error: "Esta tarea no admite decisiones de aceptación." };
+
+  const parsed = acceptanceDecisionSchema.safeParse(data);
+  if (!parsed.success) return { ok: false as const, error: "Completá tu nombre." };
+  if (parsed.data.decision === "RETURNED" && !parsed.data.note) {
+    return { ok: false as const, error: "Contanos por qué la devolvés." };
+  }
+
+  const check = await prisma.reviewCheck.findUniqueOrThrow({
+    where: { id: checkId },
+    include: { reviewRound: true },
+  });
+  if (check.reviewRound.taskId !== taskId) return { ok: false as const, error: "Esa característica no pertenece a esta tarea." };
+  if (check.reviewRound.outcome !== null) return { ok: false as const, error: "Esta ronda ya quedó cerrada." };
+  if (check.result !== null) return { ok: false as const, error: "Esa característica ya fue calificada." };
+
+  const result = parsed.data.decision === "ACCEPTED" ? "APPROVED" : "FAILED";
+  await prisma.reviewCheck.update({
+    where: { id: checkId },
+    data: {
+      result,
+      note: parsed.data.note || null,
+      externalReviewerName: parsed.data.name,
+      externalReviewerRole: parsed.data.role || null,
+    },
+  });
+
+  // Si con esta decisión ya quedaron todas las características de la ronda
+  // calificadas, se cierra sola — el cliente no tiene (ni debería tener) un
+  // botón de "cerrar ronda" aparte.
+  const siblings = await prisma.reviewCheck.findMany({
+    where: { reviewRoundId: check.reviewRound.id },
+    select: { result: true },
+  });
+  const allResolved = siblings.every((c) => c.result !== null);
+  if (allResolved) {
+    const hasReturned = siblings.some((c) => c.result === "FAILED");
+    const outcome = hasReturned ? "RETURNED" : "APPROVED";
+    await prisma.$transaction(async (tx) => {
+      await tx.reviewRound.update({ where: { id: check.reviewRound.id }, data: { outcome, closedAt: new Date() } });
+      if (hasReturned) {
+        await tx.task.update({ where: { id: taskId }, data: { status: "RETURNED" } });
+      }
+    });
+    if (hasReturned) await notifyReturned(taskId);
+    else await notifyShareActivity(taskId, `El cliente aceptó toda la entrega de "${task.title}" ✅`);
+  }
+
+  revalidatePath(`/share/${token}`);
+  revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
   return { ok: true as const };
 }
 

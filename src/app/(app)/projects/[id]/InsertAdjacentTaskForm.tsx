@@ -10,7 +10,7 @@ import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 import { TASK_TYPE_LABEL } from "@/lib/statusColors";
 
-const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((value) => ({
+const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"] as const).map((value) => ({
   value,
   label: TASK_TYPE_LABEL[value],
 }));

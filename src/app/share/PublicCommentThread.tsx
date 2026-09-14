@@ -3,19 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addShareComment } from "./shareActions";
+import { loadShareIdentity, saveShareIdentity, type ShareIdentity } from "./shareIdentity";
 
-const IDENTITY_KEY = "pmsk-share-identity";
-
-type Identity = { name: string; role: string };
-
-function loadIdentity(): Identity | null {
-  try {
-    const raw = localStorage.getItem(IDENTITY_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
+type Identity = ShareIdentity;
 
 type CommentData = {
   id: string;
@@ -67,7 +57,7 @@ export function PublicCommentThread({
   const [sendingReply, setSendingReply] = useState(false);
 
   useEffect(() => {
-    const stored = loadIdentity();
+    const stored = loadShareIdentity();
     if (stored) {
       setIdentity(stored);
       setName(stored.name);
@@ -78,7 +68,7 @@ export function PublicCommentThread({
   function saveIdentityIfNeeded() {
     if (identity) return;
     const savedIdentity = { name: name.trim(), role: role.trim() };
-    localStorage.setItem(IDENTITY_KEY, JSON.stringify(savedIdentity));
+    saveShareIdentity(savedIdentity);
     setIdentity(savedIdentity);
   }
 

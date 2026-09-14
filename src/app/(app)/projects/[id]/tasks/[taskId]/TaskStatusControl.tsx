@@ -35,6 +35,9 @@ function getDisabledReason(
   if (ctx.type === "QA" && current === "RETURNED") {
     return "Esta tarea está devuelta por revisión — reenviá una ronda para salir de este estado.";
   }
+  if (ctx.type === "ACCEPTANCE" && current === "RETURNED") {
+    return "El cliente devolvió esta entrega — reenviá una ronda para salir de este estado.";
+  }
 
   if (!ctx.canManage) {
     if (current === "COMPLETED" && target !== "COMPLETED") {
@@ -102,7 +105,7 @@ export function TaskStatusControl({
         {/* Punto 17: "Devuelta" no es un botón clickeable (no se puede elegir
             a mano) pero mientras la tarea está en ese estado sigue habiendo
             que mostrarlo — si no, la fila de botones no resalta nada. */}
-        {type === "QA" && status === "RETURNED" && (
+        {(type === "QA" || type === "ACCEPTANCE") && status === "RETURNED" && (
           <span className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${TASK_STATUS_COLOR.RETURNED.solid}`}>
             {TASK_STATUS_LABEL.RETURNED}
           </span>

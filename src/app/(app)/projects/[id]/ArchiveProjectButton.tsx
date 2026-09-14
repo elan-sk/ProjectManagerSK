@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
 import { useToast } from "@/components/Toast";
+import { TrashIcon } from "@/components/icons";
 import { archiveProject } from "./actions";
 
 // El botón dice "Eliminar" (así lo entiende el equipo) pero por dentro
@@ -45,9 +46,11 @@ export function ArchiveProjectButton({ projectId, projectName }: { projectId: st
       type="button"
       disabled={isPending}
       onClick={handleDelete}
-      className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+      title="Eliminar proyecto"
+      aria-label="Eliminar proyecto"
+      className="rounded-lg border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-60"
     >
-      {isPending ? "Eliminando…" : "Eliminar proyecto"}
+      <TrashIcon className="h-4 w-4" />
     </button>
   );
 }

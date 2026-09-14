@@ -10,21 +10,6 @@ import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, type 
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
-export async function updateProjectName(projectId: string, formData: FormData) {
-  try {
-    await requireProjectAdmin(projectId);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-  const parsed = z.string().trim().min(1, "El nombre no puede estar vacío.").safeParse(formData.get("name"));
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Nombre inválido." };
-
-  await prisma.project.update({ where: { id: projectId }, data: { name: parsed.data } });
-  revalidatePath(`/projects/${projectId}`);
-  revalidatePath("/projects");
-  return { ok: true };
-}
-
 // Solo un administrador global (no el PM del proyecto) puede archivarlo.
 // Antes esto era un borrado real (prisma.project.delete), pero el cascade
 // sobre un proyecto con historial real (miles de notificaciones/tareas/
@@ -125,7 +110,7 @@ export async function updateProjectRepoUrl(projectId: string, formData: FormData
 const createTaskSchema = z.object({
   phaseId: z.string().min(1),
   title: z.string().min(1),
-  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]),
   description: z.string().nullable(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),
@@ -245,7 +230,7 @@ async function attachTagsToNewTask(taskId: string, projectId: string, formData: 
 
 const insertAdjacentTaskSchema = z.object({
   title: z.string().min(1),
-  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]),
   description: z.string().nullable(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),
@@ -437,6 +422,12 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   if (task.type === "QA" && task.status === "RETURNED") {
     return { ok: false, error: "Esta tarea está devuelta por revisión — no se puede cambiar el estado hasta pasar la prueba (reenviá una nueva ronda)." };
   }
+  // Mismo criterio que QA, pero "devuelta" acá la pone el cliente al
+  // rechazar una característica (ver setPublicAcceptanceDecision) en vez de
+  // un revisor interno.
+  if (task.type === "ACCEPTANCE" && task.status === "RETURNED") {
+    return { ok: false, error: "El cliente devolvió esta entrega — no se puede cambiar el estado hasta reenviar una nueva ronda." };
+  }
 
   // Un miembro sin permisos de PM/admin no puede reabrir una tarea ya
   // completada, ni devolver una "En curso"/"Bloqueada" a "Sin iniciar".
@@ -477,6 +468,15 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
     const lastRound = task.reviewRounds[0];
     if (!lastRound || lastRound.outcome !== "APPROVED") {
       return { ok: false, error: "Esta revisión necesita una ronda aprobada antes de poder completarse." };
+    }
+  }
+
+  // Aceptación: mismo criterio que QA, pero quien aprueba la última ronda es
+  // el cliente (ver setPublicAcceptanceDecision), no un revisor interno.
+  if (status === "COMPLETED" && task.type === "ACCEPTANCE") {
+    const lastRound = task.reviewRounds[0];
+    if (!lastRound || lastRound.outcome !== "APPROVED") {
+      return { ok: false, error: "Esta entrega necesita una ronda aceptada por el cliente antes de poder completarse." };
     }
   }
 

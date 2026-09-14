@@ -4,8 +4,9 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { PublicFileGrid } from "./PublicFileGrid";
 import { PublicUploadWidget } from "./PublicUploadWidget";
 import { PublicCommentThread } from "./PublicCommentThread";
+import { PublicAcceptancePanel } from "./PublicAcceptancePanel";
 import { addPublicTaskInsumo, addPublicTaskInsumoLink } from "./shareActions";
-import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicCommentWithReplies } from "@/lib/publicView";
+import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicAcceptanceRound, PublicCommentWithReplies } from "@/lib/publicView";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -19,11 +20,12 @@ const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", y
  * proyecto). Para tipo Prueba (QA) esto solo muestra la descripción — las
  * pruebas/checks nunca llegan a esta vista (ver getPublicTask en
  * publicView.ts). El bloque de Insumos/Resultados tampoco aplica a tipo
- * Ajuste — puertas adentro esas tareas nunca usan Attachment genérico, solo
- * el Antes/Después propio de cada cambio, así que mostrarlo acá dejaría
- * subidas invisibles para el equipo interno. Para tipo Ajuste, los
- * comentarios son SOLO por cada cambio puntual — no hay un hilo general
- * aparte, para no duplicar la conversación.
+ * Ajuste ni Aceptación — puertas adentro esas tareas nunca usan Attachment
+ * genérico. Para tipo Ajuste, los comentarios son SOLO por cada cambio
+ * puntual — no hay un hilo general aparte, para no duplicar la conversación.
+ * Para tipo Aceptación, a diferencia de QA, SÍ se exponen las rondas/checks
+ * (PublicAcceptancePanel) — es la lista de características que el cliente
+ * tiene que ir aceptando o devolviendo.
  */
 export function PublicTaskDetail({
   token,
@@ -36,10 +38,11 @@ export function PublicTaskDetail({
     insumos: PublicFile[];
     evidencia: PublicFile[];
     adjustmentItems: PublicAdjustmentItem[];
+    acceptanceRounds: PublicAcceptanceRound[];
     comments: PublicCommentWithReplies[];
   };
 }) {
-  const { project, task, insumos, evidencia, adjustmentItems, comments } = data;
+  const { project, task, insumos, evidencia, adjustmentItems, acceptanceRounds, comments } = data;
   const canUploadInsumo = task.status !== "COMPLETED";
 
   async function uploadInsumo(file: File) {
@@ -75,7 +78,7 @@ export function PublicTaskDetail({
         </p>
       </div>
 
-      {task.type !== "QA" && task.type !== "ADJUSTMENT" && (
+      {task.type !== "QA" && task.type !== "ADJUSTMENT" && task.type !== "ACCEPTANCE" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-medium text-slate-900">Insumos</h2>
@@ -123,6 +126,8 @@ export function PublicTaskDetail({
           ))}
         </div>
       )}
+
+      {task.type === "ACCEPTANCE" && <PublicAcceptancePanel token={token} rounds={acceptanceRounds} />}
 
       {task.type !== "ADJUSTMENT" && (
         <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">

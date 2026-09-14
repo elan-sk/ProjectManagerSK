@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `ReviewCheck` ADD COLUMN `externalReviewerName` VARCHAR(191) NULL,
+    ADD COLUMN `externalReviewerRole` VARCHAR(191) NULL;
+
+-- AlterTable
+ALTER TABLE `Task` MODIFY `type` ENUM('SIMPLE', 'MILESTONE', 'QA', 'ADJUSTMENT', 'ACCEPTANCE') NOT NULL DEFAULT 'SIMPLE';

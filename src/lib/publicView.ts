@@ -107,6 +107,29 @@ export async function getPublicProjectFiles(projectId: string) {
   };
 }
 
+// A diferencia de QA (nunca expone reviewRounds/checks, ver comentario en
+// getPublicTask), Aceptación SÍ los expone a propósito: es la lista de
+// características que el cliente tiene que ir aceptando o devolviendo.
+export type PublicAcceptanceItem = {
+  id: string;
+  title: string;
+  criteria: string | null;
+  category: string | null;
+  result: "APPROVED" | "FAILED" | null;
+  note: string | null;
+  reviewedByName: string | null;
+  reviewedByRole: string | null;
+  evidence: PublicFile[];
+};
+export type PublicAcceptanceRound = {
+  id: string;
+  roundNumber: number;
+  submittedAt: string;
+  outcome: "APPROVED" | "RETURNED" | null;
+  deliverables: PublicFile[];
+  items: PublicAcceptanceItem[];
+};
+
 export type PublicAdjustmentItem = {
   id: string;
   description: string;
@@ -154,6 +177,7 @@ export async function getPublicTask(taskId: string): Promise<{
   insumos: PublicFile[];
   evidencia: PublicFile[];
   adjustmentItems: PublicAdjustmentItem[];
+  acceptanceRounds: PublicAcceptanceRound[];
   comments: PublicCommentWithReplies[];
 } | null> {
   const task = await prisma.task.findUnique({
@@ -172,6 +196,16 @@ export async function getPublicTask(taskId: string): Promise<{
           },
         },
         orderBy: { order: "asc" },
+      },
+      // Aceptación (a propósito, a diferencia de QA — ver comentario debajo):
+      // el cliente necesita ver la lista de características para poder
+      // aceptarlas o devolverlas.
+      reviewRounds: {
+        orderBy: { roundNumber: "desc" },
+        include: {
+          deliverables: true,
+          checks: { include: { evidence: true }, orderBy: { order: "asc" } },
+        },
       },
       shareComments: {
         where: { adjustmentItemId: null, parentId: null },
@@ -212,6 +246,27 @@ export async function getPublicTask(taskId: string): Promise<{
       after: item.attachments.filter((a) => a.kind === "AFTER").map(toFile),
       comments: item.shareComments.map(toPublicCommentWithReplies),
     })),
+    acceptanceRounds:
+      task.type === "ACCEPTANCE"
+        ? task.reviewRounds.map((round) => ({
+            id: round.id,
+            roundNumber: round.roundNumber,
+            submittedAt: round.submittedAt.toISOString(),
+            outcome: round.outcome,
+            deliverables: round.deliverables.map(toFile),
+            items: round.checks.map((c) => ({
+              id: c.id,
+              title: c.title,
+              criteria: c.criteria,
+              category: c.category,
+              result: c.result as "APPROVED" | "FAILED" | null,
+              note: c.note,
+              reviewedByName: c.externalReviewerName,
+              reviewedByRole: c.externalReviewerRole,
+              evidence: c.evidence.map(toFile),
+            })),
+          }))
+        : [],
     comments: task.shareComments.map(toPublicCommentWithReplies),
   };
 }

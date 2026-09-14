@@ -30,7 +30,7 @@ const createTaskSchema = z.object({
   // Punto 3.3: aprovechar el espacio disponible — descripción clara, precisa
   // y orientada a la acción, para que quien la ejecute no tenga ambigüedad.
   description: z.string().nullable().optional(),
-  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]).default("SIMPLE"),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]).default("SIMPLE"),
   meetingUrl: z.string().url().nullable().optional(),
   plannedStart: z.coerce.date(),
   durationDays: z.coerce.number().int().min(1).default(1),

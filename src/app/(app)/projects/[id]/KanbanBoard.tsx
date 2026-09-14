@@ -77,6 +77,7 @@ const TYPE_BADGE: Record<string, string> = {
   MEETING: "bg-sky-50 text-sky-700",
   QA: "bg-teal-50 text-teal-700",
   ADJUSTMENT: "bg-orange-50 text-orange-700",
+  ACCEPTANCE: "bg-pink-50 text-pink-700",
 };
 
 const RISK_DOT: Record<string, string> = {

@@ -595,7 +595,7 @@ export default async function ProjectsPage({
                 allLabel="Todos los tipos"
                 value={type}
                 options={[
-                  ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+                  ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"] as const).map((tt) => ({
                     id: tt,
                     label: TASK_TYPE_LABEL[tt],
                   })),

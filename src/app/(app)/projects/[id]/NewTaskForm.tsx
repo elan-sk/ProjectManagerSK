@@ -15,7 +15,7 @@ import { NewTaskTagsPicker } from "./NewTaskTagsPicker";
 // cualquier tarea, no tipos propios — ver TASK_TYPE_LABEL en statusColors.ts.
 // Se deriva de ahí (no una lista propia) para que renombrar un tipo no quede
 // desincronizado entre este formulario y el resto de la app.
-const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((value) => ({
+const TASK_TYPES = (["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"] as const).map((value) => ({
   value,
   label: TASK_TYPE_LABEL[value],
 }));

@@ -61,7 +61,7 @@ export function DefinitionTab({
           </div>
         </div>
         {canManage && (
-          <ModalTrigger label="Ícono" title="Identidad del proyecto" variant="secondary" compact>
+          <ModalTrigger label="Icono y nombre" title="Identidad del proyecto" variant="secondary" compact>
             <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} />
           </ModalTrigger>
         )}

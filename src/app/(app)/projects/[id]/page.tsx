@@ -28,7 +28,6 @@ import { createProjectShareLink, revokeProjectShareLink } from "../../shareActio
 import { ArchiveProjectButton } from "./ArchiveProjectButton";
 import { CriticalPathButton } from "./CriticalPathButton";
 import { DefinitionTab } from "./DefinitionTab";
-import { EditProjectNameForm } from "./EditProjectNameForm";
 import { EditRepoUrlForm } from "./EditRepoUrlForm";
 import { EditStartDateForm } from "./EditStartDateForm";
 import { EditTargetEndDateForm } from "./EditTargetEndDateForm";
@@ -438,9 +437,6 @@ export default async function ProjectPage({
             </div>
             {canManage && (
               <div className="mt-1.5 flex flex-wrap gap-2">
-                <ModalTrigger label="Nombre" title="Editar nombre del proyecto" variant="secondary" small>
-                  <EditProjectNameForm projectId={project.id} currentName={project.name} />
-                </ModalTrigger>
                 <ModalTrigger label="Fecha de inicio" title="Editar fecha de inicio" variant="secondary" small>
                   <EditStartDateForm
                     projectId={project.id}
@@ -631,7 +627,7 @@ export default async function ProjectPage({
             allLabel="Todos los tipos"
             value={type}
             options={[
-              ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"] as const).map((tt) => ({
+              ...(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"] as const).map((tt) => ({
                 id: tt,
                 label: TASK_TYPE_LABEL[tt],
               })),

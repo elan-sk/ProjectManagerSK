@@ -11,6 +11,7 @@ import { AttachmentUploader } from "./AttachmentUploader";
 import { AttachmentGrid } from "./AttachmentGrid";
 import { AdjustmentPanel } from "./AdjustmentPanel";
 import { ReviewPanel } from "./ReviewPanel";
+import { AcceptancePanel } from "./AcceptancePanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
 import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
@@ -148,6 +149,11 @@ export default async function TaskDetailPage({
     const lastReviewRound = task.reviewRounds[0];
     if (!lastReviewRound || lastReviewRound.outcome !== "APPROVED") {
       completionBlockedReason = "Esta revisión necesita una ronda aprobada antes de poder completarse.";
+    }
+  } else if (task.type === "ACCEPTANCE") {
+    const lastRound = task.reviewRounds[0];
+    if (!lastRound || lastRound.outcome !== "APPROVED") {
+      completionBlockedReason = "Esta entrega necesita una ronda aceptada por el cliente antes de poder completarse.";
     }
   }
 
@@ -437,6 +443,42 @@ export default async function TaskDetailPage({
               note: c.note,
               responseCategory: c.responseCategory,
               reviewedByName: c.reviewedBy?.name ?? null,
+              evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+            })),
+            messages: round.messages.map((m) => ({
+              id: m.id,
+              authorId: m.authorId,
+              authorName: m.author.name,
+              body: m.body,
+              editedAt: m.editedAt?.toISOString() ?? null,
+              createdAt: m.createdAt.toISOString(),
+            })),
+          }))}
+        />
+      )}
+
+      {task.type === "ACCEPTANCE" && (
+        <AcceptancePanel
+          taskId={taskId}
+          userId={session?.user?.id ?? null}
+          canEdit={canEdit}
+          taskStatus={task.status}
+          rounds={task.reviewRounds.map((round) => ({
+            id: round.id,
+            roundNumber: round.roundNumber,
+            submittedByName: round.submittedBy.name,
+            submittedAt: round.submittedAt.toISOString(),
+            outcome: round.outcome,
+            deliverables: round.deliverables.map((d) => ({ id: d.id, url: d.fileUrl, name: d.fileName, mimeType: d.mimeType })),
+            items: round.checks.map((c) => ({
+              id: c.id,
+              title: c.title,
+              criteria: c.criteria,
+              category: c.category,
+              result: c.result as "APPROVED" | "FAILED" | null,
+              note: c.note,
+              reviewedByExternalName: c.externalReviewerName,
+              reviewedByExternalRole: c.externalReviewerRole,
               evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
             })),
             messages: round.messages.map((m) => ({

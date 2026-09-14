@@ -38,6 +38,7 @@ export const TASK_TYPE_LABEL: Record<string, string> = {
   MILESTONE: "Entregable",
   QA: "Prueba",
   ADJUSTMENT: "Ajuste",
+  ACCEPTANCE: "Aceptación",
 };
 
 // Un mismo color por nivel de la jerarquía de Definición (Objetivo →

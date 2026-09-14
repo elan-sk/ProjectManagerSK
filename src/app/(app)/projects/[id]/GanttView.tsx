@@ -174,10 +174,6 @@ function dayLabel(date: Date) {
   return date.toLocaleDateString("es-CO", { day: "2-digit", timeZone: "UTC" });
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" });
-}
-
 // Botón lupa (aparece al hover del renglón) → lleva el scroll horizontal
 // hasta la barra de esa tarea y la resalta un par de segundos (clase
 // definida en globals.css) para que sea obvio cuál es, aunque quede lejos
@@ -715,14 +711,8 @@ export function GanttView({
   // siguiente" era sábado, ni figuraba en businessDays).
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
   const todayIndex = closestBusinessDayIndex(businessDays, todayKey);
-  const todayIsExact = todayIndex >= 0 && businessDays[todayIndex].toISOString().slice(0, 10) === todayKey;
-  const todayLabel = todayIndex >= 0 ? fmtDate(businessDays[todayIndex].toISOString()) : fmtDate(`${todayKey}T00:00:00.000Z`);
   const targetEndKey = targetEndDate ? targetEndDate.slice(0, 10) : null;
   const targetEndIndex = targetEndKey ? closestBusinessDayIndex(businessDays, targetEndKey) : -1;
-  const targetEndIsExact =
-    targetEndIndex >= 0 && targetEndKey !== null && businessDays[targetEndIndex].toISOString().slice(0, 10) === targetEndKey;
-  const targetEndLabel =
-    targetEndIndex >= 0 ? fmtDate(businessDays[targetEndIndex].toISOString()) : targetEndDate ? fmtDate(targetEndDate) : "";
   const businessDaysISO = businessDays.map((d) => d.toISOString());
   const maxEndIndex = businessDays.length - 1;
 
@@ -1050,20 +1040,13 @@ export function GanttView({
               Gantt (no por fila): así quedan por encima del fondo de los
               encabezados de fase en vez de cortarse en cada uno. */}
           {todayIndex >= 0 && (
-            <TodayMarker
-              left={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2}
-              height={totalRowsHeight}
-              label={todayLabel}
-              prefix={todayIsExact ? "Hoy" : "Hoy · día hábil más cercano"}
-            />
+            <TodayMarker left={LABEL_WIDTH + todayIndex * DAY_WIDTH + DAY_WIDTH / 2} height={totalRowsHeight} />
           )}
           {targetEndIndex >= 0 && (
             <TodayMarker
               left={LABEL_WIDTH + targetEndIndex * DAY_WIDTH + DAY_WIDTH / 2}
               height={totalRowsHeight}
-              label={targetEndLabel}
-              prefix={targetEndIsExact ? "Cierre del proyecto" : "Cierre del proyecto · día hábil más cercano"}
-              colorClass="bg-red-400 hover:bg-red-500"
+              colorClass="bg-red-400"
             />
           )}
 
@@ -1075,7 +1058,7 @@ export function GanttView({
               handle de reasignar reactivan pointer-events puntualmente. */}
           <svg
             ref={svgRef}
-            className="pointer-events-none absolute top-0 z-10 overflow-visible"
+            className="pointer-events-none absolute top-0 z-0 overflow-visible"
             style={{ left: LABEL_WIDTH, width: timelineWidth, height: totalRowsHeight }}
           >
             <defs>

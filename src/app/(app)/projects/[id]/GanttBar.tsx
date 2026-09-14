@@ -389,9 +389,9 @@ export function GanttBar({
             className="pointer-events-none absolute z-10 w-64 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
             style={{ left: tooltipPos.left, top: tooltipPos.top }}
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-medium text-slate-900">{title}</p>
-              <AlertBadge alert={taskAlert} className="flex-shrink-0" />
+            <p className="font-medium text-slate-900">{title}</p>
+            <div className="mt-1 flex flex-wrap gap-1 empty:mt-0">
+              <AlertBadge alert={taskAlert} />
             </div>
             <p className="mt-1 text-slate-500">
               {fmtDate(plannedStart)} — {fmtDate(plannedEnd)} · {liveSpan} día{liveSpan !== 1 ? "s" : ""} hábil

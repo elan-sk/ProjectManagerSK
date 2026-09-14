@@ -19,6 +19,7 @@ export function ProjectIdentityForm({
   const onDone = useModalClose();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pickedIconUrl, setPickedIconUrl] = useState(iconUrl);
+  const [pickedName, setPickedName] = useState(name);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -67,7 +68,7 @@ export function ProjectIdentityForm({
       <input type="hidden" name="iconUrl" value={pickedIconUrl ?? ""} />
 
       <div className="flex items-center gap-3">
-        <ProjectIcon name={name} iconUrl={pickedIconUrl} size="h-14 w-14 text-lg" />
+        <ProjectIcon name={pickedName || name} iconUrl={pickedIconUrl} size="h-14 w-14 text-lg" />
         <div className="space-y-1">
           <label className="cursor-pointer text-sm font-medium text-slate-700 hover:underline">
             {uploading ? "Subiendo…" : "Cambiar ícono"}
@@ -80,6 +81,18 @@ export function ProjectIdentityForm({
           )}
         </div>
       </div>
+
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Nombre del proyecto</span>
+        <input
+          type="text"
+          name="name"
+          value={pickedName}
+          onChange={(e) => setPickedName(e.target.value)}
+          required
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

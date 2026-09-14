@@ -16,7 +16,7 @@ const dependsOnSchema = z.object({
 });
 const taskSchema = z.object({
   phaseName: z.string().min(1),
-  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT"]),
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]),
   title: z.string().min(1),
   description: z.string().nullable(),
   status: z.enum(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETED", "RETURNED"]),
