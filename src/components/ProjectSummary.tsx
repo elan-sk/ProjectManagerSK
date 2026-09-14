@@ -21,7 +21,7 @@ export function ScheduleVarianceBadge({ days }: { days: number | null }) {
         days > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
       }`}
     >
-      {days > 0 ? `+${days}d holgura` : `${days}d retraso`}
+      {days > 0 ? `+${days}d holgura` : `${Math.abs(days)}d retraso`}
     </span>
   );
 }

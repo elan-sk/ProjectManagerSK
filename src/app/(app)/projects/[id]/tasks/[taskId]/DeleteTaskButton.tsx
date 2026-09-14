@@ -7,12 +7,10 @@ import { useConfirm } from "@/components/Confirm";
 
 export function DeleteTaskButton({
   taskId,
-  projectId,
   title,
   compact = false,
 }: {
   taskId: string;
-  projectId: string;
   title: string;
   compact?: boolean;
 }) {
@@ -30,7 +28,10 @@ export function DeleteTaskButton({
     setError(null);
     startTransition(async () => {
       const result = await deleteTask(taskId);
-      if (result.ok) router.push(`/projects/${projectId}`);
+      // Punto confirmado con el usuario: volver a la página anterior (como
+      // el botón "atrás" del navegador), no siempre al proyecto — puede
+      // haber entrado desde el Tablero, el Gantt, Agenda, una búsqueda, etc.
+      if (result.ok) router.back();
       else setError(result.error ?? "No se pudo eliminar la tarea.");
     });
   }

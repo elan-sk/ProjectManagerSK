@@ -316,7 +316,7 @@ export default async function TaskDetailPage({
               />
             </ModalTrigger>
           )}
-          {canManage && <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} />}
+          {canManage && <DeleteTaskButton taskId={taskId} title={task.title} />}
         </div>
 
         {session?.user && (

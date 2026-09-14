@@ -38,7 +38,9 @@ export function ArchiveProjectButton({ projectId, projectName }: { projectId: st
       return;
     }
     showToast(`Se eliminó el proyecto "${projectName}".`, "success");
-    router.push("/projects");
+    // Punto confirmado con el usuario: volver a la página anterior (como el
+    // botón "atrás" del navegador), no siempre a /projects.
+    router.back();
   }
 
   return (
