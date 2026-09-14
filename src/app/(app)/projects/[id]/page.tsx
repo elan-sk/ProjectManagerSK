@@ -172,6 +172,20 @@ export default async function ProjectPage({
 
   const bottleneckReasonById = new Map(bottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
+  // Gantt y Tablero, ordenados cronológicamente por fecha de inicio (pedido
+  // confirmado con el usuario) — primero por el orden de la fase (para no
+  // desarmar el agrupamiento por fase del Gantt) y dentro de esa fase, por
+  // plannedStart. Se calcula acá, en el Server Component, así que solo se
+  // reordena al volver a cargar la página — mientras el usuario arrastra una
+  // barra en el Gantt no hay ningún refresh en curso, entonces la fila no
+  // salta de lugar hasta soltar y recargar.
+  const phaseOrderById = new Map(project.phases.map((p) => [p.id, p.order]));
+  const tasksSortedByPhaseThenStart = [...project.tasks].sort((a, b) => {
+    const phaseDiff = (phaseOrderById.get(a.phaseId) ?? 0) - (phaseOrderById.get(b.phaseId) ?? 0);
+    if (phaseDiff !== 0) return phaseDiff;
+    return a.plannedStart.getTime() - b.plannedStart.getTime();
+  });
+
   const alertByTaskId = new Map(
     await Promise.all(
       project.tasks.map(async (t) => [t.id, await getTaskAlert(project.countryCode, t)] as const)
@@ -242,7 +256,7 @@ export default async function ProjectPage({
     matchesTagFilter(tag, t.taskTags) &&
     matchesTaskSearch(t, q);
 
-  const taskCards: TaskCard[] = project.tasks.filter(matchesFilters).map((t) => ({
+  const taskCards: TaskCard[] = tasksSortedByPhaseThenStart.filter(matchesFilters).map((t) => ({
     id: t.id,
     projectId: project.id,
     projectName: project.name,
@@ -305,7 +319,7 @@ export default async function ProjectPage({
     )
   );
 
-  const ganttTasks: GanttTask[] = project.tasks.filter(matchesFilters).map((t) => {
+  const ganttTasks: GanttTask[] = tasksSortedByPhaseThenStart.filter(matchesFilters).map((t) => {
     const startIndex = businessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
     const endIndex = businessDayIndex.get(dateKey(displayEnd(t))) ?? startIndex;
     // Punto 6 (arrastre de extremos): el inicio nunca puede quedar antes de
