@@ -1,8 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import type { TaskType } from "@prisma/client";
 
 // Punto 2.6.2/2.6.3: métricas de Revisión para Rendimiento, enfoque PSP
 // ligero — detección de errores, calidad, cumplimiento, patrones de error.
 // Nunca métricas de código (líneas, tiempo por línea, etc.).
+
+// Único tipo de tarea que usa el motor de rondas (ReviewRound/ReviewCheck)
+// además de QA. Todas las funciones de este archivo reciben `taskType`
+// explícito (confirmado con el usuario): Pruebas y Aceptaciones miden cosas
+// distintas (revisor interno vs. cliente externo) y deben poder separarse en
+// Rendimiento, así que nunca se mezclan por default.
+export type ReviewTaskType = Extract<TaskType, "QA" | "ACCEPTANCE">;
 
 // Solo mide el rol de RESPONSABLE (quien entrega) — el rol de revisor
 // (checksReviewed/checksFailed sobre trabajo ajeno) se sacó porque mezclado
@@ -16,8 +24,8 @@ export type ReviewPerformance = {
   roundsReturned: number;
 };
 
-export async function getReviewPerformance(projectIds?: string[]): Promise<ReviewPerformance[]> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?: string[]): Promise<ReviewPerformance[]> {
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
 
   const [rounds, users] = await Promise.all([
     prisma.reviewRound.findMany({
@@ -62,9 +70,10 @@ export type ReviewPerformanceByProject = ReviewPerformance & { projectId: string
 /** Igual que getReviewPerformance pero desglosado por proyecto, para un único usuario. */
 export async function getReviewPerformanceByProject(
   userId: string,
+  taskType: ReviewTaskType,
   projectIds?: string[]
 ): Promise<ReviewPerformanceByProject[]> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
 
   const [rounds, user] = await Promise.all([
     prisma.reviewRound.findMany({
@@ -113,8 +122,12 @@ export async function getReviewPerformanceByProject(
 // Categorías de check (convenciones, responsividad, usabilidad, etc.) que
 // más frecuentemente terminan en "Con errores" — para detectar patrones y
 // priorizar dónde mejorar, no para señalar personas.
-export async function getCommonFailureCategories(projectIds?: string[], limit = 10): Promise<{ category: string; count: number }[]> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+export async function getCommonFailureCategories(
+  taskType: ReviewTaskType,
+  projectIds?: string[],
+  limit = 10
+): Promise<{ category: string; count: number }[]> {
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
   const failed = await prisma.reviewCheck.findMany({
     where: { result: "FAILED", reviewRound: taskFilter },
     select: { category: true },
@@ -137,8 +150,12 @@ export async function getCommonFailureCategories(projectIds?: string[], limit = 
 // al armar la ronda) — otro ángulo de qué se repite, nunca analizado hasta
 // ahora en ningún informe. Ojo: al ser texto libre sin vocabulario fijo, es
 // normal que se agrupe peor que category (cada quien lo redacta distinto).
-export async function getCommonResponseCategories(projectIds?: string[], limit = 10): Promise<{ category: string; count: number }[]> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+export async function getCommonResponseCategories(
+  taskType: ReviewTaskType,
+  projectIds?: string[],
+  limit = 10
+): Promise<{ category: string; count: number }[]> {
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
   const failed = await prisma.reviewCheck.findMany({
     where: { result: "FAILED", reviewRound: taskFilter },
     select: { responseCategory: true },
@@ -163,10 +180,11 @@ export async function getCommonResponseCategories(projectIds?: string[], limit =
  */
 export async function getFailureAnalysisByUser(
   userId: string,
+  taskType: ReviewTaskType,
   projectIds?: string[],
   limit = 10
 ): Promise<{ byCategory: { category: string; count: number }[]; byResponseCategory: { category: string; count: number }[] }> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
   const failed = await prisma.reviewCheck.findMany({
     where: { result: "FAILED", reviewRound: { submittedById: userId, ...taskFilter } },
     select: { category: true, responseCategory: true },
@@ -223,10 +241,11 @@ export type RecentTrend = { rate: number; count: number };
  */
 export async function getRecentFirstPassTrend(
   userId: string,
+  taskType: ReviewTaskType,
   projectIds?: string[],
   windowSize = 5
 ): Promise<RecentTrend | null> {
-  const taskFilter = projectIds ? { task: { projectId: { in: projectIds } } } : {};
+  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
   const firstRounds = await prisma.reviewRound.findMany({
     where: { submittedById: userId, roundNumber: 1, outcome: { not: null }, ...taskFilter },
     select: { outcome: true },

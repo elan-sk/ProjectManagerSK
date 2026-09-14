@@ -196,9 +196,11 @@ export default async function AgendaPage({
     // agenda, nunca mirando la de otra persona.
     viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id),
     viewingOther ? Promise.resolve([]) : getUserPerformance(session.user.id),
-    // Resumen de pruebas/revisiones entregadas (si el usuario nunca entrega
-    // nada a QA, roundsSubmitted queda en 0 y no se muestra ese dato extra).
-    viewingOther ? Promise.resolve([]) : getReviewPerformance(),
+    // Resumen de pruebas entregadas (si el usuario nunca entrega nada a QA,
+    // roundsSubmitted queda en 0 y no se muestra ese dato extra) — Aceptación
+    // queda afuera de este resumen rápido, tiene su propio bloque en
+    // /performance.
+    viewingOther ? Promise.resolve([]) : getReviewPerformance("QA"),
   ]);
 
   const tasksWithAlert = await Promise.all(

@@ -54,6 +54,110 @@ function TrendCell({ recent, historicalRate }: { recent: { rate: number; count: 
   );
 }
 
+type ReviewPerf = Awaited<ReturnType<typeof getReviewPerformance>>[number];
+type RecentTrendType = Awaited<ReturnType<typeof getRecentFirstPassTrend>>;
+
+/** Punto confirmado con el usuario: Pruebas y Aceptaciones se muestran separadas (revisor interno vs. cliente externo), nunca mezcladas en el mismo total. */
+function ReviewPerformanceSection({
+  title,
+  description,
+  reviewPerformance,
+  failureCategories,
+  responseCategories,
+  trendByUser,
+}: {
+  title: string;
+  description: string;
+  reviewPerformance: ReviewPerf[];
+  failureCategories: { category: string; count: number }[];
+  responseCategories: { category: string; count: number }[];
+  trendByUser: Map<string, RecentTrendType>;
+}) {
+  if (reviewPerformance.length === 0 && failureCategories.length === 0 && responseCategories.length === 0) return null;
+
+  const roundsApprovedFirstTryTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsApprovedFirstTry, 0);
+  const roundsReturnedTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsReturned, 0);
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <p className="text-sm text-slate-500">{description}</p>
+
+      {roundsApprovedFirstTryTotal + roundsReturnedTotal > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-medium text-slate-700">Rondas: aprobadas a la 1ra vs. devueltas</h3>
+          <BarChart
+            data={[
+              { label: "Aprobadas", value: roundsApprovedFirstTryTotal, colorClass: "bg-emerald-500" },
+              { label: "Devueltas", value: roundsReturnedTotal, colorClass: "bg-red-500" },
+            ]}
+          />
+        </div>
+      )}
+
+      {(failureCategories.length > 0 || responseCategories.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {failureCategories.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-medium text-slate-700">Categorías de error más comunes</h3>
+              <DonutChart data={toDonutData(failureCategories)} />
+            </div>
+          )}
+          {responseCategories.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-medium text-slate-700">Tipo de corrección más frecuente</h3>
+              <DonutChart data={toDonutData(responseCategories)} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {reviewPerformance.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Persona</th>
+                <th className="px-4 py-2 font-medium">Rondas enviadas</th>
+                <th className="px-4 py-2 font-medium">Tareas revisadas</th>
+                <th className="px-4 py-2 font-medium">Aprobadas al 1er intento</th>
+                <th className="px-4 py-2 font-medium">Rondas/tarea</th>
+                <th className="px-4 py-2 font-medium">Devueltas</th>
+                <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {reviewPerformance.map((p) => {
+                const fpy = p.tasksReviewed > 0 ? p.roundsApprovedFirstTry / p.tasksReviewed : null;
+                const reworkRate = p.tasksReviewed > 0 ? p.roundsSubmitted / p.tasksReviewed : null;
+                return (
+                  <tr key={p.userId}>
+                    <td className="px-4 py-2 font-medium text-slate-900">{p.userName}</td>
+                    <td className="px-4 py-2 text-slate-600">{p.roundsSubmitted}</td>
+                    <td className="px-4 py-2 text-slate-600">{p.tasksReviewed}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {p.tasksReviewed === 0
+                        ? "—"
+                        : `${p.roundsApprovedFirstTry}/${p.tasksReviewed} (${Math.round((fpy ?? 0) * 100)}%)`}
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{reworkRate === null ? "—" : reworkRate.toFixed(1)}</td>
+                    <td className={`px-4 py-2 font-medium ${p.roundsReturned > 0 ? "text-orange-600" : "text-slate-600"}`}>
+                      {p.roundsReturned}
+                    </td>
+                    <td className="px-4 py-2 font-medium">
+                      <TrendCell recent={trendByUser.get(p.userId) ?? null} historicalRate={fpy} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default async function PerformancePage({
   searchParams,
 }: {
@@ -83,7 +187,19 @@ export default async function PerformancePage({
     ? [projectId]
     : myPmProjectIds!;
 
-  const [projects, performance, workload, report, trend, reviewPerformance, failureCategories, responseCategories] = await Promise.all([
+  const [
+    projects,
+    performance,
+    workload,
+    report,
+    trend,
+    qaPerformance,
+    qaFailureCategories,
+    qaResponseCategories,
+    acceptancePerformance,
+    acceptanceFailureCategories,
+    acceptanceResponseCategories,
+  ] = await Promise.all([
     prisma.project.findMany({
       where: isAdmin ? undefined : { id: { in: myPmProjectIds! } },
       orderBy: { name: "asc" },
@@ -92,9 +208,12 @@ export default async function PerformancePage({
     getTeamWorkload(selectedProjectIds),
     getProjectReport(selectedProjectIds),
     getCompletionTrend(selectedProjectIds, 8),
-    getReviewPerformance(selectedProjectIds),
-    getCommonFailureCategories(selectedProjectIds),
-    getCommonResponseCategories(selectedProjectIds),
+    getReviewPerformance("QA", selectedProjectIds),
+    getCommonFailureCategories("QA", selectedProjectIds),
+    getCommonResponseCategories("QA", selectedProjectIds),
+    getReviewPerformance("ACCEPTANCE", selectedProjectIds),
+    getCommonFailureCategories("ACCEPTANCE", selectedProjectIds),
+    getCommonResponseCategories("ACCEPTANCE", selectedProjectIds),
   ]);
 
   const onTimeRanked = performance
@@ -107,15 +226,14 @@ export default async function PerformancePage({
     .map((p) => ({ label: p.userName, value: p.totalDelayDays, colorClass: "bg-red-500" }))
     .sort((a, b) => b.value - a.value);
 
-  const roundsApprovedFirstTryTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsApprovedFirstTry, 0);
-  const roundsReturnedTotal = reviewPerformance.reduce((sum, p) => sum + p.roundsReturned, 0);
-
-  const [onTimeTrends, reviewTrends] = await Promise.all([
+  const [onTimeTrends, qaTrends, acceptanceTrends] = await Promise.all([
     Promise.all(performance.map((p) => getRecentOnTimeTrend(p.userId, selectedProjectIds))),
-    Promise.all(reviewPerformance.map((p) => getRecentFirstPassTrend(p.userId, selectedProjectIds))),
+    Promise.all(qaPerformance.map((p) => getRecentFirstPassTrend(p.userId, "QA", selectedProjectIds))),
+    Promise.all(acceptancePerformance.map((p) => getRecentFirstPassTrend(p.userId, "ACCEPTANCE", selectedProjectIds))),
   ]);
   const onTimeTrendByUser = new Map(performance.map((p, i) => [p.userId, onTimeTrends[i]]));
-  const reviewTrendByUser = new Map(reviewPerformance.map((p, i) => [p.userId, reviewTrends[i]]));
+  const qaTrendByUser = new Map(qaPerformance.map((p, i) => [p.userId, qaTrends[i]]));
+  const acceptanceTrendByUser = new Map(acceptancePerformance.map((p, i) => [p.userId, acceptanceTrends[i]]));
 
   const selectedProject = projectId ? projects.find((p) => p.id === projectId) ?? null : null;
 
@@ -287,88 +405,26 @@ export default async function PerformancePage({
       </section>
 
       {/* Punto 2.6.2/2.6.3: Revisión — enfoque PSP ligero (detección de
-          errores, calidad, patrones), sin métricas de código. */}
-      {(reviewPerformance.length > 0 || failureCategories.length > 0 || responseCategories.length > 0) && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900">Pruebas y Aceptaciones</h2>
-          <p className="text-sm text-slate-500">
-            Rondas enviadas y aprobadas como responsable (de tareas tipo Prueba o Aceptación), y qué categorías de
-            error se repiten más — para detectar patrones, no para señalar personas.
-          </p>
+          errores, calidad, patrones), sin métricas de código. Pruebas y
+          Aceptaciones separadas (confirmado con el usuario): miden roles
+          distintos, revisor interno vs. cliente externo. */}
+      <ReviewPerformanceSection
+        title="Pruebas"
+        description="Rondas enviadas y aprobadas como responsable en tareas tipo Prueba (QA), y qué categorías de error se repiten más — para detectar patrones, no para señalar personas."
+        reviewPerformance={qaPerformance}
+        failureCategories={qaFailureCategories}
+        responseCategories={qaResponseCategories}
+        trendByUser={qaTrendByUser}
+      />
 
-          {roundsApprovedFirstTryTotal + roundsReturnedTotal > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="mb-3 text-sm font-medium text-slate-700">Rondas: aprobadas a la 1ra vs. devueltas</h3>
-              <BarChart
-                data={[
-                  { label: "Aprobadas", value: roundsApprovedFirstTryTotal, colorClass: "bg-emerald-500" },
-                  { label: "Devueltas", value: roundsReturnedTotal, colorClass: "bg-red-500" },
-                ]}
-              />
-            </div>
-          )}
-
-          {(failureCategories.length > 0 || responseCategories.length > 0) && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {failureCategories.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">Categorías de error más comunes</h3>
-                  <DonutChart data={toDonutData(failureCategories)} />
-                </div>
-              )}
-              {responseCategories.length > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">Tipo de corrección más frecuente</h3>
-                  <DonutChart data={toDonutData(responseCategories)} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {reviewPerformance.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Persona</th>
-                    <th className="px-4 py-2 font-medium">Rondas enviadas</th>
-                    <th className="px-4 py-2 font-medium">Tareas revisadas</th>
-                    <th className="px-4 py-2 font-medium">Aprobadas al 1er intento</th>
-                    <th className="px-4 py-2 font-medium">Rondas/tarea</th>
-                    <th className="px-4 py-2 font-medium">Devueltas</th>
-                    <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {reviewPerformance.map((p) => {
-                    const fpy = p.tasksReviewed > 0 ? p.roundsApprovedFirstTry / p.tasksReviewed : null;
-                    const reworkRate = p.tasksReviewed > 0 ? p.roundsSubmitted / p.tasksReviewed : null;
-                    return (
-                      <tr key={p.userId}>
-                        <td className="px-4 py-2 font-medium text-slate-900">{p.userName}</td>
-                        <td className="px-4 py-2 text-slate-600">{p.roundsSubmitted}</td>
-                        <td className="px-4 py-2 text-slate-600">{p.tasksReviewed}</td>
-                        <td className="px-4 py-2 text-slate-600">
-                          {p.tasksReviewed === 0
-                            ? "—"
-                            : `${p.roundsApprovedFirstTry}/${p.tasksReviewed} (${Math.round((fpy ?? 0) * 100)}%)`}
-                        </td>
-                        <td className="px-4 py-2 text-slate-600">{reworkRate === null ? "—" : reworkRate.toFixed(1)}</td>
-                        <td className={`px-4 py-2 font-medium ${p.roundsReturned > 0 ? "text-orange-600" : "text-slate-600"}`}>
-                          {p.roundsReturned}
-                        </td>
-                        <td className="px-4 py-2 font-medium">
-                          <TrendCell recent={reviewTrendByUser.get(p.userId) ?? null} historicalRate={fpy} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+      <ReviewPerformanceSection
+        title="Aceptaciones"
+        description="Rondas enviadas y aceptadas como responsable en tareas tipo Aceptación — acá quien califica es el cliente, no un revisor interno."
+        reviewPerformance={acceptancePerformance}
+        failureCategories={acceptanceFailureCategories}
+        responseCategories={acceptanceResponseCategories}
+        trendByUser={acceptanceTrendByUser}
+      />
     </div>
   );
 }
