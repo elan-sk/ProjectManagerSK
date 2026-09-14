@@ -174,6 +174,11 @@ function dayLabel(date: Date) {
   return date.toLocaleDateString("es-CO", { day: "2-digit", timeZone: "UTC" });
 }
 
+function weekdayLabel(date: Date) {
+  const weekday = date.toLocaleDateString("es-CO", { weekday: "long", timeZone: "UTC" });
+  return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+}
+
 // Botón lupa (aparece al hover del renglón) → lleva el scroll horizontal
 // hasta la barra de esa tarea y la resalta un par de segundos (clase
 // definida en globals.css) para que sea obvio cuál es, aunque quede lejos
@@ -904,6 +909,7 @@ export function GanttView({
               {businessDays.map((d, i) => (
                 <div
                   key={i}
+                  title={weekdayLabel(d)}
                   style={{ width: DAY_WIDTH }}
                   className={`py-1 text-center text-[10px] ${
                     highlightedDayIndices.has(i) ? "bg-indigo-100 font-semibold text-indigo-700" : "font-normal text-slate-400"
