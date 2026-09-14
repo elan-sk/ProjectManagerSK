@@ -66,12 +66,20 @@ export function AttachmentPreviewModal({
       try {
         if (file.mimeType === WORD_MIME) {
           const [{ renderAsync }, res] = await Promise.all([import("docx-preview"), fetch(file.url)]);
+          // Sin este chequeo, un 404 (archivo borrado/perdido del servidor)
+          // se intentaba igual renderizar como si fuera el .docx real —
+          // fallaba al parsear con el mismo mensaje genérico que cualquier
+          // otro error, sin decir qué pasó de verdad.
+          if (res.status === 404) throw new Error("NOT_FOUND");
+          if (!res.ok) throw new Error("FETCH_FAILED");
           const blob = await res.blob();
           if (cancelled || !containerRef.current) return;
           containerRef.current.innerHTML = "";
           await renderAsync(blob, containerRef.current);
         } else if (file.mimeType === EXCEL_MIME) {
           const [{ default: ExcelJS }, res] = await Promise.all([import("exceljs"), fetch(file.url)]);
+          if (res.status === 404) throw new Error("NOT_FOUND");
+          if (!res.ok) throw new Error("FETCH_FAILED");
           const buffer = await res.arrayBuffer();
           const workbook = new ExcelJS.Workbook();
           // El tipo de exceljs pide Buffer (Node); en el navegador funciona
@@ -93,8 +101,14 @@ export function AttachmentPreviewModal({
             })
           );
         }
-      } catch {
-        if (!cancelled) setError("No se pudo mostrar este archivo — probá descargarlo.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error && err.message === "NOT_FOUND"
+              ? "Este archivo ya no está disponible en el servidor."
+              : "No se pudo mostrar este archivo — probá descargarlo."
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
