@@ -1058,8 +1058,6 @@ export function GanttView({
                         plannedStart={t.plannedStart}
                         plannedEnd={t.plannedEnd}
                         updatedAt={t.updatedAt}
-                        dependsOn={t.dependsOn}
-                        blocks={t.blocks}
                         attachmentsCount={t.attachmentsCount}
                         alert={t.alert}
                         assignees={t.assignees}

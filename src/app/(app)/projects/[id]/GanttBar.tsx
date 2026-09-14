@@ -49,8 +49,6 @@ export function GanttBar({
   plannedStart,
   plannedEnd,
   updatedAt,
-  dependsOn,
-  blocks,
   attachmentsCount,
   alert: taskAlert,
   assignees,
@@ -83,8 +81,6 @@ export function GanttBar({
   plannedEnd: string;
   // Punto 12: bloqueo optimista — se reenvía tal cual a resizeTask/moveTask.
   updatedAt: string;
-  dependsOn: string[];
-  blocks: string[];
   attachmentsCount: number;
   alert: TaskAlert;
   assignees: { name: string; avatarUrl: string | null }[];
@@ -415,8 +411,6 @@ export function GanttBar({
               {liveSpan !== 1 ? "es" : ""}
               {taskAlert.level === "onTrack" && ` · vence en ${taskAlert.daysRemaining}d`}
             </p>
-            {dependsOn.length > 0 && <p className="mt-1 text-slate-500">Depende de: {dependsOn.join(", ")}</p>}
-            {blocks.length > 0 && <p className="mt-1 text-slate-500">Sigue: {blocks.join(", ")}</p>}
             {attachmentsCount > 0 && <p className="mt-1 text-slate-500">{attachmentsCount} adjunto(s)</p>}
             {assignees.length > 0 && (
               <div className="mt-1.5 flex items-center gap-1">
@@ -444,13 +438,6 @@ export function GanttBar({
                   <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} name={tag.name} />
                 ))}
               </div>
-            )}
-            {onToggleSelect && (
-              <p className="mt-1.5 text-[11px] text-slate-400">
-                Click para seleccionar
-                {canResize && " · arrastrá los extremos para ajustar fechas"}
-                {canMove && " · arrastrá el cuerpo para mover toda la tarea"}
-              </p>
             )}
           </div>,
           tooltipLayer
