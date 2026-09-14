@@ -290,10 +290,10 @@ export default async function PerformancePage({
           errores, calidad, patrones), sin métricas de código. */}
       {(reviewPerformance.length > 0 || failureCategories.length > 0 || responseCategories.length > 0) && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900">Pruebas</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Pruebas y Aceptaciones</h2>
           <p className="text-sm text-slate-500">
-            Rondas enviadas y aprobadas como responsable, y qué categorías de error se repiten más — para detectar
-            patrones, no para señalar personas.
+            Rondas enviadas y aprobadas como responsable (de tareas tipo Prueba o Aceptación), y qué categorías de
+            error se repiten más — para detectar patrones, no para señalar personas.
           </p>
 
           {roundsApprovedFirstTryTotal + roundsReturnedTotal > 0 && (
