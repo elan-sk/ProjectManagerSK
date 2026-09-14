@@ -10,7 +10,8 @@ import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { setDependency, removeDependency } from "./tasks/[taskId]/actions";
+import { setDependency, removeDependency, deleteTask } from "./tasks/[taskId]/actions";
+import { useConfirm } from "@/components/Confirm";
 import { moveTaskGroup } from "./actions";
 import { ModalShell } from "@/components/Modal";
 import { InsertAdjacentTaskForm } from "./InsertAdjacentTaskForm";
@@ -227,6 +228,7 @@ export function GanttView({
 }) {
   const router = useRouter();
   const showToast = useToast();
+  const confirm = useConfirm();
   const [, startTransition] = useTransition();
 
   // Orden de filas "congelado" (confirmado con el usuario): el server ya
@@ -573,6 +575,23 @@ export function GanttView({
       } catch (err) {
         showToast(err instanceof Error ? err.message : "No se pudo eliminar el vínculo.");
       }
+    });
+  }
+
+  // Punto confirmado con el usuario: "Eliminar tarea" en el menú contextual
+  // del Gantt — solo aparece si task.canManage (ver render más abajo), mismo
+  // criterio que ya usa el botón de eliminar del detalle de la tarea.
+  async function handleDeleteTaskFromContext(taskId: string, title: string) {
+    setContextMenu(null);
+    const ok = await confirm(`¿Seguro que querés eliminar la tarea "${title}"? No vas a poder deshacer esto.`, {
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const result = await deleteTask(taskId);
+      if (result.ok) router.refresh();
+      else showToast(result.error ?? "No se pudo eliminar la tarea.");
     });
   }
 
@@ -1271,6 +1290,15 @@ export function GanttView({
                 >
                   Crear sucesor
                 </button>
+                {taskById.get(contextMenu.taskId)?.canManage && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTaskFromContext(contextMenu.taskId, taskById.get(contextMenu.taskId)!.title)}
+                    className="mt-1 block w-full rounded-lg border-t border-slate-100 px-3 py-2 pt-2.5 text-left text-red-600 hover:bg-red-50"
+                  >
+                    Eliminar tarea
+                  </button>
+                )}
               </>
             ) : (
               <button

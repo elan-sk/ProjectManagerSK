@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/Confirm";
 import { useToast } from "@/components/Toast";
 import { TrashIcon } from "@/components/icons";
 import { archiveProject } from "./actions";
+import { hrefWithMemory } from "../../NavLinkWithMemory";
 
 // El botón dice "Eliminar" (así lo entiende el equipo) pero por dentro
 // archiva en vez de borrar de verdad — ver el comentario en archiveProject
@@ -38,9 +39,10 @@ export function ArchiveProjectButton({ projectId, projectName }: { projectId: st
       return;
     }
     showToast(`Se eliminó el proyecto "${projectName}".`, "success");
-    // Punto confirmado con el usuario: volver a la página anterior (como el
-    // botón "atrás" del navegador), no siempre a /projects.
-    router.back();
+    // Misma memoria de vista que usa el link "← Todos los proyectos" de
+    // /projects (RememberViewState) — más confiable que router.back(), que
+    // depende del historial real y puede caer en un lugar inesperado.
+    router.push(hrefWithMemory("/projects", "projectsBoard"));
   }
 
   return (

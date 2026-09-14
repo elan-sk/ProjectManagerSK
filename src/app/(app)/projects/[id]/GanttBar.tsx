@@ -136,7 +136,10 @@ export function GanttBar({
   const [liveEndIndex, setLiveEndIndex] = useState(endIndex);
   const [tooltipPos, setTooltipPos] = useState<{ left: number; top: number } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const tooltipBarTopRef = useRef(0);
+  // Posición de la barra en el momento del hover — se recalcula el `top`
+  // final contra la ALTURA REAL del tooltip (ver layout effect debajo), así
+  // nunca puede terminar invadiendo/tapando la propia barra.
+  const barPosRef = useRef({ topInContainer: 0, bottomInContainer: 0, bottomInWindow: 0 });
   // Distingue un click real (seleccionar/abrir) de un click que en realidad
   // fue el final de un arrastre del cuerpo — el evento click del navegador
   // se sigue disparando después del pointerup aunque haya habido movimiento.
@@ -161,8 +164,8 @@ export function GanttBar({
     if (!bar || !container) return;
     const barRect = bar.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    // Si no entra debajo de la barra, se dibuja arriba en su lugar (bug
-    // real: en filas cerca del fondo del viewport quedaba cortado/oculto).
+    // Estimado para el primer render (evita parpadeo) — el layout effect de
+    // abajo corrige con la altura REAL apenas se conoce.
     const fitsBelow = window.innerHeight - barRect.bottom >= TOOLTIP_MAX_HEIGHT + 8;
     const top = fitsBelow
       ? barRect.bottom - containerRect.top + 8
@@ -174,7 +177,11 @@ export function GanttBar({
       8,
       containerRect.width - TOOLTIP_WIDTH - 8
     );
-    tooltipBarTopRef.current = barRect.top - containerRect.top;
+    barPosRef.current = {
+      topInContainer: barRect.top - containerRect.top,
+      bottomInContainer: barRect.bottom - containerRect.top,
+      bottomInWindow: barRect.bottom,
+    };
     setTooltipPos({ left, top });
   }
 
@@ -182,16 +189,21 @@ export function GanttBar({
     setTooltipPos(null);
   }
 
-  // TOOLTIP_MAX_HEIGHT es una estimación: tareas con varias dependencias o
-  // revisores envuelven a más líneas y superan esa altura, así que el flip
-  // de arriba decidía "entra abajo" y el tooltip terminaba lejos de la barra,
-  // cerca del fondo del viewport. Acá se corrige con la altura YA renderizada.
+  // TOOLTIP_MAX_HEIGHT es solo una estimación para el primer render — tareas
+  // con varias dependencias/revisores/tags envuelven a más líneas y superan
+  // esa altura. Si el flip decidió "arriba" con esa estimación y el tooltip
+  // real termina siendo más alto, su borde inferior invadía el espacio de la
+  // barra (la tapaba — bug real reportado por el usuario). Acá se recalcula
+  // SIEMPRE contra la altura ya renderizada, así nunca puede quedar más
+  // abajo que el borde superior de la barra ni cortado contra el viewport.
   useLayoutEffect(() => {
     if (!tooltipPos || !tooltipRef.current) return;
-    const overflow = tooltipRef.current.getBoundingClientRect().bottom - window.innerHeight;
-    if (overflow > 0) {
-      const realHeight = tooltipRef.current.offsetHeight;
-      setTooltipPos((p) => (p ? { ...p, top: tooltipBarTopRef.current - realHeight - 8 } : p));
+    const realHeight = tooltipRef.current.offsetHeight;
+    const { topInContainer, bottomInContainer, bottomInWindow } = barPosRef.current;
+    const fitsBelowReal = window.innerHeight - bottomInWindow >= realHeight + 8;
+    const correctTop = fitsBelowReal ? bottomInContainer + 8 : topInContainer - realHeight - 8;
+    if (Math.abs(correctTop - tooltipPos.top) > 0.5) {
+      setTooltipPos((p) => (p ? { ...p, top: correctTop } : p));
     }
   }, [tooltipPos]);
 

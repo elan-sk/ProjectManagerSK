@@ -4,13 +4,16 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteTask } from "./actions";
 import { useConfirm } from "@/components/Confirm";
+import { hrefWithMemory } from "../../../../NavLinkWithMemory";
 
 export function DeleteTaskButton({
   taskId,
+  projectId,
   title,
   compact = false,
 }: {
   taskId: string;
+  projectId: string;
   title: string;
   compact?: boolean;
 }) {
@@ -28,10 +31,13 @@ export function DeleteTaskButton({
     setError(null);
     startTransition(async () => {
       const result = await deleteTask(taskId);
-      // Punto confirmado con el usuario: volver a la página anterior (como
-      // el botón "atrás" del navegador), no siempre al proyecto — puede
-      // haber entrado desde el Tablero, el Gantt, Agenda, una búsqueda, etc.
-      if (result.ok) router.back();
+      // Punto confirmado con el usuario: volver a la MISMA vista del
+      // proyecto de la que vino (Tablero/Gantt/Calendario/etc., con sus
+      // filtros) — router.back() resultó frágil (cualquier filtro o
+      // refresh de por medio en el historial real podía hacer que "atrás"
+      // no cayera ahí), así que se reusa la misma memoria de vista que ya
+      // usa el link "← proyecto" de esta página (RememberViewState).
+      if (result.ok) router.push(hrefWithMemory(`/projects/${projectId}`, `project:${projectId}`));
       else setError(result.error ?? "No se pudo eliminar la tarea.");
     });
   }
