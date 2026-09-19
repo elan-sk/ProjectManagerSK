@@ -9,6 +9,7 @@ import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
 import { InternalMessageBell } from "./InternalMessageBell";
 import { HeaderAlerts } from "./HeaderAlerts";
+import { HeaderSearch } from "./HeaderSearch";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
@@ -87,7 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <LiveRefresh />
     <div className="pacific-shell min-h-screen bg-slate-50">
       <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-1 sm:px-6">
-        <nav className="pacific-nav flex items-center gap-4 text-sm font-medium">
+        <nav className="pacific-nav flex flex-shrink-0 items-center gap-4 text-sm font-medium">
           <BackButton />
           <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="mr-1 flex items-center gap-2 text-slate-900">
             <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">PM</span></span>
@@ -99,9 +100,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href={performanceHref}>Rendimiento</Link>
           <Link href="/settings">Configuración</Link>
         </nav>
-        <div className="flex items-center gap-3">
+        <HeaderSearch />
+        <div className="flex flex-shrink-0 items-center gap-3">
           <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
-            Hoy: {new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
+            Hoy: {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" }).replace(" de ", " ")}
           </span>
           <PushSubscribeButton />
           <HeaderAlerts
@@ -119,7 +121,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               await signOut({ redirectTo: "/login" });
             }}
           >
-            <span className="mr-3 text-sm text-slate-500">{me.name}</span>
+            <span title={me.name} className="mr-3 text-sm text-slate-500">
+              {/* Máx. 10 caracteres: con el buscador en el header no alcanza el ancho. */}
+              {me.name.length > 10 ? `${me.name.slice(0, 10).trimEnd()}…` : me.name}
+            </span>
             <button type="submit" className="text-sm text-slate-500 hover:text-slate-900">
               Salir
             </button>

@@ -180,17 +180,17 @@ export function ProjectLinksPanel({
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
           <div className="flex gap-2">
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nombre"
-              className="w-40 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
-            />
-            <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               placeholder="https://…"
               className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+            />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Nombre"
+              className="w-40 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             />
             <button
               type="button"

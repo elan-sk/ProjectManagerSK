@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon } from "@/components/icons";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
@@ -999,7 +1000,9 @@ export function GanttView({
                     className="sticky left-0 z-30 flex flex-shrink-0 cursor-pointer select-none items-center gap-1.5 self-stretch bg-slate-50 px-3 py-1.5"
                     style={{ width: LABEL_WIDTH }}
                   >
-                    <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} size="h-5 w-5 flex-shrink-0 text-[9px]" />
+                    <Link href={`/projects/${first.projectId}`} aria-label={`Ir al proyecto ${first.projectName}`} onClick={(e) => e.stopPropagation()} className="contents">
+                      <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} size="h-5 w-5 flex-shrink-0 text-[9px]" />
+                    </Link>
                     <div className="min-w-0">
                       <p className="truncate text-xs font-semibold text-slate-600" title={first.phaseName}>{first.phaseName}</p>
                       <p className="text-[10px] text-slate-400">{phasePct}% completado</p>

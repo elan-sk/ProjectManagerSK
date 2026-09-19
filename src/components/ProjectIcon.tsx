@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 // Paleta saturada para el respaldo del ÍCONO (cuadrado con inicial, texto
 // blanco encima) — mismo mecanismo determinístico que avatarColor(), pero en
 // hex (acá el color es a veces inline style, no siempre clase de Tailwind).
@@ -46,11 +48,24 @@ export function ProjectIcon({
   name,
   iconUrl,
   size = "h-6 w-6 text-[10px]",
+  projectId,
 }: {
   name: string;
   iconUrl?: string | null;
   size?: string;
+  /** Si se pasa, el ícono lleva a la vista principal del proyecto (no usar dentro de otro link). */
+  projectId?: string;
 }) {
+  const icon = <ProjectIconImage name={name} iconUrl={iconUrl} size={size} />;
+  if (!projectId) return icon;
+  return (
+    <Link href={`/projects/${projectId}`} aria-label={`Ir al proyecto ${name}`} className="contents">
+      {icon}
+    </Link>
+  );
+}
+
+function ProjectIconImage({ name, iconUrl, size }: { name: string; iconUrl?: string | null; size: string }) {
   if (iconUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

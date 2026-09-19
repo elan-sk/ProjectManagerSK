@@ -5,6 +5,8 @@ import { useState } from "react";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
+import { YouTubeModal } from "@/components/YouTubeModal";
+import { LINK_MIME_TYPE, youtubeVideoId } from "@/lib/attachments";
 import { removeAttachment } from "./actions";
 
 export type AttachmentGridItem = {
@@ -32,6 +34,7 @@ export function AttachmentGrid({
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
   const [openPreview, setOpenPreview] = useState<AttachmentGridItem | null>(null);
+  const [openVideo, setOpenVideo] = useState<{ id: string; name: string } | null>(null);
   const images = items.filter((i) => i.mimeType.startsWith("image/"));
 
   return (
@@ -48,12 +51,18 @@ export function AttachmentGrid({
             taskLink={a.taskLink}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
+            onOpenVideo={
+              a.mimeType === LINK_MIME_TYPE && youtubeVideoId(a.url)
+                ? () => setOpenVideo({ id: youtubeVideoId(a.url)!, name: a.name })
+                : undefined
+            }
           />
         ))}
       </div>
       {openId && (
         <AttachmentLightbox images={images} openId={openId} onClose={() => setOpenId(null)} onNavigate={setOpenId} canDelete={canDelete} />
       )}
+      {openVideo && <YouTubeModal videoId={openVideo.id} title={openVideo.name} onClose={() => setOpenVideo(null)} />}
       {openPreview && (
         <AttachmentPreviewModal
           file={openPreview}

@@ -84,21 +84,21 @@ export function AttachmentUploader({
     return (
       <div className="flex flex-col gap-2">
         <input
-          type="text"
+          type="url"
           autoFocus
-          value={linkName}
-          onChange={(e) => setLinkName(e.target.value)}
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && canSaveLink && saveLink()}
-          placeholder="Nombre (lo que se va a ver)"
+          placeholder="https://…"
           className="min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-xs"
         />
         <div className="flex gap-2">
           <input
-            type="url"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
+            type="text"
+            value={linkName}
+            onChange={(e) => setLinkName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSaveLink && saveLink()}
-            placeholder="https://…"
+            placeholder="Nombre (lo que se va a ver)"
             className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs"
           />
           <button

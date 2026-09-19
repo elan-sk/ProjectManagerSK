@@ -44,6 +44,18 @@ export async function updateStep(stepId: string, description: string, actor?: Ac
   await revalidateTask(step.taskId);
 }
 
+export async function reorderSteps(taskId: string, orderedIds: string[], actor?: Actor) {
+  if (!(await canEditTask(taskId, actor))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  const steps = await prisma.taskStep.findMany({ where: { taskId }, select: { id: true } });
+  const valid = new Set(steps.map((s) => s.id));
+  const ids = orderedIds.filter((id) => valid.has(id));
+  if (ids.length !== steps.length) throw new Error("La lista de pasos cambió — recargá la página e intentá de nuevo.");
+  await prisma.$transaction(ids.map((id, order) => prisma.taskStep.update({ where: { id }, data: { order } })));
+  await revalidateTask(taskId);
+}
+
 export async function removeStep(stepId: string, actor?: Actor) {
   const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
   if (!(await canEditTask(step.taskId, actor))) {

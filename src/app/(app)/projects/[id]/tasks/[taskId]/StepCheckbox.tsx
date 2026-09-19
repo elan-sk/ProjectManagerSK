@@ -10,11 +10,14 @@ export function StepCheckbox({
   description,
   done,
   canEdit,
+  dragHandle,
 }: {
   stepId: string;
   description: string;
   done: boolean;
   canEdit: boolean;
+  /** Asa de arrastre (la pone StepList) — se pinta antes del checkbox. */
+  dragHandle?: React.ReactNode;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -54,6 +57,7 @@ export function StepCheckbox({
   return (
     <div className="space-y-1">
       <div className={`flex items-center gap-2 text-sm text-slate-700 ${canEdit ? "" : "cursor-default"}`}>
+        {dragHandle}
         <input
           type="checkbox"
           checked={done}

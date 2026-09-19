@@ -19,6 +19,7 @@ export default async function SettingsPage({
   searchParams: Promise<{
     google_calendar?: string;
     imported?: string;
+    usersCreated?: string;
     importFailed?: string;
     importError?: string;
     backupRestored?: string;
@@ -28,7 +29,7 @@ export default async function SettingsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { google_calendar, imported, importFailed, importError, backupRestored, backupError } = await searchParams;
+  const { google_calendar, imported, usersCreated, importFailed, importError, backupRestored, backupError } = await searchParams;
   const isAdmin = session.user.role === "ADMIN";
   const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings] = await Promise.all([
     prisma.user.findUniqueOrThrow({
@@ -135,31 +136,39 @@ export default async function SettingsPage({
         <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">Exportar / Importar datos</h2>
           <p className="text-xs text-slate-400">
-            Backup técnico (JSON) de proyecto(s): fases, tareas, asignados, checklist y dependencias. No incluye
-            archivos adjuntos ni notificaciones. Importar siempre CREA proyectos nuevos — nunca sobrescribe uno
-            existente, aunque el nombre coincida.
+            Backup técnico (JSON) de proyecto(s): fases, tareas, asignados, checklist y dependencias; los usuarios
+            son opcionales (casilla de abajo). No incluye archivos adjuntos, imágenes ni notificaciones. Importar
+            siempre CREA proyectos nuevos — nunca sobrescribe uno existente — y, si el archivo trae usuarios, solo
+            crea los que todavía no existen.
           </p>
 
           {imported !== undefined && (
             <p className="text-sm text-emerald-600">
-              Se importaron {imported} proyecto(s).
+              Se importaron {imported} proyecto(s){usersCreated ? ` y se crearon ${usersCreated} usuario(s) nuevo(s)` : ""}.
               {importFailed && <span className="mt-1 block text-red-600">Fallaron: {importFailed}</span>}
             </p>
           )}
           {importError && <p className="text-sm text-red-600">{importError}</p>}
 
-          <div className="space-y-2">
+          <form action="/api/export" method="get" className="space-y-2">
             <p className="text-sm text-slate-600">Exportar</p>
+            <label className="flex items-start gap-1.5 text-sm text-slate-600">
+              <input type="checkbox" name="includeUsers" value="1" className="mt-0.5 rounded border-slate-300" />
+              <span>Incluir usuarios (con su contraseña cifrada — guardá el archivo en un lugar seguro)</span>
+            </label>
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="/api/export"
+              {/* scope=all: exporta todos los proyectos aunque haya alguno tildado abajo. */}
+              <button
+                type="submit"
+                name="scope"
+                value="all"
                 className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Todos los proyectos
-              </a>
+              </button>
             </div>
             {projects.length > 0 && (
-              <form action="/api/export" method="get" className="space-y-2">
+              <>
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                   {projects.map((p) => (
                     <label key={p.id} className="flex items-center gap-1.5 text-sm text-slate-600">
@@ -174,9 +183,9 @@ export default async function SettingsPage({
                 >
                   Exportar seleccionados
                 </button>
-              </form>
+              </>
             )}
-          </div>
+          </form>
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <p className="text-sm text-slate-600">Importar</p>

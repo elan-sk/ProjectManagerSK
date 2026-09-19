@@ -1,6 +1,6 @@
 "use client";
 
-import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -172,7 +172,7 @@ function CardBody({
 
       {showProjectName && (
         <p className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-          <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" />
+          <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" projectId={task.projectId} />
           {task.projectName}
         </p>
       )}
@@ -310,7 +310,16 @@ function Card({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      onDoubleClick={() => router.push(`/projects/${task.projectId}/tasks/${task.id}`)}
+      onClick={(e) => {
+        // Click simple abre la tarea; el arrastre lo decide el sensor del
+        // tablero (distance) y dnd-kit ya suprime el click que sigue a un
+        // drag. Se ignoran clicks de controles internos (Detalle, eliminar,
+        // popovers/modales que burbujean por portal) — solo el fondo de la
+        // card navega.
+        if (!e.currentTarget.contains(e.target as Node)) return;
+        if ((e.target as HTMLElement).closest("a,button,input,select,textarea,label")) return;
+        router.push(`/projects/${task.projectId}/tasks/${task.id}`);
+      }}
       // dnd-kit numera aria-describedby con un contador de instancia que no
       // coincide entre el render del servidor y la hidratación del cliente
       // (problema conocido de la librería con SSR) — no afecta layout ni
@@ -418,12 +427,31 @@ export function KanbanBoard({
   collisionUrlBase?: string;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
+  // Tareas cuyo estado cambió acá: con un filtro activo el servidor deja de
+  // devolverlas (ya no coinciden), pero se mantienen visibles hasta que el
+  // usuario cambie los filtros (la página remonta el tablero con otro `key`).
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [prevInitial, setPrevInitial] = useState(initialTasks);
+  if (initialTasks !== prevInitial) {
+    setPrevInitial(initialTasks);
+    const fromServer = new Set(initialTasks.map((t) => t.id));
+    setTasks((prev) => {
+      const local = new Map(prev.map((t) => [t.id, t]));
+      // Una card movida acá manda sobre el servidor (que puede traerla con el
+      // estado viejo mientras la confirmación/el guardado siguen en curso).
+      const merged = initialTasks.map((t) => (pinnedIds.has(t.id) && local.has(t.id) ? { ...t, status: local.get(t.id)!.status } : t));
+      return [...merged, ...prev.filter((t) => pinnedIds.has(t.id) && !fromServer.has(t.id))];
+    });
+  }
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const showToast = useToast();
   const confirm = useConfirm();
   const [, startTransition] = useTransition();
+  // distance: sin esto dnd-kit trata cualquier pointerdown como inicio de
+  // arrastre y el click nunca llega a abrir la tarea.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   function handleDragStart(event: DragStartEvent) {
     setActiveTask(tasks.find((t) => t.id === event.active.id) ?? null);
@@ -437,17 +465,24 @@ export function KanbanBoard({
     const draggedTask = tasks.find((t) => t.id === active.id);
     const previousStatus = draggedTask?.status;
     if (!previousStatus || previousStatus === newStatus) return;
+    // La card se mueve de inmediato; para "Completada" además se pide
+    // confirmación y, si se cancela, vuelve a su columna de origen.
+    setPinnedIds((prev) => new Set(prev).add(draggedTask.id));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === active.id ? { ...t, status: newStatus } : t))
+    );
     if (newStatus === "COMPLETED") {
       const ok = await confirm(
         "Una vez que la marques como completada, no vas a poder subir más evidencia para esta tarea. ¿Querés continuar?",
         { confirmLabel: "Sí, completar" }
       );
-      if (!ok) return;
+      if (!ok) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === active.id ? { ...t, status: previousStatus } : t))
+        );
+        return;
+      }
     }
-
-    setTasks((prev) =>
-      prev.map((t) => (t.id === active.id ? { ...t, status: newStatus } : t))
-    );
     startTransition(async () => {
       // Punto 12: manda el updatedAt que este cliente tenía cargado — si
       // alguien más ya tocó la tarea desde entonces, el servidor rechaza en
@@ -459,6 +494,8 @@ export function KanbanBoard({
         );
         showToast(result.error ?? "Ocurrió un error.");
         router.refresh();
+      } else if (result.updatedAt) {
+        setTasks((prev) => prev.map((t) => (t.id === active.id ? { ...t, updatedAt: result.updatedAt! } : t)));
       }
     });
   }
@@ -471,7 +508,7 @@ export function KanbanBoard({
     // autoScroll desactivado: por defecto dnd-kit scrollea el contenedor más
     // cercano (cada columna, con overflow-y-auto) al arrastrar cerca de un
     // borde, lo que movía el tablero solo con empezar a arrastrar una card.
-    <DndContext autoScroll={false} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} autoScroll={false} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {/* Alto fijo (mismo tratamiento que GanttView): el padre es sticky con
           altura calculada, "h-full" propaga ese alto a cada columna. El
           scroll vertical es de CADA columna por separado (ver Column más

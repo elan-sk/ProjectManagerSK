@@ -45,6 +45,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js')); }`,
           }}
         />
+        <script
+          // Corrector ortográfico en todo campo de texto (inputs, textareas y
+          // el editor enriquecido): Firefox no revisa los <input> de una línea
+          // sin spellcheck explícito. Se activa al enfocar, sin tocar cada
+          // formulario. Excluye email/url/password/número/fecha.
+          dangerouslySetInnerHTML={{
+            __html: `document.addEventListener('focusin', function (e) { var t = e.target; if (!(t instanceof HTMLElement) || t.hasAttribute('spellcheck')) return; var ok = t.isContentEditable || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search')); if (ok) { t.setAttribute('spellcheck', 'true'); } });`,
+          }}
+        />
       </body>
     </html>
   );

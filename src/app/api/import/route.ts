@@ -33,13 +33,24 @@ const projectSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().nullable(),
   countryCode: z.string().length(2),
-  status: z.enum(["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"]),
+  status: z.enum(["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "ARCHIVED"]),
   startDate: z.string(),
   pmUsername: z.string(),
   phases: z.array(z.object({ name: z.string().min(1), order: z.number() })),
   tasks: z.array(taskSchema),
 });
-const importSchema = z.object({ version: z.number(), projects: z.array(projectSchema) });
+// `users` es opcional: los backups viejos (version 1) no lo traen.
+const userSchema = z.object({
+  username: z.string().min(1),
+  name: z.string().min(1),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  role: z.enum(["ADMIN", "MEMBER"]),
+  active: z.boolean(),
+  avatarUrl: z.string().nullable(),
+  passwordHash: z.string().min(1),
+});
+const importSchema = z.object({ version: z.number(), users: z.array(userSchema).optional(), projects: z.array(projectSchema) });
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -64,7 +75,35 @@ export async function POST(request: Request) {
   }
 
   let created = 0;
+  let usersCreated = 0;
   const failures: string[] = [];
+
+  // Usuarios primero (los proyectos los referencian por username). Igual que
+  // con los proyectos, nunca se pisa nada: si el usuario ya existe, se deja
+  // tal cual (su clave, rol y datos de esta base mandan).
+  for (const u of parsed.data.users ?? []) {
+    try {
+      if (await prisma.user.findUnique({ where: { username: u.username }, select: { id: true } })) continue;
+      // email es único: si ya lo usa otra persona en esta base, este usuario
+      // entra sin email en vez de fallar.
+      const emailTaken = u.email ? await prisma.user.findUnique({ where: { email: u.email }, select: { id: true } }) : null;
+      await prisma.user.create({
+        data: {
+          username: u.username,
+          name: u.name,
+          email: emailTaken ? null : u.email,
+          phone: u.phone,
+          role: u.role,
+          active: u.active,
+          avatarUrl: u.avatarUrl,
+          passwordHash: u.passwordHash,
+        },
+      });
+      usersCreated += 1;
+    } catch (err) {
+      failures.push(`usuario ${u.username}: ${(err as Error).message}`);
+    }
+  }
 
   for (const p of parsed.data.projects) {
     try {
@@ -135,6 +174,7 @@ export async function POST(request: Request) {
 
   const url = new URL("/settings", request.url);
   url.searchParams.set("imported", String(created));
+  if (usersCreated > 0) url.searchParams.set("usersCreated", String(usersCreated));
   if (failures.length > 0) url.searchParams.set("importFailed", failures.join(" | "));
   // Tras un POST de un formulario normal, 303 obliga al navegador a abrir
   // Configuración mediante GET. El 307 por defecto repite el POST en

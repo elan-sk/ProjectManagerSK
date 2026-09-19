@@ -2,6 +2,7 @@ import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { OverlapIcon } from "@/components/icons";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
@@ -9,7 +10,6 @@ import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import type { ProjectSummaryRow } from "@/lib/projectSummaries";
 import { PROJECT_PHASE_LABEL } from "@/lib/statusColors";
-import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { CreateProjectForm } from "./CreateProjectForm";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
@@ -62,7 +62,8 @@ export async function ProjectSummaryGrid({
             <ComboFilter
               allLabel="Recientes"
               value={pid}
-              options={[{ id: "all", label: "Todos los proyectos" }, ...rows.map(({ project: p }) => ({ id: p.id, label: p.name }))]}
+              pinnedOptions={[{ id: "all", label: "Todos los proyectos" }]}
+              options={rows.map(({ project: p }) => ({ id: p.id, label: p.name }))}
               paramKey="pid"
               basePath={basePath}
               currentParams={{ ...currentParams, health }}
@@ -86,11 +87,7 @@ export async function ProjectSummaryGrid({
               }
             />
           </div>
-          {(pid || health) && (
-            <Link href={href({ pid: undefined, health: undefined })} className="self-end text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline">
-              Ver proyectos recientes
-            </Link>
-          )}
+          <ResetFiltersButton count={[pid, health].filter(Boolean).length} href={href({ pid: undefined, health: undefined })} />
         </div>
         {showCreateButton && (
           <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">

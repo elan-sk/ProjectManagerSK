@@ -488,6 +488,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   // requiredStartFor) en cuanto actualEnd quede guardado, así que alcanza
   // con dispararlo dentro de la misma transacción al completar.
   let pmId: string | null = null;
+  let updatedAt: string | undefined;
 
   await prisma.$transaction(async (tx) => {
     const project = await tx.project.findUniqueOrThrow({
@@ -495,7 +496,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
       select: { countryCode: true, pmId: true },
     });
     pmId = project.pmId;
-    await tx.task.update({
+    const updated = await tx.task.update({
       where: { id: taskId },
       data: {
         status,
@@ -505,6 +506,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
         actualEnd: status === "COMPLETED" ? new Date() : null,
       },
     });
+    updatedAt = updated.updatedAt.toISOString();
     if (status === "COMPLETED") {
       await propagateToSuccessors(tx, project.countryCode, taskId);
     }
@@ -518,7 +520,9 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   }
 
   revalidatePath(`/projects/${task.projectId}`);
-  return { ok: true };
+  // updatedAt nuevo: el tablero lo necesita para el siguiente movimiento de
+  // una card que ya no vuelve en el listado filtrado (bloqueo optimista).
+  return { ok: true, updatedAt };
 }
 
 // Inicio mínimo/requerido de una tarea dadas TODAS sus predecesoras, sin

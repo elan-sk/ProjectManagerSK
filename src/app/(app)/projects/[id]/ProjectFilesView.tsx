@@ -1,6 +1,7 @@
 import { ComboFilter } from "@/components/ComboFilter";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { LinkIcon } from "@/components/icons";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
@@ -95,6 +96,11 @@ export function ProjectFilesView({
             ))}
           </div>
         </div>
+
+        <ResetFiltersButton
+          count={[fileTask, fileQ, fileKind, fileType && fileType !== "all"].filter(Boolean).length}
+          href={filesHref({ fileKind: undefined, fileType: undefined, fileTask: undefined, fileQ: undefined })}
+        />
       </div>
 
       {showSharedLinks && sharedLinks.length > 0 && (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { removeAttachment } from "./actions";
-import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { LINK_MIME_TYPE, linkHostname, youtubeVideoId } from "@/lib/attachments";
 import { useConfirm } from "@/components/Confirm";
 
 /**
@@ -23,6 +23,7 @@ export function AttachmentPreview({
   taskLink,
   onOpenImage,
   onOpenPreview,
+  onOpenVideo,
 }: {
   id: string;
   url: string;
@@ -34,6 +35,8 @@ export function AttachmentPreview({
   onOpenImage?: () => void;
   /** PDF/Word/Excel — abre el visor (AttachmentPreviewModal) en vez de descargar directo. */
   onOpenPreview?: () => void;
+  /** Link de YouTube — abre el reproductor integrado en vez de salir a otra pestaña. */
+  onOpenVideo?: () => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -54,6 +57,73 @@ export function AttachmentPreview({
     } finally {
       setDeleting(false);
     }
+  }
+
+  const videoId = isLink ? youtubeVideoId(url) : null;
+
+  if (isLink) {
+    // Tarjeta de link: dominio visible y, para YouTube, miniatura con play.
+    const linkClass =
+      "flex h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition-colors hover:border-[#0a6b78]/50 hover:bg-slate-50";
+    const content = videoId ? (
+      <>
+        <span className="relative w-28 flex-shrink-0 bg-slate-900">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`} alt="" className="h-full w-full object-cover opacity-90" />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4"><path d="M8 5v14l11-7z" /></svg>
+            </span>
+          </span>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3">
+          <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
+          <span className="text-[11px] text-slate-400">YouTube · ver aquí</span>
+        </span>
+      </>
+    ) : (
+      <>
+        <span className="flex w-12 flex-shrink-0 items-center justify-center bg-[#0a6b78]/10 text-[#0a6b78]">
+          <LinkIcon className="h-5 w-5" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3">
+          <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
+          <span className="truncate text-[11px] text-slate-400">{linkHostname(url)} ↗</span>
+        </span>
+      </>
+    );
+    return (
+      <div className="group relative col-span-2 min-w-0">
+        {videoId && onOpenVideo ? (
+          <button type="button" onClick={onOpenVideo} className={linkClass}>
+            {content}
+          </button>
+        ) : (
+          <a href={url} target="_blank" rel="noreferrer" className={linkClass}>
+            {content}
+          </a>
+        )}
+        {taskLink && (
+          <Link
+            href={taskLink.href}
+            className="mt-0.5 block truncate text-center text-[11px] text-slate-400 hover:text-slate-700 hover:underline"
+          >
+            → {taskLink.title}
+          </Link>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            aria-label="Eliminar link"
+            className="absolute top-1 right-1 rounded-full bg-white/90 p-1 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
+          >
+            <TrashIcon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
   }
 
   if (!isImage) {

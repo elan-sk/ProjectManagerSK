@@ -1,3 +1,4 @@
+import { progressBar } from "@/lib/progressBar";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert } from "@/lib/whatsapp";
@@ -303,7 +304,7 @@ export async function buildDailyDigestText(userId: string, name: string) {
       lines.push(
         "",
         `• *${p.name}*`,
-        `  ↳ _Avance_ · ${progress}% (${p.completed}/${p.total} completadas)`,
+        `  ↳ _Avance_ · ${progressBar(progress)} ${progress}% (${p.completed}/${p.total} completadas)`,
         `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}`,
         `  ↳ _Alertas_ · ${flags || "sin alertas"}`
       );

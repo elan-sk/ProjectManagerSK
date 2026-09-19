@@ -1,6 +1,9 @@
 import { auth } from "@/auth";
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
+import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { InternalConversation } from "@/components/InternalConversation";
@@ -57,6 +60,8 @@ export default async function ProjectPage({
     risk?: "overdue" | "warning" | "lateStart" | "startingSoon";
     q?: string;
     tag?: string;
+    from?: string;
+    to?: string;
     fileKind?: string;
     fileType?: string;
     fileTask?: string;
@@ -64,7 +69,9 @@ export default async function ProjectPage({
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, type, userId, risk, q, tag, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const { view, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const from = parseDayKey(fromParam);
+  const to = parseDayKey(toParam);
   const session = await auth();
   const myUserId = session?.user?.id ?? null;
   const isGlobalAdmin = session?.user?.role === "ADMIN";
@@ -85,6 +92,8 @@ export default async function ProjectPage({
       userId,
       risk,
       tag,
+      from,
+      to,
       ...overrides,
     };
     for (const [k, v] of Object.entries(merged)) {
@@ -98,7 +107,7 @@ export default async function ProjectPage({
   // vista actual — aplican igual estés en tablero, Gantt o calendario.
   const filterHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, tag, ...overrides };
+    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, tag, from, to, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -256,8 +265,11 @@ export default async function ProjectPage({
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
     taskTags: { tagId: string; categoryId: string }[];
+    plannedStart: Date;
+    plannedEnd: Date;
   }) =>
     matchesRisk(t.id) &&
+    matchesDateRange(t, from, to) &&
     (!status || t.status === status) &&
     matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
@@ -440,7 +452,7 @@ export default async function ProjectPage({
       </NavLinkWithMemory>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" />
+          <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" projectId={project.id} />
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
             <div className="text-sm text-slate-500">
@@ -611,7 +623,7 @@ export default async function ProjectPage({
           <SearchBox
             basePath={`/projects/${project.id}`}
             q={q}
-            hiddenParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, risk, tag }}
+            hiddenParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, risk, tag }}
           />
         </div>
 
@@ -623,7 +635,7 @@ export default async function ProjectPage({
             options={users.map((u) => ({ id: u.id, label: u.name }))}
             paramKey="userId"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q, tag }}
+            currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q, tag }}
           />
         </div>
 
@@ -639,7 +651,7 @@ export default async function ProjectPage({
             }))}
             paramKey="status"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q, tag }}
+            currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q, tag }}
             triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
           />
         </div>
@@ -659,7 +671,7 @@ export default async function ProjectPage({
             ]}
             paramKey="type"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, risk, q, tag }}
+            currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, risk, q, tag }}
           />
         </div>
 
@@ -672,7 +684,7 @@ export default async function ProjectPage({
               options={buildTagFilterOptions(tagCategories, projectTags)}
               paramKey="tag"
               basePath={`/projects/${project.id}`}
-              currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, risk, q }}
+              currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, risk, q }}
             />
           </div>
         )}
@@ -691,7 +703,7 @@ export default async function ProjectPage({
             ]}
             paramKey="risk"
             basePath={`/projects/${project.id}`}
-            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag }}
+            currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag }}
             triggerColorClass={
               risk === "overdue"
                 ? "bg-red-600 text-white"
@@ -705,6 +717,21 @@ export default async function ProjectPage({
             }
           />
         </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Fechas</span>
+          <DateRangeFilter
+            from={from}
+            to={to}
+            basePath={`/projects/${project.id}`}
+            currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, risk, q, tag }}
+          />
+        </div>
+
+        <ResetFiltersButton
+          count={[q, userId, status, type, tag, risk, from || to].filter(Boolean).length}
+          href={filterHref({ status: undefined, type: undefined, userId: undefined, risk: undefined, q: undefined, tag: undefined, from: undefined, to: undefined })}
+        />
 
         {view === "gantt" && (
           <div className="flex flex-col gap-1">
@@ -778,7 +805,10 @@ export default async function ProjectPage({
       ) : (
         <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
           <KanbanBoard
-            key={taskCards.map((t) => `${t.id}:${t.status}`).join(",")}
+            // Solo cambia al cambiar los filtros (no al cambiar una tarea): así
+            // las cards que dejaron de coincidir tras un cambio de estado
+            // siguen visibles hasta que el usuario toque los filtros.
+            key={[status, type, userId, risk, q, tag, from, to].join("|")}
             initialTasks={taskCards}
             users={users}
           />

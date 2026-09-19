@@ -26,7 +26,7 @@ export function InlineDescription({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="mt-1 text-sm text-slate-400 hover:text-slate-600 hover:underline"
+          className="text-sm text-slate-400 hover:text-slate-600 hover:underline"
         >
           + Agregar descripción
         </button>
@@ -38,7 +38,7 @@ export function InlineDescription({
         tabIndex={canManage ? 0 : undefined}
         title={canManage ? "Click para editar" : undefined}
         onClick={() => canManage && setEditing(true)}
-        className={`prose prose-sm mt-1 max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg ${
+        className={`prose prose-sm max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg ${
           canManage ? "-mx-1 cursor-text rounded px-1 hover:bg-slate-100" : ""
         }`}
         dangerouslySetInnerHTML={{ __html: description }}
@@ -60,7 +60,7 @@ export function InlineDescription({
           }
         });
       }}
-      className="mt-1 space-y-2"
+      className="space-y-2"
     >
       <RichTextEditor name="description" defaultValue={description} />
       {error && <p className="text-sm text-red-600">{error}</p>}

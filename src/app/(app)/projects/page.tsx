@@ -17,6 +17,9 @@ import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RememberViewState } from "../RememberViewState";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
+import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
@@ -36,6 +39,8 @@ export default async function ProjectsPage({
     userId?: string;
     q?: string;
     tag?: string;
+    from?: string;
+    to?: string;
     collision?: string;
     pid?: string;
     health?: "ok" | "warn" | "bad";
@@ -48,7 +53,9 @@ export default async function ProjectsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, type, userId, q, tag, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, type, userId, q, tag, from: fromParam, to: toParam, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const from = parseDayKey(fromParam);
+  const to = parseDayKey(toParam);
 
   // "Superpoderes" del panorama general (confirmado con el usuario): admin
   // ve todo, un PM ve los proyectos que administra, un miembro normal ve
@@ -84,6 +91,8 @@ export default async function ProjectsPage({
       userId,
       q,
       tag,
+      from,
+      to,
       collision,
       ...overrides,
     };
@@ -282,8 +291,11 @@ export default async function ProjectsPage({
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
     taskTags: { tagId: string; categoryId: string }[];
+    plannedStart: Date;
+    plannedEnd: Date;
   }) =>
     matchesRiskFilter(boardAlertById.get(t.id)!, risk) &&
+    matchesDateRange(t, from, to) &&
     matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     matchesTagFilter(tag, t.taskTags) &&
@@ -559,7 +571,7 @@ export default async function ProjectsPage({
               <SearchBox
                 basePath="/projects"
                 q={q}
-                hiddenParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, tag, collision }}
+                hiddenParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -570,7 +582,7 @@ export default async function ProjectsPage({
                 options={users.map((u) => ({ id: u.id, label: u.name }))}
                 paramKey="userId"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -585,7 +597,7 @@ export default async function ProjectsPage({
                 }))}
                 paramKey="status"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, tag, collision }}
                 triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
               />
             </div>
@@ -604,7 +616,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="type"
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, tag, collision }}
               />
             </div>
             {boardTags.length > 0 && (
@@ -616,7 +628,7 @@ export default async function ProjectsPage({
                   options={buildTagFilterOptions(tagCategories, boardTags)}
                   paramKey="tag"
                   basePath="/projects"
-                  currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
+                  currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
                 />
               </div>
             )}
@@ -634,7 +646,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="risk"
                 basePath="/projects"
-                currentParams={{ view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag, collision }}
+                currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag, collision }}
                 triggerColorClass={
                   risk === "overdue"
                     ? "bg-red-600 text-white"
@@ -646,6 +658,15 @@ export default async function ProjectsPage({
                     ? "bg-cyan-500 text-white"
                     : undefined
                 }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Fechas</span>
+              <DateRangeFilter
+                from={from}
+                to={to}
+                basePath="/projects"
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, q, tag, collision }}
               />
             </div>
             {canSeeCollisions && (
@@ -661,6 +682,10 @@ export default async function ProjectsPage({
                 </Link>
               </div>
             )}
+            <ResetFiltersButton
+              count={[q, userId, status, type, tag, risk, collision, from || to].filter(Boolean).length}
+              href={boardHref({ status: undefined, type: undefined, userId: undefined, risk: undefined, q: undefined, tag: undefined, collision: undefined, from: undefined, to: undefined })}
+            />
           </div>
         )}
 
@@ -716,7 +741,9 @@ export default async function ProjectsPage({
         ) : (
           <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
             <KanbanBoard
-              key={boardTaskCards.map((t) => `${t.id}:${t.status}`).join(",")}
+              // Solo cambia con los filtros: las cards movidas de estado siguen
+              // visibles hasta que se toquen los filtros (ver KanbanBoard).
+              key={[risk, status, type, userId, q, tag, collision, from, to].join("|")}
               initialTasks={boardTaskCards}
               showProjectName
               users={users}

@@ -2,6 +2,10 @@ import { auth } from "@/auth";
 import { AlertBadge } from "@/components/AlertBadge";
 import { AvatarGroup } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
+import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
+import { attachmentFileType } from "@/lib/attachments";
 import { ClockIcon, LockIcon, PlayIcon, WarningIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SearchBox } from "@/components/SearchBox";
@@ -141,12 +145,16 @@ export default async function AgendaPage({
     risk?: "lateStart" | "overdue" | "warning" | "startingSoon";
     unopened?: string;
     q?: string;
+    from?: string;
+    to?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { projectId, status, userId, risk, unopened, q } = await searchParams;
+  const { projectId, status, userId, risk, unopened, q, from: fromParam, to: toParam } = await searchParams;
+  const from = parseDayKey(fromParam);
+  const to = parseDayKey(toParam);
 
   // Ver la agenda de otra persona es un privilegio de PM/admin: un miembro
   // normal solo puede ver sus propias tareas, sin importar qué userId venga
@@ -179,7 +187,7 @@ export default async function AgendaPage({
         project: true,
         assignees: { include: { user: true } },
         taskTags: { include: { tag: { include: { category: true } } } },
-        attachments: { select: { fileName: true } },
+        attachments: { select: { fileName: true, mimeType: true } },
       },
       orderBy: { plannedStart: "asc" },
     }),
@@ -208,7 +216,11 @@ export default async function AgendaPage({
   );
   const tasks = tasksWithAlert
     .filter((t) => matchesRiskFilter(t.alert, risk))
-    .filter((t) => !unopened || t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt == null)
+    // "Vista": "1" = Nuevas (sin abrir), "files" = con archivos adjuntos
+    // (los links pegados no cuentan como archivo cargado).
+    .filter((t) => unopened !== "1" || t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt == null)
+    .filter((t) => unopened !== "files" || t.attachments.some((a) => attachmentFileType(a.mimeType) !== "link"))
+    .filter((t) => matchesDateRange(t, from, to))
     .filter((t) => matchesTaskSearch(t, q));
 
   const cards: AgendaCard[] = tasks.map((t) => ({
@@ -243,7 +255,7 @@ export default async function AgendaPage({
 
   function agendaHref(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { projectId, status, userId, risk, unopened, q, ...overrides };
+    const merged: Record<string, string | undefined> = { projectId, status, userId, risk, unopened, q, from, to, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
       else p.delete(k);
@@ -415,7 +427,7 @@ export default async function AgendaPage({
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
-          <SearchBox basePath="/agenda" q={q} hiddenParams={{ projectId, status, userId, risk, unopened }} />
+          <SearchBox basePath="/agenda" q={q} hiddenParams={{ projectId, status, userId, risk, unopened, from, to }} />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -426,7 +438,7 @@ export default async function AgendaPage({
             options={projects.map((p) => ({ id: p.id, label: p.name }))}
             paramKey="projectId"
             basePath="/agenda"
-            currentParams={{ status, userId, risk, unopened, q }}
+            currentParams={{ status, userId, risk, unopened, q, from, to }}
           />
         </div>
 
@@ -439,7 +451,7 @@ export default async function AgendaPage({
               options={users.map((u) => ({ id: u.id, label: u.name }))}
               paramKey="userId"
               basePath="/agenda"
-              currentParams={{ projectId, status, risk, unopened, q }}
+              currentParams={{ projectId, status, risk, unopened, q, from, to }}
             />
           </div>
         )}
@@ -456,7 +468,7 @@ export default async function AgendaPage({
             }))}
             paramKey="status"
             basePath="/agenda"
-            currentParams={{ projectId, userId, risk, unopened, q }}
+            currentParams={{ projectId, userId, risk, unopened, q, from, to }}
             triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
           />
         </div>
@@ -477,7 +489,7 @@ export default async function AgendaPage({
             ]}
             paramKey="risk"
             basePath="/agenda"
-            currentParams={{ projectId, userId, status, unopened, q }}
+            currentParams={{ projectId, userId, status, unopened, q, from, to }}
             triggerColorClass={
               risk === "overdue"
                 ? "bg-red-600 text-white"
@@ -497,13 +509,26 @@ export default async function AgendaPage({
           <ComboFilter
             allLabel="Todas"
             value={unopened}
-            options={[{ id: "1", label: "Nuevas", dotColorClass: "bg-violet-500" }]}
+            options={[
+              { id: "1", label: "Nuevas", dotColorClass: "bg-violet-500" },
+              { id: "files", label: "Archivos adjuntos", dotColorClass: "bg-sky-500" },
+            ]}
             paramKey="unopened"
             basePath="/agenda"
-            currentParams={{ projectId, userId, status, risk, q }}
-            triggerColorClass={unopened === "1" ? "bg-violet-600 text-white" : undefined}
+            currentParams={{ projectId, userId, status, risk, q, from, to }}
+            triggerColorClass={unopened === "1" ? "bg-violet-600 text-white" : unopened === "files" ? "bg-sky-600 text-white" : undefined}
           />
         </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Fechas</span>
+          <DateRangeFilter from={from} to={to} basePath="/agenda" currentParams={{ projectId, userId, status, risk, unopened, q }} />
+        </div>
+
+        <ResetFiltersButton
+          count={[projectId, userId, status, risk, unopened, q, from || to].filter(Boolean).length}
+          href="/agenda"
+        />
       </div>
 
       {cards.length === 0 && (

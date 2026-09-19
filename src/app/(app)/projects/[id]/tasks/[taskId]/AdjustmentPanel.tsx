@@ -327,9 +327,9 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
       {canEdit && (
         addingLink ? (
           <div className="space-y-1">
-            <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+            <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs" />
             <div className="flex gap-1">
-              <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+              <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
               <button type="button" disabled={uploading || !linkUrl.trim() || !linkName.trim()} onClick={saveLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
                 OK
               </button>

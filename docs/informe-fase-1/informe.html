@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Informe Fase 1 — PMSK</title>
+<style>
+  :root { --bg:#f4f8f8; --card:#fff; --ink:#0f2a33; --muted:#5b7078; --line:#d5e3e4; --ok:#17664e; --warn:#8a5a00; --bad:#a3252f; --accent:#0a6b78; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1b20; --card:#14272e; --ink:#e6f1f1; --muted:#9db4ba; --line:#254149; --ok:#5fd0a3; --warn:#f0c060; --bad:#ff8a93; --accent:#6fd0dc; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+  p, li { max-width: 75ch; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 12px 0; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .stat b { display:block; font-size: 1.8rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: .95rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: color-mix(in srgb, var(--accent) 10%, var(--card)); font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: 0; }
+  .tag { display:inline-block; padding: 1px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+  .t-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .t-part { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .t-no { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+  figure { margin: 14px 0; }
+  figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; display: block; }
+  figcaption { color: var(--muted); font-size: .88rem; margin-top: 6px; }
+  code { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 5px; font-size: .9em; }
+  .q { border-left: 4px solid var(--warn); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Informe — Fase 1 (bajo riesgo)</h1>
+  <p class="sub">ProjectManagerSK · trabajo en modo <code>/solo-ya</code> · 18 de septiembre de 2026 · fuente: <code>docs/instrucciones_de_desarrollo_sistema_pmsk.md</code></p>
+
+  <div class="grid">
+    <div class="card stat"><b>17 / 18</b>ítems de la Fase 1 implementados (7 con alcance parcial o interpretado; 1 queda solo diagnosticado)</div>
+    <div class="card stat"><b>10</b>capturas de evidencia tomadas con Chrome sobre la app real</div>
+    <div class="card stat"><b>0</b>errores de TypeScript y de consola; lint sin errores nuevos</div>
+    <div class="card stat"><b>Sin commit</b>todo queda en el working tree para que lo revises</div>
+  </div>
+
+  <h2>1. Estado por ítem</h2>
+  <table>
+    <thead><tr><th>Ítem del documento</th><th>Estado</th><th>Qué se hizo / alcance real</th></tr></thead>
+    <tbody>
+      <tr><td>Click abre la tarea, click sostenido arrastra</td><td><span class="tag t-ok">Hecho</span></td><td>El tablero solo empieza a arrastrar tras mover 6 px; un click limpio abre la tarea (antes era doble click). Los controles internos (Detalle, eliminar, asignar) siguen funcionando aparte.</td></tr>
+      <tr><td>Completar en tablero: mover ya y confirmar después</td><td><span class="tag t-ok">Hecho</span></td><td>La card salta a «Completada» de inmediato y abre la confirmación; si cancelas vuelve a su columna; si confirma, se guarda en el servidor (y si el servidor rechaza, vuelve y avisa).</td></tr>
+      <tr><td>Descripción arriba del checklist, con el estilo de las demás secciones</td><td><span class="tag t-ok">Hecho</span></td><td>Sección propia «Descripción» (misma tarjeta que Checklist/Insumos). Se oculta si no hay descripción y quien mira no puede editar.</td></tr>
+      <tr><td>Reordenar checklist con arrastre</td><td><span class="tag t-ok">Hecho</span></td><td>Asa de arrastre por paso; orden inmediato, se guarda en servidor (<code>reorderSteps</code>, con permiso y validación) y sobrevive a recargar. Si falla, vuelve al orden anterior.</td></tr>
+      <tr><td>Links más vistosos</td><td><span class="tag t-ok">Hecho</span></td><td>Tarjeta de link con dominio visible; los de YouTube muestran miniatura con botón de play.</td></tr>
+      <tr><td>Visor integrado de YouTube</td><td><span class="tag t-part">Parcial</span></td><td>Funciona en Insumos, Evidencias y la vista Archivos (youtube-nocookie, sin salir de la app). No se aplicó a las listas de links de Definición del proyecto ni a los paneles de Revisión/Aceptación/Ajustes.</td></tr>
+      <tr><td>Subir link: primero URL, luego Nombre</td><td><span class="tag t-ok">Hecho</span></td><td>Cambiado en todos los formularios de link (insumos, definición, revisión, aceptación, ajustes).</td></tr>
+      <tr><td>Filtrados no desaparecen al cambiar de estado</td><td><span class="tag t-part">Parcial</span></td><td>En el Tablero (proyecto y panorama general) la card movida se queda visible aunque deje de coincidir, hasta que cambies los filtros. No aplica al Gantt/Calendario/Agenda porque ahí no se cambia el estado. Si cambias el estado <em>dentro del detalle</em> y vuelves, el filtro sí la oculta.</td></tr>
+      <tr><td>Botón de reseteo de filtros (solo con filtros activos, con indicador)</td><td><span class="tag t-ok">Hecho</span></td><td>Icono compacto con tooltip, punto y contador. Agregado en Agenda, Proyecto (tablero/Gantt/calendario), Panorama general, Resumen de proyectos, Archivos (proyecto y general) y Rendimiento.</td></tr>
+      <tr><td>Filtro de rango de fechas tipo hotel</td><td><span class="tag t-part">Parcial</span></td><td>Calendario de dos meses, primer click inicio / segundo click fin. En Tablero, Gantt, Calendario, Agenda y Panorama. No está en las vistas de Archivos ni en Rendimiento.</td></tr>
+      <tr><td>«Archivos adjuntos» en el filtro «Vista»</td><td><span class="tag t-part">Parcial</span></td><td>Agregado en Agenda, que es el único lugar donde existe el filtro «Vista». Los links pegados no cuentan como archivo.</td></tr>
+      <tr><td>Buscador rápido en el header (tolerante a errores)</td><td><span class="tag t-ok">Hecho</span></td><td>Desplegable en vivo bajo el campo (sin modal). Busca proyectos, tareas, pasos del checklist, comentarios, archivos y links. Ignora tildes/mayúsculas, tolera erratas y transposiciones y no exige el orden de las palabras. Respeta permisos.</td></tr>
+      <tr><td>Clic en el icono de un proyecto → vista principal</td><td><span class="tag t-ok">Hecho</span></td><td>Encabezado del proyecto, detalle de tarea, cards del tablero, encabezados de fase del Gantt, Rendimiento, Definición y Colisiones. Donde el icono ya vive dentro de otro link (tarjetas del resumen, lista de Agenda) no se anidó otro para no romper el HTML.</td></tr>
+      <tr><td>Resumen fuera del listado (lógica de «Recientes»)</td><td><span class="tag t-part">Interpretado</span></td><td>«Todos los proyectos» ahora es una opción fija, separada de la lista de proyectos individuales, igual que «Recientes». Ver duda 3.</td></tr>
+      <tr><td>Corrector ortográfico en todos los campos</td><td><span class="tag t-ok">Hecho</span></td><td>Se activa el corrector nativo del navegador en inputs de texto, textareas y el editor enriquecido (no en email/URL/contraseña/número). Depende del diccionario en español del navegador.</td></tr>
+      <tr><td>Horario laboral en 12 h AM/PM</td><td><span class="tag t-ok">Hecho</span></td><td>Horario laboral y hora del resumen diario pasan a selectores con AM/PM. Los valores guardados siguen siendo 24 h (no hay migración).</td></tr>
+      <tr><td>Barra de 10 bloques en el resumen diario</td><td><span class="tag t-ok">Hecho</span></td><td>Cada 🟩/🟨/🟥 = 10 % (verde ≥70, amarillo ≥40, rojo el resto; ⬜ vacío). Verificado por script; <strong>no se envió ningún WhatsApp</strong>.</td></tr>
+      <tr><td>Imágenes de perfil que desaparecen</td><td><span class="tag t-no">Solo diagnóstico</span></td><td>El mecanismo de almacenamiento persistente ya existía (<code>PERSISTENT_UPLOADS_DIR</code>). Lo único añadido: un aviso en el log de producción si esa variable falta. Ver duda 1.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Evidencia (Chrome sobre la app real)</h2>
+  <p>Las pruebas usaron un usuario y un proyecto temporales (<code>__e2e_admin__</code> / <code>__E2E Fase 1__</code>) que se <strong>borraron al terminar</strong>; no se tocaron datos reales.</p>
+
+  <figure><img src="img/01-agenda-filtros.png" alt="Agenda con filtros"><figcaption>Agenda: filtro «Vista → Archivos adjuntos» + rango de fechas 15–30 sep. Solo aparece la tarea con archivo dentro del rango. El botón de embudo (con punto y «2») es el reseteo y solo se ve porque hay filtros activos.</figcaption></figure>
+  <figure><img src="img/02-selector-rango-fechas.png" alt="Selector de rango"><figcaption>Selector de rango estilo reserva de hotel: dos meses, rango resaltado, «Quitar fechas».</figcaption></figure>
+  <figure><img src="img/03-buscador-header-difuso.png" alt="Buscador del header"><figcaption>Buscador del header con «Informé infrome» (tilde + letras cambiadas): encuentra <em>informe-e2e.pdf</em> y el comentario «…informe fnal…». Al fondo se ve el corrector ortográfico subrayando.</figcaption></figure>
+  <figure><img src="img/04-kanban-tarea-persiste-con-filtro.png" alt="Card persiste con filtro"><figcaption>Filtro «Estado: En curso» activo. Se arrastró la tarea a «Bloqueada» y se queda visible en su nueva columna tras el refresco del servidor (el estado sí quedó guardado: desapareció el aviso «1 por vencer» del proyecto).</figcaption></figure>
+  <figure><img src="img/05-detalle-tarea-descripcion-checklist-links.png" alt="Detalle de tarea"><figcaption>Detalle de tarea: «Descripción» arriba del «Checklist» (con asas de arrastre) y links rediseñados en Insumos (YouTube con miniatura y play; link normal con dominio).</figcaption></figure>
+  <figure><img src="img/06-visor-youtube.png" alt="Visor YouTube"><figcaption>Visor integrado de YouTube dentro de la app (reproduciendo).</figcaption></figure>
+  <figure><img src="img/07-link-url-primero.png" alt="Formulario de link"><figcaption>«+ Link»: primero la URL, después el Nombre (verificado por DOM también: orden <code>https://…</code> → <code>Nombre</code>).</figcaption></figure>
+  <figure><img src="img/08-kanban-completar-confirmacion.png" alt="Confirmar completada"><figcaption>La card ya está en «Completada» mientras la confirmación sigue abierta (estable 4 s, incluso con el refresco automático de la app). Al pulsar «Cancelar» volvió a «Sin iniciar».</figcaption></figure>
+  <figure><img src="img/09-horario-12h-ampm.png" alt="Horario 12h"><figcaption>Configuración → WhatsApp: horario laboral 8:00 AM – 6:00 PM y hora del resumen 9:00 AM en formato 12 h.</figcaption></figure>
+  <figure><img src="img/10-proyectos-recientes-resumen-fijo.png" alt="Recientes y Todos"><figcaption>Proyectos: «Recientes» y «Todos los proyectos» como opciones fijas arriba, separadas de la lista de proyectos.</figcaption></figure>
+
+  <h3>Otras verificaciones (sin captura)</h3>
+  <ul>
+    <li>Click simple en una card del tablero abre la tarea (URL cambió a <code>/tasks/…</code>).</li>
+    <li>Reordenar checklist: orden C-A-B se conservó tras recargar la página.</li>
+    <li>Click en el icono del proyecto desde el detalle de tarea → <code>/projects/&lt;id&gt;</code>.</li>
+    <li><code>npm run verify:search-filters</code> (nuevo, sin base de datos): 21 aserciones sobre búsqueda difusa, cruce de rango de fechas y barra de progreso — todas pasan.</li>
+    <li><code>tsc --noEmit</code> sin errores; consola del navegador sin errores ni advertencias.</li>
+  </ul>
+
+  <h2>3. Lo que NO se hizo o quedó a medias</h2>
+  <ul>
+    <li><strong>Avatares:</strong> no se cambió el almacenamiento (ver duda 1).</li>
+    <li><strong>No se corrió <code>next build</code></strong> (había un <code>next dev</code> activo en el puerto 3000 y un build habría pisado su carpeta <code>.next</code>). Sí pasaron TypeScript y ESLint de lo tocado.</li>
+    <li><strong>Sin probar en Chrome:</strong> el filtro de fechas dentro del Gantt y del Calendario (la lógica sí está cubierta por el script), la vista con un usuario no-admin, y el envío real del resumen por WhatsApp (por regla de tu memoria no se manda nada de prueba al grupo).</li>
+    <li>Lint: quedan 1 error y 1 advertencia <strong>previos</strong> (<code>GanttView.tsx:270</code>, <code>agenda/page.tsx</code> <code>agendaHref</code> sin usar); no los toqué por estar fuera de alcance.</li>
+    <li>Nada commiteado: todo está en el working tree (y estos archivos nuevos como sin seguimiento).</li>
+  </ul>
+
+  <h2>4. Supuestos que tomé</h2>
+  <ul>
+    <li><strong>«Click sostenido» = arrastre tras mover 6 px</strong> (estándar en tableros). No exige mantener presionado un tiempo.</li>
+    <li><strong>El rango de fechas filtra por cruce de plazos</strong>: una tarea entra si su inicio–fin planeado se solapa con el rango (no solo si empieza o termina dentro).</li>
+    <li><strong>«Archivos adjuntos»</strong> = tareas con al menos un archivo subido; los links pegados no cuentan.</li>
+    <li><strong>Buscador:</strong> «comentarios» = la conversación interna de tareas/proyectos; cada quien ve solo lo de sus proyectos (admin todo; el resto, proyectos que administra o donde es asignado/revisor). Las coincidencias exigen ≥ 60 % de las palabras buscadas. Tope: se revisan los 2 000 comentarios más recientes.</li>
+    <li><strong>Colores de la barra:</strong> umbrales 40 % / 70 % elegidos por mí.</li>
+  </ul>
+
+  <h2>5. Dudas abiertas</h2>
+  <div class="card q"><p><strong>1. Avatares.</strong> El código ya guarda todo en <code>public/uploads</code> y lo convierte en un enlace a <code>PERSISTENT_UPLOADS_DIR</code>. Si esa variable <em>no</em> está definida en Hostinger, cada deploy borra los avatares — y no puedo verificarlo desde aquí. ¿Está definida en producción? Si lo está y aun así desaparecen, hace falta investigar en el servidor; si prefieres una solución independiente del disco, la alternativa es guardar la imagen del avatar en la base de datos (implica ampliar una columna: una migración pequeña).</p></div>
+  <div class="card q"><p><strong>2. «Click sostenido».</strong> ¿Te sirve arrastrar tras mover 6 px o quieres realmente mantener presionado ~0,2 s antes de poder arrastrar (más lento, pero evita arrastres accidentales en táctil)?</p></div>
+  <div class="card q"><p><strong>3. «Recientes» / resumen.</strong> Interpreté el punto como dejar «Todos los proyectos» como opción fija fuera de la lista de proyectos. Si te referías a otra cosa (por ejemplo, un botón «Resumen» aparte del selector), dímelo.</p></div>
+  <div class="card q"><p><strong>4. Filtro «Vista».</strong> Solo existe en Agenda. ¿Quieres que «Archivos adjuntos» (y «Nuevas») también estén como filtro en el proyecto y el panorama general?</p></div>
+  <div class="card q"><p><strong>5. Persistencia del filtro.</strong> Hoy una card movida se queda visible solo mientras estás en esa pantalla. Si cambias el estado desde el detalle de la tarea y vuelves atrás, el filtro la oculta. ¿Quieres que también se recuerde entre pantallas (guardándolo en el navegador)?</p></div>
+  <div class="card q"><p><strong>6. Fechas y archivos.</strong> ¿Debe haber filtro de fechas también en las vistas de Archivos y en Rendimiento (por fecha de subida / de entrega)? No lo añadí porque «todas las vistas» del documento suena a vistas de tareas.</p></div>
+  <div class="card q"><p><strong>7. Buscador.</strong> Hoy no indexa comentarios de enlaces compartidos ni mensajes dentro de rondas de revisión, ni el <em>contenido</em> de los archivos (solo su nombre). ¿Los incluimos?</p></div>
+
+  <h2>6. Archivos principales tocados</h2>
+  <p>Nuevos: <code>HeaderSearch.tsx</code>, <code>api/search/route.ts</code>, <code>lib/fuzzy.ts</code>, <code>lib/dateRange.ts</code>, <code>lib/progressBar.ts</code>, <code>DateRangeFilter.tsx</code>, <code>ResetFiltersButton.tsx</code>, <code>YouTubeModal.tsx</code>, <code>StepList.tsx</code>, <code>scripts/verify-search-filters.ts</code>. Modificados (entre otros): <code>KanbanBoard.tsx</code>, <code>projects/[id]/page.tsx</code>, <code>projects/page.tsx</code>, <code>agenda/page.tsx</code>, detalle de tarea (<code>page.tsx</code>, <code>actions.ts</code>, <code>AttachmentPreview/Grid/Uploader</code>), <code>WhatsAppConnectPanel.tsx</code>, <code>notifications.ts</code>, <code>ComboFilter.tsx</code>, <code>ProjectIcon.tsx</code>, <code>layout.tsx</code> (raíz y de la app).</p>
+</main>
+</body>
+</html>

@@ -46,7 +46,7 @@ export function DefinitionTab({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-base" />
+          <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-base" projectId={projectId} />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium text-slate-900">Descripción</p>
             {canManage ? (

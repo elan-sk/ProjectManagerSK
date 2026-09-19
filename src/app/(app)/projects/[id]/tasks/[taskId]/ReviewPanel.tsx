@@ -399,8 +399,8 @@ function SubmitRoundForm({
       )}
       {addingLink ? (
         <div className="flex gap-1.5">
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
           <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
           <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={addLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-sm text-white disabled:opacity-50">
             OK
           </button>
@@ -733,8 +733,8 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
       )}
       {canAttachEvidence && addingLink && (
         <div className="flex gap-1">
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
           <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
           <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
             OK
           </button>
@@ -820,8 +820,8 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
 
   return (
     <div className="flex gap-1">
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" className="w-28 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
       <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" className="w-28 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
       <button type="button" disabled={isPending || !name.trim() || !url.trim()} onClick={handleAddLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
         OK
       </button>

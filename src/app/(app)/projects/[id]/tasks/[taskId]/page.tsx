@@ -6,7 +6,7 @@ import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVarian
 import { utcToBogotaLocalInputValue } from "@/lib/workingHours";
 import { getProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
-import { StepCheckbox } from "./StepCheckbox";
+import { StepList } from "./StepList";
 import { AttachmentUploader } from "./AttachmentUploader";
 import { AttachmentGrid } from "./AttachmentGrid";
 import { AdjustmentPanel } from "./AdjustmentPanel";
@@ -172,7 +172,7 @@ export default async function TaskDetailPage({
           ← {task.project.name}
         </NavLinkWithMemory>
         <div className="mt-1 flex items-center gap-2">
-          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} size="h-10 w-10 flex-shrink-0 text-sm" />
+          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
           <div className="min-w-0 flex-1">
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>
@@ -285,8 +285,6 @@ export default async function TaskDetailPage({
           </p>
         )}
 
-        <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
-
         <div className="mt-2">
           <InlineMeetingUrl
             taskId={taskId}
@@ -327,16 +325,16 @@ export default async function TaskDetailPage({
         )}
       </div>
 
+      {(task.description || canEdit) && (
+        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="font-medium text-slate-900">Descripción</h2>
+          <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
+        </section>
+      )}
+
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
-        <div className="space-y-2">
-          {task.steps.map((s) => (
-            <StepCheckbox key={s.id} stepId={s.id} description={s.description} done={s.done} canEdit={canEdit} />
-          ))}
-          {task.steps.length === 0 && (
-            <p className="text-sm text-slate-400">Sin pasos todavía.</p>
-          )}
-        </div>
+        <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done }))} canEdit={canEdit} />
         {canEdit && (
           <form action={addStepWithId} className="flex gap-2">
             <input

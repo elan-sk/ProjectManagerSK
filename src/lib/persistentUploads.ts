@@ -17,7 +17,15 @@ import path from "node:path";
 // uploads sigue siendo la carpeta común y corriente del propio checkout.
 export async function ensurePersistentUploads() {
   const target = process.env.PERSISTENT_UPLOADS_DIR;
-  if (!target) return;
+  if (!target) {
+    // Sin esta variable, avatares/íconos/adjuntos viven dentro de la carpeta
+    // de versión del deploy y desaparecen en el siguiente — que quede a la
+    // vista en el log de producción en vez de descubrirlo por un avatar roto.
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[persistentUploads] PERSISTENT_UPLOADS_DIR no está configurada: los archivos subidos (avatares incluidos) se perderán en el próximo deploy.");
+    }
+    return;
+  }
 
   const uploadsPath = path.join(process.cwd(), "public/uploads");
 

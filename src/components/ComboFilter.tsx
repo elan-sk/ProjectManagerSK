@@ -17,6 +17,7 @@ import { normalizeSearchText } from "@/lib/search";
 export function ComboFilter({
   allLabel,
   options,
+  pinnedOptions = [],
   value,
   paramKey,
   basePath,
@@ -26,6 +27,8 @@ export function ComboFilter({
 }: {
   allLabel: string;
   options: { id: string; label: string; dotColorClass?: string; dotColorHex?: string }[];
+  /** Opciones fijas (ej. "Todos los proyectos") que van arriba, separadas de la lista buscable y siempre visibles. */
+  pinnedOptions?: { id: string; label: string }[];
   value: string | undefined;
   paramKey: string;
   basePath: string;
@@ -62,7 +65,7 @@ export function ComboFilter({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  const selected = options.find((o) => o.id === value);
+  const selected: (typeof options)[number] | undefined = [...pinnedOptions, ...options].find((o) => o.id === value);
   const filtered = query
     ? options.filter((o) => normalizeSearchText(o.label).includes(normalizeSearchText(query)))
     : options;
@@ -113,6 +116,17 @@ export function ComboFilter({
             >
               {allLabel}
             </button>
+            {pinnedOptions.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => choose(o.id)}
+                className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+            {pinnedOptions.length > 0 && <div className="my-1 border-t border-slate-100" />}
             {filtered.map((o) => (
               <button
                 key={o.id}

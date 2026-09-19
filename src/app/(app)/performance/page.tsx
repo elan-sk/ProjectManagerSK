@@ -14,6 +14,7 @@ import { BarChart, TrendBars } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { toDonutData } from "@/lib/chartPalette";
 import { ComboFilter } from "@/components/ComboFilter";
+import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ProjectIcon } from "@/components/ProjectIcon";
 
 const STATUS_HEX: Record<string, string> = {
@@ -251,22 +252,25 @@ export default async function PerformancePage({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {selectedProject && (
-            <ProjectIcon name={selectedProject.name} iconUrl={selectedProject.iconUrl} size="h-8 w-8 text-sm" />
+            <ProjectIcon name={selectedProject.name} iconUrl={selectedProject.iconUrl} size="h-8 w-8 text-sm" projectId={selectedProject.id} />
           )}
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Rendimiento</h1>
             {!isAdmin && <p className="text-sm text-slate-500">Los proyectos que administrás.</p>}
           </div>
         </div>
-        <ComboFilter
-          allLabel={isAdmin ? "Todos los proyectos" : "Todos los míos"}
-          value={projectId}
-          options={projects.map((p) => ({ id: p.id, label: p.name }))}
-          paramKey="projectId"
-          basePath="/performance"
-          currentParams={{}}
-          align="right"
-        />
+        <div className="flex items-start gap-2">
+          <ResetFiltersButton count={projectId ? 1 : 0} href="/performance" aligned={false} />
+          <ComboFilter
+            allLabel={isAdmin ? "Todos los proyectos" : "Todos los míos"}
+            value={projectId}
+            options={projects.map((p) => ({ id: p.id, label: p.name }))}
+            paramKey="projectId"
+            basePath="/performance"
+            currentParams={{}}
+            align="right"
+          />
+        </div>
       </div>
 
       {/* Informe general — pulso del proyecto (o de todos), no solo por persona. */}
