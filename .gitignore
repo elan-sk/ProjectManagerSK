@@ -60,3 +60,39 @@ next-env.d.ts
 # Sesión de WhatsApp (Baileys) — credenciales del dispositivo vinculado
 /.baileys-auth
 projectmanagersk-deploy.zip
+
+# ---------------------------------------------------------------------------
+# Artefactos de agentes de IA y herramientas (CodeGPT, Claude, editores).
+# No forman parte del producto: son cache, config local o carpetas temporales.
+# ---------------------------------------------------------------------------
+
+# Configuracion local de agentes
+.codegpt/
+.claude/settings.local.json
+.claude/*.local.json
+.claude/projects/
+.claude/todos/
+.claude/shell-snapshots/
+.claude/statsig/
+.aider*
+.continue/
+.cursor/
+.windsurf/
+
+# Caches de indexado / mapas de proyecto generados por las skills
+.lens-sk-cache/
+.impeccable/config.local.json
+# Carpetas temporales de trabajo de agentes
+_tmp_editor/
+_tmp*/
+
+# Arbol de HOME relativo (lo genera correr herramientas con HOME=$PWD)
+/home/
+
+# Backups y temporales de editores
+*.orig
+*.rej
+*.bak
+*~
+*.swp
+._*
