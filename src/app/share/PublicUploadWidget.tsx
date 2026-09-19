@@ -1,5 +1,7 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
+import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRef, useState } from "react";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
@@ -18,6 +20,7 @@ export function PublicUploadWidget({
   label: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +116,7 @@ export function PublicUploadWidget({
             dragOver ? "border-slate-500 bg-slate-50" : "border-slate-300 hover:border-slate-400"
           }`}
         >
-          {uploading ? "Subiendo…" : dragOver ? "Soltá el archivo acá" : `${label} (o arrastralo acá)`}
+          <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} />
           <input
             ref={inputRef}
             type="file"

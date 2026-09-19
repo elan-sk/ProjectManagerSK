@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { COMMENT_MAX_LENGTH, commentEditError } from "@/lib/commentBody";
 
 async function allowed(projectId: string, taskId?: string | null) {
   const session = await auth();
@@ -24,6 +25,39 @@ export async function postInternalMessage(projectId: string, taskId: string | nu
   await prisma.internalMessage.create({ data: { projectId, taskId, authorId, body: text, reads: { create: { userId: authorId } } } });
   revalidatePath(taskId ? `/projects/${projectId}/tasks/${taskId}` : `/projects/${projectId}`);
   return { ok: true };
+}
+
+// Editar/eliminar: solo el autor y solo durante los primeros 5 minutos
+// (commentEditError) — se valida acá, en el servidor, no solo escondiendo los
+// botones en la interfaz.
+async function ownMessageInWindow(messageId: string) {
+  const session = await auth();
+  if (!session?.user) return { error: "Tu sesión venció. Volvé a entrar." } as const;
+  const message = await prisma.internalMessage.findUnique({ where: { id: messageId }, select: { authorId: true, createdAt: true, projectId: true, taskId: true } });
+  if (!message) return { error: "Ese comentario ya no existe." } as const;
+  const blocked = commentEditError(message.authorId, session.user.id, message.createdAt, Date.now());
+  if (blocked) return { error: blocked } as const;
+  return { message } as const;
+}
+
+const messagePath = (m: { projectId: string; taskId: string | null }) => (m.taskId ? `/projects/${m.projectId}/tasks/${m.taskId}` : `/projects/${m.projectId}`);
+
+export async function editInternalMessage(messageId: string, body: string) {
+  const found = await ownMessageInWindow(messageId);
+  if ("error" in found) return { ok: false as const, error: found.error };
+  const text = body.trim();
+  if (!text || text.length > COMMENT_MAX_LENGTH) return { ok: false as const, error: `El comentario debe tener entre 1 y ${COMMENT_MAX_LENGTH} caracteres.` };
+  await prisma.internalMessage.update({ where: { id: messageId }, data: { body: text } });
+  revalidatePath(messagePath(found.message));
+  return { ok: true as const };
+}
+
+export async function deleteInternalMessage(messageId: string) {
+  const found = await ownMessageInWindow(messageId);
+  if ("error" in found) return { ok: false as const, error: found.error };
+  await prisma.internalMessage.delete({ where: { id: messageId } });
+  revalidatePath(messagePath(found.message));
+  return { ok: true as const };
 }
 
 export async function markInternalMessageRead(messageId: string) {

@@ -16,14 +16,17 @@ export function ResetFiltersButton({ href, count, aligned = true }: { href: stri
         scroll={false}
         title="Quitar filtros"
         aria-label={`Quitar ${count} filtro${count !== 1 ? "s" : ""} activo${count !== 1 ? "s" : ""}`}
-        className="relative flex items-center gap-1.5 rounded-lg bg-[#0a6b78]/10 px-2.5 py-1.5 text-[#0a6b78] hover:bg-[#0a6b78]/20"
+        // Baya sólido (#a3455f, de la paleta de la marca) a propósito: ningún
+        // otro filtro usa ese tono (los demás son teal, gris o colores de
+        // estado), así el botón de "quitar filtros" salta a la vista.
+        className="relative flex items-center gap-1.5 rounded-lg bg-[#a3455f] px-2.5 py-1.5 text-white shadow-sm hover:bg-[#8f3b53]"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h18l-7 8.5V20l-4-2v-4.5L3 5z" />
           <path strokeLinecap="round" d="M17 3l4 4M21 3l-4 4" />
         </svg>
         <span className="text-xs font-semibold">{count}</span>
-        <span aria-hidden className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#0a6b78] ring-2 ring-white" />
+        <span aria-hidden className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#e5c979] ring-2 ring-white" />
       </Link>
     </div>
   );

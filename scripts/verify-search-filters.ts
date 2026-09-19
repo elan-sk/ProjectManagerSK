@@ -28,9 +28,13 @@ assert.ok(!matchesDateRange(task, "2026-09-16", "2026-09-30"), "termina antes de
 assert.ok(!matchesDateRange(task, "2026-08-01", "2026-09-09"), "empieza después del rango");
 assert.ok(matchesDateRange(task, undefined, undefined), "sin rango pasa todo");
 
-assert.equal(progressBar(0), "⬜".repeat(10));
-assert.equal(progressBar(35), "🟥".repeat(3) + "⬜".repeat(7));
-assert.equal(progressBar(50), "🟨".repeat(5) + "⬜".repeat(5));
-assert.equal(progressBar(100), "🟩".repeat(10));
+// Barra de 5 bloques (20 % cada uno), redondeada; llena solo al 100 %.
+assert.equal(progressBar(0), "⬜".repeat(5));
+assert.equal(progressBar(4), "⬜".repeat(5), "menos de 10 % no llena ningún bloque");
+assert.equal(progressBar(35), "🟥🟥⬜⬜⬜");
+assert.equal(progressBar(53), "🟨🟨🟨⬜⬜");
+assert.equal(progressBar(90), "🟩🟩🟩🟩⬜", "90 % no se ve como completo");
+assert.equal(progressBar(100), "🟩".repeat(5));
+assert.equal([...progressBar(57)].length, 5, "siempre 5 bloques");
 
 console.log("verify-search-filters: OK");

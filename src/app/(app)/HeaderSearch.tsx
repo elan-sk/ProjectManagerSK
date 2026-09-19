@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SearchHit } from "@/app/api/search/route";
+
+// Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
+// Tareas → Comentarios → Archivos. Cada grupo lleva su título.
+const GROUP_LABEL: Record<SearchHit["group"], string> = {
+  project: "Proyectos",
+  task: "Tareas",
+  comment: "Comentarios",
+  file: "Archivos y links",
+};
+
+// La etiqueta por resultado solo aporta cuando distingue algo dentro del grupo
+// (paso vs. tarea, archivo vs. link); en los demás sería repetir el título.
+const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link"]);
 
 const KIND_LABEL: Record<SearchHit["kind"], string> = {
   project: "Proyecto",
@@ -135,29 +148,37 @@ export function HeaderSearch() {
               </p>
             ) : (
               hits.map((h, i) => (
-                <button
-                  key={`${h.kind}:${h.id}`}
-                  type="button"
-                  onClick={() => go(h)}
-                  onMouseEnter={() => setActive(i)}
-                  className={`flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
-                >
-                  <span
-                    className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[h.kind]}`}
+                <Fragment key={`${h.kind}:${h.id}`}>
+                  {(i === 0 || hits[i - 1].group !== h.group) && (
+                    <p className={`px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide text-slate-400 uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
+                      {GROUP_LABEL[h.group]}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => go(h)}
+                    onMouseEnter={() => setActive(i)}
+                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
                   >
-                    {KIND_LABEL[h.kind]}
-                  </span>
-                  <span className="w-full min-w-0">
-                    <span className="block truncate text-sm text-slate-900">
-                      {h.title}
-                    </span>
-                    {h.context && (
-                      <span className="block truncate text-xs text-slate-400">
-                        {h.context}
+                    {SHOW_KIND_BADGE.has(h.kind) && (
+                      <span
+                        className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[h.kind]}`}
+                      >
+                        {KIND_LABEL[h.kind]}
                       </span>
                     )}
-                  </span>
-                </button>
+                    <span className="w-full min-w-0">
+                      <span className="block truncate text-sm text-slate-900">
+                        {h.title}
+                      </span>
+                      {h.context && (
+                        <span className="block truncate text-xs text-slate-400">
+                          {h.context}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </Fragment>
               ))
             )}
           </div>

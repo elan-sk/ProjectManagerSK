@@ -269,3 +269,20 @@ button:not(:disabled):active {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Zona de subida que recibiría una captura pegada con Ctrl+V (mouse encima o
+   foco adentro) — la marca usePasteImage.ts. Contorno de la tarjeta + la
+   ayuda pasa de "Arrastralo o pegá una captura" a "Ctrl+V para pegar aquí". */
+[data-paste-active="true"] {
+  outline: 2px solid #0a6b78;
+  outline-offset: 2px;
+}
+.paste-ready {
+  display: none;
+}
+[data-paste-active="true"] .paste-idle {
+  display: none;
+}
+[data-paste-active="true"] .paste-ready {
+  display: inline;
+}

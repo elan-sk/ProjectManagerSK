@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklist de pruebas — PMSK</title>
+<style>
+  :root { --bg:#f4f8f8; --card:#fff; --ink:#0f2a33; --muted:#5b7078; --line:#d5e3e4; --accent:#0a6b78; --ok:#17664e; --warn:#8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1b20; --card:#14272e; --ink:#e6f1f1; --muted:#9db4ba; --line:#254149; --accent:#6fd0dc; --ok:#5fd0a3; --warn:#f0c060; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+  .track { height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--ok); transition: width .25s; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px; font-size: .92rem; }
+  button.btn { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 5px 12px; cursor: pointer; font: inherit; font-size: .88rem; }
+  button.btn:hover { border-color: var(--accent); }
+  label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); font-size: .88rem; }
+  h2 { font-size: 1.15rem; margin: 30px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .item.done { opacity: .62; }
+  .item input[type=checkbox] { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--ok); cursor: pointer; }
+  .item h3 { margin: 0; font-size: 1rem; }
+  .item .body { grid-column: 2; font-size: .93rem; }
+  .item ol { margin: 6px 0 6px 18px; padding: 0; }
+  .item li { margin: 2px 0; }
+  .exp { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); border-radius: 0 8px 8px 0; }
+  .note { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); border-radius: 0 8px 8px 0; color: var(--ink); }
+  code { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 5px; font-size: .88em; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Checklist de pruebas</h1>
+  <p class="sub">Todo lo cambiado en esta sesión, con los pasos para probarlo tú. Lo que marques se guarda en este navegador.</p>
+
+  <div class="bar">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="row">
+      <span id="count">0 de 0 probadas</span>
+      <span>
+        <label class="chk"><input type="checkbox" id="onlyPending"> Solo pendientes</label>
+        <button class="btn" id="reset">Reiniciar marcas</button>
+      </span>
+    </div>
+  </div>
+
+  <div id="root"></div>
+</main>
+
+<script>
+// Cada ítem: id estable (para recordar la marca), título, pasos, resultado esperado y nota opcional.
+const SECTIONS = [
+  {
+    title: "Tablero (Kanban)",
+    items: [
+      { id: "kb-click", t: "Un clic abre la tarea",
+        s: ["Entra a un proyecto → <b>Tablero</b>.", "Haz clic (sin mover el mouse) en el fondo de una card, por ejemplo sobre el título."],
+        e: "Se abre el detalle de la tarea. Ya no hace falta doble clic." },
+      { id: "kb-botones", t: "Botones internos de la card",
+        s: ["Clic en <b>Detalle</b>.", "Vuelve al tablero y haz clic en <b>Asignar</b>."],
+        e: "«Detalle» abre la tarea. «Asignar» abre el modal de asignación y NO navega." },
+      { id: "kb-drag", t: "Arrastrar entre columnas",
+        s: ["Arrastra una card a otra columna (mueve el mouse más de unos pocos píxeles).", "Suéltala."],
+        e: "La card cambia de columna y el estado se guarda. Al soltar NO se abre la tarea ni ningún modal." },
+      { id: "kb-drag-desde-botones", t: "El arrastre también empieza desde «Asignar» y «Detalle»",
+        s: ["Presiona sobre el botón «Asignar» y arrastra hacia otra columna.", "Repite empezando desde el enlace «Detalle»."],
+        e: "La card se arrastra igual que desde cualquier otro punto. Al soltar no se abre el modal ni navega." },
+      { id: "kb-copia", t: "La copia que se arrastra es idéntica y queda pegada al cursor",
+        s: ["Agarra una card por una esquina y muévela despacio."],
+        e: "La copia se ve igual que la card (incluido el botón «Asignar»), sin inclinación, y no tiene desfase respecto al punto donde la agarraste. No muestra el tacho de eliminar." },
+      { id: "kb-cursor", t: "Cursores del tablero",
+        s: ["Pasa el mouse sobre una card, sobre «Asignar» y sobre «Detalle».", "Mantén presionado el botón del mouse sobre la card."],
+        e: "Al pasar: manito que señala (como un link), también sobre los botones internos. Al presionar/arrastrar: mano que agarra." },
+      { id: "kb-completar", t: "Completar: se mueve ya y luego confirma",
+        s: ["Arrastra una card a <b>Completada</b>."],
+        e: "La card aparece de inmediato en Completada y se abre la confirmación. «Cancelar» → vuelve a su columna original. «Sí, completar» → se guarda (si faltan pasos/evidencia, el servidor lo rechaza, vuelve a su sitio y avisa)." },
+      { id: "kb-persiste", t: "La card movida no desaparece con un filtro activo",
+        s: ["Filtra por Estado = <b>En curso</b>.", "Arrastra una tarea de esa lista a <b>Bloqueada</b>.", "Espera unos segundos (la app se refresca sola)."],
+        e: "La card se queda visible en «Bloqueada» aunque ya no cumpla el filtro. Si cambias cualquier filtro, la vista se recalcula normalmente." },
+    ],
+  },
+  {
+    title: "Detalle de la tarea",
+    items: [
+      { id: "dt-desc", t: "Descripción arriba del checklist",
+        s: ["Abre una tarea con descripción."],
+        e: "Hay una tarjeta «Descripción» (mismo estilo que Checklist e Insumos) ubicada arriba del checklist. Si no hay descripción y no puedes editar, no se muestra." },
+      { id: "dt-reorden", t: "Reordenar pasos del checklist",
+        s: ["En una tarea con 3+ pasos, arrastra un paso por su asa (⋮⋮) a otra posición.", "Recarga la página."],
+        e: "El orden cambia al instante y se conserva tras recargar. Un usuario sin permiso de edición no ve las asas." },
+      { id: "dt-links", t: "Links más vistosos",
+        s: ["En Insumos/Evidencias agrega un link normal (ej. https://example.com).", "Agrega un link de YouTube."],
+        e: "Cada link es una tarjeta con su dominio. El de YouTube muestra miniatura con botón de play." },
+      { id: "dt-youtube", t: "Visor de YouTube integrado",
+        s: ["Haz clic en la tarjeta del video de YouTube.", "Cierra con «Cerrar» o con Esc."],
+        e: "El video se reproduce dentro de la app (con «Abrir en YouTube» como alternativa). No aplica a las listas de links de Definición ni a los paneles de Revisión/Aceptación/Ajustes." },
+      { id: "dt-url-primero", t: "Al subir un link: primero la URL, luego el Nombre",
+        s: ["Pulsa «+ Link» en Insumos.", "Revisa también los formularios de link de Definición, Revisión, Aceptación y Ajustes."],
+        e: "En todos, el primer campo es la URL y el segundo el Nombre." },
+      { id: "dt-icono", t: "Clic en el icono del proyecto",
+        s: ["En el detalle de una tarea, haz clic en el icono cuadrado del proyecto (arriba del título).", "Repite en el encabezado del proyecto, en las cards del tablero y en los encabezados de fase del Gantt."],
+        e: "Te lleva a la vista principal del proyecto (<code>/projects/&lt;id&gt;</code>)." },
+    ],
+  },
+  {
+    title: "Filtros",
+    items: [
+      { id: "fl-reset", t: "Botón de quitar filtros",
+        s: ["Activa uno o más filtros en Agenda.", "Fíjate en el botón junto a «Fechas».", "Púlsalo."],
+        e: "Solo aparece con filtros activos: baya sólido con embudo, contador y punto dorado; tooltip «Quitar filtros». Al pulsarlo se limpia todo, incluido el texto del campo «Buscar»." },
+      { id: "fl-reset-buscar", t: "El reset también borra lo que escribiste en «Buscar»",
+        s: ["En Agenda escribe «informe» en «Buscar» y pulsa Enter.", "Pulsa el botón de quitar filtros."],
+        e: "La URL vuelve a <code>/agenda</code> Y el campo «Buscar» queda vacío. Tras el Enter el cursor no debe perderse." },
+      { id: "fl-reset-donde", t: "El botón de reset existe en todos los paneles",
+        s: ["Comprueba: Agenda, Proyecto (Tablero/Gantt/Calendario), Panorama general, Resumen de proyectos, Archivos (del proyecto y general) y Rendimiento."],
+        e: "En cada uno aparece solo cuando hay algún filtro activo." },
+      { id: "fl-fechas", t: "Filtro de rango de fechas (un solo mes)",
+        s: ["Pulsa «Todas las fechas».", "Haz clic en un día, cambia de mes con › y haz clic en otro día."],
+        e: "El calendario muestra un solo mes. El botón queda como «20 sep – 5 oct» y las tareas se filtran por cruce de plazos. «Quitar fechas» lo limpia." },
+      { id: "fl-fechas-donde", t: "Rango de fechas en todas las vistas de tareas",
+        s: ["Aplica un rango en Tablero, Gantt, Calendario del proyecto, Agenda y Panorama general."],
+        e: "En todas se ocultan las tareas cuyo plazo no toca el rango." },
+      { id: "fl-tipo-attr", t: "Tipo: Nuevas / Archivos adjuntos / Compartidas",
+        s: ["Abre el filtro «Tipo» y elige cada una de las 3 opciones (Agenda, Proyecto en las 3 vistas, Panorama).", "Nuevas = asignadas a ti sin abrir; Archivos adjuntos = con archivo subido (un link pegado NO cuenta); Compartidas = con link de compartir activo."],
+        e: "Cada opción muestra solo las tareas que corresponden. «Vista» ya no existe en la Agenda. El indicador «Tareas Nuevas» del resumen usa la opción «Nuevas»." },
+      { id: "fl-recientes", t: "«Todos los proyectos» como opción fija",
+        s: ["En Proyectos abre el selector «Recientes»."],
+        e: "«Recientes» y «Todos los proyectos» aparecen arriba, separadas de la lista de proyectos." },
+    ],
+  },
+  {
+    title: "Header y buscador",
+    items: [
+      { id: "hd-buscador", t: "Buscador rápido en vivo",
+        s: ["Escribe 2+ letras en el buscador del header (ej. «web»)."],
+        e: "Se abre un desplegable bajo el campo (sin modal) mientras escribes. Clic o Enter en un resultado te lleva a él; Esc lo cierra; las flechas navegan." },
+      { id: "hd-agrupado", t: "Resultados agrupados y ordenados",
+        s: ["Busca un término que exista en varios tipos (ej. «prueba»)."],
+        e: "Aparecen títulos de grupo en este orden: <b>Proyectos → Tareas → Comentarios → Archivos y links</b>. Los pasos del checklist van dentro de Tareas; la etiqueta por resultado solo se ve en Paso/Archivo/Link." },
+      { id: "hd-tolerancia", t: "Tolerancia a errores",
+        s: ["Busca «Informé infrome», «proyeto» o «tarae»."],
+        e: "Ignora tildes y mayúsculas y encuentra igual aunque haya letras faltantes o cambiadas de lugar." },
+      { id: "hd-permisos", t: "Solo encuentra lo que puedes ver",
+        s: ["Entra con un usuario MEMBER y busca algo de un proyecto donde no participa."],
+        e: "No aparece. El admin ve todo." },
+      { id: "hd-cursor", t: "Cursor de manito en los resultados",
+        s: ["Pasa el mouse sobre los resultados del buscador."],
+        e: "Cursor de manito que señala." },
+      { id: "hd-fecha-nombre", t: "Fecha corta y nombre acortado",
+        s: ["Mira la esquina derecha del header."],
+        e: "«Hoy: 19 sept» (solo día y mes) y tu nombre cortado a 10 caracteres con «…» (nombre completo al pasar el mouse)." },
+      { id: "hd-campana", t: "La campana de comentarios se cierra al hacer clic afuera",
+        s: ["Abre el desplegable de comentarios internos (icono de mensaje).", "Haz clic fuera. Ábrelo otra vez y pulsa Esc."],
+        e: "Se cierra con clic afuera y con Esc; clic dentro del panel no lo cierra; el botón sigue alternando abrir/cerrar." },
+    ],
+  },
+  {
+    title: "Configuración y datos",
+    items: [
+      { id: "cf-12h", t: "Horario en formato 12 horas",
+        s: ["Configuración → WhatsApp → «Horario laboral» y «Hora exacta del resumen diario»."],
+        e: "Los selectores muestran AM/PM (ej. 8:00 AM – 6:00 PM; 9:00 AM). Al guardar, los valores siguen funcionando igual." },
+      { id: "cf-export", t: "Exportar con «Incluir usuarios»",
+        s: ["Configuración → Exportar / Importar datos.", "Descarga «Todos los proyectos» con la casilla «Incluir usuarios» desmarcada y luego marcada.", "Abre ambos JSON."],
+        e: "Sin casilla: el JSON no trae <code>users</code>. Con casilla: trae los usuarios (con contraseña cifrada) y el archivo se llama <code>…-con-usuarios-…json</code>. «Exportar seleccionados» incluye solo los usuarios de esos proyectos." },
+      { id: "cf-import", t: "Importar crea usuarios y acepta proyectos archivados",
+        s: ["Importa un JSON exportado con usuarios (en local, con una base donde falten esos usuarios)."],
+        e: "Mensaje «Se importaron N proyecto(s) y se crearon M usuario(s) nuevo(s)». Los proyectos archivados ya no hacen fallar el archivo. Los usuarios que ya existían no se tocan." },
+      { id: "cf-login", t: "Entrar con el administrador nuevo",
+        s: ["Inicia sesión con <code>admin_pmsk</code> y la contraseña que te di en el chat.", "Cámbiala en Configuración."],
+        e: "Entra como ADMIN." },
+      { id: "cf-ortografia", t: "Corrector ortográfico",
+        s: ["Escribe una palabra mal escrita (ej. «infrome») en un campo de texto, un textarea y el editor de la descripción."],
+        e: "El navegador la subraya en rojo. Depende del diccionario en español del navegador. No aplica a email/URL/contraseña." },
+    ],
+  },
+  {
+    title: "Servidor y otros (no se prueban en local)",
+    items: [
+      { id: "sv-barra", t: "Barra de 10 bloques en el resumen diario de WhatsApp",
+        s: ["Corre <code>npm run verify:search-filters</code> (verifica la barra) y, si quieres verla en un mensaje real, envíatelo solo a tu número (nunca al grupo)."],
+        e: "Cada 🟩/🟨/🟥 vale 10 % (verde ≥ 70, amarillo ≥ 40, rojo el resto; ⬜ vacío).",
+        n: "No probé un envío real por WhatsApp." },
+      { id: "sv-avatares", t: "Avatares que desaparecen",
+        s: ["En hPanel, confirma que existe la variable <code>PERSISTENT_UPLOADS_DIR</code> apuntando a una carpeta fuera de <code>hbuilds</code>."],
+        e: "Si existe, los archivos subidos sobreviven a los deploys. Si no, cada deploy los pierde (el log de producción ahora lo avisa al arrancar).",
+        n: "Solo dejé el aviso; no cambié dónde se guardan." },
+      { id: "sv-zip", t: "Paquete de despliegue",
+        s: ["Revisa <code>~/Descargas/projectmanagersk-deploy.zip</code> antes de subirlo."],
+        e: "Solo código (sin docs, base de datos ni .env). Tiene 4 migraciones de Prisma que el build necesita; este cambio no agrega migraciones.",
+        n: "Ese zip se generó ANTES de los últimos cambios (filtro Tipo, buscador agrupado, etc.). Pídeme uno nuevo después de hacer commit." },
+      { id: "sv-verify", t: "Scripts de verificación",
+        s: ["Corre <code>npm run verify:search-filters</code>."],
+        e: "Imprime «verify-search-filters: OK» (búsqueda difusa, cruce de fechas, barra de progreso)." },
+    ],
+  },
+];
+
+const KEY = "pmsk-checklist-pruebas-v1";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) { state = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
+
+const root = document.getElementById("root");
+const total = SECTIONS.reduce((n, s) => n + s.items.length, 0);
+
+for (const sec of SECTIONS) {
+  const h = document.createElement("h2"); h.textContent = sec.title; root.appendChild(h);
+  for (const it of sec.items) {
+    const div = document.createElement("div"); div.className = "item"; div.dataset.id = it.id;
+    div.innerHTML =
+      `<input type="checkbox" id="c-${it.id}" aria-label="Probado: ${it.t.replace(/"/g, "&quot;")}">` +
+      `<h3><label for="c-${it.id}">${it.t}</label></h3>` +
+      `<div class="body"><ol>${it.s.map((x) => `<li>${x}</li>`).join("")}</ol>` +
+      `<div class="exp"><b>Debe pasar:</b> ${it.e}</div>` +
+      (it.n ? `<div class="note"><b>Ojo:</b> ${it.n}</div>` : "") + `</div>`;
+    root.appendChild(div);
+    const box = div.querySelector("input");
+    box.checked = !!state[it.id];
+    box.addEventListener("change", () => { state[it.id] = box.checked; save(); refresh(); });
+  }
+}
+
+const only = document.getElementById("onlyPending");
+function refresh() {
+  let done = 0;
+  document.querySelectorAll(".item").forEach((div) => {
+    const on = div.querySelector("input").checked;
+    if (on) done++;
+    div.classList.toggle("done", on);
+    div.classList.toggle("hide", only.checked && on);
+  });
+  document.getElementById("count").textContent = `${done} de ${total} probadas`;
+  document.getElementById("fill").style.width = `${Math.round((done / total) * 100)}%`;
+  // Oculta los títulos de sección que se quedaron sin ítems visibles
+  document.querySelectorAll("#root h2").forEach((h) => {
+    let n = h.nextElementSibling, visible = false;
+    while (n && n.tagName !== "H2") { if (!n.classList.contains("hide")) visible = true; n = n.nextElementSibling; }
+    h.classList.toggle("hide", !visible);
+  });
+}
+only.addEventListener("change", refresh);
+const resetBtn = document.getElementById("reset");
+let armed = null;
+resetBtn.addEventListener("click", () => {
+  // Dos pasos en vez de un diálogo del navegador: el primer clic arma, el segundo borra.
+  if (!armed) {
+    resetBtn.textContent = "¿Seguro? Pulsa otra vez";
+    armed = setTimeout(() => { armed = null; resetBtn.textContent = "Reiniciar marcas"; }, 3000);
+    return;
+  }
+  clearTimeout(armed); armed = null; resetBtn.textContent = "Reiniciar marcas";
+  state = {}; save();
+  document.querySelectorAll(".item input").forEach((b) => (b.checked = false));
+  refresh();
+});
+refresh();
+</script>
+</body>
+</html>

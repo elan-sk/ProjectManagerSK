@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ModalTrigger } from "@/components/Modal";
@@ -328,6 +329,7 @@ function SubmitRoundForm({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [items, setItems] = useState<{ id?: string; name: string; url: string; mimeType: string }[]>(initialItems);
   const [addingLink, setAddingLink] = useState(false);
   const [linkName, setLinkName] = useState("");
@@ -556,6 +558,7 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
   const [note, setNote] = useState(check.note ?? "");
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
   const [linkName, setLinkName] = useState("");
@@ -774,6 +777,7 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
 function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");

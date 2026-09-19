@@ -292,21 +292,24 @@ export async function buildDailyDigestText(userId: string, name: string) {
         // Preventivo primero (todavía a tiempo de evitarlo) — solo le llega a
         // quien administra el proyecto, por eso vive acá y no en el conteo
         // personal de arriba.
-        p.startingSoonCount > 0 ? `${p.startingSoonCount} empiezan pronto` : null,
-        p.lateStartCount > 0 ? `${p.lateStartCount} inicio retrasado` : null,
-        p.overdueCount > 0 ? `${p.overdueCount} final retrasado` : null,
-        p.blockedCount > 0 ? `${p.blockedCount} bloqueada(s)` : null,
-      ]
-        .filter(Boolean)
-        .join(", ");
+        p.startingSoonCount > 0 ? `🔜 ${p.startingSoonCount} empiezan pronto` : null,
+        p.lateStartCount > 0 ? `⏰ ${p.lateStartCount} inicio retrasado` : null,
+        p.overdueCount > 0 ? `⌛ ${p.overdueCount} final retrasado` : null,
+        p.blockedCount > 0 ? `🔒 ${p.blockedCount} bloqueada(s)` : null,
+      ].filter((f): f is string => f !== null);
       const progress = p.total === 0 ? 0 : Math.round((p.completed / p.total) * 100);
-      const healthIcon = p.health === "ok" ? "🟢" : p.health === "warn" ? "🟡" : "🔴";
+      // Caras (no círculos): los círculos 🟢🟡🔴 se confundían con los cuadrados 🟩🟨🟥 de la barra.
+      const healthIcon = p.health === "ok" ? "😀" : p.health === "warn" ? "😐" : "😡";
       lines.push(
         "",
         `• *${p.name}*`,
-        `  ↳ _Avance_ · ${progressBar(progress)} ${progress}% (${p.completed}/${p.total} completadas)`,
+        `  ↳ _Avance_ · ${progressBar(progress)} ${progress}%`,
+        `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
         `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}`,
-        `  ↳ _Alertas_ · ${flags || "sin alertas"}`
+        // Sin alertas: una sola línea. Con alertas: el título solo y cada
+        // alerta en su propia fila debajo (se lee de un vistazo, en vez de una
+        // lista larga separada por comas que se parte mal en el celular).
+        ...(flags.length === 0 ? [`  ↳ _Alertas_ · sin alertas`] : [`  ↳ _Alertas_`, ...flags.map((f) => `      ${f}`)])
       );
     }
   }

@@ -94,7 +94,10 @@ function fmtDate(iso: string) {
 // arrastrable) y su copia en el DragOverlay (ver KanbanBoard) — así ambas se
 // ven idénticas sin duplicar el string de Tailwind.
 function cardClassName(task: TaskCard, extra: string) {
-  return `group relative touch-none space-y-2 rounded-2xl p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${taskCardTint(
+  // [&_button]/[&_a]:cursor-[inherit]: los controles internos (Asignar, Detalle…)
+  // usan el mismo cursor de la card (manito; mano que agarra al presionar) en
+  // vez del cursor por defecto de los botones.
+  return `group relative touch-none space-y-2 rounded-2xl p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${taskCardTint(
     task.status,
     task.alert.level
   )} ${extra}`;
@@ -104,6 +107,7 @@ function CardBody({
   task,
   showProjectName,
   canManage,
+  hideDelete = false,
   users,
   deleting,
   onDelete,
@@ -112,6 +116,8 @@ function CardBody({
   task: TaskCard;
   showProjectName: boolean;
   canManage: boolean;
+  /** La copia que se ve mientras se arrastra no lleva el botón de eliminar. */
+  hideDelete?: boolean;
   users: { id: string; name: string }[];
   deleting: boolean;
   onDelete: () => void;
@@ -122,7 +128,7 @@ function CardBody({
 
   return (
     <>
-      {canManage && (
+      {canManage && !hideDelete && (
         <button
           type="button"
           onClick={onDelete}
@@ -308,8 +314,16 @@ function Card({
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
       {...attributes}
+      // El arranque del arrastre va en la fase de captura (no burbujeo): así
+      // también empieza desde "Asignar", "Detalle", etc., que frenan
+      // onPointerDown para sí mismos. Un click sin mover nunca activa el
+      // arrastre (sensor con `distance`), así que esos botones siguen
+      // funcionando. Se ignora lo que llega de un modal portaleado (no es hijo
+      // DOM de la card) para no arrastrar al usar el formulario de asignar.
+      onPointerDownCapture={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) (listeners?.onPointerDown as ((ev: typeof e) => void) | undefined)?.(e);
+      }}
       onClick={(e) => {
         // Click simple abre la tarea; el arrastre lo decide el sensor del
         // tablero (distance) y dnd-kit ya suprime el click que sigue a un
@@ -329,7 +343,10 @@ function Card({
       // queda oculta (opacity-0) y la copia visible es el DragOverlay de
       // KanbanBoard, que al portalearse a <body> siempre queda por delante de
       // cualquier columna, sin depender del overflow/stacking de cada una.
-      className={cardClassName(task, isDragging ? "cursor-grabbing opacity-0" : deleting ? "cursor-grab opacity-40" : "cursor-grab")}
+      // Cursor: manito que señala (pointer) al pasar por encima — un click
+      // abre la tarea, como un link — y mano que agarra (grabbing) solo
+      // mientras se mantiene presionado / se arrastra.
+      className={cardClassName(task, isDragging ? "cursor-grabbing opacity-0" : deleting ? "cursor-pointer opacity-40" : "cursor-pointer active:cursor-grabbing")}
       // ponytail: content-visibility salta el render de cards fuera de vista
       // en columnas largas — carga progresiva sin librería de virtualización.
       // Alto variable (badges/tags/avatares), así que "auto Npx" reserva un
@@ -535,12 +552,16 @@ export function KanbanBoard({
           vecina). */}
       <DragOverlay>
         {activeTask && (
-          <div className={cardClassName(activeTask, "cursor-grabbing rotate-2 shadow-lg")}>
+          // Idéntica a la card real (incluido el botón "Asignar") y sin
+          // inclinación: la copia queda exactamente bajo el cursor, sin
+          // desplazamiento visual respecto al punto donde se agarró.
+          <div className={cardClassName(activeTask, "cursor-grabbing shadow-lg")}>
             <CardBody
               task={activeTask}
               showProjectName={showProjectName}
-              canManage={false}
-              users={[]}
+              canManage={activeTask.canManage}
+              hideDelete
+              users={users}
               deleting={false}
               onDelete={() => {}}
               collisionUrlBase={collisionUrlBase}

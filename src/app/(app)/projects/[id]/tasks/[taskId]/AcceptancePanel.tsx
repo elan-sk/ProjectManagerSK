@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -214,6 +215,7 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [items, setItems] = useState<{ id?: string; name: string; url: string; mimeType: string }[]>(initialItems);
   const [addingLink, setAddingLink] = useState(false);
   const [linkName, setLinkName] = useState("");
@@ -354,6 +356,7 @@ function ItemRow({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
   const [linkName, setLinkName] = useState("");
@@ -473,6 +476,7 @@ function ItemRow({ item, canEdit }: { item: Item; canEdit: boolean }) {
 function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");

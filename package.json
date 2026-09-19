@@ -22,6 +22,9 @@
     "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts",
     "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts",
     "verify:search-filters": "tsx scripts/verify-search-filters.ts",
+    "verify:paste-image": "tsx scripts/verify-paste-image.ts",
+    "verify:comments": "tsx scripts/verify-comments.ts",
+    "example:digest": "tsx scripts/example-daily-digest.mts",
     "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh"
   },

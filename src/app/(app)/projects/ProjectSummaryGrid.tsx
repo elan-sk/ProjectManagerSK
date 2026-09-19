@@ -10,6 +10,7 @@ import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import type { ProjectSummaryRow } from "@/lib/projectSummaries";
 import { PROJECT_PHASE_LABEL } from "@/lib/statusColors";
+import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { CreateProjectForm } from "./CreateProjectForm";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
@@ -88,6 +89,15 @@ export async function ProjectSummaryGrid({
             />
           </div>
           <ResetFiltersButton count={[pid, health].filter(Boolean).length} href={href({ pid: undefined, health: undefined })} />
+          {/* Acceso directo al final de la fila (además de la opción dentro del filtro): texto subrayado, no botón. */}
+          {pid !== "all" && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">&nbsp;</span>
+              <Link href={href({ pid: "all" })} scroll={false} className="py-1.5 text-sm text-slate-600 underline underline-offset-2 hover:text-[#0a6b78]">
+                Ver todos los proyectos
+              </Link>
+            </div>
+          )}
         </div>
         {showCreateButton && (
           <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -14,6 +15,7 @@ import Image from "@tiptap/extension-image";
 export function RichTextEditor({ name, defaultValue }: { name: string; defaultValue: string | null }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(fileInputRef);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -21,6 +23,11 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
     content: defaultValue ?? "",
     editorProps: {
       attributes: {
+        // Explícitos y desde el origen: el script global que activa el corrector
+        // al enfocar no alcanzaba en este editor (la descripción no subrayaba
+        // palabras mal escritas). Aquí quedan puestos desde que se crea.
+        spellcheck: "true",
+        lang: "es",
         class: "prose prose-sm max-w-none min-h-32 rounded-b-lg border border-t-0 border-slate-300 px-3 py-2 focus:outline-none [&_img]:rounded-lg [&_img]:max-w-full",
       },
     },

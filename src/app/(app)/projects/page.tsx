@@ -10,6 +10,7 @@ import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { businessDaysRange } from "@/lib/holidays";
 import { prisma } from "@/lib/prisma";
 import { getProjectSummaryRows } from "@/lib/projectSummaries";
+import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
@@ -35,7 +36,7 @@ export default async function ProjectsPage({
     date?: string;
     mode?: string;
     status?: TaskStatus;
-    type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE";
+    type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE" | "NEW" | "WITH_FILES" | "SHARED";
     userId?: string;
     q?: string;
     tag?: string;
@@ -267,9 +268,11 @@ export default async function ProjectsPage({
   // "Revisión" son personales, no un TaskType real — atajos sobre los mismos
   // datos que ya alimentan las alertas fijas del header.
   const matchesType = (t: {
+    id: string;
     type: string;
     status: string;
-    assignees: { userId: string }[];
+    assignees: { userId: string; viewedAt: Date | null }[];
+    attachments: { mimeType: string }[];
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
   }) => {
@@ -277,6 +280,15 @@ export default async function ProjectsPage({
     if (type === "RETURNED_MINE") return t.status === "RETURNED" && t.assignees.some((a) => a.userId === myUserId);
     if (type === "REVIEWING_MINE") {
       return t.reviewers.some((r) => r.userId === myUserId) && t.reviewRounds.some((r) => r.outcome === null);
+    }
+    // Opciones de atributo del mismo filtro Tipo (Nuevas / Archivos adjuntos /
+    // Compartidas) — ver taskTypeFilter.ts.
+    if (isAttributeType(type)) {
+      return matchesAttributeType(type, {
+        isNewForMe: Boolean(myUserId) && t.assignees.some((a) => a.userId === myUserId && a.viewedAt === null),
+        hasFiles: hasUploadedFiles(t.attachments),
+        isShared: taskShareTokenById.has(t.id),
+      });
     }
     return t.type === type;
   };
@@ -286,8 +298,8 @@ export default async function ProjectsPage({
     type: string;
     title: string;
     description: string | null;
-    assignees: { userId: string }[];
-    attachments: { fileName: string }[];
+    assignees: { userId: string; viewedAt: Date | null }[];
+    attachments: { fileName: string; mimeType: string }[];
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
     taskTags: { tagId: string; categoryId: string }[];
@@ -613,10 +625,12 @@ export default async function ProjectsPage({
                   })),
                   { id: "RETURNED_MINE", label: "Devueltas (a mí)", dotColorClass: "bg-orange-500" },
                   { id: "REVIEWING_MINE", label: "Revisión (mías)", dotColorClass: "bg-teal-500" },
+                  ...ATTRIBUTE_TYPE_OPTIONS,
                 ]}
                 paramKey="type"
                 basePath="/projects"
                 currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, tag, collision }}
+                triggerColorClass={attributeTypeTriggerClass(type)}
               />
             </div>
             {boardTags.length > 0 && (

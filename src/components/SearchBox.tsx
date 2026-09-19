@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 /**
  * Buscador de texto (título + descripción + nombre de adjuntos) estilo
@@ -27,6 +28,17 @@ export function SearchBox({
   hiddenParams: Record<string, string | undefined>;
 }) {
   const router = useRouter();
+  // Controlado y sincronizado con `q` de la URL: con `defaultValue` el campo
+  // conserva lo que el usuario escribió aunque la URL cambie (ej. el botón de
+  // "quitar filtros" limpia el filtro pero el texto seguía en el campo, como
+  // si el reset no hubiera funcionado). Al ser el mismo valor tras un Enter,
+  // no se pierde el foco ni el cursor.
+  const [value, setValue] = useState(q ?? "");
+  const [prevQ, setPrevQ] = useState(q);
+  if (q !== prevQ) {
+    setPrevQ(q);
+    setValue(q ?? "");
+  }
 
   function buildHref(value: string) {
     const p = new URLSearchParams();
@@ -51,10 +63,11 @@ export function SearchBox({
       <input
         type="search"
         name={paramName}
-        defaultValue={q ?? ""}
+        value={value}
         placeholder={placeholder}
         autoComplete="off"
         onChange={(e) => {
+          setValue(e.target.value);
           if (e.target.value) return;
           router.push(buildHref(""), { scroll: false });
         }}

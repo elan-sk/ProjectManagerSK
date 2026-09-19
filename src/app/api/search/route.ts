@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { commentPreview } from "@/lib/commentBody";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import type { Prisma } from "@prisma/client";
 
+// Los resultados se muestran agrupados y en este orden: Proyectos → Tareas
+// (con sus pasos) → Comentarios → Archivos (con los links).
+export type SearchGroup = "project" | "task" | "comment" | "file";
+
 export type SearchHit = {
   kind: "project" | "task" | "step" | "comment" | "file" | "link";
+  group: SearchGroup;
   id: string;
   title: string;
   context: string | null;
@@ -70,7 +76,8 @@ export async function GET(request: Request) {
   const hits: SearchHit[] = [];
   const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string) => {
     const score = fuzzyScore(q, text);
-    if (score > 0) hits.push({ kind, id, title, context, href, score });
+    const group: SearchGroup = kind === "step" ? "task" : kind === "link" ? "file" : kind;
+    if (score > 0) hits.push({ kind, group, id, title, context, href, score });
   };
 
   const taskTitleById = new Map<string, string>();
@@ -94,7 +101,7 @@ export async function GET(request: Request) {
   }
   const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
   for (const m of messages) {
-    const body = stripHtml(m.body);
+    const body = commentPreview(stripHtml(m.body));
     const where = m.taskId ? taskTitleById.get(m.taskId) ?? "Tarea" : "Proyecto";
     push(
       "comment",
@@ -106,6 +113,17 @@ export async function GET(request: Request) {
     );
   }
 
-  hits.sort((a, b) => b.score - a.score);
-  return NextResponse.json({ hits: hits.slice(0, 30) });
+  // Un tope por grupo (en vez de uno global) para que los comentarios, que
+  // suelen ser muchos, no desplacen a los proyectos/tareas. Dentro del grupo:
+  // primero lo principal (tarea, archivo) y después lo secundario (paso, link);
+  // luego por coincidencia.
+  const LIMIT: Record<SearchGroup, number> = { project: 5, task: 8, comment: 8, file: 8 };
+  const secondary = (h: SearchHit) => (h.kind === "step" || h.kind === "link" ? 1 : 0);
+  const ordered = (Object.keys(LIMIT) as SearchGroup[]).flatMap((group) =>
+    hits
+      .filter((h) => h.group === group)
+      .sort((a, b) => secondary(a) - secondary(b) || b.score - a.score)
+      .slice(0, LIMIT[group])
+  );
+  return NextResponse.json({ hits: ordered });
 }

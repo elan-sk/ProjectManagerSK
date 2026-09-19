@@ -1,5 +1,7 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
+import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { addAttachmentRecord, addLinkAttachment } from "./actions";
@@ -20,6 +22,7 @@ export function AttachmentUploader({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +142,7 @@ export function AttachmentUploader({
             dragOver ? "border-slate-500 bg-slate-50" : "border-slate-300 hover:border-slate-400"
           }`}
         >
-          {uploading ? "Subiendo…" : dragOver ? "Soltá el archivo acá" : `${label} (o arrastralo acá)`}
+          <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} />
           <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleChange} />
         </label>
         <button

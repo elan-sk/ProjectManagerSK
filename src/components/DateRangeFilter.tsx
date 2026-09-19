@@ -7,7 +7,8 @@ import { addMonths, eachDayOfInterval, endOfMonth, format, getDay, isAfter, isBe
 import { es } from "date-fns/locale";
 
 const WEEKDAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
-const POPOVER_W = 600;
+// Un solo mes (w-64 = 256) + padding del popover (p-4 → 32).
+const POPOVER_W = 288;
 
 const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -193,17 +194,12 @@ export function DateRangeFilter({
               <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} aria-label="Mes anterior" className="rounded p-1 text-slate-500 hover:bg-slate-100">
                 ‹
               </button>
-              <span className="text-xs text-slate-400">{draftFrom && !draftTo ? "Elegí el día final" : "Elegí el día inicial y el final"}</span>
+              <span className="text-xs text-slate-400">{draftFrom && !draftTo ? "Elegí el día final" : "Elegí inicio y fin"}</span>
               <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} aria-label="Mes siguiente" className="rounded p-1 text-slate-500 hover:bg-slate-100">
                 ›
               </button>
             </div>
-            <div className="flex gap-6 overflow-x-auto">
-              <Month month={viewMonth} from={draftFrom} to={draftTo} hover={hover} onPick={pick} onHover={setHover} />
-              <div className="hidden sm:block">
-                <Month month={addMonths(viewMonth, 1)} from={draftFrom} to={draftTo} hover={hover} onPick={pick} onHover={setHover} />
-              </div>
-            </div>
+            <Month month={viewMonth} from={draftFrom} to={draftTo} hover={hover} onPick={pick} onHover={setHover} />
             {active && (
               <button type="button" onClick={clear} className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline">
                 Quitar fechas

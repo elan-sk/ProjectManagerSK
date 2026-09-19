@@ -1,5 +1,6 @@
 "use client";
 
+import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -236,6 +237,7 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
   const router = useRouter();
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
+  usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
