@@ -136,7 +136,15 @@ export async function removeAttachment(attachmentId: string) {
     return;
   }
 
-  const projectAttachment = await prisma.projectAttachment.findUniqueOrThrow({ where: { id: attachmentId } });
+  const projectAttachment = await prisma.projectAttachment.findUnique({ where: { id: attachmentId } });
+  if (!projectAttachment) {
+    // Enlace del proyecto (pestaña Definición / Archivos): no tiene archivo físico.
+    const link = await prisma.projectLink.findUniqueOrThrow({ where: { id: attachmentId } });
+    await requireProjectAdmin(link.projectId);
+    await prisma.projectLink.delete({ where: { id: attachmentId } });
+    revalidatePath(`/projects/${link.projectId}`);
+    return;
+  }
   await requireProjectAdmin(projectAttachment.projectId);
   await prisma.projectAttachment.delete({ where: { id: attachmentId } });
   if (projectAttachment.mimeType !== LINK_MIME_TYPE) {

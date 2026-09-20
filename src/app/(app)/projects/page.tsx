@@ -425,6 +425,8 @@ export default async function ProjectsPage({
       projectName: t.project.name,
       title: t.title,
       isUrgent: t.isUrgent,
+      attachmentsCount: t.attachments.length,
+      shareToken: taskShareTokenById.get(t.id) ?? null,
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,

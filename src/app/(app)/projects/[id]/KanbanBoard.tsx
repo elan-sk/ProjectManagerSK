@@ -160,12 +160,6 @@ function CardBody({
               Archivada
             </span>
           )}
-          {task.isUrgent && task.status !== "COMPLETED" && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-              <UrgentIcon className="h-3 w-3" />
-              Urgente
-            </span>
-          )}
           {task.status === "RETURNED" && (
             <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_STATUS_COLOR.RETURNED.badge}`}>
               {TASK_STATUS_LABEL.RETURNED}
@@ -768,7 +762,6 @@ export function KanbanBoard({
               task={activeTask}
               showProjectName={showProjectName}
               canManage={activeTask.canManage}
-              hideDelete
               users={users}
               deleting={false}
               onDelete={() => {}}

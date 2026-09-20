@@ -4,9 +4,9 @@ import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useConfirm } from "@/components/Confirm";
-import { addProjectLink, removeProjectLink, addProjectAttachment, removeProjectAttachment } from "./definitionActions";
-import { AttachmentPreviewModal, isPreviewable, type PreviewFile } from "@/components/AttachmentPreviewModal";
+import { addProjectLink, addProjectAttachment } from "./definitionActions";
+import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
+import { LINK_MIME_TYPE } from "@/lib/attachments";
 
 type ProjectLink = { id: string; title: string; url: string };
 type ProjectAttachment = { id: string; fileName: string; fileUrl: string; mimeType: string };
@@ -25,7 +25,6 @@ export function ProjectLinksPanel({
   canManage: boolean;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -35,7 +34,6 @@ export function ProjectLinksPanel({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [openPreview, setOpenPreview] = useState<PreviewFile | null>(null);
 
   function handleAdd() {
     if (!title.trim() || !url.trim()) return;
@@ -55,17 +53,6 @@ export function ProjectLinksPanel({
     });
   }
 
-  async function handleRemove(linkId: string, linkTitle: string) {
-    const ok = await confirm(`¿Seguro que querés eliminar "${linkTitle}"? No vas a poder deshacer esto.`, {
-      confirmLabel: "Eliminar",
-      danger: true,
-    });
-    if (!ok) return;
-    await removeProjectLink(linkId);
-    router.refresh();
-  }
-
-  // Uno o varios archivos, de a uno; si alguno falla sigue con el resto y avisa cuál.
   async function uploadFiles(files: File[]) {
     setUploading(true);
     setUploadError(null);
@@ -104,67 +91,22 @@ export function ProjectLinksPanel({
     if (files.length > 0) uploadFiles(files);
   }
 
-  async function handleRemoveAttachment(attachmentId: string, fileName: string) {
-    const ok = await confirm(`¿Seguro que querés eliminar "${fileName}"? No vas a poder deshacer esto.`, {
-      confirmLabel: "Eliminar",
-      danger: true,
-    });
-    if (!ok) return;
-    await removeProjectAttachment(attachmentId);
-    router.refresh();
-  }
-
-  // Sin confirm propio — lo usa el visor (AttachmentPreviewModal), que ya
-  // pide confirmación él mismo antes de llamarlo.
-  async function deleteAttachmentRaw(attachmentId: string) {
-    await removeProjectAttachment(attachmentId);
-    router.refresh();
-  }
-
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-medium text-slate-900">Archivos y enlaces</h2>
-      <ul className="space-y-1">
-        {attachments.map((att) => (
-          <li key={att.id} className="flex items-center justify-between gap-2 text-sm">
-            {isPreviewable(att.mimeType) ? (
-              <button
-                type="button"
-                onClick={() => setOpenPreview({ id: att.id, url: att.fileUrl, name: att.fileName, mimeType: att.mimeType })}
-                className="min-w-0 truncate text-left text-slate-700 hover:underline"
-              >
-                {att.fileName}
-              </button>
-            ) : (
-              <a href={att.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-slate-700 hover:underline">
-                {att.fileName}
-              </a>
-            )}
-            {canManage && (
-              <button
-                type="button"
-                onClick={() => handleRemoveAttachment(att.id, att.fileName)}
-                className="flex-shrink-0 text-xs text-slate-400 hover:text-red-600"
-              >
-                Eliminar
-              </button>
-            )}
-          </li>
-        ))}
-        {links.map((link) => (
-          <li key={link.id} className="flex items-center justify-between gap-2 text-sm">
-            <a href={link.url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-slate-700 hover:underline">
-              {link.title}
-            </a>
-            {canManage && (
-              <button type="button" onClick={() => handleRemove(link.id, link.title)} className="flex-shrink-0 text-xs text-slate-400 hover:text-red-600">
-                Eliminar
-              </button>
-            )}
-          </li>
-        ))}
-        {links.length === 0 && attachments.length === 0 && <p className="text-sm text-slate-400">Sin archivos ni enlaces todavía.</p>}
-      </ul>
+      {/* Misma grilla con miniaturas que la pestaña Archivos: imágenes, documentos y enlaces (YouTube en visor). */}
+      {links.length === 0 && attachments.length === 0 ? (
+        <p className="text-sm text-slate-400">Sin archivos ni enlaces todavía.</p>
+      ) : (
+        <AttachmentGrid
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+          canDelete={canManage}
+          items={[
+            ...attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            ...links.map((l) => ({ id: l.id, url: l.url, name: l.title, mimeType: LINK_MIME_TYPE })),
+          ]}
+        />
+      )}
       {canManage && (
         <div className="space-y-2 border-t border-slate-100 pt-2">
           <label
@@ -208,13 +150,6 @@ export function ProjectLinksPanel({
         </div>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {openPreview && (
-        <AttachmentPreviewModal
-          file={openPreview}
-          onClose={() => setOpenPreview(null)}
-          onDelete={canManage ? () => deleteAttachmentRaw(openPreview.id) : undefined}
-        />
-      )}
     </div>
   );
 }

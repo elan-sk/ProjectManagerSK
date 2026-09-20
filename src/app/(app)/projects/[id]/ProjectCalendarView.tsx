@@ -3,7 +3,8 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendarGrid";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { OverlapIcon, UrgentIcon } from "@/components/icons";
+import { LinkIcon, OverlapIcon, PaperclipIcon, UrgentIcon } from "@/components/icons";
+import { TaskIndicators } from "@/components/TaskIndicators";
 import { CalendarTaskLink } from "./CalendarTaskLink";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -15,6 +16,8 @@ export type CalendarTask = {
   projectName: string;
   title: string;
   isUrgent: boolean;
+  attachmentsCount: number;
+  shareToken: string | null;
   plannedStart: string;
   plannedEnd: string;
   status: TaskStatus;
@@ -115,6 +118,7 @@ export function ProjectCalendarView({
                       />
                     )}
                     <span className="flex flex-shrink-0 items-center gap-1.5">
+                      <TaskIndicators attachmentsCount={t.attachmentsCount} shareToken={t.shareToken} />
                       {t.alert.level === "onTrack" && (
                         <span className="text-[11px] text-slate-400">vence en {t.alert.daysRemaining}d</span>
                       )}
@@ -181,6 +185,8 @@ export function ProjectCalendarView({
                       {isUrgentOpen(t) && <UrgentIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {collision && <OverlapIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       <span className="truncate">{label}</span>
+                      {t.shareToken && <LinkIcon className="h-2.5 w-2.5 flex-shrink-0" />}
+                      {t.attachmentsCount > 0 && <PaperclipIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                     </CalendarTaskLink>
                   );
                 })}

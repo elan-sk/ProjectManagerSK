@@ -423,6 +423,8 @@ export default async function ProjectPage({
     .map((t) => ({
       id: t.id,
       isUrgent: t.isUrgent,
+      attachmentsCount: t.attachments.length,
+      shareToken: taskShareTokenById.get(t.id) ?? null,
       projectId: project.id,
       projectName: project.name,
       title: t.title,

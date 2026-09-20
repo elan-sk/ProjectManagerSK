@@ -8,6 +8,7 @@ import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
+import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
 import { getAgendaCounts, getPmProjectsSummary } from "@/lib/agendaSummary";
@@ -43,6 +44,8 @@ type AgendaCard = {
   projectIconUrl: string | null;
   title: string;
   isUrgent: boolean;
+  attachmentsCount: number;
+  shareToken: string | null;
   status: TaskStatus;
   tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
   assignees: { name: string; avatarUrl: string | null }[];
@@ -214,18 +217,16 @@ export default async function AgendaPage({
     viewingOther ? Promise.resolve([]) : getReviewPerformance("QA"),
   ]);
 
-  // Solo se consulta si el filtro lo pide: tareas con un link de compartir activo.
-  const sharedTaskIds =
-    type === "SHARED"
-      ? new Set(
-          (
-            await prisma.shareLink.findMany({
-              where: { targetType: "TASK", revokedAt: null, taskId: { in: tasksRaw.map((t) => t.id) } },
-              select: { taskId: true },
-            })
-          ).map((l) => l.taskId)
-        )
-      : new Set<string | null>();
+  // Links de compartir activos de estas tareas: alimentan el indicador (igual que en las demás vistas) y el filtro «Compartidas».
+  const shareTokenByTaskId = new Map(
+    (
+      await prisma.shareLink.findMany({
+        where: { targetType: "TASK", revokedAt: null, taskId: { in: tasksRaw.map((t) => t.id) } },
+        select: { taskId: true, token: true },
+      })
+    ).map((l) => [l.taskId!, l.token])
+  );
+  const sharedTaskIds = new Set<string | null>(shareTokenByTaskId.keys());
 
   const tasksWithAlert = await Promise.all(
     tasksRaw.map(async (t) => ({ ...t, alert: await getTaskAlert(t.project.countryCode, t) }))
@@ -253,6 +254,8 @@ export default async function AgendaPage({
     projectIconUrl: t.project.iconUrl,
     title: t.title,
     isUrgent: t.isUrgent && t.status !== "COMPLETED",
+    attachmentsCount: t.attachments.length,
+    shareToken: shareTokenByTaskId.get(t.id) ?? null,
     status: t.status,
     tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
@@ -621,6 +624,7 @@ export default async function AgendaPage({
                           Empieza en {card.alert.daysUntilStart}d
                         </span>
                       )}
+                      <TaskIndicators attachmentsCount={card.attachmentsCount} shareToken={card.shareToken} />
                       <span className={`rounded-full px-2 py-1 text-xs font-medium ${TASK_STATUS_COLOR[card.status].badge}`}>
                         {TASK_STATUS_LABEL[card.status]}
                       </span>
