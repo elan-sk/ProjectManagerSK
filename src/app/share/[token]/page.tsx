@@ -42,7 +42,7 @@ export default async function SharePage({
       <ConfirmProvider>
         <div className="pacific-shell min-h-screen">
           <PublicHeader />
-          <main className="mx-auto max-w-2xl p-6">
+          <main className="mx-auto max-w-4xl p-6">
             <PublicTaskDetail token={token} data={data} />
           </main>
         </div>

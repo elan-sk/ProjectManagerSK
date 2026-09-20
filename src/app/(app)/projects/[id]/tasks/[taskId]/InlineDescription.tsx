@@ -38,7 +38,7 @@ export function InlineDescription({
         tabIndex={canManage ? 0 : undefined}
         title={canManage ? "Click para editar" : undefined}
         onClick={() => canManage && setEditing(true)}
-        className={`prose prose-sm max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg ${
+        className={`prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg ${
           canManage ? "-mx-1 cursor-text rounded px-1 hover:bg-slate-100" : ""
         }`}
         dangerouslySetInnerHTML={{ __html: description }}

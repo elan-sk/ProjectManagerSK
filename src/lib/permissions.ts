@@ -109,3 +109,30 @@ export async function isPmOrAdminAnywhere() {
   const pmOf = await prisma.project.findFirst({ where: { pmId: session.user.id } });
   return Boolean(pmOf);
 }
+
+/**
+ * Quien puede participar en la conversación de un proyecto o de una de sus
+ * tareas (escribir y responder preguntas): admin, PM del proyecto, o quien es
+ * asignado o revisor de la tarea (o de cualquier tarea del proyecto, si la
+ * conversación es la del proyecto). Misma regla de las conversaciones internas.
+ */
+export async function canParticipateInProject(projectId: string, taskId?: string | null, actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return false;
+  if (user.role === "ADMIN") return true;
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true } });
+  if (project?.pmId === user.id) return true;
+  const scope = taskId ? { id: taskId } : { projectId };
+  const member = await prisma.task.findFirst({
+    where: { ...scope, OR: [{ assignees: { some: { userId: user.id } } }, { reviewers: { some: { userId: user.id } } }] },
+    select: { id: true },
+  });
+  return Boolean(member);
+}
+
+/** Quién actúa, con nombre para firmar lo que escriba: la sesión del navegador o el usuario de la API. */
+export async function getActingUser(actor?: Actor) {
+  if (actor) return prisma.user.findUnique({ where: { id: actor.id }, select: { id: true, name: true, role: true } });
+  const session = await auth();
+  return session?.user ? { id: session.user.id, name: session.user.name ?? null, role: session.user.role } : null;
+}

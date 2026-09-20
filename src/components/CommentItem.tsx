@@ -24,6 +24,8 @@ type Props = {
   body: string;
   edited?: boolean;
   currentUserId: string;
+  /** El mensaje es el enunciado de una pregunta: el autor va arriba («X hizo esta pregunta») y el enunciado como título. */
+  asQuestion?: boolean;
 };
 
 /** Botones «Editar · Eliminar» del autor: solo se ven durante los primeros 5 minutos (con cuenta regresiva). */
@@ -33,7 +35,7 @@ function OwnControls({ createdAtMs, disabled, onEdit, onDelete }: { createdAtMs:
   if (now === 0 || left <= 0) return null;
   const secs = Math.ceil(left / 1000);
   return (
-    <span className="ml-2 inline-flex items-center gap-2 text-xs">
+    <span className="ml-2 inline-flex items-center gap-2 text-[17px]">
       <button type="button" onClick={onEdit} disabled={disabled} className="cursor-pointer text-slate-500 hover:text-slate-900 hover:underline disabled:opacity-50">
         Editar
       </button>
@@ -47,7 +49,7 @@ function OwnControls({ createdAtMs, disabled, onEdit, onDelete }: { createdAtMs:
   );
 }
 
-export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, edited, currentUserId }: Props) {
+export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, edited, currentUserId, asQuestion = false }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -86,17 +88,26 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
     });
   }
 
-  return (
-    <article className="flex gap-2">
-      <Avatar name={authorName} avatarUrl={authorAvatarUrl} size="h-7 w-7 text-[10px]" />
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-700">
-          {authorName} <span className="font-normal text-slate-400">{createdLabel}{edited ? " · editado" : ""}</span>
+  const avatar = <Avatar name={authorName} avatarUrl={authorAvatarUrl} size={asQuestion ? "h-9 w-9 text-[15px]" : "h-7 w-7 text-[13px]"} />;
+
+  const meta = (
+        <p className="min-w-0 flex-1 text-[17px] font-medium text-slate-700">
+          {asQuestion ? (
+            <>
+              <span className="font-semibold text-slate-900">{authorName}</span> <span className="font-normal text-slate-500">hizo esta pregunta ·</span>
+            </>
+          ) : (
+            authorName
+          )}{" "}
+          <span className="font-normal text-slate-400">{createdLabel}{edited ? " · editado" : ""}</span>
           {authorId === currentUserId && !editing && (
             <OwnControls createdAtMs={createdAtMs} disabled={pending} onEdit={() => { setDraft(body); setError(null); setEditing(true); }} onDelete={remove} />
           )}
         </p>
+  );
 
+  const content = (
+    <>
         {editing ? (
           <div className="mt-1 space-y-1.5">
             <textarea
@@ -105,19 +116,19 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
               maxLength={COMMENT_MAX_LENGTH}
               aria-label="Editar comentario"
               autoFocus
-              className="block min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a6b78] focus:ring-2 focus:ring-[#0a6b78]/40"
+              className="block min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-[18px] outline-none focus:border-[#0a6b78] focus:ring-2 focus:ring-[#0a6b78]/40"
             />
             <div className="flex gap-2">
-              <button type="button" onClick={save} disabled={pending || !draft.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+              <button type="button" onClick={save} disabled={pending || !draft.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
                 {pending ? "Guardando…" : "Guardar"}
               </button>
-              <button type="button" onClick={() => { setEditing(false); setError(null); }} disabled={pending} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+              <button type="button" onClick={() => { setEditing(false); setError(null); }} disabled={pending} className="rounded-lg border border-slate-300 px-3 py-1.5 text-[17px] font-medium text-slate-700 hover:bg-slate-50">
                 Cancelar
               </button>
             </div>
           </div>
         ) : (
-          <div className="text-sm text-slate-700">
+          <div className={asQuestion ? "mt-1 whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900" : "text-[18px] text-slate-700"}>
             {parts.map((part, i) => {
               if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
               if (part.type === "mention")
@@ -125,14 +136,14 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
               const videoId = part.type === "link" ? youtubeVideoId(part.url) : null;
               if (part.type === "link" && videoId)
                 return (
-                  <button key={i} type="button" onClick={() => setOpenVideo({ id: videoId, name: part.name })} title="Ver el video aquí" className="mx-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100">
+                  <button key={i} type="button" onClick={() => setOpenVideo({ id: videoId, name: part.name })} title="Ver el video aquí" className="mx-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-[17px] font-medium text-red-700 hover:bg-red-100">
                     <span aria-hidden>▶</span>
                     <span className="truncate">{part.name}</span>
                   </button>
                 );
               if (part.type === "file" || part.type === "link")
                 return (
-                  <a key={i} href={part.url} target="_blank" rel="noreferrer" className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                  <a key={i} href={part.url} target="_blank" rel="noreferrer" className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[17px] font-medium text-slate-700 hover:bg-slate-100">
                     {part.type === "file" ? <DocumentIcon className="h-3.5 w-3.5 shrink-0" /> : <LinkIcon className="h-3.5 w-3.5 shrink-0" />}
                     <span className="truncate">{part.name}</span>
                   </a>
@@ -154,7 +165,30 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
         )}
         {openImage && <AttachmentLightbox images={images} openId={openImage} onClose={() => setOpenImage(null)} onNavigate={setOpenImage} canDelete={false} />}
         {openVideo && <YouTubeModal videoId={openVideo.id} title={openVideo.name} onClose={() => setOpenVideo(null)} />}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-[17px] text-red-600">{error}</p>}
+    </>
+  );
+
+  // Pregunta: foto y autor en su propia fila y el enunciado debajo, a todo el ancho — así el
+  // título queda alineado con las opciones y se lee que encabeza todo lo de abajo.
+  if (asQuestion) {
+    return (
+      <article className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          {avatar}
+          {meta}
+        </div>
+        <div className="min-w-0">{content}</div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="flex gap-2">
+      {avatar}
+      <div className="min-w-0 flex-1">
+        {meta}
+        {content}
       </div>
     </article>
   );

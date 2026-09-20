@@ -10,6 +10,8 @@ import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
+import { RoundThread, type RoundMessage } from "./RoundThread";
+import { CheckThread } from "./CheckThread";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import {
   setTaskReviewers,
@@ -27,8 +29,6 @@ import {
   removeReviewCheckEvidence,
   closeReviewRound,
   completeReviewTask,
-  addReviewMessage,
-  editReviewMessage,
 } from "./reviewActions";
 import type { CheckResult, TaskStatus } from "@prisma/client";
 
@@ -44,7 +44,6 @@ type Check = {
   reviewedByName: string | null;
   evidence: FileRef[];
 };
-type Message = { id: string; authorId: string; authorName: string; body: string; editedAt: string | null; createdAt: string };
 type Round = {
   id: string;
   roundNumber: number;
@@ -53,7 +52,7 @@ type Round = {
   outcome: "APPROVED" | "RETURNED" | null;
   deliverables: FileRef[];
   checks: Check[];
-  messages: Message[];
+  messages: RoundMessage[];
 };
 
 const RESULT_LABEL: Record<CheckResult, string> = {
@@ -72,7 +71,7 @@ const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.
 
 function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const isLink = file.mimeType === LINK_MIME_TYPE;
-  const className = "flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50";
+  const className = "flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[17px] text-slate-600 hover:bg-slate-50";
   const content = (
     <>
       {isLink ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
@@ -179,9 +178,9 @@ export function ReviewPanel({
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-medium text-slate-900">Prueba</h2>
+        <h2 className="text-[21px] font-semibold text-slate-900">Prueba</h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Revisores:</span>
+          <span className="text-[17px] text-slate-400">Revisores:</span>
           <AvatarGroup people={reviewers.map((r) => ({ name: r.name, avatarUrl: r.avatarUrl }))} />
           {canManage && !isDone && (
             <ModalTrigger label="Cambiar" title="Asignar revisores" variant="secondary" compact>
@@ -235,9 +234,9 @@ export function ReviewPanel({
 
       {closedRounds.length > 0 && (
         <div className="space-y-2 border-t border-slate-100 pt-3">
-          <p className="text-xs font-medium text-slate-500">Rondas anteriores</p>
+          <p className="text-[18px] font-semibold text-slate-600">Rondas anteriores</p>
           {closedRounds.map((round) => (
-            <details key={round.id} className="rounded-lg border border-slate-100 p-2 text-sm">
+            <details key={round.id} className="rounded-lg border border-slate-100 p-2 text-[18px]">
               <summary className="cursor-pointer text-slate-600">
                 Ronda {round.roundNumber} —{" "}
                 <span className={round.outcome === "APPROVED" ? "text-emerald-600" : "text-orange-600"}>
@@ -247,7 +246,7 @@ export function ReviewPanel({
               </summary>
               <div className="mt-2 space-y-2 pl-2">
                 <RoundChecks checks={round.checks} readOnly />
-                <Chat round={round} userId={userId} canComment={canEdit || canReview} />
+                <RoundThread roundId={round.id} messages={round.messages} userId={userId} canComment={canEdit || canReview} canVote={canEdit || canReview} canClose={canEdit} canAttach={false} />
               </div>
             </details>
           ))}
@@ -268,11 +267,11 @@ function CorrectionPanel({ round, responseCategories }: { round: Round; response
   const allAnswered = failedChecks.every((c) => c.responseCategory?.trim() && c.evidence.length > 0);
   return (
     <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
-      <p className="text-sm font-medium text-orange-800">
+      <p className="text-[18px] font-medium text-orange-800">
         Antes de reenviar — respondé y subí evidencia de la corrección de cada prueba con error (ronda {round.roundNumber})
       </p>
       <RoundChecks checks={failedChecks} canEdit responseCategories={responseCategories} />
-      {!allAnswered && <p className="text-xs text-orange-600">Faltan pruebas por responder con evidencia.</p>}
+      {!allAnswered && <p className="text-[17px] text-orange-600">Faltan pruebas por responder con evidencia.</p>}
     </div>
   );
 }
@@ -303,11 +302,11 @@ function CompleteTaskButton({ taskId }: { taskId: string }) {
         type="button"
         disabled={isPending}
         onClick={handleClick}
-        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[18px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
       >
         Completar tarea
       </button>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-[17px] text-red-600">{error}</p>}
     </div>
   );
 }
@@ -383,13 +382,13 @@ function SubmitRoundForm({
 
   return (
     <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3">
-      <p className="text-sm text-slate-600">
+      <p className="text-[18px] text-slate-600">
         {nextRoundNumber === 1 ? "Enviar a revisión" : `Reenviar (ronda ${nextRoundNumber})`}
       </p>
       {items.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {items.map((it, i) => (
-            <span key={i} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600">
+            <span key={i} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[17px] text-slate-600">
               {it.mimeType === LINK_MIME_TYPE ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
               <span className="max-w-[10rem] truncate">{it.name}</span>
               <button type="button" onClick={() => removeItem(i)} className="text-slate-400 hover:text-red-600">
@@ -401,35 +400,35 @@ function SubmitRoundForm({
       )}
       {addingLink ? (
         <div className="flex gap-1.5">
-          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
-          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={addLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-sm text-white disabled:opacity-50">
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[18px]" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[18px]" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={addLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[18px] text-white disabled:opacity-50">
             OK
           </button>
-          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-500">
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[18px] text-slate-500">
             ✕
           </button>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400">
+          <label className="cursor-pointer rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[18px] text-slate-500 hover:border-slate-400">
             {uploading ? "Subiendo…" : "+ Archivo"}
             <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
           </label>
-          <button type="button" onClick={() => setAddingLink(true)} className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400">
+          <button type="button" onClick={() => setAddingLink(true)} className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[18px] text-slate-500 hover:border-slate-400">
             + Link
           </button>
           <button
             type="button"
             disabled={isPending || items.length === 0}
             onClick={handleSubmit}
-            className="ml-auto flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="ml-auto flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             Enviar
           </button>
         </div>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-[17px] text-red-600">{error}</p>}
     </div>
   );
 }
@@ -473,7 +472,7 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-800">
+        <p className="text-[19px] font-semibold text-slate-800">
           Ronda {round.roundNumber} — enviada por {round.submittedByName}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -487,7 +486,7 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
           onChange={(e) => handleApplyTemplate(e.target.value)}
           defaultValue=""
           disabled={isPending}
-          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600"
+          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] text-slate-600"
         >
           <option value="" disabled>
             Usar una plantilla de pruebas…
@@ -510,16 +509,16 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
             type="button"
             disabled={isPending || !allResolved}
             onClick={handleClose}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             Cerrar ronda
           </button>
-          {!allResolved && round.checks.length > 0 && <p className="mt-1 text-xs text-slate-400">Faltan pruebas por resolver.</p>}
+          {!allResolved && round.checks.length > 0 && <p className="mt-1 text-[17px] text-slate-400">Faltan pruebas por resolver.</p>}
         </div>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-[17px] text-red-600">{error}</p>}
 
-      <Chat round={round} userId={userId} canComment={canEdit || canReview} />
+      <RoundThread roundId={round.id} messages={round.messages} userId={userId} canComment={canEdit || canReview} canVote={canEdit || canReview} canClose={canEdit} canAttach />
     </div>
   );
 }
@@ -531,12 +530,14 @@ function RoundChecks({ checks, canReview = false, canEdit = false, readOnly = fa
   readOnly?: boolean;
   responseCategories?: { name: string; responses: string[] }[];
 }) {
-  if (checks.length === 0) return <p className="text-sm text-slate-400">Sin pruebas todavía.</p>;
+  if (checks.length === 0) return <p className="text-[18px] text-slate-400">Sin pruebas todavía.</p>;
   return (
-    <ul className="space-y-2">
-      {checks.map((check) => (
+    <ul className="space-y-5">
+      {checks.map((check, index) => (
         <CheckRow
           key={check.id}
+          index={index}
+          total={checks.length}
           check={check}
           canReview={!readOnly && canReview}
           canEdit={!readOnly && canEdit}
@@ -547,7 +548,9 @@ function RoundChecks({ checks, canReview = false, canEdit = false, readOnly = fa
   );
 }
 
-function CheckRow({ check, canReview, canEdit, responseCategories }: {
+function CheckRow({ index, total, check, canReview, canEdit, responseCategories }: {
+  index: number;
+  total: number;
   check: Check;
   canReview: boolean;
   canEdit: boolean;
@@ -647,15 +650,16 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
     [];
 
   return (
-    <li className="space-y-1.5 rounded-lg border border-slate-100 p-2">
+    <li className="space-y-1.5 rounded-xl border border-slate-300 border-l-4 border-l-[#0a6b78] bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Prueba {index + 1} de {total}</p>
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-sm font-medium text-slate-800">{check.title}</p>
-            {check.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{check.category}</span>}
+            <p className="text-[19px] font-semibold text-slate-800">{check.title}</p>
+            {check.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{check.category}</span>}
           </div>
           {check.criteria && (
-            <ul className="list-disc space-y-0.5 pl-4 text-xs text-slate-500">
+            <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
               {check.criteria.split("\n").filter((line) => line.trim()).map((line, i) => (
                 <li key={i}>{line}</li>
               ))}
@@ -668,14 +672,14 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
             {/* Punto 4: revertir solo mientras la ronda siga abierta — en modo
                 readOnly (ronda cerrada) CheckRow ya recibe canReview=false. */}
             {canReview && (
-              <button type="button" onClick={handleRevert} disabled={isPending} className="text-xs text-slate-400 hover:text-red-600">
+              <button type="button" onClick={handleRevert} disabled={isPending} className="text-[17px] text-slate-400 hover:text-red-600">
                 Revertir
               </button>
             )}
           </div>
         ) : (
           canReview && (
-            <button type="button" onClick={handleRemove} disabled={isPending} className="flex-shrink-0 text-xs text-slate-400 hover:text-red-600">
+            <button type="button" onClick={handleRemove} disabled={isPending} className="flex-shrink-0 text-[17px] text-slate-400 hover:text-red-600">
               Quitar
             </button>
           )
@@ -688,7 +692,7 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Nota (opcional)…"
-            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
+            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
           />
           <div className="flex flex-wrap gap-1.5">
             {/* Punto 6: calificar con error o con hallazgo exige evidencia ya
@@ -703,7 +707,7 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
                   disabled={isPending || needsEvidence}
                   title={needsEvidence ? "Subí evidencia antes de calificar con error o con hallazgo." : undefined}
                   onClick={() => setResult(r)}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
+                  className={`rounded-lg px-2 py-1 text-[17px] font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
                 >
                   {RESULT_LABEL[r]}
                 </button>
@@ -711,12 +715,12 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
             })}
           </div>
           {check.evidence.length === 0 && (
-            <p className="text-[11px] text-slate-400">Para calificar con error o con hallazgo, subí evidencia primero.</p>
+            <p className="text-[15px] text-slate-400">Para calificar con error o con hallazgo, subí evidencia primero.</p>
           )}
         </div>
       )}
 
-      {check.result && check.note && <p className="text-xs text-slate-500">Nota: {check.note}</p>}
+      {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: {check.note}</p>}
 
       {check.evidence.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -725,23 +729,23 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
       )}
       {canAttachEvidence && !addingLink && (
         <div className="flex items-center gap-2">
-          <label className="cursor-pointer text-xs text-slate-400 hover:text-slate-600 hover:underline">
+          <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
             {uploading ? "Subiendo…" : "+ Evidencia"}
             <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
           </label>
-          <button type="button" onClick={() => setAddingLink(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+          <button type="button" onClick={() => setAddingLink(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
             + Link
           </button>
         </div>
       )}
       {canAttachEvidence && addingLink && (
         <div className="flex gap-1">
-          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
-          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
             OK
           </button>
-          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500">
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
             ✕
           </button>
         </div>
@@ -754,7 +758,7 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
             defaultValue={check.responseCategory ?? ""}
             onBlur={(e) => e.target.value !== (check.responseCategory ?? "") && handleResponseCategory(e.target.value)}
             placeholder="Categoría de tu corrección (ej. Error de lógica)…"
-            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-xs"
+            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
           />
           {matchingResponses.length > 0 && (
             <datalist id={`responses-${check.id}`}>
@@ -766,10 +770,12 @@ function CheckRow({ check, canReview, canEdit, responseCategories }: {
         </>
       )}
       {check.result === "FAILED" && check.responseCategory && !canEdit && (
-        <p className="text-xs text-slate-500">Respuesta: {check.responseCategory}</p>
+        <p className="text-[17px] text-slate-500">Respuesta: {check.responseCategory}</p>
       )}
 
-      {check.reviewedByName && <p className="text-[10px] text-slate-400">Revisado por {check.reviewedByName}</p>}
+      {check.reviewedByName && <p className="text-[13px] text-slate-400">Revisado por {check.reviewedByName}</p>}
+
+      <CheckThread checkId={check.id} title={check.title} />
     </li>
   );
 }
@@ -811,11 +817,11 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   if (!open) {
     return (
       <div className="flex items-center gap-2">
-        <label className="cursor-pointer text-xs text-slate-400 hover:text-slate-600 hover:underline">
+        <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
           + Archivo
           <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
         </label>
-        <button type="button" onClick={() => setOpen(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+        <button type="button" onClick={() => setOpen(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
           + Link
         </button>
       </div>
@@ -824,12 +830,12 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
 
   return (
     <div className="flex gap-1">
-      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" className="w-28 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs" />
-      <button type="button" disabled={isPending || !name.trim() || !url.trim()} onClick={handleAddLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50">
+      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" className="w-28 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+      <button type="button" disabled={isPending || !name.trim() || !url.trim()} onClick={handleAddLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
         OK
       </button>
-      <button type="button" onClick={() => setOpen(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500">
+      <button type="button" onClick={() => setOpen(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
         ✕
       </button>
     </div>
@@ -866,13 +872,13 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
   return (
     <div className="space-y-1.5">
       <div className="flex gap-1.5">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva prueba…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
-        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva prueba…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
         <button
           type="button"
           disabled={isPending || !title.trim()}
           onClick={handleAdd}
-          className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           Agregar
         </button>
@@ -882,96 +888,8 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
         onChange={(e) => setCriteria(e.target.value)}
         placeholder="Puntos específicos, uno por línea (opcional)…"
         rows={2}
-        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs min-h-24"
+        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] min-h-24"
       />
-    </div>
-  );
-}
-
-function Chat({ round, userId, canComment }: { round: Round; userId: string | null; canComment: boolean }) {
-  const router = useRouter();
-  const [body, setBody] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editBody, setEditBody] = useState("");
-  const [isPending, startTransition] = useTransition();
-
-  function handleSend() {
-    if (!body.trim()) return;
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set("body", body);
-      const result = await addReviewMessage(round.id, formData);
-      if (result.ok) {
-        setBody("");
-        router.refresh();
-      }
-    });
-  }
-
-  function handleSaveEdit(messageId: string) {
-    startTransition(async () => {
-      await editReviewMessage(messageId, editBody);
-      setEditingId(null);
-      router.refresh();
-    });
-  }
-
-  if (round.messages.length === 0 && !canComment) return null;
-
-  return (
-    <div className="space-y-2 border-t border-slate-100 pt-2">
-      <p className="text-xs font-medium text-slate-500">Hilo de la ronda</p>
-      <ul className="space-y-1.5">
-        {round.messages.map((m) => (
-          <li key={m.id} className="text-sm">
-            <span className="font-medium text-slate-700">{m.authorName}:</span>{" "}
-            {editingId === m.id ? (
-              <span className="inline-flex items-center gap-1">
-                <input value={editBody} onChange={(e) => setEditBody(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-0.5 text-xs" />
-                <button type="button" onClick={() => handleSaveEdit(m.id)} className="text-xs text-slate-900 hover:underline">
-                  Guardar
-                </button>
-              </span>
-            ) : (
-              <>
-                <span className="text-slate-600">{m.body}</span>
-                {m.editedAt && <span className="ml-1 text-[10px] text-slate-400">(editado)</span>}
-                {m.authorId === userId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingId(m.id);
-                      setEditBody(m.body);
-                    }}
-                    className="ml-1.5 text-[10px] text-slate-400 hover:underline"
-                  >
-                    Editar
-                  </button>
-                )}
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-      {canComment && (
-        <div className="flex gap-1.5">
-          <input
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Escribir un mensaje…"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs"
-          />
-          <button
-            type="button"
-            disabled={isPending || !body.trim()}
-            onClick={handleSend}
-            className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            Enviar
-          </button>
-        </div>
-      )}
     </div>
   );
 }

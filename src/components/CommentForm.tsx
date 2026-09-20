@@ -7,6 +7,7 @@ import { COMMENT_MAX_LENGTH, fileMarker, imageMarker, linkMarker, mentionMarker,
 import { pastedImageName, pickPastedImage } from "@/lib/pasteImage";
 import { normalizeSearchText } from "@/lib/search";
 import { LinkIcon, PaperclipIcon } from "@/components/icons";
+import { PollFields } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
 
 export type MentionPerson = { id: string; name: string };
 
@@ -18,7 +19,15 @@ export type MentionPerson = { id: string; name: string };
  * escriben como «@Nombre» y se convierten en marca al enviar. Los archivos y
  * enlaces quedan además en los Insumos (ver internalMessageActions.ts).
  */
-export function CommentForm({ projectId, taskId, people = [] }: { projectId: string; taskId: string | null; people?: MentionPerson[] }) {
+export function CommentForm({ projectId, taskId, people = [], reviewCheckId, allowPoll = false }: {
+  projectId: string;
+  taskId: string | null;
+  people?: MentionPerson[];
+  /** Hilo de una prueba (tarea tipo Prueba): el comentario cuelga de ese check. */
+  reviewCheckId?: string;
+  /** Permite publicar una pregunta de selección única o múltiple en vez de un comentario. */
+  allowPoll?: boolean;
+}) {
   const router = useRouter();
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -33,6 +42,9 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
+  const [asPoll, setAsPoll] = useState(false);
+  const [multiple, setMultiple] = useState(false);
+  const [options, setOptions] = useState(["", ""]);
 
   const images = splitCommentBody(value).flatMap((p) => (p.type === "image" ? [p.url] : []));
   const suggestions =
@@ -114,10 +126,18 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
       .sort((a, b) => b.name.length - a.name.length)
       .reduce((acc, m) => acc.split(`@${m.name}`).join(mentionMarker(m.id, m.name)), value);
     startTransition(async () => {
-      const result = await postInternalMessage(projectId, taskId, text);
+      const result = await postInternalMessage(
+        projectId,
+        taskId,
+        text,
+        reviewCheckId || asPoll ? { reviewCheckId, poll: asPoll ? { multiple, options } : undefined } : undefined
+      );
       if (result.ok) {
         setValue("");
         setMentions([]);
+        setAsPoll(false);
+        setMultiple(false);
+        setOptions(["", ""]);
         router.refresh();
       } else {
         setError(result.error ?? "No se pudo enviar el comentario.");
@@ -126,12 +146,13 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
   }
 
   const busy = pending || uploading > 0;
+  const pollReady = !asPoll || options.map((o) => o.trim()).filter(Boolean).length >= 2;
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!busy && value.trim()) submit();
+        if (!busy && value.trim() && pollReady) submit();
       }}
       className="space-y-1.5"
     >
@@ -155,7 +176,7 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
             }}
             onPaste={onPaste}
             maxLength={COMMENT_MAX_LENGTH}
-            placeholder="Escribir comentario interno… (@ para mencionar)"
+            placeholder={asPoll ? "Enunciado de la pregunta… (@ para mencionar)" : "Escribir comentario interno… (@ para mencionar)"}
             aria-label="Comentario interno"
             className="block min-h-10 w-full resize-y rounded-lg bg-transparent px-3 py-2 text-sm outline-none"
           />
@@ -177,6 +198,11 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
             <button type="button" onClick={() => setLinkOpen((v) => !v)} title="Agregar enlace" aria-label="Agregar enlace" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <LinkIcon className="h-4 w-4" />
             </button>
+            {allowPoll && (
+              <button type="button" onClick={() => setAsPoll((v) => !v)} className="ml-auto cursor-pointer rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                {asPoll ? "Volver a comentario" : "Hacer una pregunta"}
+              </button>
+            )}
             <input
               ref={fileRef}
               type="file"
@@ -190,12 +216,14 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
           </div>
         </div>
         <button
-          disabled={busy || !value.trim()}
+          disabled={busy || !value.trim() || !pollReady}
           className="self-end rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
-          {pending ? "Enviando…" : "Enviar"}
+          {pending ? "Enviando…" : asPoll ? "Publicar pregunta" : "Enviar"}
         </button>
       </div>
+
+      {asPoll && <PollFields multiple={multiple} setMultiple={setMultiple} options={options} setOptions={setOptions} />}
 
       {linkOpen && (
         <div className="flex flex-wrap items-center gap-2">

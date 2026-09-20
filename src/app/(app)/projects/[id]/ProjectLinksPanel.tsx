@@ -2,6 +2,7 @@
 
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addProjectLink, addProjectAttachment } from "./definitionActions";
@@ -32,11 +33,12 @@ export function ProjectLinksPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   function handleAdd() {
-    if (!title.trim() || !url.trim()) return;
+    if (!url.trim()) return;
     setError(null);
     startTransition(async () => {
       const formData = new FormData();
@@ -56,14 +58,15 @@ export function ProjectLinksPanel({
   async function uploadFiles(files: File[]) {
     setUploading(true);
     setUploadError(null);
+    setProgress(0);
     const failed: string[] = [];
-    for (const file of files) {
+    for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        const body = await res.json();
-        if (!res.ok) {
+        // Avance total: archivos ya subidos + fracción del actual.
+        const { ok, body } = await uploadWithProgress("/api/upload", formData, (f) => setProgress((i + f) / files.length));
+        if (!ok) {
           failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
           continue;
         }
@@ -93,7 +96,7 @@ export function ProjectLinksPanel({
 
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="font-medium text-slate-900">Archivos y enlaces</h2>
+      <h2 className="text-[21px] font-semibold text-slate-900">Archivos y enlaces</h2>
       {/* Misma grilla con miniaturas que la pestaña Archivos: imágenes, documentos y enlaces (YouTube en visor). */}
       {links.length === 0 && attachments.length === 0 ? (
         <p className="text-sm text-slate-400">Sin archivos ni enlaces todavía.</p>
@@ -120,7 +123,7 @@ export function ProjectLinksPanel({
               dragOver ? "border-slate-500 bg-slate-50" : "border-slate-300 hover:border-slate-400"
             }`}
           >
-            <UploadZoneLabel uploading={uploading} dragOver={dragOver} label="Subir un archivo" />
+            <UploadZoneLabel uploading={uploading} dragOver={dragOver} label="Subir un archivo" progress={progress} />
             <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleFileChange} />
           </label>
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
@@ -135,12 +138,12 @@ export function ProjectLinksPanel({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nombre"
+              placeholder="Nombre (opcional)"
               className="w-40 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             />
             <button
               type="button"
-              disabled={isPending || !title.trim() || !url.trim()}
+              disabled={isPending || !url.trim()}
               onClick={handleAdd}
               className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >

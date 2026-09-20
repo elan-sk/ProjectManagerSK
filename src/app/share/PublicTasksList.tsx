@@ -22,13 +22,13 @@ export function PublicTasksList({ tasks, phases }: { tasks: PublicTask[]; phases
         if (phaseTasks.length === 0) return null;
         return (
           <div key={phase.id} className="space-y-2">
-            <h2 className="text-sm font-semibold text-slate-700">{phase.name}</h2>
+            <h2 className="text-[19px] font-semibold text-slate-700">{phase.name}</h2>
             <div className="space-y-2">
               {phaseTasks.map((t) => {
                 const summary = summarize(t.description);
                 return (
                   <div key={t.id} className="space-y-1 rounded-xl border border-slate-200 bg-white p-4">
-                    <h3 className="font-medium text-slate-900">{t.title}</h3>
+                    <h3 className="text-[17px] font-medium text-slate-900">{t.title}</h3>
                     {summary && <p className="line-clamp-5 text-sm text-slate-600">{summary}</p>}
                     <p className="text-xs text-slate-500">
                       Estimado: {new Date(t.plannedStart).toLocaleDateString("es-CO", DATE_FMT)} — {new Date(t.plannedEnd).toLocaleDateString("es-CO", DATE_FMT)}

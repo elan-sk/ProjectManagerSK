@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { getActingUser, type Actor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { COMMENT_MAX_LENGTH, commentEditError, commentAttachments, commentMentionIds } from "@/lib/commentBody";
@@ -8,11 +9,11 @@ import { notifyInternalComment } from "@/lib/notifications";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 
-async function allowed(projectId: string, taskId?: string | null) {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autenticado.");
-  const id = session.user.id;
-  if (session.user.role === "ADMIN") return id;
+async function allowed(projectId: string, taskId?: string | null, actor?: Actor) {
+  const user = await getActingUser(actor);
+  if (!user) throw new Error("No autenticado.");
+  const id = user.id;
+  if (user.role === "ADMIN") return id;
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true } });
   if (project?.pmId === id) return id;
   const where = taskId ? { taskId } : { task: { projectId } };
@@ -49,10 +50,34 @@ async function validMentionIds(body: string, authorId: string) {
   return users.map((u) => u.id);
 }
 
-export async function postInternalMessage(projectId: string, taskId: string | null, body: string) {
-  const authorId = await allowed(projectId, taskId);
+export async function postInternalMessage(
+  projectId: string,
+  taskId: string | null,
+  body: string,
+  opts?: {
+    /** Hilo de una prueba (tarea tipo Prueba): el mensaje cuelga de ese check. */
+    reviewCheckId?: string;
+    /** El mensaje es una pregunta de selección: el texto es el enunciado. */
+    poll?: { multiple: boolean; options: string[] };
+  },
+  actor?: Actor
+) {
+  const authorId = await allowed(projectId, taskId, actor);
   const text = body.trim();
   if (!text || text.length > COMMENT_MAX_LENGTH) return { ok: false, error: `El comentario debe tener entre 1 y ${COMMENT_MAX_LENGTH} caracteres.` };
+
+  if (opts?.reviewCheckId) {
+    const check = taskId
+      ? await prisma.reviewCheck.findUnique({ where: { id: opts.reviewCheckId }, select: { reviewRound: { select: { taskId: true } } } })
+      : null;
+    if (!check || check.reviewRound.taskId !== taskId) return { ok: false, error: "Esa prueba no pertenece a esta tarea." };
+  }
+  let pollOptions: string[] | null = null;
+  if (opts?.poll) {
+    pollOptions = opts.poll.options.map((o) => o.trim()).filter(Boolean);
+    if (pollOptions.length < 2 || pollOptions.length > 10) return { ok: false, error: "La pregunta necesita entre 2 y 10 opciones." };
+    if (new Set(pollOptions.map((o) => o.toLowerCase())).size !== pollOptions.length) return { ok: false, error: "Hay opciones repetidas." };
+  }
   const mentionIds = await validMentionIds(text, authorId);
   const message = await prisma.internalMessage.create({
     data: {
@@ -62,6 +87,10 @@ export async function postInternalMessage(projectId: string, taskId: string | nu
       body: text,
       reads: { create: { userId: authorId } },
       mentions: { create: mentionIds.map((userId) => ({ userId })) },
+      reviewCheckId: opts?.reviewCheckId ?? null,
+      ...(pollOptions && opts?.poll
+        ? { poll: { create: { multiple: opts.poll.multiple, options: { create: pollOptions.map((label, order) => ({ label, order })) } } } }
+        : {}),
     },
   });
   await syncCommentAttachments(projectId, taskId, authorId, text);

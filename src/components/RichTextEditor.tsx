@@ -30,7 +30,7 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
         // palabras mal escritas). Aquí quedan puestos desde que se crea.
         spellcheck: "true",
         lang: "es",
-        class: "prose prose-sm max-w-none min-h-32 rounded-b-lg border border-t-0 border-slate-300 px-3 py-2 focus:outline-none [&_img]:rounded-lg [&_img]:max-w-full",
+        class: "prose prose-lg max-w-none min-h-32 rounded-b-lg border border-t-0 border-slate-300 px-3 py-2 focus:outline-none [&_img]:rounded-lg [&_img]:max-w-full",
       },
     },
     onUpdate: ({ editor }) => {
@@ -58,7 +58,7 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
 
   return (
     // data-paste-zone: el contorno de "Ctrl+V para pegar aquí" se limita al editor (sin él tomaba el formulario entero).
-    <div data-paste-zone>
+    <div data-paste-zone className="rounded-lg p-1.5">
       <input type="hidden" name={name} value={html} readOnly />
       <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-slate-300 bg-slate-50 p-1">
         <button type="button" title="Negrita" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}>

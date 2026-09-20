@@ -271,11 +271,11 @@ button:not(:disabled):active {
 }
 
 /* Zona de subida que recibiría una captura pegada con Ctrl+V (mouse encima o
-   foco adentro) — la marca usePasteImage.ts. Contorno de la tarjeta + la
+   foco adentro) — la marca usePasteImage.ts. Tinte de fondo de la tarjeta + la
    ayuda pasa de "Arrastralo o pegá una captura" a "Ctrl+V para pegar aquí". */
 [data-paste-active="true"] {
-  outline: 2px solid #0a6b78;
-  outline-offset: 2px;
+  /* Tinte suave encima del fondo de la zona (sirve sobre cualquier color). */
+  background-image: linear-gradient(rgba(10, 107, 120, 0.07), rgba(10, 107, 120, 0.07));
 }
 .paste-ready {
   display: none;

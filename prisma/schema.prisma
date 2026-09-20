@@ -120,35 +120,35 @@ enum DependencyType {
 }
 
 model User {
-  id                   String    @id @default(cuid())
-  name                 String
+  id                    String    @id @default(cuid())
+  name                  String
   // Identificador principal para entrar — obligatorio y único.
-  username             String    @unique
+  username              String    @unique
   // Opcional a partir de ahora (username es el principal). Único cuando está
   // definido; varios usuarios pueden tener null a la vez.
-  email                String?   @unique
-  passwordHash         String
-  role                 Role      @default(MEMBER)
+  email                 String?   @unique
+  passwordHash          String
+  role                  Role      @default(MEMBER)
   // Reemplaza al borrado real de un usuario — varias tablas (PM de proyecto,
   // autor de revisión, etc.) exigen que el usuario exista para no perder de
   // quién es un dato histórico, así que "eliminar" pasa a ser desactivar: no
   // puede loguearse ni se lo puede asignar a nada nuevo, pero su historial
   // queda intacto.
-  active               Boolean   @default(true)
-  avatarUrl            String?
+  active                Boolean   @default(true)
+  avatarUrl             String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
-  phone                String?
+  phone                 String?
   // null = el bot todavía no le mandó ningún WhatsApp directo a esta persona.
   // Se completa al primer envío (ver sendRawMessage en whatsapp.ts): ese
   // primer mensaje va con la presentación del bot + foto de perfil; de ahí
   // en más, solo ícono 🤖 + nombre, sin foto.
-  whatsappIntroducedAt DateTime?
+  whatsappIntroducedAt  DateTime?
   // Último día (calendario Bogotá) en que se le mandó el resumen diario de
   // WhatsApp. La clave conserva además la hora configurada para permitir un
   // nuevo envío el mismo día si un administrador cambia ese horario.
-  lastDigestSentAt    DateTime?
+  lastDigestSentAt      DateTime?
   lastDigestScheduleKey String?
-  createdAt            DateTime  @default(now())
+  createdAt             DateTime  @default(now())
 
   // Recuperar contraseña por WhatsApp: se guarda el HASH del token (nunca el
   // token en texto plano) para que una lectura de la base no alcance para
@@ -172,6 +172,7 @@ model User {
   googleCalendarConn    GoogleCalendarConnection?
   shareLinksCreated     ShareLink[]
   adjustmentAttachments AdjustmentAttachment[]
+  shareComments         ShareComment[]            @relation("ShareCommentAuthor")
   reviewerOf            TaskReviewer[]            @relation("TaskReviewerUser")
   reviewRoundsSubmitted ReviewRound[]             @relation("ReviewRoundSubmitter")
   reviewChecksReviewed  ReviewCheck[]             @relation("ReviewCheckReviewer")
@@ -181,6 +182,7 @@ model User {
   internalMessageReads  InternalMessageRead[]
   mentionedIn           InternalMessageMention[]  @relation("MentionedUser")
   activityDays          UserActivityDay[]
+  sharePollVotes        SharePollVote[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -241,23 +243,23 @@ model Project {
 
   // Solo un admin lo puede activar: el proyecto deja de verse para los demás
   // miembros del equipo.
-  hidden Boolean @default(false)
+  hidden Boolean       @default(false)
   // Repositorios adicionales (repoUrl queda como el principal).
   repos  ProjectRepo[]
 
-  phases        Phase[]
-  tasks         Task[]
-  objectives    Objective[]
-  requirements  Requirement[]
-  links         ProjectLink[]
-  attachments   ProjectAttachment[]
-  shareLinks    ShareLink[]
-  tags          Tag[]
+  phases           Phase[]
+  tasks            Task[]
+  objectives       Objective[]
+  requirements     Requirement[]
+  links            ProjectLink[]
+  attachments      ProjectAttachment[]
+  shareLinks       ShareLink[]
+  tags             Tag[]
   // Punto 4 (link compartido): comentarios generales de la pestaña
   // Definición — a diferencia de ShareComment.taskId, estos no cuelgan de
   // ninguna tarea puntual.
-  shareComments ShareComment[]
-  notifications Notification[]
+  shareComments    ShareComment[]
+  notifications    Notification[]
   internalMessages InternalMessage[]
 }
 
@@ -403,7 +405,7 @@ model Task {
   dependsOn TaskDependency[] @relation("SuccessorTask")
   blocks    TaskDependency[] @relation("PredecessorTask")
 
-  shareLinks ShareLink[]
+  shareLinks       ShareLink[]
   internalMessages InternalMessage[]
 }
 
@@ -411,28 +413,34 @@ model Task {
 // serializa en enlaces públicos. Un mensaje pertenece al proyecto o a una
 // tarea concreta del mismo proyecto.
 model InternalMessage {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskId    String?
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body      String   @db.Text
-  createdAt DateTime @default(now())
-  editedAt  DateTime?
-  reads     InternalMessageRead[]
+  id               String                   @id @default(cuid())
+  projectId        String
+  project          Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId           String?
+  task             Task?                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User                     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body             String                   @db.Text
+  createdAt        DateTime                 @default(now())
+  editedAt         DateTime?
+  reads            InternalMessageRead[]
   // Usuarios @mencionados en el texto.
-  mentions  InternalMessageMention[]
+  mentions         InternalMessageMention[]
+  // Tarea tipo Prueba: el mensaje es del hilo de UNA prueba (check) concreta.
+  reviewCheckId    String?
+  reviewCheck      ReviewCheck?             @relation(fields: [reviewCheckId], references: [id], onDelete: Cascade)
+  // Pregunta de selección (única o múltiple) publicada en el hilo; el enunciado es el body.
+  poll             SharePoll?
 
   @@index([projectId, taskId, createdAt])
+  @@index([reviewCheckId])
 }
 
 model InternalMessageMention {
   messageId String
   message   InternalMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation("MentionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  user      User            @relation("MentionedUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([messageId, userId])
   @@index([userId])
@@ -453,8 +461,8 @@ model InternalMessageRead {
   messageId String
   message   InternalMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readAt    DateTime @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime        @default(now())
 
   @@id([messageId, userId])
   @@index([userId, readAt])
@@ -474,10 +482,10 @@ model TaskReviewer {
 // Join table explícita: permite compartir/reasignar responsabilidad de una
 // misma tarea entre varios usuarios (punto 5 del manuscrito).
 model TaskAssignee {
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId   String
+  task     Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   // null = este asignado todavía no entró al detalle de la tarea. Se completa
   // la primera vez que abre /projects/[id]/tasks/[taskId] (ver page.tsx) — es
   // por (tarea, usuario) porque una tarea puede tener varios asignados.
@@ -524,6 +532,10 @@ model Attachment {
   uploadedBy           User?          @relation(fields: [uploadedById], references: [id])
   externalUploaderName String?
   externalUploaderRole String?
+  // Si la imagen se adjuntó dentro de un comentario del hilo de la tarea/ajuste,
+  // apunta a ese comentario (además de quedar como INSUMO de la tarea).
+  shareCommentId       String?
+  shareComment         ShareComment?  @relation(fields: [shareCommentId], references: [id], onDelete: SetNull)
   uploadedAt           DateTime       @default(now())
 }
 
@@ -531,22 +543,27 @@ model Attachment {
 // considera "respondido" cuando tiene al menos un adjunto AFTER o una nota
 // (no aplica un checkbox manual — el estado se deriva de la evidencia).
 model AdjustmentItem {
-  id          String   @id @default(cuid())
-  taskId      String
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  description String   @db.Text
-  note        String?  @db.Text
+  id               String    @id @default(cuid())
+  taskId           String
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  description      String    @db.Text
+  note             String?   @db.Text
   // Confirmación del cliente desde el link compartido. Es trazabilidad de
   // entrega, no una compuerta: el equipo puede completar el ajuste aunque el
   // cliente todavía no haya respondido.
-  clientApproval Boolean?
+  clientApproval   Boolean?
   clientApprovalAt DateTime?
   clientApprovalBy String?
-  order       Int
-  createdAt   DateTime @default(now())
+  // Abierto = el cliente puede calificar este ajuste desde el link. Se cierra al
+  // enviar su revisión y solo el equipo (asignado/PM/admin) lo vuelve a abrir;
+  // el cliente nunca cambia por su cuenta una calificación ya enviada.
+  clientReviewOpen Boolean   @default(true)
+  order            Int
+  createdAt        DateTime  @default(now())
 
-  attachments   AdjustmentAttachment[]
-  shareComments ShareComment[]
+  attachments      AdjustmentAttachment[]
+  shareComments    ShareComment[]
+  // Hilo interno de la prueba (Prueba/QA): comentarios, menciones, imágenes y preguntas del equipo.
 }
 
 // Punto 16: hilo de comentarios de la vista compartida de una tarea —
@@ -567,13 +584,73 @@ model ShareComment {
   project          Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   adjustmentItemId String?
   adjustmentItem   AdjustmentItem? @relation(fields: [adjustmentItemId], references: [id], onDelete: Cascade)
+  // Tarea tipo Aceptación: el comentario cuelga de una característica de la ronda.
+  reviewCheckId    String?
+  reviewCheck      ReviewCheck?    @relation(fields: [reviewCheckId], references: [id], onDelete: Cascade)
   parentId         String?
   parent           ShareComment?   @relation("ShareCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies          ShareComment[]  @relation("ShareCommentReplies")
   authorName       String
   authorRole       String?
+  // Nulo si lo escribió un visitante externo; con valor cuando responde alguien
+  // del equipo (asignado/PM/admin) desde adentro de la app.
+  authorUserId     String?
+  authorUser       User?           @relation("ShareCommentAuthor", fields: [authorUserId], references: [id])
   body             String          @db.Text
+  attachments      Attachment[]
+  // Pregunta de selección única o múltiple publicada por el equipo; el enunciado es el body.
+  poll             SharePoll?
   createdAt        DateTime        @default(now())
+}
+
+// Pregunta del equipo dentro de un hilo de comentarios (selección única o
+// múltiple). El enunciado es el body del ShareComment al que cuelga. Responden
+// el equipo con permisos sobre la tarea y los externos con el link; solo el
+// equipo ve la estadística. Cada persona tiene una sola respuesta que puede
+// cambiar hasta que el equipo cierre la pregunta.
+model SharePoll {
+  id                String            @id @default(cuid())
+  commentId         String?           @unique
+  comment           ShareComment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  // Alternativa a commentId: pregunta publicada en el hilo interno de una ronda (Prueba / Aceptación).
+  reviewMessageId   String?           @unique
+  reviewMessage     ReviewMessage?    @relation(fields: [reviewMessageId], references: [id], onDelete: Cascade)
+  // Alternativa: pregunta publicada en el hilo interno de una prueba.
+  internalMessageId String?           @unique
+  internalMessage   InternalMessage?  @relation(fields: [internalMessageId], references: [id], onDelete: Cascade)
+  multiple          Boolean           @default(false)
+  closed            Boolean           @default(false)
+  options           SharePollOption[]
+  votes             SharePollVote[]
+  createdAt         DateTime          @default(now())
+}
+
+model SharePollOption {
+  id     String          @id @default(cuid())
+  pollId String
+  poll   SharePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label  String
+  order  Int
+  votes  SharePollVote[]
+}
+
+// voterKey identifica a quien respondió: "u:<userId>" (equipo) o
+// "e:<nombre en minúsculas>" (externo, sin cuenta).
+model SharePollVote {
+  id           String          @id @default(cuid())
+  pollId       String
+  poll         SharePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId     String
+  option       SharePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  voterKey     String
+  userId       String?
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  externalName String?
+  externalRole String?
+  createdAt    DateTime        @default(now())
+
+  @@unique([optionId, voterKey])
+  @@index([pollId, voterKey])
 }
 
 enum AdjustmentAttachmentKind {
@@ -655,13 +732,13 @@ model AppSetting {
   // graves de proyectos sin grupo propio, y ventana de horario laboral
   // (horas en punto, 0-23) fuera de la cual las alertas se encolan en
   // WhatsAppQueueItem en vez de mandarse al toque.
-  whatsappGroupJid String?
-  workHoursStart   Int     @default(8)
-  workHoursEnd     Int     @default(18)
+  whatsappGroupJid  String?
+  workHoursStart    Int     @default(8)
+  workHoursEnd      Int     @default(18)
   // Hora local exacta para el único resumen individual diario.
   // Debe permanecer dentro de [workHoursStart, workHoursEnd).
-  dailyDigestHour  Int     @default(8)
-  dailyDigestMinute Int    @default(0)
+  dailyDigestHour   Int     @default(8)
+  dailyDigestMinute Int     @default(0)
 
   // Chontatec (bot asistente in-app, ver src/lib/botSettings.ts y
   // src/lib/chontatec.ts). La API key vive acá (DB) en vez de env porque
@@ -820,7 +897,9 @@ model ReviewCheck {
   // nuevo es también la forma de recuperar uno que se había quitado.
   sourceTemplateItemId String?
 
-  evidence ReviewCheckEvidence[]
+  evidence         ReviewCheckEvidence[]
+  shareComments    ShareComment[]
+  internalMessages InternalMessage[]
 }
 
 model ReviewCheckEvidence {
@@ -844,6 +923,20 @@ model ReviewMessage {
   body          String      @db.Text
   editedAt      DateTime?
   createdAt     DateTime    @default(now())
+
+  attachments ReviewMessageAttachment[]
+  poll        SharePoll?
+}
+
+// Imágenes/archivos adjuntos a un mensaje del hilo interno de la ronda (solo el equipo los ve).
+model ReviewMessageAttachment {
+  id              String        @id @default(cuid())
+  reviewMessageId String
+  reviewMessage   ReviewMessage @relation(fields: [reviewMessageId], references: [id], onDelete: Cascade)
+  fileUrl         String
+  fileName        String
+  mimeType        String
+  uploadedAt      DateTime      @default(now())
 }
 
 // Punto 17 confirmado con el usuario: sistema de etiquetas por categoría

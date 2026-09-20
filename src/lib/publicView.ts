@@ -77,7 +77,7 @@ export async function getPublicDefinition(projectId: string) {
     // vez de taskId (ver PublicCommentThread/shareActions.ts).
     prisma.shareComment.findMany({
       where: { projectId, parentId: null },
-      include: { replies: { orderBy: { createdAt: "asc" } } },
+      include: { attachments: true, poll: { include: { options: { orderBy: { order: "asc" } } } }, replies: { include: { attachments: true }, orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "asc" },
     }),
   ]);
@@ -120,6 +120,8 @@ export type PublicAcceptanceItem = {
   reviewedByName: string | null;
   reviewedByRole: string | null;
   evidence: PublicFile[];
+  /** Hilo del cliente sobre esta característica; se cierra al calificarla. */
+  comments: PublicCommentWithReplies[];
 };
 export type PublicAcceptanceRound = {
   id: string;
@@ -138,37 +140,50 @@ export type PublicAdjustmentItem = {
   clientApproval: boolean | null;
   clientApprovalAt: string | null;
   clientApprovalBy: string | null;
+  /** El cliente puede calificar este cambio (se cierra al enviar la revisión; solo el equipo lo reabre). */
+  reviewOpen: boolean;
   before: PublicFile[];
   after: PublicFile[];
   comments: PublicCommentWithReplies[];
 };
 
-export type PublicComment = { id: string; authorName: string; authorRole: string | null; body: string; createdAt: string };
+// Pregunta del equipo: el externo solo recibe el enunciado y las opciones, nunca votos ni resultados.
+export type PublicPoll = { id: string; multiple: boolean; closed: boolean; options: { id: string; label: string }[] };
+
+export type PublicComment = {
+  id: string;
+  authorName: string;
+  authorRole: string | null;
+  body: string;
+  createdAt: string;
+  attachments: PublicFile[];
+  poll: PublicPoll | null;
+};
 // Punto 4: una respuesta (un solo nivel de anidamiento, no hilos recursivos).
 export type PublicCommentWithReplies = PublicComment & { replies: PublicComment[] };
 
-function toPublicCommentWithReplies(c: {
+type CommentRow = {
   id: string;
   authorName: string;
   authorRole: string | null;
   body: string;
   createdAt: Date;
-  replies: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: Date }[];
-}): PublicCommentWithReplies {
-  return {
-    id: c.id,
-    authorName: c.authorName,
-    authorRole: c.authorRole,
-    body: c.body,
-    createdAt: c.createdAt.toISOString(),
-    replies: c.replies.map((r) => ({
-      id: r.id,
-      authorName: r.authorName,
-      authorRole: r.authorRole,
-      body: r.body,
-      createdAt: r.createdAt.toISOString(),
-    })),
-  };
+  attachments?: { id: string; fileUrl: string; fileName: string; mimeType: string }[];
+  poll?: { id: string; multiple: boolean; closed: boolean; options: { id: string; label: string }[] } | null;
+};
+
+const toPublicComment = (c: CommentRow): PublicComment => ({
+  id: c.id,
+  authorName: c.authorName,
+  authorRole: c.authorRole,
+  body: c.body,
+  createdAt: c.createdAt.toISOString(),
+  attachments: (c.attachments ?? []).map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+  poll: c.poll ? { id: c.poll.id, multiple: c.poll.multiple, closed: c.poll.closed, options: c.poll.options.map((o) => ({ id: o.id, label: o.label })) } : null,
+});
+
+function toPublicCommentWithReplies(c: CommentRow & { replies: CommentRow[] }): PublicCommentWithReplies {
+  return { ...toPublicComment(c), replies: c.replies.map(toPublicComment) };
 }
 
 // Punto 16 confirmado con el usuario: para tipo Prueba (QA) nunca se traen
@@ -194,7 +209,7 @@ export async function getPublicTask(taskId: string): Promise<{
           attachments: true,
           shareComments: {
             where: { parentId: null },
-            include: { replies: { orderBy: { createdAt: "asc" } } },
+            include: { attachments: true, poll: { include: { options: { orderBy: { order: "asc" } } } }, replies: { include: { attachments: true }, orderBy: { createdAt: "asc" } } },
             orderBy: { createdAt: "asc" },
           },
         },
@@ -207,12 +222,22 @@ export async function getPublicTask(taskId: string): Promise<{
         orderBy: { roundNumber: "desc" },
         include: {
           deliverables: true,
-          checks: { include: { evidence: true }, orderBy: { order: "asc" } },
+          checks: {
+            include: {
+              evidence: true,
+              shareComments: {
+                where: { parentId: null },
+                include: { attachments: true, poll: { include: { options: { orderBy: { order: "asc" } } } }, replies: { include: { attachments: true }, orderBy: { createdAt: "asc" } } },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+            orderBy: { order: "asc" },
+          },
         },
       },
       shareComments: {
-        where: { adjustmentItemId: null, parentId: null },
-        include: { replies: { orderBy: { createdAt: "asc" } } },
+        where: { adjustmentItemId: null, reviewCheckId: null, parentId: null },
+        include: { attachments: true, poll: { include: { options: { orderBy: { order: "asc" } } } }, replies: { include: { attachments: true }, orderBy: { createdAt: "asc" } } },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -248,6 +273,7 @@ export async function getPublicTask(taskId: string): Promise<{
       clientApproval: item.clientApproval,
       clientApprovalAt: item.clientApprovalAt?.toISOString() ?? null,
       clientApprovalBy: item.clientApprovalBy,
+      reviewOpen: item.clientReviewOpen,
       before: item.attachments.filter((a) => a.kind === "BEFORE").map(toFile),
       after: item.attachments.filter((a) => a.kind === "AFTER").map(toFile),
       comments: item.shareComments.map(toPublicCommentWithReplies),
@@ -270,6 +296,7 @@ export async function getPublicTask(taskId: string): Promise<{
               reviewedByName: c.externalReviewerName,
               reviewedByRole: c.externalReviewerRole,
               evidence: c.evidence.map(toFile),
+              comments: c.shareComments.map(toPublicCommentWithReplies),
             })),
           }))
         : [],

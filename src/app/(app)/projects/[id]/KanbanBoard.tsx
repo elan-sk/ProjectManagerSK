@@ -139,6 +139,17 @@ function CardBody({
   const riskDot = RISK_DOT[task.riskLevel];
   const myCollisionsHref = `${collisionUrlBase}${collisionUrlBase.includes("?") ? "&" : "?"}collision=${task.id}`;
 
+  const showActions = canManage && !hideDelete && !selectMode;
+  const detailLink = (
+    <Link
+      href={`/projects/${task.projectId}/tasks/${task.id}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="text-xs font-medium text-slate-400 hover:text-slate-900"
+    >
+      Detalle
+    </Link>
+  );
+
   return (
     <>
       {selectMode && (
@@ -149,7 +160,7 @@ function CardBody({
           {selected ? "✓" : ""}
         </span>
       )}
-      <div className="flex items-start justify-between gap-2 pr-7">
+      <div className={`flex items-start justify-between gap-2 ${selectMode ? "pr-7" : ""}`}>
         <div className="flex flex-wrap items-center gap-1">
           <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
@@ -273,18 +284,12 @@ function CardBody({
               {task.attachmentsCount}
             </span>
           )}
-          <Link
-            href={`/projects/${task.projectId}/tasks/${task.id}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="text-xs font-medium text-slate-400 hover:text-slate-900"
-          >
-            Detalle
-          </Link>
+          {!showActions && detailLink}
         </div>
       </div>
 
       {/* Acciones de Admin/PM en una sola línea, debajo de todo lo demás. */}
-      {canManage && !hideDelete && !selectMode && (
+      {showActions && (
         <div className="flex items-center gap-1 border-t border-black/5 pt-1.5 text-[11px] font-medium" onPointerDown={(e) => e.stopPropagation()}>
           {task.status !== "COMPLETED" && (
             <button
@@ -305,6 +310,7 @@ function CardBody({
             <TrashIcon className="h-3.5 w-3.5" />
             Eliminar
           </button>
+          <span className="ml-auto">{detailLink}</span>
         </div>
       )}
 

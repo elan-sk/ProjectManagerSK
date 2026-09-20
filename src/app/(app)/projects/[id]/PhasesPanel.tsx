@@ -10,7 +10,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import type { PhaseSummary, TaskRef } from "@/lib/cascadeProgress";
 import type { TaskStatus } from "@prisma/client";
 
@@ -20,7 +20,7 @@ function ProgressBar({ pct }: { pct: number }) {
       <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
       </div>
-      <span className="flex-shrink-0 text-xs text-slate-500">{pct}%</span>
+      <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
     </div>
   );
 }
@@ -65,26 +65,26 @@ export function PhasesPanel({
 
   return (
     <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.PHASE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
-      <h2 className="flex items-center gap-1.5 font-medium text-slate-900">
+      <h2 className="flex items-center gap-1.5 text-[21px] font-semibold text-slate-900">
         <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
         Fases y avance
       </h2>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {phases.length === 0 && <p className="text-sm text-slate-400">Todavía no hay fases creadas.</p>}
+      {error && <p className="text-[18px] text-red-600">{error}</p>}
+      {phases.length === 0 && <p className="text-[18px] text-slate-400">Todavía no hay fases creadas.</p>}
       <ul className="space-y-2">
         {phases.map((p) => (
           <li key={p.id} className="rounded-lg border border-slate-100 p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-900">{p.name}</p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-[17px] text-slate-400">
                   {p.requirementTitles.length > 0 ? `Atiende: ${p.requirementTitles.join(", ")}` : "Sin requerimiento vinculado todavía."}
                 </p>
               </div>
               <div className="flex shrink-0 items-start gap-4">
                 <div className="flex items-start gap-2">
                   <ProgressRing pct={p.pct} overdue={p.taskCounts.overdue > 0} size={28} />
-                  <div className="text-xs text-slate-500 flex flex-col gap-1">
+                  <div className="text-[17px] text-slate-500 flex flex-col gap-1">
                     <p className="whitespace-nowrap">
                       {p.taskCounts.total > 0 ? `${p.taskCounts.completed}/${p.taskCounts.total} tareas` : "Sin tareas"}
                     </p>
@@ -120,7 +120,7 @@ export function PhasesPanel({
                 </div>
                 {canManage && (
                   <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
-                    <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact>
+                    <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <PhaseForm
                         phaseId={p.id}
                         currentName={p.name}
@@ -132,7 +132,7 @@ export function PhasesPanel({
                       type="button"
                       onClick={() => handleDelete(p.id, p.name)}
                       disabled={isPending && deletingId === p.id}
-                      className="text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
+                      className={DEFINITION_ACTION_BTN_DANGER}
                     >
                       Eliminar
                     </button>
@@ -144,12 +144,12 @@ export function PhasesPanel({
               <ProgressBar pct={p.pct} />
             </div>
             <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className={`flex items-center gap-1.5 text-xs font-medium ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
+              <p className={`flex items-center gap-1.5 text-[17px] font-medium ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.TASK.dot}`} aria-hidden />
                 Tareas
               </p>
               {p.tasks.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+                <ul className="mt-1 space-y-0.5 text-[17px] text-slate-500">
                   {p.tasks.map((t, i) => (
                     <li
                       key={t.id}
@@ -166,7 +166,7 @@ export function PhasesPanel({
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-xs text-slate-400">Sin tareas todavía.</p>
+                <p className="mt-1 text-[17px] text-slate-400">Sin tareas todavía.</p>
               )}
             </div>
           </li>

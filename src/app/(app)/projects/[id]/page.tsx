@@ -7,6 +7,8 @@ import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { InternalConversation } from "@/components/InternalConversation";
+import { TeamShareThread } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
+import { threadInclude, toThread } from "@/lib/threadView";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
@@ -16,7 +18,7 @@ import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/cale
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter, getProjectCompletionVariance } from "@/lib/delays";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
-import { getProjectAdmin } from "@/lib/permissions";
+import { canParticipateInProject, getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { projectHealth } from "@/lib/projectHealth";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
@@ -72,7 +74,7 @@ export default async function ProjectPage({
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = await searchParams;
+  const { view: viewParam, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = await searchParams;
   // «Archivadas» vive en el filtro Estado (solo Admin/PM): status=ARCHIVED. `archived=1` queda por compatibilidad.
   const archivedView = archived === "1" || (status as string | undefined) === "ARCHIVED";
   const from = parseDayKey(fromParam);
@@ -179,6 +181,20 @@ export default async function ProjectPage({
   if (!project) notFound();
   // Un proyecto oculto solo lo ve el administrador.
   if (project.hidden && !isGlobalAdmin) notFound();
+
+  // Sin ?view= en la URL: un proyecto sin nada definido (sin descripción, objetivos
+  // ni requerimientos) abre en Definición; el resto, en el Tablero de siempre.
+  const definitionEmpty = !project.description?.trim() && cascadeProgress.objectives.length === 0 && cascadeProgress.requirements.length === 0;
+  const view = viewParam ?? (definitionEmpty ? "definition" : undefined);
+
+  // Pestaña Definición: comentarios y preguntas que llegan por el link compartido del proyecto.
+  const [definitionShareComments, canParticipate] =
+    view === "definition"
+      ? await Promise.all([
+          prisma.shareComment.findMany({ where: { projectId: id, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),
+          canParticipateInProject(id),
+        ])
+      : [[], false];
   const taskShareTokenById = new Map(taskShareLinks.map((l) => [l.taskId!, l.token]));
 
   // Punto 17: nombres ya usados en ESTE proyecto, agrupados por categoría —
@@ -612,7 +628,13 @@ export default async function ProjectPage({
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex gap-2">
           <Link
-            href={filterHref({ view: undefined })}
+            href={filterHref({ view: "definition" })}
+            className={`rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+          >
+            Definición
+          </Link>
+          <Link
+            href={filterHref({ view: "kanban" })}
             className={`rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Tablero
@@ -628,12 +650,6 @@ export default async function ProjectPage({
             className={`rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Calendario
-          </Link>
-          <Link
-            href={filterHref({ view: "definition" })}
-            className={`rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Definición
           </Link>
           <Link
             href={filesHref({})}
@@ -807,7 +823,11 @@ export default async function ProjectPage({
         </div>
       )}
 
-      {view === "conversation" ? <InternalConversation projectId={project.id} title="Conversación del proyecto" /> : view === "files" ? (
+      {view === "conversation" ? (
+        <div className="mx-auto max-w-5xl">
+          <InternalConversation projectId={project.id} title="Conversación del proyecto" />
+        </div>
+      ) : view === "files" ? (
         <ProjectFilesView
           projectId={project.id}
           files={projectFiles.map((f) => ({
@@ -828,6 +848,7 @@ export default async function ProjectPage({
           filesHref={filesHref}
         />
       ) : view === "definition" ? (
+        <>
         <DefinitionTab
           projectId={project.id}
           name={project.name}
@@ -841,6 +862,19 @@ export default async function ProjectPage({
           attachments={project.attachments}
           whatsappGroupJid={project.whatsappGroupJid}
         />
+        {(definitionShareComments.length > 0 || (canParticipate && activeShareLink)) && (
+          <section className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-[21px] font-semibold text-slate-900">Comentarios del link compartido</h2>
+            <TeamShareThread
+              projectId={project.id}
+              comments={definitionShareComments.map((c) => toThread(c, myUserId))}
+              canReply={canParticipate}
+              canVote={canParticipate}
+              canAttach={false}
+            />
+          </section>
+        )}
+        </>
       ) : view === "gantt" ? (
         <div className="sticky-view-panel-gantt sticky top-[57px] h-[calc(100vh-150px)]">
           <GanttView

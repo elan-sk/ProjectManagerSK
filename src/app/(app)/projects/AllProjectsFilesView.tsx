@@ -1,10 +1,9 @@
 import { ComboFilter } from "@/components/ComboFilter";
-import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { LinkIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentGrid } from "./[id]/tasks/[taskId]/AttachmentGrid";
+import { SharedLinkTiles } from "@/components/SharedLinkTiles";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -104,22 +103,7 @@ export function AllProjectsFilesView({
         />
       </div>
 
-      {showSharedLinks && sharedLinks.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-slate-400">Links compartidos</p>
-          <div className="space-y-1.5">
-            {sharedLinks.map((l) => (
-              <div key={l.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm mb-1">
-                <Link href={l.href} className="flex min-w-0 items-center gap-1.5 truncate text-slate-700 hover:underline">
-                  <LinkIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />
-                  <span className="truncate">{l.label}</span>
-                </Link>
-                <CopyLinkButton token={l.token} className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {showSharedLinks && sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} />}
 
       {files.length === 0 ? (
         (!showSharedLinks || sharedLinks.length === 0) && <p className="text-sm text-slate-400">Sin archivos.</p>

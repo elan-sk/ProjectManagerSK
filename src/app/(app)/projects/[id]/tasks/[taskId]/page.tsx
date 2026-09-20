@@ -10,6 +10,10 @@ import { StepList } from "./StepList";
 import { AttachmentUploader } from "./AttachmentUploader";
 import { AttachmentGrid } from "./AttachmentGrid";
 import { AdjustmentPanel } from "./AdjustmentPanel";
+import { TeamShareThread } from "./TeamShareThread";
+import type { RoundMessage } from "./RoundThread";
+import { CheckThreadsProvider, type CheckMessage } from "./CheckThread";
+import { threadInclude, toTeamPoll, toThread, type PollRow } from "@/lib/threadView";
 import { ReviewPanel } from "./ReviewPanel";
 import { AcceptancePanel } from "./AcceptancePanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
@@ -36,6 +40,30 @@ import { TaskTagsEditor } from "./TaskTagsEditor";
 import { InternalConversation } from "@/components/InternalConversation";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
+
+type RoundMessageRow = {
+  id: string;
+  authorId: string;
+  author: { name: string };
+  body: string;
+  editedAt: Date | null;
+  createdAt: Date;
+  attachments: { id: string; fileUrl: string; fileName: string; mimeType: string }[];
+  poll: PollRow | null;
+};
+
+// Mensaje del hilo interno de una ronda (Prueba / Aceptación) -> DTO serializable.
+const toRoundMessage = (m: RoundMessageRow, userId: string | null): RoundMessage => ({
+  id: m.id,
+  authorId: m.authorId,
+  authorName: m.author.name,
+  body: m.body,
+  editedAt: m.editedAt?.toISOString() ?? null,
+  createdAt: m.createdAt.toISOString(),
+  attachments: m.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+  poll: m.poll ? toTeamPoll(m.poll, userId) : null,
+});
+
 
 export default async function TaskDetailPage({
   params,
@@ -70,14 +98,28 @@ export default async function TaskDetailPage({
       reviewers: { include: { user: true } },
       steps: { orderBy: { order: "asc" } },
       attachments: { include: { uploadedBy: true }, orderBy: { uploadedAt: "desc" } },
-      adjustmentItems: { include: { attachments: true }, orderBy: { order: "asc" } },
+      adjustmentItems: {
+        include: {
+          attachments: true,
+          shareComments: { where: { parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } },
+        },
+        orderBy: { order: "asc" },
+      },
+      shareComments: { where: { adjustmentItemId: null, reviewCheckId: null, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } },
       reviewRounds: {
         orderBy: { roundNumber: "desc" },
         include: {
           submittedBy: true,
           deliverables: true,
-          checks: { include: { evidence: true, reviewedBy: true }, orderBy: { order: "asc" } },
-          messages: { include: { author: true }, orderBy: { createdAt: "asc" } },
+          checks: {
+            include: {
+              evidence: true,
+              reviewedBy: true,
+              shareComments: { where: { parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } },
+            },
+            orderBy: { order: "asc" },
+          },
+          messages: { include: { author: true, attachments: true, poll: threadInclude.poll }, orderBy: { createdAt: "asc" } },
         },
       },
       dependsOn: { include: { predecessor: true } },
@@ -86,6 +128,30 @@ export default async function TaskDetailPage({
     },
   });
   if (!task) notFound();
+
+  // Tarea tipo Prueba: hilo interno de cada prueba (comentarios, menciones, imágenes, preguntas).
+  const checkMessageRows =
+    task.type === "QA"
+      ? await prisma.internalMessage.findMany({
+          where: { taskId, reviewCheckId: { not: null } },
+          include: { author: { select: { name: true, avatarUrl: true } }, poll: threadInclude.poll },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+  const checkThreads: Record<string, CheckMessage[]> = {};
+  for (const m of checkMessageRows) {
+    (checkThreads[m.reviewCheckId!] ??= []).push({
+      id: m.id,
+      authorId: m.authorId,
+      authorName: m.author.name,
+      authorAvatarUrl: m.author.avatarUrl,
+      createdLabel: m.createdAt.toLocaleString("es-CO"),
+      createdAtMs: m.createdAt.getTime(),
+      body: m.body,
+      edited: Boolean(m.editedAt),
+      poll: m.poll ? toTeamPoll(m.poll, session?.user?.id ?? null) : null,
+    });
+  }
   // Un proyecto oculto solo lo ve el administrador.
   if (task.project.hidden && session?.user?.role !== "ADMIN") notFound();
 
@@ -170,7 +236,7 @@ export default async function TaskDetailPage({
   const setDependencyWithId = setDependency.bind(null, taskId);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <NavLinkWithMemory
           href={`/projects/${projectId}`}
@@ -362,14 +428,14 @@ export default async function TaskDetailPage({
 
       {(task.description || canEdit) && (
         <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-medium text-slate-900">Descripción</h2>
+          <h2 className="text-[21px] font-semibold text-slate-900">Descripción</h2>
           <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
         </section>
       )}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
+          <h2 className="text-[21px] font-semibold text-slate-900">Checklist de pasos</h2>
           {stepsTotal > 0 && (
             <span className="text-xs font-medium text-slate-500">
               {stepsDone}/{stepsTotal} · {stepsPct}%
@@ -402,7 +468,13 @@ export default async function TaskDetailPage({
             note: item.note,
             before: item.attachments.filter((a) => a.kind === "BEFORE").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             after: item.attachments.filter((a) => a.kind === "AFTER").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            clientApproval: item.clientApproval,
+            clientApprovalBy: item.clientApprovalBy,
+            clientReviewOpen: item.clientReviewOpen,
+            comments: item.shareComments.map((c) => toThread(c, session?.user?.id ?? null)),
           }))}
+          canAttach={task.status !== "COMPLETED"}
+          canVote={canEdit || canReview}
           userId={session?.user?.id ?? null}
           canEdit={canEdit}
           canDelete={canManage}
@@ -410,7 +482,7 @@ export default async function TaskDetailPage({
       ) : (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="font-medium text-slate-900">Insumos</h2>
+            <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
             <AttachmentGrid
               items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
               canDelete={canManage}
@@ -429,7 +501,7 @@ export default async function TaskDetailPage({
           </div>
 
           <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="font-medium text-slate-900">Evidencias</h2>
+            <h2 className="text-[21px] font-semibold text-slate-900">Evidencias</h2>
             <AttachmentGrid
               items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
               canDelete={canManage}
@@ -449,54 +521,79 @@ export default async function TaskDetailPage({
         </section>
       )}
 
-      {task.type === "QA" && (
-        <ReviewPanel
+      {/* Tarea tipo Ajuste: las imágenes que suben cliente/equipo en los comentarios quedan como Insumos. */}
+      {task.type === "ADJUSTMENT" && (insumos.length > 0 || (canEdit && task.status !== "COMPLETED")) && (
+        <section className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
+          <AttachmentGrid
+            items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+            canDelete={canManage}
+          />
+          {canEdit && session?.user && task.status !== "COMPLETED" && (
+            <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" />
+          )}
+        </section>
+      )}
+
+      {/* Hilo general del link compartido (en Ajuste cada cambio lleva su propio hilo, dentro del panel). */}
+      {task.type !== "ADJUSTMENT" && (task.shareComments.length > 0 || (canEdit && activeShareLink)) && (
+        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="text-[21px] font-semibold text-slate-900">Comentarios del link compartido</h2>
+          <TeamShareThread taskId={taskId} comments={task.shareComments.map((c) => toThread(c, session?.user?.id ?? null))} canReply={canEdit} canVote={canEdit || canReview} canAttach={task.status !== "COMPLETED"} />
+        </section>
+      )}
+
+      {task.type === "QA" && session?.user && (
+        <CheckThreadsProvider
+          projectId={projectId}
           taskId={taskId}
-          userId={session?.user?.id ?? null}
-          canManage={
-            // Punto 11: además de PM/admin, puede cambiar el revisor el
-            // propio revisor actual (para pasarle la posta a otro), o el
-            // asignado cuando todavía no hay ninguno (autoasignación única
-            // — reviewActions.ts vuelve a validar esto igual del lado server).
-            canManage ||
-            task.reviewers.some((r) => r.userId === session?.user?.id) ||
-            (task.reviewers.length === 0 && canEdit)
-          }
-          canEdit={canEdit}
-          canReview={canReview}
-          taskStatus={task.status}
-          users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
-          currentReviewerIds={task.reviewers.map((r) => r.userId)}
-          templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}
-          responseCategories={responseCategories.map((c) => ({ name: c.name, responses: c.responses.map((r) => r.text) }))}
-          rounds={task.reviewRounds.map((round) => ({
-            id: round.id,
-            roundNumber: round.roundNumber,
-            submittedByName: round.submittedBy.name,
-            submittedAt: round.submittedAt.toISOString(),
-            outcome: round.outcome,
-            deliverables: round.deliverables.map((d) => ({ id: d.id, url: d.fileUrl, name: d.fileName, mimeType: d.mimeType })),
-            checks: round.checks.map((c) => ({
-              id: c.id,
-              title: c.title,
-              criteria: c.criteria,
-              category: c.category,
-              result: c.result,
-              note: c.note,
-              responseCategory: c.responseCategory,
-              reviewedByName: c.reviewedBy?.name ?? null,
-              evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
-            })),
-            messages: round.messages.map((m) => ({
-              id: m.id,
-              authorId: m.authorId,
-              authorName: m.author.name,
-              body: m.body,
-              editedAt: m.editedAt?.toISOString() ?? null,
-              createdAt: m.createdAt.toISOString(),
-            })),
-          }))}
-        />
+          currentUserId={session.user.id}
+          people={users.filter((u) => u.id !== session.user.id).map((u) => ({ id: u.id, name: u.name }))}
+          threads={checkThreads}
+          canVote={canEdit || canReview}
+          canClose={canEdit}
+        >
+          <ReviewPanel
+            taskId={taskId}
+            userId={session?.user?.id ?? null}
+            canManage={
+              // Punto 11: además de PM/admin, puede cambiar el revisor el
+              // propio revisor actual (para pasarle la posta a otro), o el
+              // asignado cuando todavía no hay ninguno (autoasignación única
+              // — reviewActions.ts vuelve a validar esto igual del lado server).
+              canManage ||
+              task.reviewers.some((r) => r.userId === session?.user?.id) ||
+              (task.reviewers.length === 0 && canEdit)
+            }
+            canEdit={canEdit}
+            canReview={canReview}
+            taskStatus={task.status}
+            users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
+            currentReviewerIds={task.reviewers.map((r) => r.userId)}
+            templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}
+            responseCategories={responseCategories.map((c) => ({ name: c.name, responses: c.responses.map((r) => r.text) }))}
+            rounds={task.reviewRounds.map((round) => ({
+              id: round.id,
+              roundNumber: round.roundNumber,
+              submittedByName: round.submittedBy.name,
+              submittedAt: round.submittedAt.toISOString(),
+              outcome: round.outcome,
+              deliverables: round.deliverables.map((d) => ({ id: d.id, url: d.fileUrl, name: d.fileName, mimeType: d.mimeType })),
+              checks: round.checks.map((c) => ({
+                id: c.id,
+                title: c.title,
+                criteria: c.criteria,
+                category: c.category,
+                result: c.result,
+                note: c.note,
+                responseCategory: c.responseCategory,
+                reviewedByName: c.reviewedBy?.name ?? null,
+                evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+              })),
+              messages: round.messages.map((m) => toRoundMessage(m, session?.user?.id ?? null)),
+            }))}
+          />
+        </CheckThreadsProvider>
       )}
 
       {task.type === "ACCEPTANCE" && (
@@ -504,6 +601,7 @@ export default async function TaskDetailPage({
           taskId={taskId}
           userId={session?.user?.id ?? null}
           canEdit={canEdit}
+          canVote={canEdit || canReview}
           taskStatus={task.status}
           rounds={task.reviewRounds.map((round) => ({
             id: round.id,
@@ -522,15 +620,9 @@ export default async function TaskDetailPage({
               reviewedByExternalName: c.externalReviewerName,
               reviewedByExternalRole: c.externalReviewerRole,
               evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+              comments: c.shareComments.map((cm) => toThread(cm, session?.user?.id ?? null)),
             })),
-            messages: round.messages.map((m) => ({
-              id: m.id,
-              authorId: m.authorId,
-              authorName: m.author.name,
-              body: m.body,
-              editedAt: m.editedAt?.toISOString() ?? null,
-              createdAt: m.createdAt.toISOString(),
-            })),
+            messages: round.messages.map((m) => toRoundMessage(m, session?.user?.id ?? null)),
           }))}
         />
       )}
@@ -539,7 +631,7 @@ export default async function TaskDetailPage({
 
       <section>
         <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-medium text-slate-900">Depende de</h2>
+          <h2 className="text-[21px] font-semibold text-slate-900">Depende de</h2>
           <ul className="space-y-1">
             {task.dependsOn.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-2 text-sm">

@@ -1,3 +1,4 @@
+import { DEFINITION_ACTION_BTN } from "@/lib/statusColors";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ProjectDescription } from "./ProjectDescription";
@@ -43,25 +44,25 @@ export function DefinitionTab({
   attachments: { id: string; fileName: string; fileUrl: string; mimeType: string }[];
 }) {
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-base" projectId={projectId} />
+          <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-[18px]" projectId={projectId} />
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm font-medium text-slate-900">Descripción</p>
+            <p className="text-[18px] font-medium text-slate-900">Descripción</p>
             {canManage ? (
               <ProjectDescription projectId={projectId} description={description} />
             ) : (
               description ? (
-                <div className="prose prose-sm max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: description }} />
+                <div className="prose prose-lg max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: description }} />
               ) : (
-                <p className="text-sm text-slate-400">Sin descripción todavía.</p>
+                <p className="text-[18px] text-slate-400">Sin descripción todavía.</p>
               )
             )}
           </div>
         </div>
         {canManage && (
-          <ModalTrigger label="Icono y nombre" title="Identidad del proyecto" variant="secondary" compact>
+          <ModalTrigger label="Icono y nombre" title="Identidad del proyecto" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
             <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} />
           </ModalTrigger>
         )}

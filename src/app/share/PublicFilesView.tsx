@@ -43,12 +43,12 @@ export function PublicFilesView({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-2 font-medium text-slate-900">Archivos y links del proyecto</h2>
+        <h2 className="mb-2 text-[21px] font-semibold text-slate-900">Archivos y links del proyecto</h2>
         <PublicFileGrid files={files} />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-2 font-medium text-slate-900">Subir archivo o link</h2>
+        <h2 className="mb-2 text-[21px] font-semibold text-slate-900">Subir archivo o link</h2>
         <PublicUploadWidget onUploadFile={uploadFile} onAddLink={addLink} label="+ Subir archivo" />
       </div>
     </div>

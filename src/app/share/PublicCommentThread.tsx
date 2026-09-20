@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addShareComment } from "./shareActions";
-import { loadShareIdentity, saveShareIdentity, type ShareIdentity } from "./shareIdentity";
-
-type Identity = ShareIdentity;
+import { PublicFileGrid } from "./PublicFileGrid";
+import { PublicPollCard, PublicPollFrame } from "./PublicPollCard";
+import { CommentAttachments, type PendingFile } from "@/components/CommentAttachments";
+import type { PublicFile, PublicPoll } from "@/lib/publicView";
+import { clearShareIdentity, saveShareIdentity, useShareIdentity } from "./shareIdentity";
 
 type CommentData = {
   id: string;
@@ -13,17 +15,38 @@ type CommentData = {
   authorRole: string | null;
   body: string;
   createdAt: string;
-  replies: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: string }[];
+  attachments: PublicFile[];
+  poll: PublicPoll | null;
+  replies: { id: string; authorName: string; authorRole: string | null; body: string; createdAt: string; attachments: PublicFile[]; poll: PublicPoll | null }[];
 };
 
-function CommentBubble({ author, role, body }: { author: string; role: string | null; body: string }) {
+const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" };
+
+function CommentBubble({ author, role, body, attachments, poll, token, createdAt }: { author: string; role: string | null; body: string; attachments: PublicFile[]; poll: PublicPoll | null; token: string; createdAt: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2 text-xs">
-      <span className="font-medium text-slate-700">
-        {author}
-        {role && <span className="font-normal text-slate-400"> · {role}</span>}
-      </span>
-      <p className="mt-0.5 text-slate-600">{body}</p>
+    <div className="rounded-lg bg-slate-50 p-2 text-[17px]">
+      {!poll && (
+        <span className="font-medium text-slate-700">
+          {author}
+          {role && <span className="font-normal text-slate-400"> · {role}</span>}
+        </span>
+      )}
+      {poll ? (
+        <div className="mt-1.5">
+          <PublicPollFrame author={{ name: author, role, date: new Date(createdAt).toLocaleString("es-CO", DATE_FMT) }}>
+            <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900">{body}</p>
+            <PublicPollCard key={poll.id} token={token} poll={poll} />
+          </PublicPollFrame>
+        </div>
+      ) : (
+        body && <p className="mt-0.5 whitespace-pre-wrap text-slate-600">{body}</p>
+      )}
+
+      {attachments.length > 0 && (
+        <div className="mt-1.5">
+          <PublicFileGrid files={attachments} />
+        </div>
+      )}
     </div>
   );
 }
@@ -39,16 +62,29 @@ function CommentBubble({ author, role, body }: { author: string; role: string | 
 export function PublicCommentThread({
   token,
   adjustmentItemId,
-  requireAdjustmentApproval = false,
+  reviewCheckId,
+  identityAbove = false,
+  allowAttachments = false,
+  locked = false,
+  contextLabel,
   comments,
 }: {
   token: string;
   adjustmentItemId?: string;
-  requireAdjustmentApproval?: boolean;
+  /** Tarea de Aceptación: el hilo es el de una característica de la ronda. */
+  reviewCheckId?: string;
+  /** La identificación se pide una sola vez arriba de la lista (ShareIdentityBar): acá no se repite. */
+  identityAbove?: boolean;
+  /** Permite adjuntar imágenes al comentario (solo hilos de tarea, mientras no esté completada). */
+  allowAttachments?: boolean;
+  /** Revisión cerrada: el hilo queda de solo lectura (sin comentar ni responder). */
+  locked?: boolean;
+  /** Nombre del ítem al que pertenece el hilo (ej. «Cambio 2»): se muestra como título del panel. */
+  contextLabel?: string;
   comments: CommentData[];
 }) {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useShareIdentity();
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [body, setBody] = useState("");
@@ -56,36 +92,31 @@ export function PublicCommentThread({
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [replyFiles, setReplyFiles] = useState<PendingFile[]>([]);
   const [sendingReply, setSendingReply] = useState(false);
-  const [adjustmentApproval, setAdjustmentApproval] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const stored = loadShareIdentity();
-    if (stored) {
-      setIdentity(stored);
-      setName(stored.name);
-      setRole(stored.role);
-    }
-  }, []);
+  // Con identidad guardada manda ella; si no, lo que se esté escribiendo.
+  const authorName = identity?.name ?? name;
+  const authorRole = identity?.role ?? role;
 
   function saveIdentityIfNeeded() {
     if (identity) return;
-    const savedIdentity = { name: name.trim(), role: role.trim() };
-    saveShareIdentity(savedIdentity);
-    setIdentity(savedIdentity);
+    saveShareIdentity({ name: name.trim(), role: role.trim() });
   }
 
   async function handleSend() {
-    if (!name.trim() || !body.trim()) return;
+    if (!authorName.trim() || (!body.trim() && files.length === 0)) return;
     setSending(true);
     setError(null);
     try {
       const result = await addShareComment(token, {
-        authorName: name.trim(),
-        authorRole: role.trim() || undefined,
+        authorName: authorName.trim(),
+        authorRole: authorRole.trim() || undefined,
         body: body.trim(),
+        attachments: files,
         adjustmentItemId,
-        adjustmentApproval: requireAdjustmentApproval ? adjustmentApproval ?? undefined : undefined,
+        reviewCheckId,
       });
       if (!result.ok) {
         setError(result.error ?? "No se pudo enviar el comentario.");
@@ -93,6 +124,7 @@ export function PublicCommentThread({
       }
       saveIdentityIfNeeded();
       setBody("");
+      setFiles([]);
       router.refresh();
     } finally {
       setSending(false);
@@ -100,16 +132,17 @@ export function PublicCommentThread({
   }
 
   async function handleReply(parentId: string) {
-    if (!name.trim() || !replyBody.trim()) return;
+    if (!authorName.trim() || (!replyBody.trim() && replyFiles.length === 0)) return;
     setSendingReply(true);
     setError(null);
     try {
       const result = await addShareComment(token, {
-        authorName: name.trim(),
-        authorRole: role.trim() || undefined,
+        authorName: authorName.trim(),
+        authorRole: authorRole.trim() || undefined,
         body: replyBody.trim(),
+        attachments: replyFiles,
         adjustmentItemId,
-        adjustmentApproval: requireAdjustmentApproval ? adjustmentApproval ?? undefined : undefined,
+        reviewCheckId,
         parentId,
       });
       if (!result.ok) {
@@ -118,6 +151,7 @@ export function PublicCommentThread({
       }
       saveIdentityIfNeeded();
       setReplyBody("");
+      setReplyFiles([]);
       setReplyingTo(null);
       router.refresh();
     } finally {
@@ -126,36 +160,39 @@ export function PublicCommentThread({
   }
 
   return (
-    <div className="space-y-2">
+    <div className={contextLabel ? "mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5" : "space-y-2"}>
+      {contextLabel && <p className="text-[17px] font-semibold text-slate-600">💬 Comentarios y preguntas · {contextLabel}</p>}
       {comments.length > 0 && (
         <ul className="space-y-1.5">
           {comments.map((c) => (
             <li key={c.id} className="space-y-1">
-              <CommentBubble author={c.authorName} role={c.authorRole} body={c.body} />
-              <button
-                type="button"
-                onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
-                className="ml-2 text-[11px] text-slate-400 hover:underline"
-              >
-                Responder
-              </button>
+              <CommentBubble author={c.authorName} role={c.authorRole} body={c.body} attachments={c.attachments} poll={c.poll} token={token} createdAt={c.createdAt} />
+              {!locked && (
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                  className="ml-2 text-[15px] text-slate-400 hover:underline"
+                >
+                  Responder
+                </button>
+              )}
               {c.replies.length > 0 && (
                 <ul className="ml-4 space-y-1">
                   {c.replies.map((r) => (
                     <li key={r.id}>
-                      <CommentBubble author={r.authorName} role={r.authorRole} body={r.body} />
+                      <CommentBubble author={r.authorName} role={r.authorRole} body={r.body} attachments={r.attachments} poll={r.poll} token={token} createdAt={r.createdAt} />
                     </li>
                   ))}
                 </ul>
               )}
-              {replyingTo === c.id && (
-                <div className="ml-4 space-y-1">
-                  {!identity && (
+              {replyingTo === c.id && !locked && (
+                <div data-paste-zone className="ml-4 space-y-1 rounded-lg p-1.5">
+                  {!identity && !identityAbove && (
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Tu nombre"
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
                     />
                   )}
                   <div className="flex gap-1.5">
@@ -164,17 +201,18 @@ export function PublicCommentThread({
                       onChange={(e) => setReplyBody(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleReply(c.id)}
                       placeholder="Responder…"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
                     />
                     <button
                       type="button"
-                      disabled={sendingReply || !name.trim() || !replyBody.trim()}
+                      disabled={sendingReply || !authorName.trim() || (!replyBody.trim() && replyFiles.length === 0)}
                       onClick={() => handleReply(c.id)}
-                      className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                      className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
                     >
                       Enviar
                     </button>
                   </div>
+                  {allowAttachments && <CommentAttachments files={replyFiles} onChange={setReplyFiles} token={token} />}
                 </div>
               )}
             </li>
@@ -182,49 +220,58 @@ export function PublicCommentThread({
         </ul>
       )}
 
-      <div className="space-y-1.5">
-        {!identity && (
+      {locked ? (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-[13px] text-slate-500">
+          Este hilo está cerrado: la calificación ya fue enviada. Solo el equipo puede habilitar una nueva revisión.
+        </p>
+      ) : (
+      <div data-paste-zone className="space-y-1.5 rounded-lg p-1.5">
+        {!identity && !identityAbove && (
           <div className="flex gap-1.5">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tu nombre"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
             />
             <input
               value={role}
               onChange={(e) => setRole(e.target.value)}
               placeholder="Tu cargo (opcional)"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
             />
           </div>
         )}
-        {requireAdjustmentApproval && (
-          <fieldset className="flex gap-3 text-xs text-slate-600">
-            <legend className="mb-1 font-medium">Tu aprobación para este ajuste <span className="text-red-500">*</span></legend>
-            <label className="flex items-center gap-1"><input type="radio" checked={adjustmentApproval === true} onChange={() => setAdjustmentApproval(true)} /> Apruebo</label>
-            <label className="flex items-center gap-1"><input type="radio" checked={adjustmentApproval === false} onChange={() => setAdjustmentApproval(false)} /> Necesita cambios</label>
-          </fieldset>
+        {identity && !identityAbove && (
+          <p className="text-[15px] text-slate-400">
+            Comentando como <span className="font-medium text-slate-600">{identity.name}</span>
+            {identity.role && ` · ${identity.role}`} ·{" "}
+            <button type="button" onClick={clearShareIdentity} className="hover:underline">
+              cambiar
+            </button>
+          </p>
         )}
         <div className="flex gap-1.5">
           <input
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Escribir un comentario…"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+            placeholder={identityAbove && !identity ? "Primero se debe indicar el nombre arriba" : "Escribir un comentario…"}
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
           />
           <button
             type="button"
-            disabled={sending || !name.trim() || !body.trim() || (requireAdjustmentApproval && adjustmentApproval === null)}
+            disabled={sending || !authorName.trim() || (!body.trim() && files.length === 0)}
             onClick={handleSend}
-            className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             Comentar
           </button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {allowAttachments && <CommentAttachments files={files} onChange={setFiles} token={token} />}
+        {error && <p className="text-[17px] text-red-600">{error}</p>}
       </div>
+      )}
     </div>
   );
 }

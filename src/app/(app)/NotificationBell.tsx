@@ -46,7 +46,7 @@ export function NotificationBell({ items, userId }: { items: NotificationItem[];
       </button>
 
       {open && (
-        <div className="pacific-popover absolute right-0 z-10 mt-2 w-80 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+        <div className="pacific-popover absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-6rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
           {items.length === 0 && (
             <p className="p-3 text-sm text-slate-400">Sin notificaciones pendientes.</p>
           )}

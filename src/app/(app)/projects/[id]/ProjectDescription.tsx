@@ -25,7 +25,7 @@ export function ProjectDescription({ projectId, description }: { projectId: stri
         tabIndex={0}
         title="Click para editar"
         onClick={() => setEditing(true)}
-        className="prose prose-sm -mx-1 max-w-none cursor-text rounded px-1 text-slate-600 hover:bg-slate-100 [&_img]:max-w-full [&_img]:rounded-lg"
+        className="prose prose-lg -mx-1 max-w-none cursor-text rounded px-1 text-slate-600 hover:bg-slate-100 [&_img]:max-w-full [&_img]:rounded-lg"
         dangerouslySetInnerHTML={{ __html: description }}
       />
     );

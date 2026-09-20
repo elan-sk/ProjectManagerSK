@@ -34,6 +34,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
+      // Extensiones del navegador (LanguageTool, Console Ninja…) agregan atributos
+      // al <html> antes de que cargue React; sin esto salta un aviso de hidratación
+      // en desarrollo. Solo aplica a los atributos de esta etiqueta, no a sus hijos.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

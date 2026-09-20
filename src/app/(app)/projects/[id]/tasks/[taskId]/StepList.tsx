@@ -84,8 +84,8 @@ export function StepList({ taskId, steps, canEdit }: { taskId: string; steps: St
           ))}
         </SortableContext>
       </DndContext>
-      {items.length === 0 && <p className="text-sm text-slate-400">Sin pasos todavía.</p>}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {items.length === 0 && <p className="text-[18px] text-slate-400">Sin pasos todavía.</p>}
+      {error && <p className="text-[17px] text-red-600">{error}</p>}
     </div>
   );
 }

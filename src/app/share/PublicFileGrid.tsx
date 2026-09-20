@@ -19,11 +19,13 @@ import type { PublicFile } from "@/lib/publicView";
 // cantidad razonable de archivos (con pocos, un input encima solo estorba).
 const SEARCH_THRESHOLD = 6;
 
-export function PublicFileGrid({ files }: { files: PublicFile[] }) {
+// sequence: carrusel del visor cuando debe seguir más allá de esta grilla
+// (ej. Antes → Después de un ajuste); por defecto son las imágenes de files.
+export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; sequence?: (PublicFile & { group?: string })[] }) {
   const [preview, setPreview] = useState<PublicFile | null>(null);
   const [openImageId, setOpenImageId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const images = files.filter((f) => f.mimeType.startsWith("image/"));
+  const images = (sequence ?? files).filter((f) => f.mimeType.startsWith("image/"));
   const filtered = useMemo(
     () => (query.trim() ? files.filter((f) => normalizeSearchText(f.name).includes(normalizeSearchText(query))) : files),
     [files, query]
