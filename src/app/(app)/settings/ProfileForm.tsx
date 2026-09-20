@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateProfile, updateAvatar } from "./actions";
 import { Avatar } from "@/components/Avatar";
+import { ImageCropModal } from "@/components/ImageCropModal";
 
 export function ProfileForm({
   name,
@@ -25,9 +26,16 @@ export function ProfileForm({
   const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  async function handleAvatarChange() {
+  // Al elegir la foto se abre el recorte; recién al confirmarlo se sube.
+  const [toCrop, setToCrop] = useState<File | null>(null);
+  function handleAvatarChange() {
     const file = inputRef.current?.files?.[0];
-    if (!file) return;
+    if (file) setToCrop(file);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function uploadAvatar(file: File) {
+    setToCrop(null);
     setUploading(true);
     setError(null);
     try {
@@ -47,7 +55,6 @@ export function ProfileForm({
       router.refresh();
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -59,6 +66,7 @@ export function ProfileForm({
           {uploading ? "Subiendo…" : "Cambiar foto"}
           <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleAvatarChange} />
         </label>
+        {toCrop && <ImageCropModal file={toCrop} onCancel={() => setToCrop(null)} onConfirm={uploadAvatar} />}
       </div>
 
       <form

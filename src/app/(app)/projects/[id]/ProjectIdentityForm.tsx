@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { updateProjectIdentity } from "./definitionActions";
 import { useModalClose } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
+import { ImageCropModal } from "@/components/ImageCropModal";
 
 export function ProjectIdentityForm({
   projectId,
@@ -24,9 +25,16 @@ export function ProjectIdentityForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  async function handleIconChange() {
+  // Al elegir la imagen se abre el recorte; recién al confirmarlo se sube.
+  const [toCrop, setToCrop] = useState<File | null>(null);
+  function handleIconChange() {
     const file = fileInputRef.current?.files?.[0];
-    if (!file) return;
+    if (file) setToCrop(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function uploadIcon(file: File) {
+    setToCrop(null);
     setUploading(true);
     setError(null);
     try {
@@ -45,7 +53,6 @@ export function ProjectIdentityForm({
       setPickedIconUrl(body.url);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -74,6 +81,7 @@ export function ProjectIdentityForm({
             {uploading ? "Subiendo…" : "Cambiar ícono"}
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleIconChange} />
           </label>
+          {toCrop && <ImageCropModal file={toCrop} title="Recortar ícono" round={false} onCancel={() => setToCrop(null)} onConfirm={uploadIcon} />}
           {pickedIconUrl && (
             <button type="button" onClick={() => setPickedIconUrl(null)} className="block text-xs text-slate-400 hover:text-red-600">
               Quitar ícono (usar color + inicial)
