@@ -6,12 +6,15 @@ import { CommentItem } from "@/components/CommentItem";
 export async function InternalConversation({ projectId, taskId = null, title }: { projectId: string; taskId?: string | null; title: string }) {
   const session = await auth();
   if (!session?.user) return null;
-  const messages = await prisma.internalMessage.findMany({
+  const [people, messages] = await Promise.all([
+    prisma.user.findMany({ where: { active: true, id: { not: session.user.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.internalMessage.findMany({
     where: { projectId, taskId },
     include: { author: { select: { name: true, avatarUrl: true } } },
     orderBy: { createdAt: "asc" },
     take: 100,
-  });
+    }),
+  ]);
 
   return (
     <section id="internal-conversation" className="scroll-mt-20 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -33,12 +36,13 @@ export async function InternalConversation({ projectId, taskId = null, title }: 
               createdLabel={m.createdAt.toLocaleString("es-CO")}
               createdAtMs={m.createdAt.getTime()}
               body={m.body}
+              edited={Boolean(m.editedAt)}
               currentUserId={session.user.id}
             />
           ))
         )}
       </div>
-      <CommentForm projectId={projectId} taskId={taskId} />
+      <CommentForm projectId={projectId} taskId={taskId} people={people} />
     </section>
   );
 }

@@ -126,7 +126,8 @@ export default async function ProjectsPage({
     // getProjectSummaryRows por su cuenta — acá solo hace falta lo que
     // alimenta la vista Archivos del panorama general y el selector "Buscar".
     prisma.project.findMany({
-      where: { status: { not: "ARCHIVED" } },
+      // Un proyecto oculto solo lo ve el administrador.
+      where: { status: { not: "ARCHIVED" }, ...(isAdmin ? {} : { hidden: false }) },
       include: {
         // Insumos del proyecto cargados en Definición (repositorio de
         // archivos + links de referencia) — se mezclan más abajo con los
@@ -138,6 +139,7 @@ export default async function ProjectsPage({
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.task.findMany({
+      where: { archivedAt: null, ...(isAdmin ? {} : { project: { hidden: false } }) },
       select: {
         id: true,
         projectId: true,
@@ -204,6 +206,7 @@ export default async function ProjectsPage({
   const projectRows = await getProjectSummaryRows(
     {
       status: { not: "ARCHIVED" },
+      ...(isAdmin ? {} : { hidden: false }),
       ...(myAssignedProjectIds ? { id: { in: [...myAssignedProjectIds] } } : {}),
     },
     canSeeCollisions,
@@ -220,7 +223,8 @@ export default async function ProjectsPage({
     : { assignees: { some: { userId: session.user.id } } };
 
   const boardTasksRaw = await prisma.task.findMany({
-    where: boardWhere,
+    // Las tareas archivadas salen del flujo visual; las de proyectos ocultos, para quien no es admin.
+    where: { ...boardWhere, archivedAt: null, ...(isAdmin ? {} : { project: { hidden: false } }) },
     include: {
       project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
       phase: { select: { name: true } },
@@ -349,6 +353,7 @@ export default async function ProjectsPage({
       projectIconUrl: t.project.iconUrl,
       title: t.title,
       type: t.type,
+      isUrgent: t.isUrgent,
       status: t.status,
       riskLevel: t.riskLevel,
       canManage: canManageProject(t.projectId),
@@ -384,6 +389,7 @@ export default async function ProjectsPage({
         projectName: t.project.name,
         projectIconUrl: t.project.iconUrl,
         title: t.title,
+        isUrgent: t.isUrgent,
         phaseId: t.phaseId,
         phaseName: t.phase.name,
         status: t.status,
@@ -418,6 +424,7 @@ export default async function ProjectsPage({
       projectId: t.projectId,
       projectName: t.project.name,
       title: t.title,
+      isUrgent: t.isUrgent,
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,

@@ -193,7 +193,7 @@ export function WhatsAppConnectPanel({
               startTransition(async () => {
                 setTestResult(null);
                 const result = await testWhatsAppDelivery();
-                setTestResult(result.ok ? "Prueba de alerta alta enviada al grupo." : (result.error ?? "No se pudo entregar la prueba."));
+                setTestResult(result.ok ? "Prueba enviada a tu WhatsApp." : (result.error ?? "No se pudo entregar la prueba."));
               })
             }
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"

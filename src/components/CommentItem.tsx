@@ -7,6 +7,7 @@ import { useConfirm } from "@/components/Confirm";
 import { deleteInternalMessage, editInternalMessage } from "@/app/(app)/internalMessageActions";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, splitCommentBody } from "@/lib/commentBody";
 import { useNow } from "@/lib/useNow";
+import { DocumentIcon, LinkIcon } from "@/components/icons";
 // El mismo visor de imágenes que usan los archivos (Insumos, Evidencias, Archivos).
 import { AttachmentLightbox } from "@/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox";
 
@@ -19,6 +20,7 @@ type Props = {
   createdLabel: string;
   createdAtMs: number;
   body: string;
+  edited?: boolean;
   currentUserId: string;
 };
 
@@ -43,7 +45,7 @@ function OwnControls({ createdAtMs, disabled, onEdit, onDelete }: { createdAtMs:
   );
 }
 
-export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, currentUserId }: Props) {
+export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, edited, currentUserId }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -85,7 +87,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
       <Avatar name={authorName} avatarUrl={authorAvatarUrl} size="h-7 w-7 text-[10px]" />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-slate-700">
-          {authorName} <span className="font-normal text-slate-400">{createdLabel}</span>
+          {authorName} <span className="font-normal text-slate-400">{createdLabel}{edited ? " · editado" : ""}</span>
           {authorId === currentUserId && !editing && (
             <OwnControls createdAtMs={createdAtMs} disabled={pending} onEdit={() => { setDraft(body); setError(null); setEditing(true); }} onDelete={remove} />
           )}
@@ -112,10 +114,18 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
           </div>
         ) : (
           <div className="text-sm text-slate-700">
-            {parts.map((part, i) =>
-              part.type === "text" ? (
-                <span key={i} className="whitespace-pre-wrap">{part.text}</span>
-              ) : (
+            {parts.map((part, i) => {
+              if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+              if (part.type === "mention")
+                return <span key={i} className="rounded bg-[#0a6b78]/10 px-1 font-medium text-[#0a6b78]">@{part.name}</span>;
+              if (part.type === "file" || part.type === "link")
+                return (
+                  <a key={i} href={part.url} target="_blank" rel="noreferrer" className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                    {part.type === "file" ? <DocumentIcon className="h-3.5 w-3.5 shrink-0" /> : <LinkIcon className="h-3.5 w-3.5 shrink-0" />}
+                    <span className="truncate">{part.name}</span>
+                  </a>
+                );
+              return (
                 <button
                   key={i}
                   type="button"
@@ -126,8 +136,8 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={part.url} alt="Imagen del comentario" className="max-h-64 max-w-full rounded-lg border border-slate-200" />
                 </button>
-              )
-            )}
+              );
+            })}
           </div>
         )}
         {openImage && <AttachmentLightbox images={images} openId={openImage} onClose={() => setOpenImage(null)} onNavigate={setOpenImage} canDelete={false} />}

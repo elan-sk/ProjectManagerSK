@@ -1,5 +1,6 @@
 "use server";
 
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { revalidatePath } from "next/cache";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
@@ -128,7 +129,7 @@ export async function removeAttachment(attachmentId: string) {
     await requireProjectAdmin(attachment.task.projectId);
     await prisma.attachment.delete({ where: { id: attachmentId } });
     if (attachment.mimeType !== LINK_MIME_TYPE) {
-      await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+      await deleteFileIfUnused(attachment.fileUrl);
     }
     await revalidateTask(attachment.taskId);
     return;
@@ -138,7 +139,7 @@ export async function removeAttachment(attachmentId: string) {
   await requireProjectAdmin(projectAttachment.projectId);
   await prisma.projectAttachment.delete({ where: { id: attachmentId } });
   if (projectAttachment.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", projectAttachment.fileUrl)).catch(() => {});
+    await deleteFileIfUnused(projectAttachment.fileUrl);
   }
   revalidatePath(`/projects/${projectAttachment.projectId}`);
 }
@@ -433,7 +434,7 @@ export async function removeAdjustmentAttachment(attachmentId: string) {
   await requireProjectAdmin(attachment.adjustmentItem.task.projectId);
   await prisma.adjustmentAttachment.delete({ where: { id: attachmentId } });
   if (attachment.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+    await deleteFileIfUnused(attachment.fileUrl);
   }
   await revalidateTask(attachment.adjustmentItem.taskId);
 }

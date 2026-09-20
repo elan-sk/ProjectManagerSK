@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { startWhatsApp, stopWhatsApp, getWhatsAppStatus, listGroups, sendGroupAlert } from "@/lib/whatsapp";
-import { getWhatsAppSettings, setAppDailyDigestTime, setAppWhatsAppGroup, setAppWorkHours } from "@/lib/appSettings";
+import { prisma } from "@/lib/prisma";
+import { startWhatsApp, stopWhatsApp, getWhatsAppStatus, listGroups, sendDirectAlert } from "@/lib/whatsapp";
+import { setAppDailyDigestTime, setAppWhatsAppGroup, setAppWorkHours } from "@/lib/appSettings";
 
 async function requireAdmin() {
   const session = await auth();
@@ -69,17 +70,13 @@ export async function updateDailyDigestTime(hour: number, minute: number) {
   return { ok: true as const };
 }
 
-// Diagnóstico administrado desde la UI para la ruta de alertas altas al grupo.
-// Los mensajes individuales manuales solo salen desde el chat, con la
-// confirmación y el control de rol de Chontatec.
+// Mensaje de prueba: siempre va por DM al teléfono de quien lo pide (nunca al
+// grupo real), para probar sin molestar al equipo.
 export async function testWhatsAppDelivery() {
-  await requireAdmin();
-  const { groupJid } = await getWhatsAppSettings();
-  const text = "Prueba de entrega: las notificaciones de ProjectManagerSK están activas.";
-  const group = groupJid ? await sendGroupAlert(groupJid, `🧪 *Prueba de alerta alta*\n${text}`) : false;
-  return {
-    ok: group,
-    group,
-    error: !groupJid ? "No hay grupo predeterminado configurado." : undefined,
-  };
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") throw new Error("Solo un administrador puede hacer esto.");
+  const me = await prisma.user.findUnique({ where: { id: session.user.id }, select: { phone: true } });
+  if (!me?.phone) return { ok: false, error: "Tu usuario no tiene un teléfono registrado. Agregalo en tu perfil para recibir la prueba." };
+  const sent = await sendDirectAlert(me.phone, "🧪 *Prueba de entrega*\nLas notificaciones de ProjectManagerSK están activas.");
+  return { ok: sent, error: sent ? undefined : "WhatsApp no está conectado; no se pudo enviar la prueba." };
 }

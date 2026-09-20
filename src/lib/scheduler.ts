@@ -3,6 +3,7 @@ import { sendGroupAlert, sendRawMessage } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, meetingReminderTargetTime } from "@/lib/workingHours";
 import { dispatchDailyDigests } from "@/lib/notifications";
+import { ensureWhatsAppAlive } from "@/lib/whatsapp";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -74,6 +75,8 @@ export function startScheduler() {
   // entero — un rechazo de promesa sin atajar en Node mata el server completo,
   // como pasó en producción el 2026-09-13 (ver notifications.ts).
   setInterval(() => {
+    // Reconexión de WhatsApp en segundo plano, con o sin admin en la web.
+    ensureWhatsAppAlive();
     dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts falló", err));
     dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders falló", err));
     dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests falló", err));

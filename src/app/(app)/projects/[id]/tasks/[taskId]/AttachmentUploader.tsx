@@ -5,6 +5,7 @@ import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { addAttachmentRecord, addLinkAttachment } from "./actions";
+import { MediaGalleryButton } from "./MediaGalleryButton";
 import type { AttachmentKind } from "@prisma/client";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
@@ -152,6 +153,7 @@ export function AttachmentUploader({
         >
           + Link
         </button>
+        <MediaGalleryButton taskId={taskId} userId={userId} kind={kind} />
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

@@ -1,7 +1,9 @@
+import { auth } from "@/auth";
 import { progressBar } from "@/lib/progressBar";
+import { commentPlainText, commentMentionIds } from "@/lib/commentBody";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
-import { sendGroupAlert, sendDirectAlert } from "@/lib/whatsapp";
+import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
@@ -92,8 +94,15 @@ export async function notify(
   message: string,
   taskId?: string,
   url?: string,
-  options?: { projectId?: string; mentionUserIds?: string[] }
+  options?: { projectId?: string; mentionUserIds?: string[]; excludeUserId?: string | null }
 ) {
+  // Regla "sin auto-notificación": quien ejecuta la acción no se avisa a sí
+  // mismo por ningún canal (campana, push ni WhatsApp).
+  const excluded = options?.excludeUserId;
+  if (excluded) {
+    userIds = userIds.filter((id) => id !== excluded);
+    if (options?.mentionUserIds) options = { ...options, mentionUserIds: options.mentionUserIds.filter((id) => id !== excluded) };
+  }
   if (userIds.length === 0) return;
   // Punto 4: options.projectId ya existía para resolver el grupo de WhatsApp
   // de los avisos grupales (que siempre traen taskId igual) — se reusa acá
@@ -115,10 +124,22 @@ export async function notify(
   }
 }
 
-export async function notifyAssignment(taskId: string, userIds: string[]) {
+// Quien está ejecutando la acción (sesión del navegador). Fuera de una
+// petición (scheduler, scripts) no hay sesión y devuelve null.
+async function sessionUserId() {
+  try {
+    return (await auth())?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function notifyAssignment(taskId: string, userIds: string[], actorId?: string | null) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   const url = `/projects/${task.projectId}/tasks/${taskId}`;
-  await notify(userIds, "ASSIGNED", `Te asignaron la tarea "${task.title}"`, taskId, url);
+  await notify(userIds, "ASSIGNED", `Te asignaron la tarea "${task.title}"`, taskId, url, {
+    excludeUserId: actorId ?? (await sessionUserId()),
+  });
 }
 
 export async function notifyBlocked(taskId: string, pmId: string) {
@@ -128,6 +149,7 @@ export async function notifyBlocked(taskId: string, pmId: string) {
   await notify([pmId], "BLOCKED", `La tarea "${task.title}" fue marcada como bloqueada`, taskId, url, {
     projectId: task.projectId,
     mentionUserIds: involvedIds,
+    excludeUserId: await sessionUserId(),
   });
 }
 
@@ -145,6 +167,7 @@ export async function notifyReturned(taskId: string) {
   );
   await notify(involvedIds, "RETURNED", `La tarea "${task.title}" fue devuelta en revisión`, taskId, url, {
     projectId: task.projectId,
+    excludeUserId: await sessionUserId(),
   });
 }
 
@@ -160,7 +183,8 @@ export async function notifyReviewRequested(taskId: string) {
     "REVIEW_REQUESTED",
     `"${task.title}" está esperando tu revisión`,
     taskId,
-    url
+    url,
+    { excludeUserId: await sessionUserId() }
   );
 }
 
@@ -176,6 +200,87 @@ export async function notifyShareActivity(taskId: string, message: string) {
     new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])
   );
   await notify(involvedIds, "SHARE_ACTIVITY", message, taskId, url);
+}
+
+// Mensaje directo de WhatsApp a una persona: en horario laboral sale al
+// instante; fuera de horario se encola (poller de scheduler.ts), salvo
+// `immediate` (urgencias), que ignora el horario.
+async function dispatchDirect(userId: string, text: string, immediate = false) {
+  const user = await prisma.user.findFirst({ where: { id: userId, active: true, phone: { not: null } }, select: { phone: true } });
+  if (!user?.phone) return;
+  if (immediate || (await isCurrentlyWorkingHour())) {
+    void sendDirectAlert(user.phone, text);
+  } else {
+    await prisma.whatsAppQueueItem.create({ data: { target: `${user.phone}@s.whatsapp.net`, message: text } });
+  }
+}
+
+/**
+ * Comentario interno nuevo: a los @mencionados ("te mencionó") y a quienes
+ * participan de la conversación — asignados, revisores, PM y quienes ya
+ * comentaron ahí ("nuevo comentario"). Nunca a quien lo escribió. Por
+ * WhatsApp va el nombre de quien escribe, el mensaje completo y el link
+ * directo; la campana de mensajes del header ya lista los no leídos.
+ * `onlyMentionIds`: al EDITAR solo se avisa a las menciones agregadas.
+ */
+export async function notifyInternalComment(messageId: string, opts?: { onlyMentionIds?: string[] }) {
+  const message = await prisma.internalMessage.findUnique({
+    where: { id: messageId },
+    include: {
+      author: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, pmId: true } },
+      task: { select: { id: true, title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } } },
+    },
+  });
+  if (!message) return;
+
+  const mentioned = new Set(opts?.onlyMentionIds ?? commentMentionIds(message.body));
+  mentioned.delete(message.authorId);
+
+  let participants = new Set<string>();
+  if (!opts?.onlyMentionIds) {
+    const priorAuthors = await prisma.internalMessage.findMany({
+      where: { projectId: message.projectId, taskId: message.taskId },
+      select: { authorId: true },
+      distinct: ["authorId"],
+    });
+    participants = new Set([
+      message.project.pmId,
+      ...(message.task?.assignees.map((a) => a.userId) ?? []),
+      ...(message.task?.reviewers.map((r) => r.userId) ?? []),
+      ...priorAuthors.map((m) => m.authorId),
+    ]);
+    participants.delete(message.authorId);
+    for (const id of mentioned) participants.delete(id);
+  }
+
+  const where = message.task ? `en la tarea "${message.task.title}"` : `en el proyecto "${message.project.name}"`;
+  const path = message.task ? `/projects/${message.projectId}/tasks/${message.task.id}#internal-conversation` : `/projects/${message.projectId}?view=conversation#internal-conversation`;
+  const content = commentPlainText(message.body).trim();
+  const body = (head: string) => `${head}\n\n${content}\n\n🔗 ${absoluteUrl(path)}`;
+
+  for (const id of mentioned) await dispatchDirect(id, body(`💬 *${message.author.name}* te mencionó ${where}:`));
+  for (const id of participants) await dispatchDirect(id, body(`💬 Nuevo comentario de *${message.author.name}* ${where}:`));
+}
+
+/**
+ * Tarea marcada como urgente: aviso prioritario e inmediato por WhatsApp
+ * (ignora el horario laboral) al PM, asignados y revisores — menos a quien
+ * la marcó. No crea una Notification de la campana a propósito: la alerta
+ * de urgencia no se puede descartar como leída, vive en el acceso fijo del
+ * header hasta que la tarea se complete o se desmarque.
+ */
+export async function notifyUrgentTask(taskId: string, actorId: string | null) {
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    include: { assignees: true, reviewers: true, project: { select: { pmId: true, name: true } } },
+  });
+  const path = `/projects/${task.projectId}/tasks/${taskId}`;
+  const ids = new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]);
+  if (actorId) ids.delete(actorId);
+  const text = `🚨 *TAREA URGENTE*\n"${task.title}" (${task.project.name}) fue marcada como urgente. Requiere atención inmediata.\n\n🔗 ${absoluteUrl(path)}`;
+  await Promise.all([...ids].map((id) => sendPushToUser(id, `🚨 Tarea urgente: "${task.title}"`, path)));
+  for (const id of ids) await dispatchDirect(id, text, true);
 }
 
 // ponytail: sin cron real todavía — se recalcula al cargar el layout
@@ -318,40 +423,87 @@ export async function buildDailyDigestText(userId: string, name: string) {
   return lines.join("\n");
 }
 
-// Llamado desde el poller de scheduler.ts (cada 60s): la mayoría de los
-// ticks no hacen nada fuera de la hora configurada. Cada horario se entrega
+// Ventana en la que se sigue intentando entregar el resumen tras su hora
+// configurada: cubre un minuto saltado del poller, un reinicio o una
+// desconexión corta de WhatsApp (se reintenta cada minuto), sin convertirlo
+// en un "ponerse al día" de horas después.
+const DIGEST_GRACE_MINUTES = 60;
+// Minutos tras la hora configurada a partir de los cuales, si todavía hay
+// personas sin resumen, se avisa al administrador (una sola vez por horario).
+const DIGEST_REPORT_AFTER_MINUTES = 10;
+// ponytail: en memoria — un reinicio del servidor dentro de la misma ventana
+// puede repetir el aviso al admin una vez; persistir en DB si molesta.
+const digestReported = new Set<string>();
+
+async function reportDigestFailures(failures: { name: string; reason: string }[]) {
+  const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true }, select: { id: true, phone: true } });
+  const list = failures.map((f) => `• ${f.name} — ${f.reason}`).join("\n");
+  const message = `⚠️ El resumen diario no llegó a ${failures.length} persona(s):\n${list}`;
+  await prisma.notification.createMany({ data: admins.map((a) => ({ userId: a.id, type: "SYSTEM" as const, message })) });
+  for (const admin of admins) if (admin.phone) await sendDirectAlert(admin.phone, `*Reporte del resumen diario*\n${message}`);
+}
+
+// Llamado desde el poller de scheduler.ts (cada 60s). Cada horario se entrega
 // una vez por usuario y día; si se cambia la hora, el nuevo horario genera un
-// segundo resumen para ese mismo día. Secuencial (no Promise.all) para no
-// ráfaguear el socket de WhatsApp con muchos envíos simultáneos.
+// segundo resumen para ese mismo día. Va a TODOS los usuarios activos: quien
+// no se pueda alcanzar (sin teléfono, WhatsApp caído, error de envío) queda
+// en el reporte al administrador. Secuencial (no Promise.all) para no
+// ráfaguear el socket de WhatsApp.
 export async function dispatchDailyDigests() {
   const { workHoursStart, workHoursEnd, dailyDigestHour, dailyDigestMinute } = await getWhatsAppSettings();
   const countryCode = await getAppCountryCode();
   const now = new Date();
   if (!(await isWorkingMoment(now, countryCode, workHoursStart, workHoursEnd))) return;
   const localNow = localParts(now);
-  // El resumen es un evento programado, no una tarea de "ponerse al día".
-  // Así, reiniciar el servidor, reconectar WhatsApp o recuperar una clave
-  // después de la hora no puede generar un resumen inesperado. El poller
-  // corre cada minuto, por lo que el minuto configurado sigue cubierto.
-  const configuredMinutes = dailyDigestHour * 60 + dailyDigestMinute;
-  const currentMinutes = localNow.hour * 60 + localNow.minute;
-  if (currentMinutes !== configuredMinutes) return;
+  const elapsed = localNow.hour * 60 + localNow.minute - (dailyDigestHour * 60 + dailyDigestMinute);
+  if (elapsed < 0 || elapsed >= DIGEST_GRACE_MINUTES) return;
 
   const todayKey = localDateKey(now);
   const scheduleKey = `${todayKey}|${String(dailyDigestHour).padStart(2, "0")}:${String(dailyDigestMinute).padStart(2, "0")}`;
   const users = await prisma.user.findMany({
-    where: { active: true, phone: { not: null } },
+    where: { active: true },
     select: { id: true, name: true, phone: true, lastDigestSentAt: true, lastDigestScheduleKey: true },
   });
 
+  const failures: { name: string; reason: string }[] = [];
   for (const user of users) {
     if (user.lastDigestScheduleKey === scheduleKey) continue;
     // Compatibilidad con los resúmenes enviados antes de guardar su horario:
     // históricamente siempre salían a la apertura, así que no se duplica uno
     // ya enviado hoy al instalar esta mejora.
     if (!user.lastDigestScheduleKey && dailyDigestHour === workHoursStart && dailyDigestMinute === 0 && user.lastDigestSentAt && localDateKey(user.lastDigestSentAt) === todayKey) continue;
+    if (!user.phone) {
+      failures.push({ name: user.name, reason: "no tiene teléfono de WhatsApp registrado" });
+      continue;
+    }
     const text = await buildDailyDigestText(user.id, user.name);
-    const sent = await sendDirectAlert(user.phone!, text);
+    const sent = await sendDirectAlert(user.phone, text);
     if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now, lastDigestScheduleKey: scheduleKey } });
+    else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío por WhatsApp" : "WhatsApp está desconectado" });
   }
+
+  if (failures.length > 0 && elapsed >= DIGEST_REPORT_AFTER_MINUTES && !digestReported.has(scheduleKey)) {
+    digestReported.add(scheduleKey);
+    await reportDigestFailures(failures);
+  }
+}
+
+/**
+ * Resumen diario disparado a mano (ej. desde el chat, solo admin): a todo el
+ * equipo activo o a una persona. No toca las marcas del envío programado.
+ * Devuelve quién no lo recibió y por qué.
+ */
+export async function sendDailyDigestNow(userId?: string) {
+  const users = await prisma.user.findMany({ where: { active: true, ...(userId ? { id: userId } : {}) }, select: { id: true, name: true, phone: true } });
+  let sent = 0;
+  const failures: { name: string; reason: string }[] = [];
+  for (const user of users) {
+    if (!user.phone) {
+      failures.push({ name: user.name, reason: "no tiene teléfono de WhatsApp registrado" });
+      continue;
+    }
+    if (await sendDirectAlert(user.phone, await buildDailyDigestText(user.id, user.name))) sent++;
+    else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío" : "WhatsApp está desconectado" });
+  }
+  return { sent, failures };
 }

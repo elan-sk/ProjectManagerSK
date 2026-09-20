@@ -1,8 +1,7 @@
 "use server";
 
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { revalidatePath } from "next/cache";
-import { unlink } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProjectAdmin, type Actor } from "@/lib/permissions";
@@ -287,7 +286,7 @@ export async function removeProjectAttachment(attachmentId: string, actor?: Acto
   if (denied) return denied;
 
   await prisma.projectAttachment.delete({ where: { id: attachmentId } });
-  await unlink(path.join(process.cwd(), "public", attachment.fileUrl)).catch(() => {});
+  await deleteFileIfUnused(attachment.fileUrl);
   revalidatePath(`/projects/${attachment.projectId}`);
   return { ok: true as const };
 }

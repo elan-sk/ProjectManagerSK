@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TASK_STATUS_COLOR } from "@/lib/statusColors";
-import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon } from "@/components/icons";
+import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon, UrgentIcon } from "@/components/icons";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -32,6 +32,8 @@ export type GanttTask = {
   projectName: string;
   projectIconUrl: string | null;
   title: string;
+  // Urgente: el encabezado de la fila se resalta con icono y color.
+  isUrgent: boolean;
   phaseId: string;
   phaseName: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
@@ -1030,13 +1032,16 @@ export function GanttView({
                   >
                     <div
                       style={{ width: LABEL_WIDTH }}
-                      className="sticky left-0 z-30 flex h-full flex-shrink-0 items-center gap-1 bg-white pl-3 pr-1 text-sm text-slate-700"
+                      className={`sticky left-0 z-30 flex h-full flex-shrink-0 items-center gap-1 pl-3 pr-1 text-sm ${
+                        t.isUrgent && t.status !== "COMPLETED" ? "border-l-4 border-red-600 bg-red-50 font-medium text-red-800" : "bg-white text-slate-700"
+                      }`}
                     >
                       <a
                         href={`/projects/${t.projectId}/tasks/${t.id}`}
                         className="flex min-w-0 flex-1 items-center gap-1 truncate hover:underline"
-                        title={t.title}
+                        title={t.isUrgent && t.status !== "COMPLETED" ? `URGENTE — ${t.title}` : t.title}
                       >
+                        {t.isUrgent && t.status !== "COMPLETED" && <UrgentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-600" />}
                         <span className="truncate">{t.title}</span>
                       </a>
                       {t.bottleneckReason && (

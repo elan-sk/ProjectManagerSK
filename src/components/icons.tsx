@@ -215,3 +215,55 @@ export function TrashIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+const strokeProps = { fill: "none", stroke: "currentColor", strokeWidth: 1.5, viewBox: "0 0 24 24" } as const;
+
+export function EyeIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+export function EyeOffIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+    </svg>
+  );
+}
+
+// Urgente: sirena/alerta.
+export function UrgentIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1.5m6.364.136-1.06 1.06M21 12h-1.5M5.636 4.636l1.06 1.06M3 12h1.5M7.5 20.25h9M8.25 20.25V15a3.75 3.75 0 1 1 7.5 0v5.25" />
+    </svg>
+  );
+}
+
+export function ArchiveIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125 2.25 2.25m0 0 2.25-2.25M12 13.875V7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+    </svg>
+  );
+}
+
+export function CopyIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+    </svg>
+  );
+}
+
+export function MergeIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v6a6 6 0 0 0 6 6h0m6 0v6m0-6-3-3m3 3 3-3M6 3 3 6m3-3 3 3" />
+    </svg>
+  );
+}

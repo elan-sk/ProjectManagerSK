@@ -504,6 +504,8 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
         // usuario mueve la tarea, no se completa a mano.
         actualStart: status !== "NOT_STARTED" && !task.actualStart ? new Date() : undefined,
         actualEnd: status === "COMPLETED" ? new Date() : null,
+        // Completar una tarea urgente la saca de la lista de urgentes.
+        isUrgent: status === "COMPLETED" ? false : undefined,
       },
     });
     updatedAt = updated.updatedAt.toISOString();

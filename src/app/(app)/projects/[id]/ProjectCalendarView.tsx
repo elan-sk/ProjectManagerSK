@@ -3,7 +3,7 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendarGrid";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { OverlapIcon } from "@/components/icons";
+import { OverlapIcon, UrgentIcon } from "@/components/icons";
 import { CalendarTaskLink } from "./CalendarTaskLink";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -14,12 +14,17 @@ export type CalendarTask = {
   projectId: string;
   projectName: string;
   title: string;
+  isUrgent: boolean;
   plannedStart: string;
   plannedEnd: string;
   status: TaskStatus;
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
 };
+
+// Urgente (sin completar): color rojo fuerte + icono, por encima de la alerta normal.
+const isUrgentOpen = (t: { isUrgent: boolean; status: TaskStatus }) => t.isUrgent && t.status !== "COMPLETED";
+const URGENT_CHIP = "bg-red-600 text-white font-semibold";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
@@ -90,8 +95,9 @@ export function ProjectCalendarView({
                       href={`/projects/${t.projectId}/tasks/${t.id}`}
                       className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-slate-900"
                     >
+                      {isUrgentOpen(t) && <UrgentIcon className="h-4 w-4 flex-shrink-0 text-red-600" />}
                       {showProjectName && <span className="flex-shrink-0 text-slate-400">{t.projectName} ·</span>}
-                      <span className="truncate">{t.title}</span>
+                      <span className={`truncate ${isUrgentOpen(t) ? "font-semibold text-red-700" : ""}`}>{t.title}</span>
                     </Link>
                     {t.collidesWith && t.collidesWith.length > 0 && (
                       <ReferencePopover
@@ -170,8 +176,9 @@ export function ProjectCalendarView({
                       end={t.end}
                       alert={t.alert}
                       collisionText={collision}
-                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] ${ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge}`}
+                      className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] ${isUrgentOpen(t) ? URGENT_CHIP : (ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge)}`}
                     >
+                      {isUrgentOpen(t) && <UrgentIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {collision && <OverlapIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       <span className="truncate">{label}</span>
                     </CalendarTaskLink>

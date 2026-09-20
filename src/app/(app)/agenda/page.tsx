@@ -6,7 +6,7 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
-import { ClockIcon, LockIcon, PlayIcon, WarningIcon } from "@/components/icons";
+import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
@@ -42,6 +42,7 @@ type AgendaCard = {
   projectName: string;
   projectIconUrl: string | null;
   title: string;
+  isUrgent: boolean;
   status: TaskStatus;
   tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
   assignees: { name: string; avatarUrl: string | null }[];
@@ -182,6 +183,8 @@ export default async function AgendaPage({
         assignees: { some: { userId: effectiveUserId } },
         projectId: scopedProjectIds ? { in: scopedProjectIds } : projectId || undefined,
         status: status || undefined,
+        archivedAt: null,
+        ...(isAdmin ? {} : { project: { hidden: false } }),
       },
       include: {
         project: true,
@@ -192,7 +195,7 @@ export default async function AgendaPage({
       orderBy: { plannedStart: "asc" },
     }),
     prisma.project.findMany({
-      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } } },
+      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...(isAdmin ? {} : { hidden: false }) },
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -249,6 +252,7 @@ export default async function AgendaPage({
     projectName: t.project.name,
     projectIconUrl: t.project.iconUrl,
     title: t.title,
+    isUrgent: t.isUrgent && t.status !== "COMPLETED",
     status: t.status,
     tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
@@ -260,7 +264,10 @@ export default async function AgendaPage({
   // Agrupado por día calendario de plannedStart (ya viene ordenado ascendente
   // de la query) — vista de agenda real, no un grid de cards.
   const groups: { key: string; cards: AgendaCard[] }[] = [];
-  for (const card of cards) {
+  // Las urgentes van ancladas arriba, en su propio bloque.
+  const urgentCards = cards.filter((c) => c.isUrgent);
+  if (urgentCards.length > 0) groups.push({ key: "urgent", cards: urgentCards });
+  for (const card of cards.filter((c) => !c.isUrgent)) {
     const key = card.plannedStart.slice(0, 10);
     const lastGroup = groups[groups.length - 1];
     if (lastGroup?.key === key) lastGroup.cards.push(card);
@@ -562,23 +569,31 @@ export default async function AgendaPage({
       <div className="space-y-4">
         {groups.map((group) => (
           <div key={group.key}>
-            <h2 className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{dayHeader(group.cards[0].plannedStart)}</h2>
+            {group.key === "urgent" ? (
+              <h2 className="mb-1.5 flex items-center gap-1 px-1 text-xs font-semibold uppercase tracking-wide text-red-600">
+                <UrgentIcon className="h-4 w-4" /> Urgentes
+              </h2>
+            ) : (
+              <h2 className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{dayHeader(group.cards[0].plannedStart)}</h2>
+            )}
             <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
               {group.cards.map((card) => (
                 <li key={card.id}>
                   <Link
                     href={`/projects/${card.projectId}/tasks/${card.id}`}
-                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:brightness-95 ${taskCardTint(
-                      card.status,
-                      card.alert.level
-                    )}`}
+                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:brightness-95 ${
+                      card.isUrgent ? "border-l-4 border-red-600 bg-red-50" : taskCardTint(card.status, card.alert.level)
+                    }`}
                   >
                     <div className="min-w-0">
                       <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
                         <ProjectIcon name={card.projectName} iconUrl={card.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" />
                         {card.projectName}
                       </p>
-                      <p className="font-medium text-slate-900">{card.title}</p>
+                      <p className={`flex items-center gap-1 font-medium ${card.isUrgent ? "text-red-700" : "text-slate-900"}`}>
+                        {card.isUrgent && <UrgentIcon className="h-4 w-4 flex-shrink-0 text-red-600" />}
+                        {card.title}
+                      </p>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className="text-sm text-slate-500">
                           {card.plannedStart.slice(0, 10) === card.plannedEnd.slice(0, 10)

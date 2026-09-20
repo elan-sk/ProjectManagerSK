@@ -122,6 +122,9 @@ export const NOTIFICATION_TYPE_COLOR: Record<NotificationType, string> = {
   LATE_START_CRITICAL: "bg-red-500",
   REVIEW_REQUESTED: "bg-teal-500",
   SHARE_ACTIVITY: "bg-sky-500",
+  MENTION: "bg-teal-500",
+  URGENT_TASK: "bg-red-600",
+  SYSTEM: "bg-slate-500",
 };
 
 export function taskCardTint(status: TaskStatus, alertLevel: TaskAlert["level"]) {

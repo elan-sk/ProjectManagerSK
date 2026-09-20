@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getUserPerformance, getTeamWorkload, getProjectReport, getCompletionTrend, getRecentOnTimeTrend } from "@/lib/delays";
+import { getUserPerformance, getTeamContribution, getProjectReport, getCompletionTrend, getRecentOnTimeTrend } from "@/lib/delays";
 import {
   getReviewPerformance,
   getCommonFailureCategories,
@@ -206,7 +206,7 @@ export default async function PerformancePage({
       orderBy: { name: "asc" },
     }),
     getUserPerformance(undefined, selectedProjectIds),
-    getTeamWorkload(selectedProjectIds),
+    getTeamContribution(selectedProjectIds),
     getProjectReport(selectedProjectIds),
     getCompletionTrend(selectedProjectIds, 8),
     getReviewPerformance("QA", selectedProjectIds),
@@ -238,13 +238,13 @@ export default async function PerformancePage({
 
   const selectedProject = projectId ? projects.find((p) => p.id === projectId) ?? null : null;
 
-  const workloadBars = workload
-    .filter((w) => w.openTotal > 0)
+  const contributionBars = workload
+    .filter((w) => w.percent > 0 || w.openTotal > 0)
     .map((w) => ({
       label: w.userName,
-      value: w.openTotal,
-      colorClass: w.overdueCount > 0 ? "bg-red-500" : "bg-slate-900",
-      note: w.overdueCount > 0 ? `(${w.overdueCount} atr.)` : undefined,
+      value: w.percent,
+      colorClass: w.percent === 0 ? "bg-slate-300" : "bg-teal-600",
+      note: w.openTotal > 0 ? `${w.openTotal} abierta${w.openTotal !== 1 ? "s" : ""}` : undefined,
     }));
 
   return (
@@ -342,10 +342,12 @@ export default async function PerformancePage({
 
       {/* Carga del equipo — quién está sobrecargado / quién tiene margen ahora mismo. */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900">Carga del equipo</h2>
-        <p className="text-sm text-slate-500">Tareas abiertas (no completadas) asignadas a cada persona en este momento.</p>
+        <h2 className="text-lg font-semibold text-slate-900">Carga de equipo</h2>
+        <p className="text-sm text-slate-500">
+          Aporte relativo de cada integrante: qué parte del trabajo entregado hizo (una tarea compartida se reparte entre sus asignados). A la derecha, sus tareas abiertas.
+        </p>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <BarChart data={workloadBars} emptyLabel="Nadie tiene tareas abiertas con este filtro." />
+          <BarChart data={contributionBars} valueSuffix="%" emptyLabel="Todavía no hay tareas completadas ni abiertas con este filtro." />
         </div>
       </section>
 

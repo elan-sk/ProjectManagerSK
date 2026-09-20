@@ -20,6 +20,7 @@ import { InlineMeetingUrl } from "./InlineMeetingUrl";
 import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
+import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
 import { ShareIcon } from "@/components/icons";
@@ -84,6 +85,8 @@ export default async function TaskDetailPage({
     },
   });
   if (!task) notFound();
+  // Un proyecto oculto solo lo ve el administrador.
+  if (task.project.hidden && session?.user?.role !== "ADMIN") notFound();
 
   const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags] = await Promise.all([
     prisma.task.findMany({
@@ -315,6 +318,7 @@ export default async function TaskDetailPage({
               />
             </ModalTrigger>
           )}
+          {canManage && <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} />}
           {canManage && <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} />}
         </div>
 

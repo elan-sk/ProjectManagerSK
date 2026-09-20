@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
+import { mimeFromFileName } from "@/lib/uploadFile";
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -6,8 +8,23 @@ import { normalizeSearchText, matchesTaskSearch } from "@/lib/search";
 import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
-import { updateTaskStatus, addTask } from "@/app/(app)/projects/[id]/actions";
+import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
+import { updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
+import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
+import { postInternalMessage } from "@/app/(app)/internalMessageActions";
+import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
+import { requireProjectAdmin } from "@/lib/permissions";
+import { mentionMarker } from "@/lib/commentBody";
+import { addBusinessDays } from "@/lib/holidays";
+import { getAppCountryCode } from "@/lib/appSettings";
+import { sendDailyDigestNow } from "@/lib/notifications";
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
+import { LINK_MIME_TYPE } from "@/lib/attachments";
 import {
+  addStep,
+  addAttachmentRecord,
+  addLinkAttachment,
   toggleStep,
   setTaskAssignees,
   updateTaskTitle,
@@ -22,6 +39,7 @@ import {
 import type { TaskStatus } from "@prisma/client";
 import { sendDirectAlert, sendGroupAlert } from "@/lib/whatsapp";
 import { getWhatsAppSettings } from "@/lib/appSettings";
+import { notify } from "@/lib/notifications";
 
 const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 
@@ -33,6 +51,16 @@ const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 // se restringe explícitamente: el chat no muestra info de un proyecto
 // donde la persona no es PM, asignada ni revisora de ninguna tarea.
 export const READ_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "read_attachment",
+    description:
+      "Lee el CONTENIDO de un adjunto de una tarea o del proyecto (no solo su nombre): texto/CSV, Excel (.xlsx), PDF e imágenes. Word/PowerPoint no se pueden leer. Necesitás el attachmentId que devuelve get_task_details. Solo funciona si la persona tiene acceso a los archivos de esa tarea.",
+    input_schema: {
+      type: "object",
+      properties: { attachmentId: { type: "string" } },
+      required: ["attachmentId"],
+    },
+  },
   {
     name: "list_team_members",
     description: "Lista miembros activos (id, nombre, usuario y si tienen WhatsApp). Usala para identificar a quién enviar un WhatsApp o para recordar un usuario. Nunca muestra contraseñas.",
@@ -74,7 +102,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_task_details",
-    description: "Trae el detalle de una tarea puntual: título, estado, asignados, checklist, adjuntos (solo nombre/tipo, no contenido), y su alerta de atraso.",
+    description: "Trae el detalle de una tarea puntual: título, estado, asignados, revisores, checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
     input_schema: {
       type: "object",
       properties: { taskId: { type: "string" } },
@@ -128,6 +156,63 @@ export const READ_TOOLS: Anthropic.Tool[] = [
 // ejecutan directo: el loop en chontatec.ts las pausa para que el usuario
 // confirme explícitamente antes de correr runWriteTool.
 export const WRITE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "add_task_comment",
+    description:
+      "Deja un comentario/nota (bitácora) interno en una tarea, o en el proyecto si no se indica taskId. Queda a nombre de la persona que conversa. Opcional: mentionUserIds para @mencionar personas del equipo.",
+    input_schema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        taskId: { type: "string", description: "Opcional — si falta, el comentario es del proyecto." },
+        body: { type: "string" },
+        mentionUserIds: { type: "array", items: { type: "string" }, description: "Opcional — ids de usuarios a mencionar." },
+      },
+      required: ["projectId", "body"],
+    },
+  },
+  {
+    name: "add_checklist_steps",
+    description:
+      "Agrega uno o varios pasos al checklist de una tarea. Sirve para convertir en checklist una lista o puntos que salieron en la conversación: un paso por ítem.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        steps: { type: "array", items: { type: "string" }, description: "Un texto por paso, en orden." },
+      },
+      required: ["taskId", "steps"],
+    },
+  },
+  {
+    name: "attach_link_to_task",
+    description: "Adjunta un enlace (URL) a una tarea como insumo o evidencia.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        url: { type: "string" },
+        name: { type: "string", description: "Nombre visible del enlace." },
+        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (evidencia)." },
+      },
+      required: ["taskId", "url", "name"],
+    },
+  },
+  {
+    name: "attach_uploaded_file",
+    description:
+      "Adjunta a una tarea un archivo que la persona subió en este chat (el mensaje trae su ruta /uploads/… y su nombre). Es la forma de subir archivos desde el chat.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        fileUrl: { type: "string", description: "Ruta /uploads/… exactamente como aparece en el mensaje." },
+        fileName: { type: "string" },
+        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (evidencia)." },
+      },
+      required: ["taskId", "fileUrl", "fileName"],
+    },
+  },
   {
     name: "send_whatsapp_message",
     description: "Envía un mensaje directo de WhatsApp a un usuario activo con teléfono registrado. Requiere confirmación del usuario antes de enviar.",
@@ -198,6 +283,123 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
 // try/catch). delete_task y remove_attachment son IRREVERSIBLES — ver
 // DESTRUCTIVE_TOOL_NAMES, la UI las marca con una advertencia más fuerte.
 export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "create_project",
+    description: "Crea un proyecto nuevo (con una fase inicial \"General\"). Si no se indica pmId, el PM es la persona que conversa.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        clientName: { type: "string", description: "Opcional." },
+        startDate: { type: "string", description: "Fecha de inicio YYYY-MM-DD." },
+        pmId: { type: "string", description: "Opcional — id del usuario que será PM." },
+      },
+      required: ["name", "startDate"],
+    },
+  },
+  {
+    name: "update_project",
+    description:
+      "Edita un proyecto: nombre, cliente, fecha de inicio, fecha de cierre (targetEndDate, vacío la quita) o ícono (iconUrl = ruta /uploads/… de una imagen subida en el chat). Solo se cambia lo que se mande.",
+    input_schema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        name: { type: "string" },
+        clientName: { type: "string" },
+        startDate: { type: "string", description: "YYYY-MM-DD." },
+        targetEndDate: { type: "string", description: "YYYY-MM-DD, o vacío para quitarla." },
+        iconUrl: { type: "string" },
+      },
+      required: ["projectId"],
+    },
+  },
+  {
+    name: "archive_project",
+    description: "Archiva (elimina de la vista, sin borrar datos) un proyecto. Solo un administrador. Es lo mismo que el botón Eliminar proyecto de la app.",
+    input_schema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
+  },
+  {
+    name: "manage_phase",
+    description:
+      "Gestiona fases de un proyecto: create (name), rename (phaseId, name), reorder (orderedPhaseIds con TODAS las fases en el orden nuevo) o delete (phaseId; solo si no tiene tareas).",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "create | rename | reorder | delete" },
+        projectId: { type: "string" },
+        phaseId: { type: "string" },
+        name: { type: "string" },
+        orderedPhaseIds: { type: "array", items: { type: "string" } },
+      },
+      required: ["action", "projectId"],
+    },
+  },
+  {
+    name: "manage_objective",
+    description: "Gestiona los objetivos de la pestaña Definición: add (projectId, title, description?), update (objectiveId, title, description?) o delete (objectiveId).",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "add | update | delete" },
+        projectId: { type: "string" },
+        objectiveId: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "manage_requirement",
+    description:
+      "Gestiona los requerimientos de Definición (alcance): add (projectId, title, description?, objectiveIds?), update (requirementId, title, description?, objectiveIds?) o delete (requirementId).",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "add | update | delete" },
+        projectId: { type: "string" },
+        requirementId: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        objectiveIds: { type: "array", items: { type: "string" } },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "update_task_schedule",
+    description:
+      "Cambia la fecha de inicio (plannedStart, solo si la tarea no ha iniciado) y/o la duración en días hábiles (durationDays) de una tarea. Recalcula en cascada las tareas que dependen de ella.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        plannedStart: { type: "string", description: "Nueva fecha de inicio YYYY-MM-DD." },
+        durationDays: { type: "number", description: "Nueva duración en días hábiles, mínimo 2 (para 1 día usá una tarea de un día desde su creación)." },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "set_task_reviewers",
+    description: "Agrega o quita revisores de una tarea de tipo Revisión.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        addUserId: { type: "string" },
+        removeUserId: { type: "string" },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "send_daily_digest",
+    description:
+      "Dispara ahora el resumen diario por WhatsApp: a TODO el equipo activo o a una persona (userId). Solo un administrador. Devuelve quién no lo recibió y por qué.",
+    input_schema: { type: "object", properties: { userId: { type: "string", description: "Opcional — si falta, va a todos." } } },
+  },
   {
     name: "create_task",
     description: "Crea una tarea nueva en un proyecto. Requiere al menos un asignado (assigneeIds).",
@@ -275,7 +477,31 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
 
 export const ALL_TOOLS: Anthropic.Tool[] = [...READ_TOOLS, ...WRITE_TOOLS, ...ADVANCED_WRITE_TOOLS];
 export const WRITE_TOOL_NAMES = new Set([...WRITE_TOOLS, ...ADVANCED_WRITE_TOOLS].map((t) => t.name));
-export const DESTRUCTIVE_TOOL_NAMES = new Set(["delete_task", "remove_attachment"]);
+export const DESTRUCTIVE_TOOL_NAMES = new Set(["delete_task", "remove_attachment", "archive_project"]);
+// Las herramientas "manage_*" con action=delete también son irreversibles.
+export function isDestructiveTool(name: string, input: unknown) {
+  if (DESTRUCTIVE_TOOL_NAMES.has(name)) return true;
+  return name.startsWith("manage_") && (input as { action?: string } | null)?.action === "delete";
+}
+const ADMIN_ONLY_TOOLS = new Set(["archive_project", "send_daily_digest"]);
+const ADVANCED_TOOL_NAMES = new Set(ADVANCED_WRITE_TOOLS.map((t) => t.name));
+
+// Doble candado: aunque una acción quede pendiente y el rol cambie (o llegue
+// una acción que el modelo no debería tener), se vuelve a validar el rol de
+// quien CONFIRMA justo antes de ejecutar.
+async function assertToolAllowed(userId: string, name: string) {
+  if (!ADVANCED_TOOL_NAMES.has(name)) return;
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  const isAdmin = user.role === "ADMIN";
+  const isPM = isAdmin || (await prisma.project.count({ where: { pmId: userId } })) > 0;
+  if (!isPM) throw new Error("Esa acción es solo para administradores o PM.");
+  if (ADMIN_ONLY_TOOLS.has(name) && !isAdmin) throw new Error("Esa acción es solo para administradores.");
+}
+
+// Los ids técnicos viajan al modelo en un comentario oculto (para armar el
+// link) pero nunca se muestran a la persona: el chat los quita al dibujar.
+const withHiddenIds = (text: string, ids: Record<string, string>) =>
+  `${text}<!--ids:${Object.entries(ids).map(([k, v]) => `${k}=${v}`).join(",")}-->`;
 const MEMBER_WRITE_TOOLS = WRITE_TOOLS.filter(
   (tool) => tool.name !== "send_whatsapp_message" && tool.name !== "send_whatsapp_group_message"
 );
@@ -318,7 +544,9 @@ async function getAccessibleProjectIds(userId: string): Promise<string[] | null>
   pmProjects.forEach((p) => ids.add(p.id));
   assigned.forEach((a) => ids.add(a.task.projectId));
   reviewed.forEach((r) => ids.add(r.task.projectId));
-  return Array.from(ids);
+  // Los proyectos ocultos por el admin no se ven desde el chat.
+  const visible = await prisma.project.findMany({ where: { id: { in: [...ids] }, hidden: false }, select: { id: true } });
+  return visible.map((p) => p.id);
 }
 
 function hasAccess(accessibleIds: string[] | null, projectId: string) {
@@ -376,7 +604,44 @@ async function myTasksWhere(userId: string) {
   return { assignees: { some: { userId } } };
 }
 
-export async function runReadTool(name: string, input: unknown): Promise<string> {
+type ToolResultContent = string | Anthropic.ToolResultBlockParam["content"];
+
+const MAX_READ_BYTES = 5 * 1024 * 1024;
+const MAX_READ_CHARS = 30_000;
+
+// Lee el contenido real de un archivo subido. Solo rutas /uploads/ con nombre
+// simple (nunca una ruta arbitraria del servidor).
+async function readAttachmentContent({ fileUrl, fileName, mimeType }: { fileUrl: string; fileName: string; mimeType: string }): Promise<ToolResultContent> {
+  if (mimeType === LINK_MIME_TYPE) return JSON.stringify({ tipo: "enlace", nombre: fileName, url: fileUrl, nota: "Es un enlace externo; no se puede leer su contenido desde acá." });
+  if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(fileUrl)) return JSON.stringify({ error: "Ruta de archivo inválida." });
+  const filePath = path.join(process.cwd(), "public", fileUrl);
+  const info = await stat(filePath).catch(() => null);
+  if (!info) return JSON.stringify({ error: "El archivo ya no existe en el servidor." });
+  if (info.size > MAX_READ_BYTES) return JSON.stringify({ error: "El archivo pesa más de 5 MB; no lo puedo leer completo." });
+  const buffer = await readFile(filePath);
+
+  if (mimeType.startsWith("text/")) return buffer.toString("utf8").slice(0, MAX_READ_CHARS);
+  if (mimeType === "application/pdf") {
+    return [{ type: "document", title: fileName, source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } }];
+  }
+  if (["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mimeType)) {
+    return [{ type: "image", source: { type: "base64", media_type: mimeType as "image/png", data: buffer.toString("base64") } }];
+  }
+  if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+    const out: string[] = [];
+    workbook.eachSheet((sheet) => {
+      out.push(`## Hoja: ${sheet.name}`);
+      sheet.eachRow((row) => out.push((row.values as unknown[]).slice(1).map((v) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v))).join(" | ")));
+    });
+    return out.join("\n").slice(0, MAX_READ_CHARS);
+  }
+  return JSON.stringify({ error: "Este formato (Word, PowerPoint, .xls antiguo) no se puede leer desde el chat. Solo puedo ver su nombre." });
+}
+
+export async function runReadTool(name: string, input: unknown): Promise<ToolResultContent> {
   const userId = await currentUserId();
 
   switch (name) {
@@ -477,7 +742,8 @@ export async function runReadTool(name: string, input: unknown): Promise<string>
           project: { select: { id: true, name: true, countryCode: true, iconUrl: true } },
           assignees: { include: { user: { select: { name: true, avatarUrl: true } } } },
           steps: true,
-          attachments: { select: { kind: true, fileName: true } },
+          attachments: { select: { id: true, kind: true, fileName: true, mimeType: true } },
+          reviewers: { include: { user: { select: { id: true, name: true } } } },
         },
       });
       if (!task) return JSON.stringify({ error: "No existe esa tarea." });
@@ -575,6 +841,23 @@ export async function runReadTool(name: string, input: unknown): Promise<string>
       );
     }
 
+    case "read_attachment": {
+      const { attachmentId } = z.object({ attachmentId: z.string() }).parse(input);
+      const accessibleIds = await getAccessibleProjectIds(userId);
+      const taskAttachment = await prisma.attachment.findUnique({ where: { id: attachmentId }, include: { task: { select: { id: true, projectId: true } } } });
+      if (taskAttachment) {
+        if (!hasAccess(accessibleIds, taskAttachment.task.projectId)) return JSON.stringify(NO_ACCESS);
+        if (!canSeeTaskFiles(await getFileAccessibleTaskIds(userId), taskAttachment.task.id)) {
+          return JSON.stringify({ error: "No tenés acceso a los archivos de esa tarea." });
+        }
+        return readAttachmentContent(taskAttachment);
+      }
+      const projectAttachment = await prisma.projectAttachment.findUnique({ where: { id: attachmentId } });
+      if (!projectAttachment) return JSON.stringify({ error: "No existe ese adjunto." });
+      if (!hasAccess(accessibleIds, projectAttachment.projectId)) return JSON.stringify(NO_ACCESS);
+      return readAttachmentContent(projectAttachment);
+    }
+
     default:
       return JSON.stringify({ error: `Tool de lectura desconocida: ${name}` });
   }
@@ -614,6 +897,42 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return "Vincular esta tarea a una predecesora (recalcula el cronograma)";
     case "remove_task_dependency":
       return "Quitar el vínculo de dependencia";
+    case "add_task_comment":
+      return "Dejar un comentario en la tarea";
+    case "add_checklist_steps": {
+      const { steps } = input as { steps?: string[] };
+      return `Agregar ${steps?.length ?? 0} paso(s) al checklist`;
+    }
+    case "attach_link_to_task":
+      return "Adjuntar un enlace a la tarea";
+    case "attach_uploaded_file":
+      return "Adjuntar el archivo subido a la tarea";
+    case "create_project": {
+      const { name: projectName } = input as { name?: string };
+      return `Crear el proyecto "${projectName ?? "?"}"`;
+    }
+    case "update_project":
+      return "Editar el proyecto";
+    case "archive_project":
+      return "⚠️ Archivar (eliminar de la vista) este proyecto";
+    case "manage_phase": {
+      const { action } = input as { action?: string };
+      return { create: "Crear una fase", rename: "Renombrar una fase", reorder: "Reordenar las fases", delete: "⚠️ Eliminar una fase" }[action ?? ""] ?? "Gestionar fases";
+    }
+    case "manage_objective": {
+      const { action } = input as { action?: string };
+      return { add: "Agregar un objetivo", update: "Editar un objetivo", delete: "⚠️ Eliminar un objetivo" }[action ?? ""] ?? "Gestionar objetivos";
+    }
+    case "manage_requirement": {
+      const { action } = input as { action?: string };
+      return { add: "Agregar un requerimiento", update: "Editar un requerimiento", delete: "⚠️ Eliminar un requerimiento" }[action ?? ""] ?? "Gestionar requerimientos";
+    }
+    case "update_task_schedule":
+      return "Cambiar las fechas o la duración de la tarea";
+    case "set_task_reviewers":
+      return "Agregar o quitar un revisor";
+    case "send_daily_digest":
+      return "Enviar ahora el resumen diario por WhatsApp";
     case "delete_task":
       return "⚠️ Eliminar esta tarea por completo (no se puede deshacer)";
     case "remove_attachment":
@@ -630,6 +949,11 @@ export function summarizeWriteTool(name: string, input: unknown): string {
 // adentro de cada una) — si algo cambió mientras la confirmación estaba
 // pendiente, se rechaza solo, sin código nuevo acá.
 export async function runWriteTool(name: string, input: unknown): Promise<{ ok: boolean; message: string }> {
+  try {
+    await assertToolAllowed(await currentUserId(), name);
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
   switch (name) {
     case "send_whatsapp_message": {
       try {
@@ -747,7 +1071,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         return {
           ok: result.ok,
           message: result.ok
-            ? `Listo, se creó la tarea (taskId: ${result.id}, projectId: ${parsed.projectId}).`
+            ? withHiddenIds(`Listo, se creó la tarea "${parsed.title}".`, { taskId: String(result.id), projectId: parsed.projectId })
             : (result.error ?? "No se pudo crear la tarea."),
         };
       } catch (err) {
@@ -835,6 +1159,265 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const parsed = z.object({ attachmentId: z.string() }).parse(input);
         await removeAttachment(parsed.attachmentId);
         return { ok: true, message: "Listo, se eliminó el archivo." };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "add_task_comment": {
+      try {
+        const parsed = z
+          .object({ projectId: z.string(), taskId: z.string().optional(), body: z.string().min(1), mentionUserIds: z.array(z.string()).optional() })
+          .parse(input);
+        const mentioned = parsed.mentionUserIds?.length
+          ? await prisma.user.findMany({ where: { id: { in: parsed.mentionUserIds }, active: true }, select: { id: true, name: true } })
+          : [];
+        const body = [parsed.body.trim(), ...mentioned.map((u) => mentionMarker(u.id, u.name))].join(" ");
+        const result = await postInternalMessage(parsed.projectId, parsed.taskId ?? null, body);
+        return { ok: result.ok, message: result.ok ? "Listo, quedó el comentario." : (result.error ?? "No se pudo comentar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "add_checklist_steps": {
+      try {
+        const { taskId, steps } = z.object({ taskId: z.string(), steps: z.array(z.string().trim().min(1).max(500)).min(1).max(50) }).parse(input);
+        for (const description of steps) {
+          const fd = new FormData();
+          fd.set("description", description);
+          await addStep(taskId, fd);
+        }
+        return { ok: true, message: `Listo, se agregaron ${steps.length} paso(s) al checklist.` };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "attach_link_to_task": {
+      try {
+        const { taskId, url, name: linkName, kind } = z.object({ taskId: z.string(), url: z.string(), name: z.string(), kind: z.enum(["INSUMO", "RESULTADO"]).optional() }).parse(input);
+        await addLinkAttachment(taskId, kind ?? "INSUMO", url, linkName, await currentUserId());
+        return { ok: true, message: "Listo, se adjuntó el enlace." };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "attach_uploaded_file": {
+      try {
+        const { taskId, fileUrl, fileName, kind } = z
+          .object({ taskId: z.string(), fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ruta de archivo inválida."), fileName: z.string().min(1), kind: z.enum(["INSUMO", "RESULTADO"]).optional() })
+          .parse(input);
+        if (!(await stat(path.join(process.cwd(), "public", fileUrl)).catch(() => null))) return { ok: false, message: "Ese archivo no existe en el servidor." };
+        await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName) }, await currentUserId());
+        return { ok: true, message: "Listo, se adjuntó el archivo." };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "create_project": {
+      try {
+        const userId = await currentUserId();
+        const parsed = z
+          .object({ name: z.string().trim().min(1), clientName: z.string().optional(), startDate: z.coerce.date(), pmId: z.string().optional() })
+          .parse(input);
+        const pmId = parsed.pmId ?? userId;
+        if (!(await prisma.user.findFirst({ where: { id: pmId, active: true }, select: { id: true } }))) return { ok: false, message: "Ese PM no existe o está inactivo." };
+        const project = await prisma.project.create({
+          data: {
+            name: parsed.name,
+            clientName: parsed.clientName || null,
+            startDate: parsed.startDate,
+            pmId,
+            countryCode: await getAppCountryCode(),
+            phases: { create: [{ name: "General", order: 0 }] },
+          },
+        });
+        if (pmId !== userId) await notify([pmId], "ASSIGNED", `Te asignaron el proyecto "${project.name}"`, undefined, `/projects/${project.id}`);
+        return { ok: true, message: withHiddenIds(`Listo, se creó el proyecto "${project.name}".`, { projectId: project.id }) };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "update_project": {
+      try {
+        const parsed = z
+          .object({
+            projectId: z.string(),
+            name: z.string().trim().min(1).optional(),
+            clientName: z.string().optional(),
+            startDate: z.string().optional(),
+            targetEndDate: z.string().optional(),
+            iconUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ícono inválido: tiene que ser una imagen subida.").optional(),
+          })
+          .parse(input);
+        await requireProjectAdmin(parsed.projectId);
+        const data: { name?: string; clientName?: string | null; iconUrl?: string } = {};
+        const changed: string[] = [];
+        if (parsed.name !== undefined) (data.name = parsed.name), changed.push("nombre");
+        if (parsed.clientName !== undefined) (data.clientName = parsed.clientName.trim() || null), changed.push("cliente");
+        if (parsed.iconUrl !== undefined) (data.iconUrl = parsed.iconUrl), changed.push("ícono");
+        if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: parsed.projectId }, data });
+        if (parsed.startDate !== undefined) {
+          const fd = new FormData();
+          fd.set("startDate", parsed.startDate);
+          const r = await updateProjectStartDate(parsed.projectId, fd);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la fecha de inicio." };
+          changed.push("fecha de inicio");
+        }
+        if (parsed.targetEndDate !== undefined) {
+          const fd = new FormData();
+          fd.set("targetEndDate", parsed.targetEndDate);
+          const r = await updateProjectTargetEndDate(parsed.projectId, fd);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la fecha de cierre." };
+          changed.push("fecha de cierre");
+        }
+        if (changed.length === 0) return { ok: false, message: "No se especificó qué cambiar." };
+        revalidatePath(`/projects/${parsed.projectId}`);
+        revalidatePath("/projects");
+        return { ok: true, message: `Listo, se actualizó: ${changed.join(", ")}.` };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "archive_project": {
+      try {
+        const { projectId } = z.object({ projectId: z.string() }).parse(input);
+        const r = await archiveProject(projectId);
+        return { ok: r.ok, message: r.ok ? "Listo, el proyecto quedó archivado." : (r.error ?? "No se pudo archivar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_phase": {
+      try {
+        const parsed = z
+          .object({ action: z.enum(["create", "rename", "reorder", "delete"]), projectId: z.string(), phaseId: z.string().optional(), name: z.string().optional(), orderedPhaseIds: z.array(z.string()).optional() })
+          .parse(input);
+        let r: { ok: boolean; error?: string };
+        if (parsed.action === "create") {
+          const fd = new FormData();
+          fd.set("name", parsed.name ?? "");
+          r = await addPhase(parsed.projectId, fd);
+        } else if (parsed.action === "reorder") {
+          r = await reorderPhases(parsed.projectId, parsed.orderedPhaseIds ?? []);
+        } else {
+          if (!parsed.phaseId) return { ok: false, message: "Falta indicar la fase." };
+          if (parsed.action === "delete") r = await deletePhase(parsed.phaseId);
+          else {
+            // updatePhase reemplaza los requerimientos vinculados: se conservan los actuales.
+            const phase = await prisma.phase.findUniqueOrThrow({ where: { id: parsed.phaseId }, select: { requirements: { select: { id: true } } } });
+            const fd = new FormData();
+            fd.set("name", parsed.name ?? "");
+            for (const req of phase.requirements) fd.append("requirementIds", req.id);
+            r = await updatePhase(parsed.phaseId, fd);
+          }
+        }
+        const done = { create: "se creó la fase", rename: "se renombró la fase", reorder: "se reordenaron las fases", delete: "se eliminó la fase" }[parsed.action];
+        return { ok: r.ok, message: r.ok ? `Listo, ${done}.` : (r.error ?? "No se pudo completar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_objective": {
+      try {
+        const parsed = z
+          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), objectiveId: z.string().optional(), title: z.string().optional(), description: z.string().optional() })
+          .parse(input);
+        const fd = new FormData();
+        fd.set("title", parsed.title ?? "");
+        if (parsed.description) fd.set("description", parsed.description);
+        let r: { ok: boolean; error?: string };
+        if (parsed.action === "add") r = parsed.projectId ? await addObjective(parsed.projectId, fd) : { ok: false, error: "Falta el proyecto." };
+        else if (!parsed.objectiveId) r = { ok: false, error: "Falta indicar el objetivo." };
+        else r = parsed.action === "update" ? await updateObjective(parsed.objectiveId, fd) : await deleteObjective(parsed.objectiveId);
+        return { ok: r.ok, message: r.ok ? "Listo, quedó actualizado el objetivo." : (r.error ?? "No se pudo completar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_requirement": {
+      try {
+        const parsed = z
+          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), requirementId: z.string().optional(), title: z.string().optional(), description: z.string().optional(), objectiveIds: z.array(z.string()).optional() })
+          .parse(input);
+        let r: { ok: boolean; error?: string };
+        if (parsed.action === "delete") {
+          r = parsed.requirementId ? await deleteRequirement(parsed.requirementId) : { ok: false, error: "Falta indicar el requerimiento." };
+        } else {
+          const fd = new FormData();
+          fd.set("title", parsed.title ?? "");
+          if (parsed.description) fd.set("description", parsed.description);
+          if (parsed.action === "add") {
+            for (const id of parsed.objectiveIds ?? []) fd.append("objectiveIds", id);
+            r = parsed.projectId ? await addRequirement(parsed.projectId, fd) : { ok: false, error: "Falta el proyecto." };
+          } else if (!parsed.requirementId) {
+            r = { ok: false, error: "Falta indicar el requerimiento." };
+          } else {
+            // Sin objectiveIds se conservan los vínculos actuales.
+            const ids = parsed.objectiveIds ?? (await prisma.requirement.findUniqueOrThrow({ where: { id: parsed.requirementId }, select: { objectives: { select: { id: true } } } })).objectives.map((o) => o.id);
+            for (const id of ids) fd.append("objectiveIds", id);
+            r = await updateRequirement(parsed.requirementId, fd);
+          }
+        }
+        return { ok: r.ok, message: r.ok ? "Listo, quedó actualizado el requerimiento." : (r.error ?? "No se pudo completar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "update_task_schedule": {
+      try {
+        const parsed = z.object({ taskId: z.string(), plannedStart: z.string().optional(), durationDays: z.number().int().min(1).optional() }).parse(input);
+        if (!parsed.plannedStart && !parsed.durationDays) return { ok: false, message: "No se especificó qué cambiar." };
+        if (parsed.plannedStart) {
+          const r = await moveTask(parsed.taskId, parsed.plannedStart);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo mover la tarea." };
+        }
+        if (parsed.durationDays) {
+          const task = await prisma.task.findUniqueOrThrow({ where: { id: parsed.taskId }, select: { plannedStart: true, project: { select: { countryCode: true } } } });
+          const end = parsed.durationDays <= 1 ? task.plannedStart : await addBusinessDays(task.project.countryCode, task.plannedStart, parsed.durationDays - 1);
+          const r = await resizeTask(parsed.taskId, "end", end.toISOString());
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la duración." };
+        }
+        return { ok: true, message: "Listo, se actualizaron las fechas de la tarea." };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "set_task_reviewers": {
+      try {
+        const { taskId, addUserId, removeUserId } = z.object({ taskId: z.string(), addUserId: z.string().optional(), removeUserId: z.string().optional() }).parse(input);
+        const task = await prisma.task.findUnique({ where: { id: taskId }, select: { reviewers: { select: { userId: true } } } });
+        if (!task) return { ok: false, message: "No existe esa tarea." };
+        const ids = new Set(task.reviewers.map((r) => r.userId));
+        if (addUserId) ids.add(addUserId);
+        if (removeUserId) ids.delete(removeUserId);
+        const fd = new FormData();
+        for (const id of ids) fd.append("reviewerIds", id);
+        const r = await setTaskReviewers(taskId, fd);
+        return { ok: r.ok, message: r.ok ? "Listo, se actualizaron los revisores." : (r.error ?? "No se pudo actualizar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "send_daily_digest": {
+      try {
+        const { userId } = z.object({ userId: z.string().optional() }).parse(input);
+        const result = await sendDailyDigestNow(userId);
+        const failed = result.failures.length
+          ? ` No llegó a: ${result.failures.map((f) => `${f.name} (${f.reason})`).join("; ")}.`
+          : "";
+        return { ok: result.sent > 0 || result.failures.length === 0, message: `Resumen enviado a ${result.sent} persona(s).${failed}` };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

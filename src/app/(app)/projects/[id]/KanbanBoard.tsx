@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
 import { deleteTask } from "./tasks/[taskId]/actions";
+import { archiveCompletedTasks, duplicateTask, mergeTasks, setTaskUrgent, unarchiveTask } from "./taskOps";
 import { ReassignAssigneesForm } from "./tasks/[taskId]/ReassignAssigneesForm";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
@@ -15,7 +16,7 @@ import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
-import { PaperclipIcon, OverlapIcon } from "@/components/icons";
+import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
@@ -29,6 +30,8 @@ export type TaskCard = {
   projectIconUrl: string | null;
   title: string;
   type: string;
+  // Urgente (la marcan Admin/PM): la card queda anclada arriba de su columna.
+  isUrgent: boolean;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   riskLevel: string;
   // Punto 9: permiso de ESTA tarea puntual (según el proyecto al que
@@ -97,7 +100,7 @@ function cardClassName(task: TaskCard, extra: string) {
   // [&_button]/[&_a]:cursor-[inherit]: los controles internos (Asignar, Detalle…)
   // usan el mismo cursor de la card (manito; mano que agarra al presionar) en
   // vez del cursor por defecto de los botones.
-  return `group relative touch-none space-y-2 rounded-2xl p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${taskCardTint(
+  return `group relative touch-none space-y-2 rounded-2xl p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${task.isUrgent && task.status !== "COMPLETED" ? "bg-red-50 ring-2 ring-red-500/70" : taskCardTint(
     task.status,
     task.alert.level
   )} ${extra}`;
@@ -111,6 +114,10 @@ function CardBody({
   users,
   deleting,
   onDelete,
+  onDuplicate,
+  onToggleUrgent,
+  selectMode = false,
+  selected = false,
   collisionUrlBase,
 }: {
   task: TaskCard;
@@ -121,6 +128,10 @@ function CardBody({
   users: { id: string; name: string }[];
   deleting: boolean;
   onDelete: () => void;
+  onDuplicate?: () => void;
+  onToggleUrgent?: () => void;
+  selectMode?: boolean;
+  selected?: boolean;
   collisionUrlBase: string;
 }) {
   const riskDot = RISK_DOT[task.riskLevel];
@@ -128,17 +139,34 @@ function CardBody({
 
   return (
     <>
-      {canManage && !hideDelete && (
-        <button
-          type="button"
-          onClick={onDelete}
-          onPointerDown={(e) => e.stopPropagation()}
-          disabled={deleting}
-          aria-label="Eliminar tarea"
-          className="absolute top-1.5 right-1.5 rounded-full bg-white/90 p-1 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
+      {selectMode && (
+        <span
+          aria-hidden
+          className={`absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded border-2 text-[11px] font-bold text-white ${selected ? "border-[#0a6b78] bg-[#0a6b78]" : "border-slate-300 bg-white"}`}
         >
-          <TrashIcon className="h-3.5 w-3.5" />
-        </button>
+          {selected ? "✓" : ""}
+        </span>
+      )}
+      {canManage && !hideDelete && !selectMode && (
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded-full bg-white/90 px-1 py-0.5 opacity-0 shadow-sm group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
+          {task.status !== "COMPLETED" && (
+            <button
+              type="button"
+              onClick={onToggleUrgent}
+              aria-label={task.isUrgent ? "Quitar urgencia" : "Marcar como urgente"}
+              title={task.isUrgent ? "Quitar urgencia" : "Marcar como urgente"}
+              className={`rounded-full p-1 ${task.isUrgent ? "text-red-600" : "text-slate-400 hover:text-red-600"}`}
+            >
+              <UrgentIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button type="button" onClick={onDuplicate} aria-label="Duplicar tarea" title="Duplicar tarea" className="rounded-full p-1 text-slate-400 hover:text-slate-900">
+            <CopyIcon className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onDelete} disabled={deleting} aria-label="Eliminar tarea" title="Eliminar tarea" className="rounded-full p-1 text-slate-400 hover:text-red-600">
+            <TrashIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       <div className="flex items-start justify-between gap-2 pr-7">
@@ -146,6 +174,12 @@ function CardBody({
           <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
           </span>
+          {task.isUrgent && task.status !== "COMPLETED" && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+              <UrgentIcon className="h-3 w-3" />
+              Urgente
+            </span>
+          )}
           {task.status === "RETURNED" && (
             <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_STATUS_COLOR.RETURNED.badge}`}>
               {TASK_STATUS_LABEL.RETURNED}
@@ -278,12 +312,18 @@ function Card({
   users,
   onDeleted,
   collisionUrlBase,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   task: TaskCard;
   showProjectName: boolean;
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
   collisionUrlBase: string;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: (task: TaskCard) => void;
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -311,6 +351,22 @@ function Card({
     });
   }
 
+  async function handleDuplicate() {
+    const result = await duplicateTask(task.id);
+    if (result.ok) {
+      showToast("Tarea duplicada.", "success");
+      router.refresh();
+    } else showToast(result.error);
+  }
+
+  async function handleToggleUrgent() {
+    const result = await setTaskUrgent(task.id, !task.isUrgent);
+    if (result.ok) {
+      showToast(task.isUrgent ? "Se quitó la urgencia." : "Tarea marcada como urgente. Se avisó al equipo por WhatsApp.", "success");
+      router.refresh();
+    } else showToast(result.error);
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -331,6 +387,7 @@ function Card({
         // popovers/modales que burbujean por portal) — solo el fondo de la
         // card navega.
         if (!e.currentTarget.contains(e.target as Node)) return;
+        if (selectMode) return onToggleSelect(task);
         if ((e.target as HTMLElement).closest("a,button,input,select,textarea,label")) return;
         router.push(`/projects/${task.projectId}/tasks/${task.id}`);
       }}
@@ -360,6 +417,10 @@ function Card({
         users={users}
         deleting={deleting}
         onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
+        onToggleUrgent={handleToggleUrgent}
+        selectMode={selectMode}
+        selected={selected}
         collisionUrlBase={collisionUrlBase}
       />
     </div>
@@ -382,6 +443,11 @@ function Column({
   users,
   onDeleted,
   collisionUrlBase,
+  archivedView,
+  onArchived,
+  selectMode,
+  selectedIds,
+  onToggleSelect,
 }: {
   id: TaskCard["status"];
   scrollKey: string;
@@ -390,8 +456,40 @@ function Column({
   users: { id: string; name: string }[];
   onDeleted: (taskId: string) => void;
   collisionUrlBase: string;
+  archivedView: boolean;
+  onArchived: (taskIds: string[]) => void;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (task: TaskCard) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  const router = useRouter();
+  const showToast = useToast();
+  const confirm = useConfirm();
+  // Las urgentes (sin completar) quedan ancladas arriba; el resto conserva su orden.
+  const ordered = [...tasks].sort((a, b) => Number(b.isUrgent && b.status !== "COMPLETED") - Number(a.isUrgent && a.status !== "COMPLETED"));
+  const archivable = id === "COMPLETED" ? tasks.filter((t) => t.canManage) : [];
+
+  async function handleArchive() {
+    const ok = await confirm(
+      archivedView
+        ? `¿Devolver ${archivable.length} tarea(s) archivada(s) al tablero?`
+        : `¿Archivar ${archivable.length} tarea(s) completada(s)? Salen del tablero pero siguen en el historial y las consultas.`,
+      { confirmLabel: archivedView ? "Desarchivar" : "Archivar" }
+    );
+    if (!ok) return;
+    const results = await Promise.all(archivable.map((t) => (archivedView ? unarchiveTask(t.id) : Promise.resolve(null))));
+    if (archivedView) {
+      const failed = results.find((r) => r && !r.ok);
+      if (failed && !failed.ok) return showToast(failed.error);
+    } else {
+      const result = await archiveCompletedTasks(archivable.map((t) => t.id));
+      if (!result.ok) return showToast(result.error);
+    }
+    onArchived(archivable.map((t) => t.id));
+    showToast(archivedView ? "Tareas devueltas al tablero." : "Tareas archivadas.", "success");
+    router.refresh();
+  }
   const color = TASK_STATUS_COLOR[id];
   return (
     <div
@@ -410,9 +508,20 @@ function Column({
         <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${color.badge}`}>
           {tasks.length}
         </span>
+        {archivable.length > 0 && (
+          <button
+            type="button"
+            onClick={handleArchive}
+            title={archivedView ? "Devolver las tareas archivadas al tablero" : "Archivar las tareas completadas (siguen en el historial)"}
+            className="ml-auto flex cursor-pointer items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <ArchiveIcon className="h-3.5 w-3.5" />
+            {archivedView ? "Desarchivar" : "Archivar"}
+          </button>
+        )}
       </h3>
       <div className="flex flex-col gap-2.5 px-3 pb-3">
-        {tasks.map((t) => (
+        {ordered.map((t) => (
           <Card
             key={t.id}
             task={t}
@@ -420,6 +529,9 @@ function Column({
             users={users}
             onDeleted={onDeleted}
             collisionUrlBase={collisionUrlBase}
+            selectMode={selectMode}
+            selected={selectedIds.has(t.id)}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </div>
@@ -432,8 +544,11 @@ export function KanbanBoard({
   showProjectName = false,
   users,
   collisionUrlBase = "/projects",
+  archivedView = false,
 }: {
   initialTasks: TaskCard[];
+  /** Mostrando las tareas archivadas: la columna Completada permite devolverlas al tablero. */
+  archivedView?: boolean;
   showProjectName?: boolean;
   users: { id: string; name: string }[];
   // Base para "Ver mis colisiones" del popover de cada tarea: la URL de la
@@ -461,6 +576,10 @@ export function KanbanBoard({
     });
   }
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [mergeTitle, setMergeTitle] = useState("");
+  const [merging, setMerging] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const showToast = useToast();
@@ -521,6 +640,46 @@ export function KanbanBoard({
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
   }
 
+  function handleArchived(taskIds: string[]) {
+    setTasks((prev) => prev.filter((t) => !taskIds.includes(t.id)));
+  }
+
+  // Combinar: solo tareas simples/entregables que el usuario administra, todas del mismo proyecto.
+  function toggleSelect(task: TaskCard) {
+    if (!task.canManage) return showToast("Solo el PM o un administrador puede combinar tareas.");
+    if (task.type !== "SIMPLE" && task.type !== "MILESTONE") return showToast("Las tareas de Revisión, Ajuste y Aceptación no se pueden combinar.");
+    const first = tasks.find((t) => selectedIds.has(t.id));
+    if (first && first.projectId !== task.projectId) return showToast("Elegí tareas del mismo proyecto.");
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(task.id)) next.add(task.id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setMergeTitle("");
+  }
+
+  async function handleMerge() {
+    const ok = await confirm(
+      `Se combinarán ${selectedIds.size} tareas en una sola: cada una pasa a ser un paso del checklist, con sus comentarios y archivos reunidos. Las tareas originales se eliminan y no se puede deshacer.`,
+      { confirmLabel: "Combinar", danger: true }
+    );
+    if (!ok) return;
+    setMerging(true);
+    const result = await mergeTasks([...selectedIds], mergeTitle);
+    setMerging(false);
+    if (!result.ok) return showToast(result.error);
+    showToast("Tareas combinadas.", "success");
+    exitSelectMode();
+    router.refresh();
+  }
+
+  const canMerge = !archivedView && tasks.some((t) => t.canManage);
+
   return (
     // autoScroll desactivado: por defecto dnd-kit scrollea el contenedor más
     // cercano (cada columna, con overflow-y-auto) al arrastrar cerca de un
@@ -531,7 +690,33 @@ export function KanbanBoard({
           scroll vertical es de CADA columna por separado (ver Column más
           abajo), no de este contenedor — así "Completado" con 50 tareas no
           obliga a scrollear igual a "Bloqueado" con 2. */}
-      <div className="grid h-full grid-cols-1 gap-4 overflow-y-visible pb-0 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex h-full flex-col gap-2">
+      {canMerge && (
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${selectMode ? "bg-[#0a6b78] text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+          >
+            <MergeIcon className="h-4 w-4" />
+            {selectMode ? "Cancelar selección" : "Combinar tareas"}
+          </button>
+          {selectMode && (
+            <>
+              <span className="text-xs text-slate-500">{selectedIds.size === 0 ? "Tocá las tareas que querés combinar." : `${selectedIds.size} seleccionada(s)`}</span>
+              {selectedIds.size >= 2 && (
+                <>
+                  <input value={mergeTitle} onChange={(e) => setMergeTitle(e.target.value)} placeholder="Título de la tarea combinada" aria-label="Título de la tarea combinada" className="w-64 rounded-lg border border-slate-300 px-2.5 py-1 text-sm" />
+                  <button type="button" disabled={merging || !mergeTitle.trim()} onClick={handleMerge} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+                    {merging ? "Combinando…" : "Combinar"}
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-visible pb-0 sm:grid-cols-2 lg:grid-cols-4">
         {COLUMNS.map((status) => (
           <Column
             key={status}
@@ -542,8 +727,14 @@ export function KanbanBoard({
             users={users}
             onDeleted={handleDeleted}
             collisionUrlBase={collisionUrlBase}
+            archivedView={archivedView}
+            onArchived={handleArchived}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
           />
         ))}
+      </div>
       </div>
       {/* Copia de la card en un portal a <body> (comportamiento nativo de
           DragOverlay): así siempre se ve por delante de cualquier columna

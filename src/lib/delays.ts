@@ -2,7 +2,34 @@ import { prisma } from "@/lib/prisma";
 import { businessDaysBetween, todayUTC } from "@/lib/holidays";
 import { mondayOnOrBefore, addDays } from "@/lib/calendarGrid";
 import { isStartingSoon } from "@/lib/statusColors";
+import { localParts } from "@/lib/workingHours";
 import type { Task } from "@prisma/client";
+
+/**
+ * Día calendario (Bogotá) de un instante, como medianoche UTC — el mismo
+ * formato "solo fecha" de plannedStart/plannedEnd. actualStart/actualEnd se
+ * guardan con la hora exacta (new Date()); compararlos crudos contra un
+ * plannedEnd a medianoche hacía ver como "un día tarde" una tarea cerrada
+ * el mismo día planeado.
+ */
+export function calendarDay(date: Date) {
+  const { year, month, day } = localParts(date);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+// plannedStart/plannedEnd ya son fechas sin hora; se truncan por si acaso.
+const plannedDay = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+
+/**
+ * Cumplimiento a tiempo: la tarea completada entregó a tiempo si su fecha
+ * REAL de finalización (día calendario) no pasa de su fecha límite planeada
+ * (plannedEnd). Una entrega posterior cuenta como "a destiempo" sin importar
+ * cuánto haya durado la tarea en sí.
+ */
+export function isDeliveredOnTime(task: Pick<Task, "plannedEnd" | "actualEnd">) {
+  if (!task.actualEnd) return false;
+  return calendarDay(task.actualEnd).getTime() <= plannedDay(task.plannedEnd).getTime();
+}
 
 export type TaskWithDelay = Task & {
   /** Días hábiles de atraso generados por ESTA tarea (0 si no aplica). */
@@ -29,8 +56,8 @@ export async function getTaskDelayDays(
   );
   const actualDuration = await businessDaysBetween(
     countryCode,
-    task.actualStart,
-    task.actualEnd
+    calendarDay(task.actualStart),
+    calendarDay(task.actualEnd)
   );
 
   return Math.max(0, actualDuration - plannedDuration);
@@ -50,7 +77,7 @@ export async function getTaskEarlyDays(
   if (!task.actualStart || !task.actualEnd) return 0;
 
   const plannedDuration = await businessDaysBetween(countryCode, task.plannedStart, task.plannedEnd);
-  const actualDuration = await businessDaysBetween(countryCode, task.actualStart, task.actualEnd);
+  const actualDuration = await businessDaysBetween(countryCode, calendarDay(task.actualStart), calendarDay(task.actualEnd));
 
   return Math.max(0, plannedDuration - actualDuration);
 }
@@ -70,11 +97,15 @@ export async function getTaskScheduleVariance(
   task: Pick<Task, "plannedEnd" | "actualEnd">
 ): Promise<number | null> {
   if (!task.actualEnd) return null;
-  if (task.actualEnd.getTime() === task.plannedEnd.getTime()) return 0;
-  if (task.actualEnd < task.plannedEnd) {
-    return await businessDaysBetween(countryCode, task.actualEnd, task.plannedEnd);
+  // Se compara por día calendario: cerrar la tarea el mismo día planeado
+  // (a cualquier hora) es 0, nunca "1 día hábil después".
+  const actualDay = calendarDay(task.actualEnd);
+  const plannedEndDay = plannedDay(task.plannedEnd);
+  if (actualDay.getTime() === plannedEndDay.getTime()) return 0;
+  if (actualDay < plannedEndDay) {
+    return await businessDaysBetween(countryCode, actualDay, plannedEndDay);
   }
-  return -(await businessDaysBetween(countryCode, task.plannedEnd, task.actualEnd));
+  return -(await businessDaysBetween(countryCode, plannedEndDay, actualDay));
 }
 
 /**
@@ -247,7 +278,7 @@ export async function getUserPerformance(
 
       const delayDays = await getTaskDelayDays(task.project.countryCode, task);
       totalDelayDays += delayDays;
-      if (delayDays === 0) tasksOnTime += 1;
+      if (isDeliveredOnTime(task)) tasksOnTime += 1;
     }
 
     results.push({
@@ -307,7 +338,7 @@ export async function getUserPerformanceByProject(
     entry.tasksCompleted += 1;
     const delayDays = await getTaskDelayDays(task.project.countryCode, task);
     entry.totalDelayDays += delayDays;
-    if (delayDays === 0) entry.tasksOnTime += 1;
+    if (isDeliveredOnTime(task)) entry.tasksOnTime += 1;
   }
 
   return Array.from(byProject.entries())
@@ -348,6 +379,57 @@ export async function getBottlenecks(projectId: string) {
       // el string de arriba se deja igual por compatibilidad con lo que ya lo consume.
       blockedSuccessors: t.blocks.map((b) => ({ id: b.successor.id, title: b.successor.title })),
     }));
+}
+
+export type ContributionRow = {
+  userId: string;
+  userName: string;
+  /** Tareas completadas, repartidas entre sus asignados (una tarea de 2 personas vale 0.5 para cada una). */
+  completedShare: number;
+  /** % del aporte total del equipo (0-100). */
+  percent: number;
+  openTotal: number;
+};
+
+/**
+ * "Carga de equipo" (aporte relativo): qué parte del trabajo ya entregado
+ * hizo cada integrante, global o filtrado por proyecto. Cada tarea completada
+ * vale 1 y se reparte en partes iguales entre sus asignados, así que quien
+ * comparte una tarea aporta la parte que le toca, no la tarea entera. Se
+ * incluyen las tareas archivadas (siguen siendo trabajo entregado).
+ */
+export async function getTeamContribution(projectIds?: string[]): Promise<ContributionRow[]> {
+  const [completed, open] = await Promise.all([
+    prisma.task.findMany({
+      where: { status: "COMPLETED", projectId: projectIds ? { in: projectIds } : undefined },
+      select: { assignees: { select: { userId: true, user: { select: { name: true } } } } },
+    }),
+    getTeamWorkload(projectIds),
+  ]);
+  const share = new Map<string, { name: string; value: number }>();
+  for (const task of completed) {
+    for (const a of task.assignees) {
+      const entry = share.get(a.userId) ?? { name: a.user.name, value: 0 };
+      entry.value += 1 / task.assignees.length;
+      share.set(a.userId, entry);
+    }
+  }
+  const total = [...share.values()].reduce((sum, e) => sum + e.value, 0);
+  const openByUser = new Map(open.map((w) => [w.userId, w.openTotal]));
+  const ids = new Set([...share.keys(), ...open.filter((w) => w.openTotal > 0).map((w) => w.userId)]);
+  const names = new Map(open.map((w) => [w.userId, w.userName]));
+  return [...ids]
+    .map((userId) => {
+      const value = share.get(userId)?.value ?? 0;
+      return {
+        userId,
+        userName: share.get(userId)?.name ?? names.get(userId) ?? "—",
+        completedShare: Math.round(value * 10) / 10,
+        percent: total > 0 ? Math.round((value / total) * 100) : 0,
+        openTotal: openByUser.get(userId) ?? 0,
+      };
+    })
+    .sort((a, b) => b.percent - a.percent || b.openTotal - a.openTotal);
 }
 
 export type WorkloadRow = {
@@ -445,10 +527,10 @@ export async function getProjectReport(projectIds?: string[]): Promise<ProjectRe
 
     if (t.status === "COMPLETED") {
       completedCount += 1;
-      const delay = await getTaskDelayDays(t.project.countryCode, t);
-      if (delay === 0) onTimeCount += 1;
+      if (isDeliveredOnTime(t)) onTimeCount += 1;
       else {
-        totalDelayDays += delay;
+        const variance = await getTaskScheduleVariance(t.project.countryCode, t);
+        totalDelayDays += variance !== null && variance < 0 ? -variance : 0;
         delayedTaskCount += 1;
       }
     }
@@ -523,8 +605,7 @@ export async function getRecentOnTimeTrend(
 
   let onTime = 0;
   for (const { task } of assignments) {
-    const delayDays = await getTaskDelayDays(task.project.countryCode, task);
-    if (delayDays === 0) onTime++;
+    if (isDeliveredOnTime(task)) onTime++;
   }
   return { rate: onTime / assignments.length, count: assignments.length };
 }

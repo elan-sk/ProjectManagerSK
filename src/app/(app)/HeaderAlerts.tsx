@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { UndoIcon, ReviewChecklistIcon } from "@/components/icons";
+import { UndoIcon, ReviewChecklistIcon, UrgentIcon } from "@/components/icons";
 
 export type HeaderAlertTask = { id: string; title: string; projectId: string; plannedEnd: string };
 
@@ -87,9 +87,17 @@ function AlertButton({
   );
 }
 
-export function HeaderAlerts({ returned, pendingReviews }: { returned: HeaderAlertTask[]; pendingReviews: HeaderAlertTask[] }) {
+export function HeaderAlerts({ urgent, returned, pendingReviews }: { urgent: HeaderAlertTask[]; returned: HeaderAlertTask[]; pendingReviews: HeaderAlertTask[] }) {
   return (
     <>
+      {/* Urgentes: la lista no tiene "descartar" — solo cambia al completar o desmarcar la tarea. */}
+      <AlertButton
+        icon={<UrgentIcon className="h-5 w-5 text-red-600" />}
+        label="Tareas urgentes"
+        emptyLabel="Sin tareas urgentes."
+        colorClass="bg-red-600"
+        items={urgent}
+      />
       <AlertButton
         icon={<UndoIcon className="h-5 w-5" />}
         label="Devoluciones"

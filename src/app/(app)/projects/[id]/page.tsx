@@ -33,7 +33,8 @@ import { createProjectShareLink, revokeProjectShareLink } from "../../shareActio
 import { ArchiveProjectButton } from "./ArchiveProjectButton";
 import { CriticalPathButton } from "./CriticalPathButton";
 import { DefinitionTab } from "./DefinitionTab";
-import { EditRepoUrlForm } from "./EditRepoUrlForm";
+import { EditReposForm } from "./EditReposForm";
+import { HideProjectButton } from "./HideProjectButton";
 import { EditStartDateForm } from "./EditStartDateForm";
 import { EditTargetEndDateForm } from "./EditTargetEndDateForm";
 import { GanttView, type GanttTask } from "./GanttView";
@@ -67,10 +68,12 @@ export default async function ProjectPage({
     fileType?: string;
     fileTask?: string;
     fileQ?: string;
+    archived?: string;
   }>;
 }) {
   const { id } = await params;
-  const { view, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ } = await searchParams;
+  const { view, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = await searchParams;
+  const archivedView = archived === "1";
   const from = parseDayKey(fromParam);
   const to = parseDayKey(toParam);
   const session = await auth();
@@ -108,7 +111,7 @@ export default async function ProjectPage({
   // vista actual — aplican igual estés en tablero, Gantt o calendario.
   const filterHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, tag, from, to, ...overrides };
+    const merged: Record<string, string | undefined> = { view, mode, date, status, type, userId, risk, q, tag, from, to, archived, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -133,6 +136,7 @@ export default async function ProjectPage({
         pm: true,
         phases: { orderBy: { order: "asc" } },
         links: { orderBy: { createdAt: "asc" } },
+        repos: { orderBy: { createdAt: "asc" } },
         attachments: { orderBy: { uploadedAt: "asc" } },
         tasks: {
           include: {
@@ -172,6 +176,8 @@ export default async function ProjectPage({
   ]);
 
   if (!project) notFound();
+  // Un proyecto oculto solo lo ve el administrador.
+  if (project.hidden && !isGlobalAdmin) notFound();
   const taskShareTokenById = new Map(taskShareLinks.map((l) => [l.taskId!, l.token]));
 
   // Punto 17: nombres ya usados en ESTE proyecto, agrupados por categoría —
@@ -181,6 +187,8 @@ export default async function ProjectPage({
     (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
   }
 
+  // Repositorio principal (repoUrl) + los adicionales.
+  const repoUrls = [...new Set([...(project.repoUrl ? [project.repoUrl] : []), ...project.repos.map((r) => r.url)])];
   const bottleneckReasonById = new Map(bottlenecks.map((t) => [t.id, t.bottleneckReason]));
 
   // Gantt y Tablero, ordenados cronológicamente por fecha de inicio (pedido
@@ -196,6 +204,13 @@ export default async function ProjectPage({
     if (phaseDiff !== 0) return phaseDiff;
     return a.plannedStart.getTime() - b.plannedStart.getTime();
   });
+
+  // Las tareas archivadas (completadas, sin borrar) salen de Tablero, Gantt y
+  // Calendario; se ven solo con el enlace «Archivadas». Los totales del
+  // resumen (avance, salud) siguen contando TODAS las tareas.
+  const archivedCount = project.tasks.filter((t) => t.archivedAt).length;
+  const inCurrentView = (t: { archivedAt: Date | null }) => (archivedView ? t.archivedAt !== null : t.archivedAt === null);
+  const viewTasks = tasksSortedByPhaseThenStart.filter(inCurrentView);
 
   const alertByTaskId = new Map(
     await Promise.all(
@@ -288,7 +303,8 @@ export default async function ProjectPage({
     matchesTagFilter(tag, t.taskTags) &&
     matchesTaskSearch(t, q);
 
-  const taskCards: TaskCard[] = tasksSortedByPhaseThenStart.filter(matchesFilters).map((t) => ({
+  const taskCards: TaskCard[] = viewTasks.filter(matchesFilters).map((t) => ({
+    isUrgent: t.isUrgent,
     id: t.id,
     projectId: project.id,
     projectName: project.name,
@@ -351,7 +367,7 @@ export default async function ProjectPage({
     )
   );
 
-  const ganttTasks: GanttTask[] = tasksSortedByPhaseThenStart.filter(matchesFilters).map((t) => {
+  const ganttTasks: GanttTask[] = viewTasks.filter(matchesFilters).map((t) => {
     const startIndex = businessDayIndex.get(dateKey(t.plannedStart)) ?? 0;
     const endIndex = businessDayIndex.get(dateKey(displayEnd(t))) ?? startIndex;
     // Punto 6 (arrastre de extremos): el inicio nunca puede quedar antes de
@@ -367,6 +383,7 @@ export default async function ProjectPage({
     const minStartIndex = Math.max(0, ...requiredStartIndices);
     return {
       id: t.id,
+      isUrgent: t.isUrgent,
       projectId: project.id,
       projectName: project.name,
       projectIconUrl: project.iconUrl,
@@ -399,9 +416,11 @@ export default async function ProjectPage({
   });
 
   const calendarTasks: CalendarTask[] = project.tasks
+    .filter(inCurrentView)
     .filter(matchesFilters)
     .map((t) => ({
       id: t.id,
+      isUrgent: t.isUrgent,
       projectId: project.id,
       projectName: project.name,
       title: t.title,
@@ -472,14 +491,14 @@ export default async function ProjectPage({
               {project.targetEndDate && (
                 <> · Cierre: {project.targetEndDate.toLocaleDateString("es-CO", DATE_FMT)}</>
               )}
-              {project.repoUrl && (
-                <>
+              {repoUrls.map((url, i) => (
+                <span key={url}>
                   {" · "}
-                  <a href={project.repoUrl} target="_blank" rel="noreferrer" className="hover:underline">
-                    Repositorio
+                  <a href={url} target="_blank" rel="noreferrer" title={url} className="hover:underline">
+                    {repoUrls.length > 1 ? `Repositorio ${i + 1}` : "Repositorio"}
                   </a>
-                </>
-              )}
+                </span>
+              ))}
             </div>
             {canManage && (
               <div className="mt-1.5 flex flex-wrap gap-2">
@@ -495,11 +514,12 @@ export default async function ProjectPage({
                     currentTargetEndDate={project.targetEndDate?.toISOString().slice(0, 10) ?? null}
                   />
                 </ModalTrigger>
-                <ModalTrigger label="Repositorio" title="Editar URL del repositorio" variant="secondary" small>
-                  <EditRepoUrlForm projectId={project.id} currentRepoUrl={project.repoUrl} />
+                <ModalTrigger label="Repositorios" title="Repositorios del proyecto" variant="secondary" small>
+                  <EditReposForm projectId={project.id} urls={repoUrls} />
                 </ModalTrigger>
                 {isGlobalAdmin && (
-                  <div className="ml-1.5 border-l border-slate-200 pl-2.5">
+                  <div className="ml-1.5 flex items-center gap-2 border-l border-slate-200 pl-2.5">
+                    <HideProjectButton projectId={project.id} hidden={project.hidden} />
                     <ArchiveProjectButton projectId={project.id} projectName={project.name} />
                   </div>
                 )}
@@ -609,6 +629,15 @@ export default async function ProjectPage({
             Archivos
           </Link>
           <Link href={filterHref({ view: "conversation" })} className={`rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
+          {(archivedCount > 0 || archivedView) && (
+            <Link
+              href={filterHref({ archived: archivedView ? undefined : "1" })}
+              title={archivedView ? "Volver a las tareas activas" : "Ver las tareas completadas que se archivaron"}
+              className={`rounded-lg px-3 py-1.5 ${archivedView ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600"}`}
+            >
+              {archivedView ? "Salir de archivadas" : `Archivadas (${archivedCount})`}
+            </Link>
+          )}
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -822,8 +851,9 @@ export default async function ProjectPage({
             // Solo cambia al cambiar los filtros (no al cambiar una tarea): así
             // las cards que dejaron de coincidir tras un cambio de estado
             // siguen visibles hasta que el usuario toque los filtros.
-            key={[status, type, userId, risk, q, tag, from, to].join("|")}
+            key={[status, type, userId, risk, q, tag, from, to, archived].join("|")}
             initialTasks={taskCards}
+            archivedView={archivedView}
             users={users}
           />
         </div>

@@ -15,6 +15,7 @@
     "db:seed-review-templates": "tsx scripts/seed-review-templates.ts",
     "db:seed-review-rounds-test": "tsx scripts/seed-review-rounds-test.ts",
     "verify:delay-rule": "tsx scripts/verify-delay-rule.ts",
+    "verify:on-time-rate": "tsx scripts/verify-on-time-rate.ts",
     "verify:schedule-cascade": "tsx scripts/verify-schedule-cascade.ts",
     "verify:move-task-group": "tsx scripts/verify-move-task-group.ts",
     "verify:late-start-alert": "tsx scripts/verify-late-start-alert.ts",
@@ -24,6 +25,7 @@
     "verify:search-filters": "tsx scripts/verify-search-filters.ts",
     "verify:paste-image": "tsx scripts/verify-paste-image.ts",
     "verify:comments": "tsx scripts/verify-comments.ts",
+    "verify:persistent-uploads": "tsx scripts/verify-persistent-uploads.ts",
     "example:digest": "tsx scripts/example-daily-digest.mts",
     "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh"

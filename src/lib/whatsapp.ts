@@ -1,5 +1,6 @@
 import type { WASocket } from "@whiskeysockets/baileys";
 import { rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +20,10 @@ type WhatsAppState = {
   manualStop: boolean;
   status: WhatsAppStatus;
   qrDataUrl: string | null;
+  // Motivo de la última caída (para la alarma del header del administrador).
+  lastDisconnectReason: string | null;
+  lastDisconnectAt: number | null;
+  reconnectTimer: ReturnType<typeof setTimeout> | null;
 };
 
 // ponytail: mismo patrón que prisma.ts (singleton en globalThis) — sin esto,
@@ -40,22 +45,46 @@ const state: WhatsAppState =
     manualStop: false,
     status: "disconnected",
     qrDataUrl: null,
+    lastDisconnectReason: null,
+    lastDisconnectAt: null,
+    reconnectTimer: null,
   };
 if (process.env.NODE_ENV !== "production") globalForWhatsApp.whatsapp = state;
 
-// Tope de reintentos automáticos: si el socket se cae seguido (no por logout
-// explícito), reintentamos unas pocas veces y después paramos — así el admin
-// recupera el control (botón "Conectar"/"Desconectar") en vez de quedar en
-// un loop infinito de "Conectando…".
-const MAX_AUTO_RETRIES = 2;
-// ponytail: espera fija de 2s antes de cada reintento (no backoff
-// exponencial) — alcanza para no golpear como abuso a ojos de WhatsApp;
-// subir a backoff creciente si algún día vuelve a haber flapping real.
-const RETRY_DELAY_MS = 2000;
+// Reconexión automática en segundo plano: ante una caída que NO sea un
+// cierre de sesión explícito (logout desde el teléfono), se reintenta sin
+// límite con espera creciente (2s, 4s, … tope 60s). No depende de que el
+// administrador tenga la web abierta; además scheduler.ts la revisa cada
+// minuto (ensureWhatsAppAlive) por si un reintento se pierde.
+const RETRY_BASE_DELAY_MS = 2000;
+const RETRY_MAX_DELAY_MS = 60_000;
 const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
 
 export function getWhatsAppStatus() {
   return { status: state.status, qrDataUrl: state.qrDataUrl };
+}
+
+// Salud de la conexión para la alarma del header (solo admin). `expected` =
+// se espera que esté conectado (hay sesión guardada o se conectó a mano y no
+// se detuvo a propósito); si no, no hay nada que alarmar.
+export function getWhatsAppHealth() {
+  const hasSession = existsSync(path.join(AUTH_DIR, "creds.json"));
+  const expected = !state.manualStop && (hasSession || process.env.WHATSAPP_ENABLED === "true");
+  return {
+    status: state.status,
+    expected,
+    needsQr: state.status !== "connected" && !hasSession,
+    reason: state.lastDisconnectReason,
+    since: state.lastDisconnectAt,
+  };
+}
+
+// Vigilante (lo llama el poller cada minuto): si debería estar conectado y no
+// hay socket ni intento en curso ni reintento agendado, reconecta.
+export function ensureWhatsAppAlive() {
+  if (state.manualStop || state.sock || state.connecting || state.reconnectTimer) return;
+  if (!existsSync(path.join(AUTH_DIR, "creds.json"))) return;
+  void startWhatsApp().catch((err) => console.error("[whatsapp] el vigilante no pudo reconectar", err));
 }
 
 export function startWhatsApp() {
@@ -72,6 +101,8 @@ export function startWhatsApp() {
 export function stopWhatsApp() {
   state.manualStop = true;
   state.retryCount = 0;
+  if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
   state.connecting = null;
   void state.rawSocket?.end(undefined);
   state.rawSocket = null;
@@ -104,6 +135,8 @@ async function connect() {
       state.status = "connected";
       state.qrDataUrl = null;
       state.retryCount = 0;
+      state.lastDisconnectReason = null;
+      state.lastDisconnectAt = null;
       console.log("[whatsapp] conectado. Elegí el grupo de alertas desde Configuración.");
       // Conectarse (o reconectarse) no es un evento de resumen. El resumen
       // diario lo controla exclusivamente el scheduler en su minuto exacto;
@@ -124,6 +157,9 @@ async function connect() {
       }
       const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output
         ?.statusCode;
+      state.lastDisconnectAt = Date.now();
+      state.lastDisconnectReason =
+        statusCode === DisconnectReason.loggedOut ? "La sesión se cerró desde el teléfono: hay que escanear el QR de nuevo." : `Se cortó la conexión (código ${statusCode ?? "desconocido"}); reintentando.`;
       if (statusCode === DisconnectReason.loggedOut) {
         state.status = "disconnected";
         // Esas claves ya fueron revocadas por WhatsApp. Conservarlas hace
@@ -134,13 +170,14 @@ async function connect() {
           console.error("[whatsapp] no se pudo limpiar la sesión revocada", err)
         );
         console.error("[whatsapp] sesión cerrada desde el teléfono, hay que volver a escanear el QR.");
-      } else if (state.retryCount < MAX_AUTO_RETRIES) {
+      } else {
+        const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** state.retryCount, RETRY_MAX_DELAY_MS);
         state.retryCount++;
         state.status = "connecting";
-        setTimeout(() => void startWhatsApp(), RETRY_DELAY_MS);
-      } else {
-        state.status = "disconnected";
-        console.error(`[whatsapp] no se pudo reconectar después de ${MAX_AUTO_RETRIES} intentos, hace falta reconectar a mano desde Configuración.`);
+        state.reconnectTimer = setTimeout(() => {
+          state.reconnectTimer = null;
+          void startWhatsApp().catch((err) => console.error("[whatsapp] falló el reintento", err));
+        }, delay);
       }
     }
   });

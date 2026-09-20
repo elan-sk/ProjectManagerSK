@@ -85,6 +85,12 @@ enum NotificationType {
   LATE_START_CRITICAL
   // Alguien comentó o subió un archivo desde un link compartido (punto 16).
   SHARE_ACTIVITY
+  // @mención en un comentario interno.
+  MENTION
+  // Tarea marcada como urgente (Admin/PM) — no se puede marcar como leída.
+  URGENT_TASK
+  // Aviso del sistema al administrador (ej. fallos del resumen diario).
+  SYSTEM
 }
 
 enum ShareTargetType {
@@ -173,6 +179,8 @@ model User {
   botMessages           BotMessage[]
   internalMessages      InternalMessage[]
   internalMessageReads  InternalMessageRead[]
+  mentionedIn           InternalMessageMention[]  @relation("MentionedUser")
+  activityDays          UserActivityDay[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -231,6 +239,12 @@ model Project {
   // null, se usa AppSetting.whatsappGroupJid (el grupo por defecto).
   whatsappGroupJid String?
 
+  // Solo un admin lo puede activar: el proyecto deja de verse para los demás
+  // miembros del equipo.
+  hidden Boolean @default(false)
+  // Repositorios adicionales (repoUrl queda como el principal).
+  repos  ProjectRepo[]
+
   phases        Phase[]
   tasks         Task[]
   objectives    Objective[]
@@ -245,6 +259,14 @@ model Project {
   shareComments ShareComment[]
   notifications Notification[]
   internalMessages InternalMessage[]
+}
+
+model ProjectRepo {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  url       String
+  createdAt DateTime @default(now())
 }
 
 // Enlaces/archivos importantes del proyecto (punto 3.2) — se prioriza el
@@ -347,6 +369,11 @@ model Task {
   actualStart  DateTime?
   actualEnd    DateTime?
 
+  // Urgente: la marcan Admin/PM; ancla la tarea arriba y avisa de inmediato.
+  isUrgent   Boolean   @default(false)
+  // Archivada: sale del flujo visual pero sigue en la base (completada).
+  archivedAt DateTime?
+
   createdAt DateTime @default(now())
   // Punto 12 (tiempo real sin pisadas): marca de tiempo de la última
   // modificación, usada como bloqueo optimista en las acciones de mayor
@@ -393,9 +420,33 @@ model InternalMessage {
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body      String   @db.Text
   createdAt DateTime @default(now())
+  editedAt  DateTime?
   reads     InternalMessageRead[]
+  // Usuarios @mencionados en el texto.
+  mentions  InternalMessageMention[]
 
   @@index([projectId, taskId, createdAt])
+}
+
+model InternalMessageMention {
+  messageId String
+  message   InternalMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("MentionedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}
+
+// Actividad diaria por usuario: cuenta interacciones reales con la app (no
+// solo inicios de sesión) para medir frecuencia de uso.
+model UserActivityDay {
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day          DateTime @db.Date
+  interactions Int      @default(1)
+
+  @@id([userId, day])
 }
 
 model InternalMessageRead {

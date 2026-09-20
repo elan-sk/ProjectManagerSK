@@ -9,6 +9,8 @@ import { ChontatecWidget } from "./ChontatecWidget";
 import { NotificationBell } from "./NotificationBell";
 import { InternalMessageBell } from "./InternalMessageBell";
 import { HeaderAlerts } from "./HeaderAlerts";
+import { ActivityPing } from "./ActivityPing";
+import { WhatsAppHealthAlert } from "./WhatsAppHealthAlert";
 import { HeaderSearch } from "./HeaderSearch";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
@@ -46,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     where: { userId: session.user.id, read: false },
     include: { task: { select: { projectId: true } } },
     orderBy: { createdAt: "desc" },
-  }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { project: { OR: [{ pmId: session.user.id }, { tasks: { some: { OR: [{ assignees: { some: { userId: session.user.id } } }, { reviewers: { some: { userId: session.user.id } } }] } } }] } }) }, include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
+  }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { OR: [{ mentions: { some: { userId: session.user.id } } }, { project: { OR: [{ pmId: session.user.id }, { tasks: { some: { OR: [{ assignees: { some: { userId: session.user.id } } }, { reviewers: { some: { userId: session.user.id } } }] } } }] } }] }) }, include: { author: { select: { name: true } }, mentions: { where: { userId: session.user.id }, select: { userId: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
   const bellItems = notifications.map((n) => ({
     id: n.id,
     message: n.message,
@@ -65,7 +67,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // entrar a revisarla, no solo un aviso de "ya está lista para marcar".
   // Ordenadas por urgencia: plannedEnd ascendente ya deja primero lo más
   // atrasado/próximo a vencer.
-  const [returnedTasks, pendingReviewTasks] = await Promise.all([
+  // Urgentes: no completadas ni archivadas. Admin ve todas; el resto, las de
+  // los proyectos que administra o donde es asignado/revisor (proyectos
+  // ocultos, solo admin). No hay "marcar como leída": salen al completarse
+  // o desmarcarse.
+  const uid = session.user.id;
+  const [urgentTasks, returnedTasks, pendingReviewTasks] = await Promise.all([
+    prisma.task.findMany({
+      where: {
+        isUrgent: true,
+        status: { not: "COMPLETED" },
+        archivedAt: null,
+        ...(isAdmin
+          ? {}
+          : { project: { hidden: false }, OR: [{ project: { pmId: uid } }, { assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] }),
+      },
+      select: { id: true, title: true, projectId: true, plannedEnd: true },
+      orderBy: { plannedEnd: "asc" },
+    }),
     prisma.task.findMany({
       where: { status: "RETURNED", assignees: { some: { userId: session.user.id } } },
       select: { id: true, title: true, projectId: true, plannedEnd: true },
@@ -86,6 +105,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         las 3 páginas que la traían a mano, y en cualquier otra ruta
         (/agenda, /settings, etc.) quedaba pisada hasta recargar a mano. */}
     <LiveRefresh />
+    <ActivityPing />
     <div className="pacific-shell min-h-screen bg-slate-50">
       <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-1 sm:px-6">
         <nav className="pacific-nav flex flex-shrink-0 items-center gap-4 text-sm font-medium">
@@ -105,13 +125,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
             Hoy: {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" }).replace(" de ", " ")}
           </span>
+          {isAdmin && <WhatsAppHealthAlert />}
           <PushSubscribeButton />
           <HeaderAlerts
+            urgent={urgentTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
             returned={returnedTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
             pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
           />
           <NotificationBell items={bellItems} userId={session.user.id} />
-          <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name }))} />
+          <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name, mentioned: m.mentions.length > 0 }))} />
           <Link href="/settings" className="flex items-center gap-2">
             <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />
           </Link>

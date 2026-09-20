@@ -1,3 +1,4 @@
+import { getUserActivityStats } from "@/lib/activity";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -227,6 +228,9 @@ export default async function IndividualPerformancePage({
     redirect("/performance");
   }
 
+  // Solo el administrador: uso real de la app (no solo inicios de sesión).
+  const activity = isAdmin ? await getUserActivityStats(userId) : null;
+
   const summary = overall[0];
   const onTimePct = summary?.onTimeRate == null ? null : Math.round(summary.onTimeRate * 100);
 
@@ -273,6 +277,32 @@ export default async function IndividualPerformancePage({
             meetsGoal={onTimePct === null ? null : Math.round(recentOnTime.rate * 100) >= onTimePct}
             captionPrefix="Histórico"
           />
+        </section>
+      )}
+
+      {activity && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-slate-900">Uso de la app</h2>
+          <p className="text-sm text-slate-500">
+            Últimos {activity.periodDays} días. Cada interacción es un minuto en el que la persona hizo algo en la app (clic, tecla, desplazamiento) — no cuenta solo iniciar sesión.
+          </p>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: "Días con uso", value: `${activity.activeDays}/${activity.periodDays}` },
+              { label: "Interacciones por día activo", value: String(activity.avgPerActiveDay) },
+              { label: "Promedio diario (todo el período)", value: String(activity.avgPerDay) },
+              {
+                label: "Último uso",
+                value: activity.daysSinceLast === null ? "Sin actividad" : activity.daysSinceLast === 0 ? "Hoy" : `Hace ${activity.daysSinceLast} día${activity.daysSinceLast !== 1 ? "s" : ""}`,
+                warn: activity.daysSinceLast === null || activity.daysSinceLast >= 3,
+              },
+            ].map((tile) => (
+              <div key={tile.label} className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs text-slate-500">{tile.label}</p>
+                <p className={`mt-1 text-lg font-semibold ${tile.warn ? "text-red-600" : "text-slate-900"}`}>{tile.value}</p>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

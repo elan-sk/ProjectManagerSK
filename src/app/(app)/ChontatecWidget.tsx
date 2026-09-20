@@ -136,6 +136,9 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
   const [text, setText] = useState("");
+  const [attached, setAttached] = useState<{ name: string; url: string }[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -177,10 +180,29 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
 
   const lastPending = messages.length > 0 ? messages[messages.length - 1].pendingAction : undefined;
 
+  async function handleFile(file: File) {
+    setUploadError(null);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
+      setAttached((prev) => [...prev, { name: body.name, url: body.url }]);
+    } catch (err) {
+      setUploadError((err as Error).message);
+    }
+  }
+
   function handleSend() {
-    const value = text.trim();
-    if (!value || isPending) return;
+    const typed = text.trim();
+    if ((!typed && attached.length === 0) || isPending) return;
+    // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
+    const value = attached.length
+      ? `${typed || "Subí este archivo."}\n\n[Archivos subidos en el chat: ${attached.map((f) => `"${f.name}" → ${f.url}`).join(", ")}]`
+      : typed;
     setText("");
+    setAttached([]);
     setOptimisticMessage({ id: `pending-${Date.now()}`, role: "user", text: value });
     startTransition(async () => {
       try {
@@ -362,7 +384,23 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
             {lastPending ? (
               <p className="px-1 py-1.5 text-center text-xs text-slate-400">Confirmá o cancelá la acción de arriba primero.</p>
             ) : (
+              <div className="space-y-1">
+              {(attached.length > 0 || uploadError) && (
+                <div className="flex flex-wrap items-center gap-1 px-1 text-[11px]">
+                  {attached.map((f) => (
+                    <span key={f.url} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                      {f.name}
+                      <button type="button" aria-label={`Quitar ${f.name}`} onClick={() => setAttached((prev) => prev.filter((x) => x.url !== f.url))} className="cursor-pointer text-slate-400 hover:text-slate-900">×</button>
+                    </span>
+                  ))}
+                  {uploadError && <span className="text-red-600">{uploadError}</span>}
+                </div>
+              )}
               <div className="flex items-center gap-2">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
+                  📎
+                </button>
+                <input ref={fileInputRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }} />
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -376,11 +414,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={isPending || !text.trim()}
+                  disabled={isPending || (!text.trim() && attached.length === 0)}
                   className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                 >
                   {isPending ? "…" : "Enviar"}
                 </button>
+              </div>
               </div>
             )}
           </footer>

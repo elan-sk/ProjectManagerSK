@@ -29,6 +29,11 @@ const EXTENSION_MIME: Record<string, string> = {
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — evidencias/capturas, no video
 
+/** Tipo MIME a partir de la extensión del nombre (mismo criterio que la subida). */
+export function mimeFromFileName(name: string) {
+  return EXTENSION_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
+}
+
 export type UploadResult =
   | { ok: true; url: string; name: string; mimeType: string }
   | { ok: false; status: number; error: string };

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { COMMENT_EDIT_WINDOW_MS, commentEditError, commentPreview, imageMarker, splitCommentBody } from "../src/lib/commentBody";
+import { commentAttachments, commentMentionIds, commentPlainText, fileMarker, linkMarker, mentionMarker, COMMENT_EDIT_WINDOW_MS, commentEditError, commentPreview, imageMarker, splitCommentBody } from "../src/lib/commentBody";
 
 // Chequeo puro de los comentarios: marcas de imagen y ventana de 5 minutos
 // para editar/eliminar (la misma función que valida el servidor).
@@ -20,6 +20,13 @@ for (const bad of ["[[img:https://evil.com/x.png]]", "[[img:/uploads/../secreto.
 
 assert.equal(commentPreview(`hola ${imageMarker(url)}   chau`), "hola [imagen] chau");
 assert.equal(commentPreview("a\n\nb"), "a b");
+
+// Menciones, archivos y enlaces
+const rich = `Hola ${mentionMarker("u1", "Ana Pérez")} mirá ${fileMarker("/uploads/a.pdf", "Plan.pdf")} y ${linkMarker("https://x.com/y", "Docs")} ${imageMarker(url)} ${mentionMarker("u1", "Ana Pérez")}`;
+assert.deepEqual(commentMentionIds(rich), ["u1"], "mención sin repetir");
+assert.deepEqual(commentAttachments(rich).map((a) => a.kind), ["file", "link", "image"]);
+assert.equal(commentPlainText(rich), "Hola @Ana Pérez mirá [archivo: Plan.pdf] y Docs (https://x.com/y) [imagen] @Ana Pérez");
+assert.deepEqual(splitCommentBody("[[link:javascript:alert(1)|x]]"), [{ type: "text", text: "[[link:javascript:alert(1)|x]]" }], "solo http(s)");
 
 // Ventana de edición
 const t0 = 1_000_000;

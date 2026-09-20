@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       ? { status: { not: "ARCHIVED" } }
       : {
           status: { not: "ARCHIVED" },
+          hidden: false,
           OR: [
             { pmId: userId },
             { tasks: { some: { OR: [{ assignees: { some: { userId } } }, { reviewers: { some: { userId } } }] } } },
