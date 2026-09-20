@@ -13,7 +13,27 @@ import { updateProjectDescription, updatePhase, deletePhase, addObjective, updat
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
-import { requireProjectAdmin } from "@/lib/permissions";
+import { requireProjectAdmin, type Actor } from "@/lib/permissions";
+import {
+  addAdjustmentItems,
+  addAdjustmentAttachments,
+  addCheckEvidence,
+  addRoundDeliverables,
+  addTaskAttachments,
+  adjustmentItemSchema,
+  checkSchema,
+  createShare,
+  deleteAdjustmentItem,
+  designReviewTask,
+  fileRefSchema,
+  getShareLink,
+  getTaskDesign,
+  removeCheck,
+  revokeShare,
+  updateAdjustmentItem,
+} from "@/lib/taskDesign";
+import { commentInputSchema, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
+import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { mentionMarker } from "@/lib/commentBody";
 import { addBusinessDays } from "@/lib/holidays";
 import { getAppCountryCode } from "@/lib/appSettings";
@@ -160,6 +180,18 @@ export const READ_TOOLS: Anthropic.Tool[] = [
       required: ["query"],
     },
   },
+  {
+    name: "get_task_design",
+    description:
+      "Devuelve la estructura completa de una tarea de tipo Ajuste, Prueba (QA) o Aceptación: los cambios pedidos con su «antes/después» y la calificación del cliente, o las rondas con sus pruebas/características, resultados, evidencias y quién calificó. Incluye los ids que necesitan las demás herramientas (itemId, roundId, checkId). Usala antes de editar o comentar un ítem concreto.",
+    input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
+  },
+  {
+    name: "get_task_threads",
+    description:
+      "Devuelve TODOS los hilos de una tarea: comentarios generales (los que ve el cliente por su link), el hilo de cada cambio de un Ajuste, de cada característica de una Aceptación, de cada prueba y de cada ronda, y la conversación interna. Incluye las preguntas de selección con su estadística (cuántas personas eligieron cada opción y quién).",
+    input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
+  },
 ];
 
 // Tools de ESCRITURA — acotadas a bajo riesgo, TODAS llaman a server
@@ -282,6 +314,90 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         removeUserId: { type: "string", description: "Opcional — id del usuario a quitar." },
       },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "design_task",
+    description:
+      "Sube el DISEÑO de una tarea en un solo paso. Ajuste: `items` = cambios pedidos [{ description, note?, before?, after? }] (before/after son archivos o links). Prueba (QA) y Aceptación: crea la primera ronda si no existe (exige `deliverables`, al menos un archivo o link) y le carga `checks` = pruebas o características [{ title, criteria? (un punto por línea), category?, evidence? }]; en Prueba también admite `templateId`. Cada acción exige el rol correspondiente (asignado, revisor, PM o administrador); si no lo tiene, se rechaza.",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        items: { type: "array", items: { type: "object", properties: { description: { type: "string" }, note: { type: "string" }, before: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } }, after: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } }, required: ["description"] } },
+        deliverables: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+        templateId: { type: "string" },
+        checks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, criteria: { type: "string" }, category: { type: "string" }, evidence: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } }, required: ["title"] } },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "manage_design_item",
+    description:
+      "Edita un ítem ya diseñado. action: update_adjustment (itemId; description? note?), add_adjustment_files (itemId; kind BEFORE|AFTER; files), reopen_adjustment_review (itemId; deja que el cliente califique de nuevo ese cambio), add_check_evidence (checkId; files), add_round_files (roundId; files), delete (itemId = un cambio de Ajuste, o checkId = una prueba/característica sin resultado; es irreversible). Los ids salen de get_task_design.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "update_adjustment | add_adjustment_files | reopen_adjustment_review | add_check_evidence | add_round_files | delete" },
+        itemId: { type: "string" },
+        checkId: { type: "string" },
+        roundId: { type: "string" },
+        description: { type: "string" },
+        note: { type: "string" },
+        kind: { type: "string", description: "BEFORE o AFTER" },
+        files: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "post_thread_comment",
+    description:
+      "Publica un comentario o una PREGUNTA de selección (única o múltiple) en un hilo, a nombre de la persona que conversa. scope de tarea (taskId): task = comentario general que ve el cliente por su link (admite archivos, que quedan como Insumos); adjustment_item = hilo de un cambio (targetId = itemId); acceptance_check = hilo de una característica (targetId = checkId); qa_check = hilo interno de una prueba (targetId = checkId; admite @menciones); round = hilo interno de una ronda (targetId = roundId); conversation = conversación interna de la tarea. scope de proyecto (projectId): project_conversation = conversación interna del proyecto; project_definition = hilo de la Definición que ve el cliente. Para mencionar, pasá mentionUserIds (ids de list_team_members).",
+    input_schema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Para los scopes de tarea." },
+        projectId: { type: "string", description: "Para los scopes de proyecto." },
+        scope: { type: "string", description: "task | adjustment_item | acceptance_check | qa_check | round | conversation | project_conversation | project_definition" },
+        targetId: { type: "string" },
+        body: { type: "string", description: "El texto del comentario, o el enunciado de la pregunta." },
+        parentId: { type: "string", description: "Opcional: id del comentario al que se responde." },
+        mentionUserIds: { type: "array", items: { type: "string" } },
+        attachments: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+        poll: { type: "object", description: "Si viene, el comentario es una PREGUNTA de selección y `body` es el enunciado.", properties: { multiple: { type: "boolean", description: "true = selección múltiple (casillas); false = selección única." }, options: { type: "array", items: { type: "string" }, description: "De 2 a 10 opciones." } }, required: ["options"] },
+      },
+      required: ["scope", "body"],
+    },
+  },
+  {
+    name: "answer_poll",
+    description: "Responde una pregunta de selección con la persona que conversa (una sola opción si es de selección única). Reemplaza su respuesta anterior. El pollId sale de get_task_threads.",
+    input_schema: { type: "object", properties: { pollId: { type: "string" }, optionIds: { type: "array", items: { type: "string" } } }, required: ["pollId", "optionIds"] },
+  },
+  {
+    name: "close_poll",
+    description: "Cierra (closed=true) o reabre (closed=false) una pregunta de selección. Puede quien la publicó, quien edita la tarea o el PM/administrador.",
+    input_schema: { type: "object", properties: { pollId: { type: "string" }, closed: { type: "boolean" } }, required: ["pollId", "closed"] },
+  },
+  {
+    name: "manage_share_link",
+    description:
+      "Consulta, crea o revoca el link público (sin cuenta) de una tarea o del proyecto, para que el cliente comente, responda preguntas, califique ajustes y acepte o devuelva características. action: get | create | revoke. Con taskId es el de la tarea; con projectId, el del proyecto (solo PM/administrador). Devuelve `path` (/share/<token>): al mostrarlo, anteponé la URL del sitio.",
+    input_schema: {
+      type: "object",
+      properties: { action: { type: "string", description: "get | create | revoke" }, taskId: { type: "string" }, projectId: { type: "string" } },
+      required: ["action"],
+    },
+  },
+  {
+    name: "add_task_files",
+    description: "Sube varios archivos o links de una vez como Insumos (INSUMO) o Evidencias (RESULTADO) de una tarea. Para uno solo también sirven attach_uploaded_file y attach_link_to_task.",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO" }, files: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } },
+      required: ["taskId", "files"],
     },
   },
 ];
@@ -494,7 +610,9 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set(["delete_task", "remove_attachment
 // Las herramientas "manage_*" con action=delete también son irreversibles.
 export function isDestructiveTool(name: string, input: unknown) {
   if (DESTRUCTIVE_TOOL_NAMES.has(name)) return true;
-  return name.startsWith("manage_") && (input as { action?: string } | null)?.action === "delete";
+  const action = (input as { action?: string } | null)?.action;
+  if (name === "manage_share_link" && action === "revoke") return true;
+  return name.startsWith("manage_") && action === "delete";
 }
 const ADMIN_ONLY_TOOLS = new Set(["archive_project", "send_daily_digest"]);
 const ADVANCED_TOOL_NAMES = new Set(ADVANCED_WRITE_TOOLS.map((t) => t.name));
@@ -527,6 +645,13 @@ export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]>
   const isAdmin = user.role === "ADMIN";
   const isPM = isAdmin || (await prisma.project.count({ where: { pmId: userId } })) > 0;
   return isPM ? ALL_TOOLS : [...READ_TOOLS, ...MEMBER_WRITE_TOOLS];
+}
+
+// Quien conversa, con su rol real: los servicios de diseño y de hilos aplican el mismo permiso que la app.
+async function currentActor(): Promise<Actor> {
+  const id = await currentUserId();
+  const user = await prisma.user.findUniqueOrThrow({ where: { id }, select: { role: true } });
+  return { id, role: user.role };
 }
 
 async function currentUserId(): Promise<string> {
@@ -752,6 +877,17 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       });
     }
 
+    case "get_task_design":
+    case "get_task_threads": {
+      const { taskId } = z.object({ taskId: z.string() }).parse(input);
+      const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+      if (!task) return JSON.stringify({ error: "No existe esa tarea." });
+      const accessibleIds = await getAccessibleProjectIds(userId);
+      if (!hasAccess(accessibleIds, task.projectId)) return JSON.stringify(NO_ACCESS);
+      const actor: Actor = { id: userId, role: (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role };
+      return JSON.stringify(name === "get_task_design" ? await getTaskDesign(taskId, actor) : await listTaskThreads(taskId, actor));
+    }
+
     case "get_bottlenecks": {
       const { projectId } = z.object({ projectId: z.string() }).parse(input);
       const accessibleIds = await getAccessibleProjectIds(userId);
@@ -906,6 +1042,42 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     }
     case "attach_link_to_task":
       return "Adjuntar un enlace a la tarea";
+    case "design_task": {
+      const d = input as { items?: unknown[]; checks?: unknown[]; deliverables?: unknown[] };
+      const n = (d.items?.length ?? 0) + (d.checks?.length ?? 0);
+      return `Cargar el diseño de la tarea (${n} ítem${n === 1 ? "" : "s"}${d.deliverables?.length ? ` y ${d.deliverables.length} entregable(s)` : ""})`;
+    }
+    case "manage_design_item": {
+      const { action } = input as { action?: string };
+      return (
+        {
+          update_adjustment: "Editar un cambio del ajuste",
+          add_adjustment_files: "Agregar archivos al antes/después de un cambio",
+          reopen_adjustment_review: "Habilitar una nueva revisión del cliente en un cambio",
+          add_check_evidence: "Agregar evidencia a una prueba o característica",
+          add_round_files: "Agregar entregables a la ronda",
+          delete: "⚠️ Eliminar un cambio, prueba o característica",
+        }[action ?? ""] ?? "Editar el diseño de la tarea"
+      );
+    }
+    case "post_thread_comment": {
+      const { poll } = input as { poll?: unknown };
+      return poll ? "Publicar una pregunta de selección" : "Publicar un comentario en el hilo";
+    }
+    case "answer_poll":
+      return "Responder una pregunta";
+    case "close_poll": {
+      const { closed } = input as { closed?: boolean };
+      return closed === false ? "Reabrir una pregunta" : "Cerrar una pregunta";
+    }
+    case "manage_share_link": {
+      const { action } = input as { action?: string };
+      return { get: "Consultar el link compartido", create: "Crear el link para compartir con el cliente", revoke: "⚠️ Dejar de compartir (el link deja de funcionar)" }[action ?? ""] ?? "Gestionar el link compartido";
+    }
+    case "add_task_files": {
+      const { files } = input as { files?: unknown[] };
+      return `Subir ${files?.length ?? 0} archivo(s) a la tarea`;
+    }
     case "attach_uploaded_file":
       return "Adjuntar el archivo subido a la tarea";
     case "create_project": {
@@ -1214,6 +1386,164 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
       }
     }
 
+    case "design_task": {
+      try {
+        const actor = await currentActor();
+        const d = z
+          .object({
+            taskId: z.string(),
+            items: z.array(adjustmentItemSchema).max(100).optional(),
+            deliverables: z.array(fileRefSchema).max(20).optional(),
+            templateId: z.string().optional(),
+            checks: z.array(checkSchema).max(200).optional(),
+          })
+          .parse(input);
+        const task = await prisma.task.findUnique({ where: { id: d.taskId }, select: { type: true } });
+        if (!task) return { ok: false, message: "No existe esa tarea." };
+        if (task.type === "ADJUSTMENT") {
+          if (!d.items?.length) return { ok: false, message: "Para un Ajuste hace falta `items` (los cambios pedidos)." };
+          const r = await addAdjustmentItems(d.taskId, actor, d.items);
+          if (!r.ok) return { ok: false, message: r.error };
+          return { ok: true, message: withHiddenIds(`Listo, se cargaron ${r.items.length} cambio(s) al ajuste.`, Object.fromEntries(r.items.map((it, i) => [`cambio${i + 1}`, it.id]))) };
+        }
+        const r = await designReviewTask(d.taskId, actor, { deliverables: d.deliverables, templateId: d.templateId, checks: d.checks });
+        if (!r.ok) return { ok: false, message: r.error };
+        return {
+          ok: true,
+          message: withHiddenIds(
+            `Listo${r.createdRound ? ", se creó la ronda 1" : ""}: ${r.checks.length} ${task.type === "QA" ? "prueba(s)" : "característica(s)"} cargada(s)${r.templateAdded ? ` y ${r.templateAdded} de la plantilla` : ""}.`,
+            { ronda: r.roundId, ...Object.fromEntries(r.checks.map((c, i) => [`item${i + 1}`, c.id])) }
+          ),
+        };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "manage_design_item": {
+      try {
+        const actor = await currentActor();
+        const d = z
+          .object({
+            action: z.enum(["update_adjustment", "add_adjustment_files", "reopen_adjustment_review", "add_check_evidence", "add_round_files", "delete"]),
+            itemId: z.string().optional(),
+            checkId: z.string().optional(),
+            roundId: z.string().optional(),
+            description: z.string().trim().min(1).max(1000).optional(),
+            note: z.string().max(2000).optional(),
+            kind: z.enum(["BEFORE", "AFTER"]).optional(),
+            files: z.array(fileRefSchema).max(20).optional(),
+          })
+          .parse(input);
+        const need = (v: unknown, what: string) => {
+          if (!v) throw new Error(`Falta ${what}.`);
+          return v as string;
+        };
+        let r: { ok: boolean; error?: string };
+        switch (d.action) {
+          case "update_adjustment":
+            r = await updateAdjustmentItem(need(d.itemId, "itemId"), actor, { description: d.description, note: d.note });
+            break;
+          case "add_adjustment_files":
+            r = await addAdjustmentAttachments(need(d.itemId, "itemId"), actor, need(d.kind, "kind (BEFORE o AFTER)") as "BEFORE" | "AFTER", d.files ?? []);
+            break;
+          case "reopen_adjustment_review":
+            r = await reopenAdjustmentReview(need(d.itemId, "itemId"), actor);
+            break;
+          case "add_check_evidence":
+            r = await addCheckEvidence(need(d.checkId, "checkId"), actor, d.files ?? []);
+            break;
+          case "add_round_files":
+            r = await addRoundDeliverables(need(d.roundId, "roundId"), actor, d.files ?? []);
+            break;
+          default:
+            r = d.itemId ? await deleteAdjustmentItem(d.itemId, actor) : await removeCheck(need(d.checkId, "itemId o checkId"), actor);
+        }
+        return { ok: r.ok, message: r.ok ? "Listo, quedó hecho." : (r.error ?? "No se pudo completar la acción.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "post_thread_comment": {
+      try {
+        const actor = await currentActor();
+        const d = z
+          .object({
+            taskId: z.string().optional(),
+            projectId: z.string().optional(),
+            scope: z.enum([...TASK_SCOPES, ...PROJECT_SCOPES]),
+            targetId: z.string().optional(),
+            mentionUserIds: z.array(z.string()).optional(),
+          })
+          .parse(input);
+        const comment = commentInputSchema.parse({ ...(input as object), mentions: d.mentionUserIds });
+        const isProjectScope = (PROJECT_SCOPES as readonly string[]).includes(d.scope);
+        let r: { ok: boolean; error?: string };
+        if (isProjectScope) {
+          if (!d.projectId) return { ok: false, message: "Falta projectId para ese scope." };
+          r = await postProjectComment(d.projectId, actor, d.scope as (typeof PROJECT_SCOPES)[number], comment);
+        } else {
+          if (!d.taskId) return { ok: false, message: "Falta taskId para ese scope." };
+          r = await postTaskComment(d.taskId, actor, d.scope as (typeof TASK_SCOPES)[number], d.targetId, comment);
+        }
+        return { ok: r.ok, message: r.ok ? (comment.poll ? "Listo, quedó publicada la pregunta." : "Listo, quedó el comentario.") : (r.error ?? "No se pudo publicar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "answer_poll": {
+      try {
+        const { pollId, optionIds } = z.object({ pollId: z.string(), optionIds: z.array(z.string()).min(1).max(10) }).parse(input);
+        const r = await votePoll(pollId, optionIds, await currentActor());
+        return { ok: r.ok, message: r.ok ? "Listo, quedó registrada la respuesta." : r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "close_poll": {
+      try {
+        const { pollId, closed } = z.object({ pollId: z.string(), closed: z.boolean() }).parse(input);
+        const r = await setPollClosed(pollId, closed, await currentActor());
+        return { ok: r.ok, message: r.ok ? (closed ? "Listo, la pregunta quedó cerrada." : "Listo, la pregunta quedó abierta de nuevo.") : r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "manage_share_link": {
+      try {
+        const actor = await currentActor();
+        const d = z.object({ action: z.enum(["get", "create", "revoke"]), taskId: z.string().optional(), projectId: z.string().optional() }).parse(input);
+        if (!d.taskId && !d.projectId) return { ok: false, message: "Falta taskId o projectId." };
+        const target = d.taskId ? { taskId: d.taskId } : { projectId: d.projectId };
+        if (d.action === "get") {
+          const r = await getShareLink(target);
+          return { ok: true, message: r.active ? `El link está activo: ${r.path}` : "No hay un link compartido activo." };
+        }
+        if (d.action === "create") {
+          const r = await createShare(target, actor);
+          return r.ok ? { ok: true, message: `Listo, el link es ${r.path} (anteponé la URL del sitio).` } : { ok: false, message: r.error };
+        }
+        const r = await revokeShare(target, actor);
+        return { ok: r.ok, message: r.ok ? "Listo, el link dejó de funcionar." : r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "add_task_files": {
+      try {
+        const { taskId, kind, files } = z
+          .object({ taskId: z.string(), kind: z.enum(["INSUMO", "RESULTADO"]).optional(), files: z.array(fileRefSchema).min(1).max(20) })
+          .parse(input);
+        for (const f of files) {
+          if (f.url.startsWith("/uploads/") && !(await stat(path.join(process.cwd(), "public", f.url)).catch(() => null))) {
+            return { ok: false, message: `El archivo "${f.name}" no existe en el servidor.` };
+          }
+        }
+        const r = await addTaskAttachments(taskId, await currentActor(), kind ?? "INSUMO", files);
+        return { ok: r.ok, message: r.ok ? `Listo, se subieron ${files.length} archivo(s).` : r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
     case "attach_uploaded_file": {
       try {
         const { taskId, fileUrl, fileName, kind } = z
