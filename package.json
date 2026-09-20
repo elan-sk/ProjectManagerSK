@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "predev": "prisma generate",
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "chmod +x node_modules/@prisma/engines/schema-engine-* 2>/dev/null; prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
