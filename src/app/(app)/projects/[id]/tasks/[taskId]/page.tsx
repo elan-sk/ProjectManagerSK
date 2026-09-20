@@ -20,6 +20,7 @@ import { InlineMeetingUrl } from "./InlineMeetingUrl";
 import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
+import { UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
@@ -225,6 +226,12 @@ export default async function TaskDetailPage({
           <div className="mt-2 max-w-sm">
             <StepsProgress pct={stepsPct} label={`Checklist: ${stepsDone}/${stepsTotal} pasos · ${stepsPct}%`} />
           </div>
+        )}
+        {task.isUrgent && task.status !== "COMPLETED" && (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white" title={canManage ? undefined : "Solo un administrador o el PM puede quitar la urgencia"}>
+            <UrgentIcon className="h-3.5 w-3.5" />
+            Tarea urgente
+          </p>
         )}
         {task.archivedAt && (
           <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
