@@ -113,8 +113,8 @@ export async function duplicateTask(taskId: string, actor?: Actor): Promise<Resu
 }
 
 // ─── Combinar ───────────────────────────────────────────────────────────
-// N tareas → 1: cada original pasa a ser un paso del checklist (hecho si la
-// original estaba completada); los comentarios y adjuntos de todas se
+// N tareas → 1: cada original pasa a ser un paso del checklist (o, si ya tenía
+// checklist, sus pasos se suman al nuevo, con su estado); los comentarios y adjuntos de todas se
 // reúnen en la nueva; las dependencias externas se reconectan a la nueva y
 // las originales se eliminan. Solo tareas simples/entregables (las de
 // Revisión, Ajuste y Aceptación traen historial propio que se perdería).
@@ -127,7 +127,7 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
 
     const tasks = await prisma.task.findMany({
       where: { id: { in: taskIds } },
-      include: { assignees: true, taskTags: true, dependsOn: true, blocks: true },
+      include: { assignees: true, taskTags: true, dependsOn: true, blocks: true, steps: { orderBy: { order: "asc" } } },
       orderBy: { plannedStart: "asc" },
     });
     if (tasks.length !== new Set(taskIds).size) return { ok: false, error: "Alguna de las tareas ya no existe." };
@@ -145,6 +145,16 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
       .filter((t) => t.description)
       .map((t) => `<p><strong>${t.title.replace(/</g, "&lt;")}</strong></p>${t.description}`)
       .join("");
+
+    // Checklist combinado: una original SIN pasos aporta un paso con su título (hecho si estaba
+    // completada); una original CON checklist aporta todos sus pasos ("Título: paso"), con su estado.
+    const mergedSteps = tasks
+      .flatMap((t) =>
+        t.steps.length > 0
+          ? t.steps.map((st) => ({ description: `${t.title}: ${st.description}`, done: st.done }))
+          : [{ description: t.title, done: t.status === "COMPLETED" }]
+      )
+      .map((st, order) => ({ ...st, order }));
 
     const tagByCategory = new Map<string, string>();
     for (const t of tasks) for (const tt of t.taskTags) if (!tagByCategory.has(tt.categoryId)) tagByCategory.set(tt.categoryId, tt.tagId);
@@ -166,7 +176,7 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
           actualStart: tasks.map((t) => t.actualStart).filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime())[0] ?? null,
           actualEnd: allDone ? new Date(Math.max(...tasks.map((t) => t.actualEnd?.getTime() ?? 0))) : null,
           assignees: { create: [...new Set(tasks.flatMap((t) => t.assignees.map((a) => a.userId)))].map((userId) => ({ userId })) },
-          steps: { create: tasks.map((t, order) => ({ description: t.title, done: t.status === "COMPLETED", order })) },
+          steps: { create: mergedSteps },
           taskTags: { create: [...tagByCategory].map(([categoryId, tagId]) => ({ categoryId, tagId })) },
         },
       });

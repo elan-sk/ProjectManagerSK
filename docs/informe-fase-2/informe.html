@@ -56,6 +56,7 @@
   .thumbs .x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 99px; border: 0; background: rgba(15,42,51,.75); color: #fff; cursor: pointer; line-height: 1; font-size: 14px; }
   code { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 5px; font-size: .88em; }
   .hide { display: none; }
+  .ev { margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -70,6 +71,7 @@
       <span id="count">0 de 0 probadas</span>
       <span class="grp">
         <label class="chk"><input type="checkbox" id="onlyPending"> Solo pendientes</label>
+        <button class="btn" id="pickDir" title="Elige la carpeta img de este informe: ahí se guardan las imágenes de evidencia">Carpeta de evidencias: sin elegir</button>
         <button class="btn" id="copy">Copiar mis comentarios</button>
         <button class="btn" id="download">Descargar comentarios (.json)</button>
         <button class="btn" id="reset">Reiniciar marcas y comentarios</button>
@@ -88,6 +90,7 @@
   "titulo": "Informe Fase 2 — PMSK",
   "fecha": "2026-09-19",
   "modo": "solo-ya",
+  "carpetaImg": "docs/informe-fase-2/img",
   "baseUrl": "http://localhost:3000",
   "resumen": "Implementé y verifiqué en navegador urgentes, archivar, duplicar, combinar, repositorios múltiples, ocultar proyecto, menciones, % a tiempo y aporte de equipo. Chat y WhatsApp compilan pero NO se probaron con Anthropic ni WhatsApp reales (no hay conexión en desarrollo). Los datos de prueba del navegador se borraron.",
   "items": [
@@ -173,7 +176,7 @@
       "id": "7",
       "titulo": "Chat: adjuntos (subir y leer contenido)",
       "estado": "parcial",
-      "paso": "El widget ya permite subir archivo al chat; attach_uploaded_file / attach_link_to_task lo adjuntan; read_attachment lee texto, CSV, Excel, PDF e imágenes (no Word/PowerPoint). Sin probar con el bot.",
+      "paso": "El widget ya permite subir archivo al chat; attach_uploaded_file / attach_link_to_task lo adjuntan; read_attachment prepara el archivo solo para el bot (el original no se toca): PDF → texto por página, Word → texto, Excel → tabla Markdown, imágenes → JPEG comprimido (máx. 1400 px), tope 12000 caracteres; mismo criterio que Adjuntar documentos de LensSK. PowerPoint no. Conversión probada con npm run verify:bot-file-prep; sin probar con el bot real.",
       "pasos": [
         "Subí un .txt en el chat, pedí adjuntarlo a una tarea y luego «¿qué dice?»."
       ],
@@ -540,12 +543,13 @@ function buildCommentsText(data, state) {
   const lines = [`COMENTARIOS — ${data.titulo} (${data.fecha})`];
   for (const it of data.items) {
     const note = (state.notes[it.id] || "").trim();
-    const imgs = (state.images[it.id] || []).length;
+    const imgList = state.images[it.id] || [];
+    const imgs = imgList.length;
     const done = !!state.checks[it.id];
     if (!note && !done && !imgs) continue;
     lines.push("", `[${it.id}] ${it.titulo} — probado: ${done ? "sí" : "no"}`);
     if (note) lines.push(...note.split("\n").map((l) => "  " + l));
-    if (imgs) lines.push(`  [${imgs} captura(s) adjunta(s): usa «Descargar» para enviarlas]`);
+    if (imgs) { lines.push(`  Evidencia (${imgs} imagen(es)) — léelas con Read en estas rutas:`); imgList.forEach((im) => lines.push(`    - ${im.ruta}`)); }
   }
   if (lines.length === 1) lines.push("", "(sin comentarios ni pruebas marcadas)");
   return lines.join("\n");
@@ -558,7 +562,7 @@ function buildCommentsJson(data, state, now) {
       .map((it) => {
         const out = { id: it.id, titulo: it.titulo, estado: it.estado, probado: !!state.checks[it.id], comentario: (state.notes[it.id] || "").trim() };
         const imgs = state.images[it.id] || [];
-        if (imgs.length) out.imagenes = imgs; // data URLs (jpeg)
+        if (imgs.length) out.imagenes = imgs.map((im) => im.ruta); // rutas de los archivos de evidencia
         return out;
       }),
   };
@@ -567,8 +571,10 @@ function buildCommentsJson(data, state, now) {
 
 const DATA = JSON.parse(document.getElementById("informe-data").textContent);
 const KEY = `informe:${DATA.tema}:${DATA.fecha}`;
+const KEY_DIR = `dir:${DATA.tema}`;
 let state = { checks: {}, notes: {}, images: {} };
 try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (_) {}
+for (const id of Object.keys(state.images)) state.images[id] = (state.images[id] || []).map((x) => (typeof x === "string" ? { src: x, ruta: "(sin archivo: se pegó antes de elegir carpeta)" } : x));
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
 const $ = (id) => document.getElementById(id);
 const ESTADO = { hecho: "Hecho", parcial: "Parcial", no_hecho: "No hecho" };
@@ -594,6 +600,7 @@ for (const it of DATA.items) {
       (it.debe ? `<div class="exp"><b>Debe pasar:</b> ${it.debe}</div>` : "") +
       probar +
       `<textarea placeholder="Tus comentarios sobre este ítem (qué mejorar, qué falló, qué cambiar). Puedes pegar capturas con Ctrl+V." aria-label="Comentarios del ítem ${it.id}"></textarea><div class="thumbs"></div>` +
+      `<div class="ev"><button type="button" class="btn addimg">+ Agregar imagen de evidencia</button><input type="file" accept="image/*" multiple hidden></div>` +
     `</div>`;
   root.appendChild(div);
   const box = div.querySelector("input"), note = div.querySelector("textarea");
@@ -601,6 +608,9 @@ for (const it of DATA.items) {
   note.value = state.notes[it.id] || "";
   box.addEventListener("change", () => { state.checks[it.id] = box.checked; save(); refresh(); });
   note.addEventListener("input", () => { state.notes[it.id] = note.value; save(); });
+  const fileIn = div.querySelector('.ev input[type=file]');
+  div.querySelector(".addimg").addEventListener("click", () => fileIn.click());
+  fileIn.addEventListener("change", async () => { for (const f of fileIn.files) await addEvidence(it.id, f); fileIn.value = ""; });
   renderThumbs(it.id);
 }
 
@@ -611,9 +621,10 @@ function renderThumbs(id) {
   if (!box) return;
   const imgs = state.images[id] || [];
   box.innerHTML = "";
-  imgs.forEach((src, n) => {
+  imgs.forEach((im, n) => {
     const fig = document.createElement("figure");
-    fig.innerHTML = `<img alt="Captura ${n + 1}" src="${src}"><button type="button" class="x" aria-label="Quitar captura">×</button>`;
+    fig.title = im.ruta;
+    fig.innerHTML = `<img alt="Captura ${n + 1}" src="${im.src}"><button type="button" class="x" aria-label="Quitar captura">×</button>`;
     fig.querySelector("img").addEventListener("click", () => fig.classList.toggle("big"));
     fig.querySelector(".x").addEventListener("click", () => { state.images[id].splice(n, 1); save(); renderThumbs(id); });
     box.appendChild(fig);
@@ -632,6 +643,49 @@ function fileToDataUrl(file, max = 1600) {
     img.src = url;
   });
 }
+// ---- Carpeta de evidencias: las imágenes se guardan como archivos en img/ ----
+let dirHandle = null;
+const idb = (mode, fn) => new Promise((resolve) => {
+  try {
+    const open = indexedDB.open("informe-evidencias", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("h");
+    open.onsuccess = () => { const st = open.result.transaction("h", mode).objectStore("h"); const r = fn(st); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(null); };
+    open.onerror = () => resolve(null);
+  } catch (_) { resolve(null); }
+});
+function dirLabel() { $("pickDir").textContent = dirHandle ? `Carpeta de evidencias: ${dirHandle.name}/ ✓` : "Carpeta de evidencias: sin elegir"; }
+(async () => {
+  const h = await idb("readonly", (st) => st.get(KEY_DIR));
+  if (h && (await h.queryPermission({ mode: "readwrite" }).catch(() => "denied")) === "granted") { dirHandle = h; dirLabel(); }
+})();
+$("pickDir").addEventListener("click", async () => {
+  if (!window.showDirectoryPicker) return say("Este navegador no permite elegir carpeta: las imágenes se descargarán a Descargas.");
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: "readwrite", id: "informe-img" });
+    await idb("readwrite", (st) => st.put(dirHandle, KEY_DIR));
+    dirLabel(); say("Listo: las imágenes de evidencia se guardan en esa carpeta.");
+  } catch (_) { /* canceló */ }
+});
+async function addEvidence(id, file) {
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    const name = `evidencia-${id}-${Date.now().toString(36)}.jpg`;
+    const blob = await (await fetch(dataUrl)).blob();
+    let ruta;
+    if (dirHandle && (await dirHandle.requestPermission({ mode: "readwrite" }).catch(() => "denied")) === "granted") {
+      const fh = await dirHandle.getFileHandle(name, { create: true });
+      const w = await fh.createWritable(); await w.write(blob); await w.close();
+      ruta = `${(DATA.carpetaImg || "img").replace(/\/$/, "")}/${name}`;
+    } else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      ruta = `~/Descargas/${name}`;
+      say("No hay carpeta elegida: la imagen se descargó a Descargas. Elige la carpeta img para que se guarde ahí.");
+    }
+    (state.images[id] = state.images[id] || []).push({ src: dataUrl, ruta });
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { state.images[id].pop(); say("No cabe en el navegador: descarga los comentarios y quita imágenes."); return; }
+    renderThumbs(id); say(`Evidencia guardada: ${ruta}`);
+  } catch (_) { say("No se pudo guardar la imagen."); }
+}
 document.addEventListener("paste", async (e) => {
   const cd = e.clipboardData; if (!cd) return;
   const files = Array.from(cd.files).filter((f) => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
@@ -643,14 +697,7 @@ document.addEventListener("paste", async (e) => {
   const item = (t && t.closest && t.closest(".item")) || [...document.querySelectorAll(".item")].find((d) => d.matches(":hover"));
   if (!item) return;
   e.preventDefault();
-  const id = item.dataset.id;
-  for (const f of files) {
-    try {
-      (state.images[id] = state.images[id] || []).push(await fileToDataUrl(f));
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { state.images[id].pop(); say("No cabe en el navegador: descarga los comentarios y quita capturas."); continue; }
-      renderThumbs(id); say("Captura agregada.");
-    } catch (_) { say("No se pudo leer la imagen pegada."); }
-  }
+  for (const f of files) await addEvidence(item.dataset.id, f);
 });
 
 const only = $("onlyPending");
@@ -673,7 +720,7 @@ function say(text) { $("msg").textContent = text; clearTimeout(msgTimer); msgTim
 $("copy").addEventListener("click", async () => {
   const text = buildCommentsText(DATA, state);
   const hasImgs = Object.values(state.images).some((a) => a && a.length);
-  try { await navigator.clipboard.writeText(text); say(hasImgs ? "Copiado. Las capturas no van en el texto: usa «Descargar»." : "Copiado. Pégalo en el chat."); }
+  try { await navigator.clipboard.writeText(text); say(hasImgs ? "Copiado. Incluye las rutas de las imágenes de evidencia." : "Copiado. Pégalo en el chat."); }
   catch (_) {
     const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
     try { document.execCommand("copy"); say("Copiado. Pégalo en el chat."); } catch (__) { say("No se pudo copiar: usa «Descargar»."); }

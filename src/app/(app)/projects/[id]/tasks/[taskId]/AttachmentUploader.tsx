@@ -31,39 +31,42 @@ export function AttachmentUploader({
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
 
-  async function uploadFile(file: File) {
+  // Sube uno o varios archivos, de a uno, y refresca al final. Si alguno falla, sigue con el resto y avisa cuál.
+  async function uploadFiles(files: File[]) {
     setUploading(true);
     setError(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(body.error ?? "No se pudo subir el archivo");
-        return;
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const body = await res.json();
+        if (!res.ok) {
+          failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
+          continue;
+        }
+        await addAttachmentRecord(taskId, kind, body, userId);
+      } catch (err) {
+        failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
       }
-
-      await addAttachmentRecord(taskId, kind, body, userId);
-      router.refresh();
-    } catch (err) {
-      setError((err as Error).message || "No se pudo subir el archivo");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
+    if (failed.length > 0) setError(failed.join(" · "));
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
+    router.refresh();
   }
 
   function handleChange() {
-    const file = inputRef.current?.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(inputRef.current?.files ?? []);
+    if (files.length > 0) uploadFiles(files);
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) uploadFiles(files);
   }
 
   async function saveLink() {
@@ -144,7 +147,7 @@ export function AttachmentUploader({
           }`}
         >
           <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} />
-          <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleChange} />
+          <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleChange} />
         </label>
         <button
           type="button"

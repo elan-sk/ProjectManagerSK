@@ -28,6 +28,8 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
   const [pending, startTransition] = useTransition();
   const [mentions, setMentions] = useState<MentionPerson[]>([]);
   const [query, setQuery] = useState<string | null>(null);
+  // Persona resaltada en la lista de menciones (flechas ↑/↓, Enter o Tab para elegirla).
+  const [active, setActive] = useState(0);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
@@ -78,6 +80,7 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
     const before = e.target.value.slice(0, e.target.selectionStart);
     const match = /(?:^|\s)@([^\s@]*)$/.exec(before);
     setQuery(match && people.length > 0 ? match[1] : null);
+    setActive(0);
   }
 
   function pick(person: MentionPerson) {
@@ -140,9 +143,14 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
             onChange={onChange}
             onKeyDown={(e) => {
               if (e.key === "Escape") setQuery(null);
-              if (e.key === "Enter" && !e.shiftKey && suggestions.length > 0) {
-                e.preventDefault();
-                pick(suggestions[0]);
+              if (suggestions.length > 0) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActive((a) => (a + (e.key === "ArrowDown" ? 1 : -1) + suggestions.length) % suggestions.length);
+                } else if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                  e.preventDefault();
+                  pick(suggestions[Math.min(active, suggestions.length - 1)]);
+                }
               }
             }}
             onPaste={onPaste}
@@ -153,9 +161,9 @@ export function CommentForm({ projectId, taskId, people = [] }: { projectId: str
           />
           {suggestions.length > 0 && (
             <ul role="listbox" aria-label="Personas del equipo" className="absolute bottom-full left-0 z-20 mb-1 max-h-48 w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-              {suggestions.map((p) => (
-                <li key={p.id}>
-                  <button type="button" role="option" aria-selected="false" onMouseDown={(e) => { e.preventDefault(); pick(p); }} className="block w-full cursor-pointer rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">
+              {suggestions.map((p, i) => (
+                <li key={p.id} ref={i === active ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}>
+                  <button type="button" role="option" aria-selected={i === active} onMouseDown={(e) => { e.preventDefault(); pick(p); }} onMouseEnter={() => setActive(i)} className={`block w-full cursor-pointer rounded px-2 py-1.5 text-left text-sm text-slate-700 ${i === active ? "bg-[#0a6b78]/15 font-medium" : "hover:bg-slate-100"}`}>
                     @{p.name}
                   </button>
                 </li>

@@ -6,6 +6,7 @@ import { dispatchDailyDigests } from "@/lib/notifications";
 import { ensureWhatsAppAlive } from "@/lib/whatsapp";
 
 const POLL_INTERVAL_MS = 60_000;
+export const STALE_QUEUE_HOURS = 12;
 
 // Vacía la cola de alertas que cayeron fuera de horario laboral (ver
 // notifications.ts) apenas vuelve a abrir el horario.
@@ -14,7 +15,9 @@ async function dispatchQueuedAlerts() {
   const countryCode = await getAppCountryCode();
   if (!(await isWorkingMoment(new Date(), countryCode, workHoursStart, workHoursEnd))) return;
 
-  const pending = await prisma.whatsAppQueueItem.findMany({ where: { sentAt: null } });
+  // Las alertas con más de STALE_QUEUE_HOURS en cola NO salen solas (ya no son "en tiempo real"):
+  // el admin decide en Configuración → WhatsApp si las envía o las descarta.
+  const pending = await prisma.whatsAppQueueItem.findMany({ where: { sentAt: null, createdAt: { gte: new Date(Date.now() - STALE_QUEUE_HOURS * 3600_000) } } });
   for (const item of pending) {
     const sent = await sendRawMessage(item.target, item.message);
     if (sent) await prisma.whatsAppQueueItem.update({ where: { id: item.id }, data: { sentAt: new Date() } });

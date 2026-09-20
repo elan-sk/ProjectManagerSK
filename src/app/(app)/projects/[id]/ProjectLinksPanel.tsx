@@ -65,42 +65,43 @@ export function ProjectLinksPanel({
     router.refresh();
   }
 
-  async function uploadFile(file: File) {
+  // Uno o varios archivos, de a uno; si alguno falla sigue con el resto y avisa cuál.
+  async function uploadFiles(files: File[]) {
     setUploading(true);
     setUploadError(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
-        setUploadError(body.error ?? "No se pudo subir el archivo");
-        return;
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const body = await res.json();
+        if (!res.ok) {
+          failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
+          continue;
+        }
+        const result = await addProjectAttachment(projectId, { url: body.url, name: body.name, mimeType: body.mimeType });
+        if (!result.ok) failed.push(`${file.name}: ${result.error ?? "no se pudo guardar"}`);
+      } catch (err) {
+        failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
       }
-      const result = await addProjectAttachment(projectId, { url: body.url, name: body.name, mimeType: body.mimeType });
-      if (!result.ok) {
-        setUploadError(result.error ?? "No se pudo guardar el archivo");
-        return;
-      }
-      router.refresh();
-    } catch (err) {
-      setUploadError((err as Error).message || "No se pudo subir el archivo");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
+    if (failed.length > 0) setUploadError(failed.join(" · "));
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
+    router.refresh();
   }
 
   function handleFileChange() {
-    const file = inputRef.current?.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(inputRef.current?.files ?? []);
+    if (files.length > 0) uploadFiles(files);
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) uploadFiles(files);
   }
 
   async function handleRemoveAttachment(attachmentId: string, fileName: string) {
@@ -178,7 +179,7 @@ export function ProjectLinksPanel({
             }`}
           >
             <UploadZoneLabel uploading={uploading} dragOver={dragOver} label="Subir un archivo" />
-            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileChange} />
+            <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleFileChange} />
           </label>
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
           <div className="flex gap-2">

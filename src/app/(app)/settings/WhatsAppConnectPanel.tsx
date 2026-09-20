@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { connectWhatsApp, disconnectWhatsApp, whatsAppStatus, whatsAppGroups, updateDailyDigestTime, updateDefaultWhatsAppGroup, updateWorkHours, testWhatsAppDelivery } from "./whatsappActions";
+import { connectWhatsApp, disconnectWhatsApp, whatsAppStatus, whatsAppGroups, updateDailyDigestTime, updateDefaultWhatsAppGroup, updateWorkHours, testWhatsAppDelivery, getStaleQueue, sendStaleQueue, discardStaleQueue } from "./whatsappActions";
 import type { WhatsAppStatus } from "@/lib/whatsapp";
 
 const SELECT_CLASS = "rounded-lg border border-slate-300 px-2 py-1.5 text-sm";
@@ -89,6 +89,12 @@ export function WhatsAppConnectPanel({
   const [digestTime, setDigestTime] = useState(`${String(dailyDigestHour).padStart(2, "0")}:${String(dailyDigestMinute).padStart(2, "0")}`);
   const [digestSaved, setDigestSaved] = useState(false);
   const [digestError, setDigestError] = useState<string | null>(null);
+
+  const [stale, setStale] = useState<{ hours: number; count: number; samples: string[] } | null>(null);
+  const [staleMsg, setStaleMsg] = useState<string | null>(null);
+  useEffect(() => {
+    getStaleQueue().then(setStale).catch(() => {});
+  }, []);
 
   function refreshStatus() {
     return whatsAppStatus().then((s) => {
@@ -201,6 +207,51 @@ export function WhatsAppConnectPanel({
             Enviar prueba
           </button>
           {testResult && <span className="text-xs text-slate-500">{testResult}</span>}
+        </div>
+      )}
+
+      {stale && stale.count > 0 && (
+        <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+          <p className="font-medium text-amber-900">
+            Hay {stale.count} alerta(s) que llevan más de {stale.hours} h esperando y no se envían solas.
+          </p>
+          <ul className="list-disc pl-5 text-xs text-amber-800">
+            {stale.samples.map((m, i) => (
+              <li key={i}>{m}…</li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={isPending || status !== "connected"}
+              title={status !== "connected" ? "Conectá WhatsApp primero" : undefined}
+              onClick={() =>
+                startTransition(async () => {
+                  const r = await sendStaleQueue();
+                  setStaleMsg(`Enviadas: ${r.sent}${r.failed ? ` · fallaron: ${r.failed}` : ""}.`);
+                  setStale(await getStaleQueue());
+                })
+              }
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Enviarlas ahora
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  const r = await discardStaleQueue();
+                  setStaleMsg(`Descartadas: ${r.discarded}.`);
+                  setStale(await getStaleQueue());
+                })
+              }
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Descartarlas
+            </button>
+            {staleMsg && <span className="text-xs text-amber-900">{staleMsg}</span>}
+          </div>
         </div>
       )}
 

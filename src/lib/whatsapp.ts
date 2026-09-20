@@ -60,6 +60,19 @@ const RETRY_BASE_DELAY_MS = 2000;
 const RETRY_MAX_DELAY_MS = 60_000;
 const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
 
+// Modo prueba: con WHATSAPP_ONLY_PHONE definido (solo en desarrollo), ÚNICAMENTE ese número puede
+// recibir mensajes; todo lo demás (otras personas y grupos) se descarta. En producción no se define.
+const blockedLogged = new Set<string>();
+function blockedByTestMode(jid: string) {
+  const only = process.env.WHATSAPP_ONLY_PHONE?.trim();
+  if (!only || jid === `${only}@s.whatsapp.net`) return false;
+  if (!blockedLogged.has(jid)) {
+    blockedLogged.add(jid);
+    console.warn(`[whatsapp] modo prueba (WHATSAPP_ONLY_PHONE): no se envía a ${jid}; solo se permite ${only}.`);
+  }
+  return true;
+}
+
 export function getWhatsAppStatus() {
   return { status: state.status, qrDataUrl: state.qrDataUrl };
 }
@@ -197,7 +210,7 @@ export async function listGroups() {
 // El link va al final (después de las menciones) en su propia línea, sin
 // nada pegado, para que WhatsApp lo detecte como clickeable.
 export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string) {
-  if (!state.sock) return false;
+  if (!state.sock || blockedByTestMode(groupJid)) return false;
 
   try {
     const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
@@ -236,6 +249,7 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
 // mensaje de presentación (quién es el bot, qué hace) — de ahí en más, ya
 // la conoce, así que solo se ve el ícono 🤖 + nombre en el texto.
 export async function sendRawMessage(jid: string, text: string) {
+  if (blockedByTestMode(jid)) return false;
   if (!state.sock) {
     console.error(`[whatsapp] no se pudo enviar a ${jid}: no hay conexión activa.`);
     return false;

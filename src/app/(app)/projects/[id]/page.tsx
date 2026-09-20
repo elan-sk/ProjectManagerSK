@@ -10,7 +10,7 @@ import { InternalConversation } from "@/components/InternalConversation";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
-import { ShareIcon } from "@/components/icons";
+import { EyeOffIcon, ShareIcon } from "@/components/icons";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
@@ -73,7 +73,8 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   const { view, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = await searchParams;
-  const archivedView = archived === "1";
+  // «Archivadas» vive en el filtro Estado (solo Admin/PM): status=ARCHIVED. `archived=1` queda por compatibilidad.
+  const archivedView = archived === "1" || (status as string | undefined) === "ARCHIVED";
   const from = parseDayKey(fromParam);
   const to = parseDayKey(toParam);
   const session = await auth();
@@ -297,7 +298,7 @@ export default async function ProjectPage({
   }) =>
     matchesRisk(t.id) &&
     matchesDateRange(t, from, to) &&
-    (!status || t.status === status) &&
+    (!status || (status as string) === "ARCHIVED" || t.status === status) &&
     matchesType(t) &&
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     matchesTagFilter(tag, t.taskTags) &&
@@ -305,6 +306,7 @@ export default async function ProjectPage({
 
   const taskCards: TaskCard[] = viewTasks.filter(matchesFilters).map((t) => ({
     isUrgent: t.isUrgent,
+    isArchived: t.archivedAt !== null,
     id: t.id,
     projectId: project.id,
     projectName: project.name,
@@ -443,6 +445,8 @@ export default async function ProjectPage({
       ? [
           ...project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null })),
           ...project.links.map((l) => ({ id: l.id, fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
+          // Los repositorios vinculados también se listan como enlaces del proyecto.
+          ...repoUrls.map((url, i) => ({ id: `repo-${i}`, fileUrl: url, fileName: `Repositorio${repoUrls.length > 1 ? ` ${i + 1}` : ""} — ${url.replace(/^https?:\/\/(www\.)?/, "")}`, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
         ]
       : [];
   const projectFiles = project.tasks
@@ -485,7 +489,14 @@ export default async function ProjectPage({
         <div className="flex items-start gap-3">
           <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" projectId={project.id} />
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
+              {project.name}
+              {project.hidden && (
+                <span title="Oculto para el equipo: solo lo ves tú (admin)" className="text-amber-600">
+                  <EyeOffIcon className="h-5 w-5" />
+                </span>
+              )}
+            </h1>
             <div className="text-sm text-slate-500">
               {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
               {project.targetEndDate && (
@@ -629,15 +640,6 @@ export default async function ProjectPage({
             Archivos
           </Link>
           <Link href={filterHref({ view: "conversation" })} className={`rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
-          {(archivedCount > 0 || archivedView) && (
-            <Link
-              href={filterHref({ archived: archivedView ? undefined : "1" })}
-              title={archivedView ? "Volver a las tareas activas" : "Ver las tareas completadas que se archivaron"}
-              className={`rounded-lg px-3 py-1.5 ${archivedView ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              {archivedView ? "Salir de archivadas" : `Archivadas (${archivedCount})`}
-            </Link>
-          )}
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -685,15 +687,19 @@ export default async function ProjectPage({
           <ComboFilter
             allLabel="Todos los estados"
             value={status}
-            options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
-              id: s,
-              label: TASK_STATUS_LABEL[s],
-              dotColorClass: TASK_STATUS_COLOR[s].dot,
-            }))}
+            options={[
+              ...(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
+                id: s as string,
+                label: TASK_STATUS_LABEL[s],
+                dotColorClass: TASK_STATUS_COLOR[s].dot,
+              })),
+              // Solo Admin/PM de este proyecto: ver las tareas completadas que se archivaron.
+              ...(canManage ? [{ id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500" }] : []),
+            ]}
             paramKey="status"
             basePath={`/projects/${project.id}`}
             currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q, tag }}
-            triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+            triggerColorClass={status ? ((status as string) === "ARCHIVED" ? "bg-amber-500 text-white" : `${TASK_STATUS_COLOR[status].solid} text-white`) : undefined}
           />
         </div>
 

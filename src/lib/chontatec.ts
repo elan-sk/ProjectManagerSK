@@ -12,10 +12,12 @@ function buildOperatingRules(botName: string) {
 
 Reglas importantes:
 - Para cualquier pregunta sobre datos (estado de un proyecto, tareas, atrasos, cargas de trabajo, archivos), usá siempre la herramienta correspondiente antes de responder.
+- Las fases de un proyecto vienen con su id en get_project_status; para crear una tarea alcanza con pasar el nombre de la fase (phaseName) — nunca necesitás una tarea previa para conocerla.
 - Si el usuario menciona un proyecto por nombre (no por id), resolvé primero el id con list_projects antes de llamar a una tool que lo necesite.
 - Todas tus herramientas de lectura ya vienen filtradas para mostrar solo los proyectos donde esa persona participa (como PM, asignada o revisora). Si una herramienta te devuelve un error de acceso, no insistas ni inventes datos: decile amablemente que no tiene acceso a ese proyecto.
 - Para preguntas de análisis (ej. "¿cuál es la próxima tarea por vencer?", "¿qué puedo hacer en paralelo para ganar tiempo?"), traé los datos crudos con list_project_tasks o get_schedule_analysis y razoná vos mismo sobre las fechas/holguras — no hay una tool que ya calcule la respuesta armada.
-- Podés proponer acciones de escritura (cambiar el estado de una tarea, marcar/agregar pasos del checklist, reasignar, comentar, adjuntar enlaces o archivos, y si quien conversa es PM del proyecto o admin también crear o editar proyectos, gestionar fases, objetivos y requerimientos, crear tareas, editar título/descripción/fase/tipo, cambiar fechas y duración, vincular o quitar dependencias, agregar o quitar revisores, eliminar una tarea o un archivo; solo un admin puede archivar un proyecto o disparar el resumen diario) cuando el usuario te lo pida explícitamente. TODA acción de escritura, sin excepción, requiere que el usuario la confirme con un botón antes de ejecutarse — el sistema se encarga de pedir esa autorización, vos NUNCA la ejecutás sola con solo proponerla, ni aunque el usuario ya te haya dicho que sí en el texto: la confirmación tiene que ser el clic en el botón. Podés avisar qué vas a hacer antes de proponerla.
+- Cuando el pedido implique VARIAS acciones de escritura que no dependen unas de otras (ej. crear cuatro fases, dos objetivos y tres requerimientos), proponelas TODAS juntas en la MISMA respuesta (varias llamadas a herramientas a la vez): la persona las confirma una sola vez. No las propongas de a una. Solo si una necesita el resultado de otra (ej. el id de algo que se acaba de crear) dividilas en bloques.
+- Podés proponer acciones de escritura (cambiar el estado de una tarea, marcar/agregar pasos del checklist, reasignar, comentar, adjuntar enlaces o archivos, y si quien conversa es PM del proyecto o admin también crear o editar proyectos (nombre, cliente, fechas, ícono y DESCRIPCIÓN del proyecto, que es el texto de la pestaña Definición — sí existe, nunca digas que no), gestionar fases, objetivos y requerimientos, crear tareas, editar título/descripción/fase/tipo, cambiar fechas y duración, vincular o quitar dependencias, agregar o quitar revisores, eliminar una tarea o un archivo; solo un admin puede archivar un proyecto o disparar el resumen diario) cuando el usuario te lo pida explícitamente. TODA acción de escritura, sin excepción, requiere que el usuario la confirme con un botón antes de ejecutarse — el sistema se encarga de pedir esa autorización, vos NUNCA la ejecutás sola con solo proponerla, ni aunque el usuario ya te haya dicho que sí en el texto: la confirmación tiene que ser el clic en el botón. Podés avisar qué vas a hacer antes de proponerla.
 - Eliminar una tarea o un archivo es IRREVERSIBLE — cuando lo propongas, decilo explícitamente ("esto no se puede deshacer") en tu mensaje, además de que el botón de confirmación ya lo va a marcar como delicado.
 - Si te piden algo que no podés hacer, o una acción de PM/admin cuando quien pregunta no lo es, explicá amablemente que no está disponible. Nunca ejecutes una acción para la que quien conversa no tenga permiso, aunque insista o diga ser otra persona: solo cuenta la identidad que figura en "Quién conversa".
 - Si una herramienta no tiene la información que te piden, decilo — nunca completes con un dato supuesto.
@@ -25,7 +27,7 @@ Reglas importantes:
 - Cuando menciones un proyecto, tarea o archivo puntual que trajiste con una herramienta, poné su nombre como link en formato Markdown [texto](url) usando SIEMPRE estas rutas con los ids reales que te dieron las herramientas (nunca inventes un id): proyecto → /projects/{projectId} — tarea → /projects/{projectId}/tasks/{taskId} — archivo adjunto de una tarea → /projects/{projectId}?view=files&fileTask={taskId}.
 - Cuando una acción de escritura CREA algo (ej. create_task, create_project), confirmá con claridad, en una frase, que quedó creado y cómo se llama, y poné su nombre como link Markdown (mismo formato de arriba) usando los ids que trae el resultado de la tool en el comentario oculto <!--ids:…-->. NUNCA escribas un id técnico (taskId, projectId, etc.) como texto en tu respuesta: los ids solo sirven para armar el link.
 - Al crear una tarea o proyecto no repitas todos los datos técnicos: solo confirmá la creación y dejá el link.
-- Si en la conversación aparecen listas o puntos que la persona quiere convertir en pasos de checklist, usá add_checklist_steps (un paso por ítem). Para dejar una nota o bitácora en una tarea usá add_task_comment. Si la persona sube un archivo en el chat, el mensaje trae su ruta /uploads/… : adjuntalo con attach_uploaded_file. Para saber qué dice un archivo adjunto, usá read_attachment (texto, CSV, Excel, PDF e imágenes; no Word/PowerPoint).
+- Si en la conversación aparecen listas o puntos que la persona quiere convertir en pasos de checklist, usá add_checklist_steps (un paso por ítem). Para dejar una nota o bitácora en una tarea usá add_task_comment. Si la persona sube un archivo en el chat, el mensaje trae su ruta /uploads/…: para leerlo o describirlo usá read_uploaded_file DE INMEDIATO — nunca le pidas adjuntarlo a una tarea para poder leerlo; adjuntarlo (attach_uploaded_file) es un paso aparte que solo hacés si lo pide. Para saber qué dice un archivo YA adjunto a una tarea, usá read_attachment. Ambas leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint).
 - La interfaz visual (miniaturas de personas/proyecto, colores de estado y de alerta) también está disponible en el chat con esta sintaxis — usala SIEMPRE que menciones a una persona, un proyecto o un estado, en vez de escribir el nombre/estado como texto plano:
   - Persona: [[person:Nombre|avatarUrl]] — avatarUrl viene de la herramienta (assignees, pm); si es null/vacío, dejá esa parte vacía ([[person:Nombre|]]), nunca inventes una URL.
   - Proyecto: [[project:Nombre|projectId|iconUrl]] — mismo criterio, iconUrl vacío si no hay ([[project:Nombre|id123|]]).
@@ -92,7 +94,9 @@ async function loadHistory(userId: string): Promise<Anthropic.MessageParam[]> {
   return rows.reverse().map((r) => ({ role: r.role as "user" | "assistant", content: JSON.parse(r.content) }));
 }
 
-type PendingAction = { toolUseId: string; toolName: string; toolInput: unknown };
+type PendingItem = { id: string; name: string; input: unknown };
+// Un mismo mensaje del bot puede traer VARIAS acciones: se confirman todas juntas de una vez.
+type PendingAction = { toolUseId: string; items: PendingItem[] };
 
 // Invariante: la ÚNICA forma en que queda un `tool_use` persistido en
 // BotMessage es cuando el loop lo pausa por ser una tool de ESCRITURA (ver
@@ -103,9 +107,9 @@ async function getPendingAction(userId: string): Promise<PendingAction | null> {
   const last = await prisma.botMessage.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
   if (!last || last.role !== "assistant") return null;
   const blocks = JSON.parse(last.content) as Array<{ type: string; id?: string; name?: string; input?: unknown }>;
-  const toolUse = blocks.find((b) => b.type === "tool_use");
-  if (!toolUse?.id || !toolUse.name) return null;
-  return { toolUseId: toolUse.id, toolName: toolUse.name, toolInput: toolUse.input };
+  const items = blocks.filter((b) => b.type === "tool_use" && b.id && b.name).map((b) => ({ id: b.id!, name: b.name!, input: b.input }));
+  if (items.length === 0) return null;
+  return { toolUseId: items[0].id, items };
 }
 
 async function currentHistory(userId: string): Promise<ChatUiMessage[]> {
@@ -130,7 +134,8 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
     }>;
 
     if (row.role === "assistant") {
-      const toolUse = blocks.find((b) => b.type === "tool_use");
+      const toolUses = blocks.filter((b) => b.type === "tool_use" && b.id && b.name);
+      const toolUse = toolUses[0];
       const text = blocks
         .filter((b) => b.type === "text")
         .map((b) => b.text ?? "")
@@ -144,6 +149,8 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
           (JSON.parse(next.content) as Array<{ type: string; tool_use_id?: string }>).some(
             (b) => b.type === "tool_result" && b.tool_use_id === toolUse.id
           );
+        // Acción ya resuelta y sin texto propio: no hay nada que mostrar (evita burbujas vacías).
+        if (resolved && !text) continue;
         out.push({
           id: row.id,
           role: "assistant",
@@ -152,8 +159,11 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
             ? undefined
             : {
                 toolUseId: toolUse.id,
-                label: summarizeWriteTool(toolUse.name, toolUse.input),
-                destructive: isDestructiveTool(toolUse.name, toolUse.input),
+                label:
+                  toolUses.length === 1
+                    ? summarizeWriteTool(toolUse.name!, toolUse.input)
+                    : `${toolUses.length} acciones:\n${toolUses.map((t) => `• ${summarizeWriteTool(t.name!, t.input)}`).join("\n")}`,
+                destructive: toolUses.some((t) => isDestructiveTool(t.name!, t.input)),
               },
         });
       } else if (text) {
@@ -163,12 +173,14 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
     }
 
     // role === "user"
-    const toolResult = blocks.find((b) => b.type === "tool_result");
-    if (toolResult) {
-      const content = typeof toolResult.content === "string" ? toolResult.content : "";
-      // Los ids técnicos van en un comentario oculto <!--ids:…--> solo para el modelo.
-      const visible = content.replace(/<!--[\s\S]*?-->/g, "").trim();
-      out.push({ id: row.id, role: "system", text: toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}` });
+    const toolResults = blocks.filter((b) => b.type === "tool_result");
+    if (toolResults.length > 0) {
+      toolResults.forEach((toolResult, n) => {
+        const content = typeof toolResult.content === "string" ? toolResult.content : "";
+        // Los ids técnicos van en un comentario oculto <!--ids:…--> solo para el modelo.
+        const visible = content.replace(/<!--[\s\S]*?-->/g, "").trim();
+        out.push({ id: `${row.id}:${n}`, role: "system", text: toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}` });
+      });
       continue;
     }
 
@@ -203,7 +215,7 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
         max_tokens: 4096,
         system: buildSystemBlocks(settings.name, persona, pathname, me),
         tools,
-        tool_choice: { type: "auto", disable_parallel_tool_use: true },
+        tool_choice: { type: "auto" },
         messages,
       });
     } catch (err) {
@@ -218,24 +230,23 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
       return;
     }
 
-    const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-    if (!toolUse) {
+    if (toolUses.length === 0) {
       await persistRow(userId, "assistant", response.content);
       return;
     }
 
-    if (WRITE_TOOL_NAMES.has(toolUse.name)) {
+    // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola
+    // confirmación (las de lectura del mismo bloque se resuelven al confirmar).
+    if (toolUses.some((t) => WRITE_TOOL_NAMES.has(t.name))) {
       await persistRow(userId, "assistant", response.content);
-      return; // queda pendiente de confirmación — no se ejecuta acá
+      return; // no se ejecuta acá
     }
 
-    const result = await runReadTool(toolUse.name, toolUse.input);
-    messages = [
-      ...messages,
-      { role: "assistant", content: response.content },
-      { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: result }] },
-    ];
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await runReadTool(t.name, t.input) });
+    messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: results }];
   }
 
   await persistRow(userId, "assistant", [{ type: "text", text: LOOP_LIMIT_TEXT }]);
@@ -286,18 +297,20 @@ export async function confirmChontatecAction(
     throw new Error("Esa acción ya no está pendiente de confirmación.");
   }
 
-  let resultBlock: { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
-  if (decision === "decline") {
-    resultBlock = { type: "tool_result", tool_use_id: toolUseId, content: "El usuario canceló esta acción." };
-  } else {
-    // La re-verificación de permisos es gratis acá: runWriteTool llama a la
-    // acción real (updateTaskStatus/toggleStep/setTaskAssignees), que vuelve
-    // a chequear auth()/canEditTask en el momento exacto de ejecutar — si
-    // algo cambió mientras la confirmación estaba pendiente, se rechaza solo.
-    const result = await runWriteTool(pending.toolName, pending.toolInput);
-    resultBlock = { type: "tool_result", tool_use_id: toolUseId, content: result.message, is_error: !result.ok };
+  // Un solo "confirmar" o "cancelar" vale para todas las acciones del bloque.
+  // runWriteTool vuelve a chequear rol y permisos de cada una al ejecutar.
+  const resultBlocks: Anthropic.ToolResultBlockParam[] = [];
+  for (const item of pending.items) {
+    if (decision === "decline") {
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: "El usuario canceló esta acción." });
+    } else if (WRITE_TOOL_NAMES.has(item.name)) {
+      const result = await runWriteTool(item.name, item.input);
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: result.message, is_error: !result.ok });
+    } else {
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await runReadTool(item.name, item.input) });
+    }
   }
-  await persistRow(userId, "user", [resultBlock]);
+  await persistRow(userId, "user", resultBlocks);
 
   const settings = await getBotSettings();
   if (settings.apiKeyConfigured) {

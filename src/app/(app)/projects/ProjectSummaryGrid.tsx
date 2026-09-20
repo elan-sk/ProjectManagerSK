@@ -1,7 +1,7 @@
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { OverlapIcon } from "@/components/icons";
+import { EyeOffIcon, OverlapIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -130,6 +130,11 @@ export async function ProjectSummaryGrid({
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 font-medium text-slate-900">
                           <span className="truncate">{p.name}</span>
+                          {p.hidden && (
+                            <span title="Oculto para el equipo" className="flex-shrink-0 text-amber-600">
+                              <EyeOffIcon className="h-4 w-4" />
+                            </span>
+                          )}
                           {collisionTasks.length > 0 && (
                             <ReferencePopover
                               trigger={<OverlapIcon className="h-3.5 w-3.5 flex-shrink-0 text-indigo-500" />}

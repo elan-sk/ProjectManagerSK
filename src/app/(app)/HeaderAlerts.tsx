@@ -55,7 +55,7 @@ function AlertButton({
         onClick={() => setOpen((v) => !v)}
         title={label}
         aria-label={label}
-        className="relative rounded-full p-1.5 text-slate-500 hover:bg-slate-100"
+        className="relative rounded-full p-1.5 text-slate-500 hover:bg-white/20"
       >
         {icon}
         <span className={`absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-medium text-white ${colorClass}`}>
@@ -92,7 +92,7 @@ export function HeaderAlerts({ urgent, returned, pendingReviews }: { urgent: Hea
     <>
       {/* Urgentes: la lista no tiene "descartar" — solo cambia al completar o desmarcar la tarea. */}
       <AlertButton
-        icon={<UrgentIcon className="h-5 w-5 text-red-600" />}
+        icon={<UrgentIcon className="h-5 w-5 text-white" />}
         label="Tareas urgentes"
         emptyLabel="Sin tareas urgentes."
         colorClass="bg-red-600"

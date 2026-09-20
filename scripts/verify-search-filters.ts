@@ -29,12 +29,11 @@ assert.ok(!matchesDateRange(task, "2026-08-01", "2026-09-09"), "empieza después
 assert.ok(matchesDateRange(task, undefined, undefined), "sin rango pasa todo");
 
 // Barra de 5 bloques (20 % cada uno), redondeada; llena solo al 100 %.
-assert.equal(progressBar(0), "⬜".repeat(5));
-assert.equal(progressBar(4), "⬜".repeat(5), "menos de 10 % no llena ningún bloque");
-assert.equal(progressBar(35), "🟥🟥⬜⬜⬜");
-assert.equal(progressBar(53), "🟨🟨🟨⬜⬜");
-assert.equal(progressBar(90), "🟩🟩🟩🟩⬜", "90 % no se ve como completo");
-assert.equal(progressBar(100), "🟩".repeat(5));
-assert.equal([...progressBar(57)].length, 5, "siempre 5 bloques");
+assert.equal(progressBar(0), "░".repeat(10));
+assert.equal(progressBar(4), "░".repeat(10), "menos de 5 % no llena ningún bloque");
+assert.equal(progressBar(60), "██████░░░░");
+assert.equal(progressBar(96), "█████████░", "96 % no se ve como completo");
+assert.equal(progressBar(100), "█".repeat(10));
+assert.equal([...progressBar(57)].length, 10, "siempre 10 bloques");
 
 console.log("verify-search-filters: OK");

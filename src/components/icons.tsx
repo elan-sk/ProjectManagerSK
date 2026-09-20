@@ -235,11 +235,16 @@ export function EyeOffIcon({ className }: IconProps) {
   );
 }
 
-// Urgente: sirena/alerta.
+// Urgente: rayo RELLENO — a diferencia de los iconos de trazo fino, se ve del mismo tamaño
+// visual que el resto y se lee bien aunque sea chico.
 export function UrgentIcon({ className }: IconProps) {
   return (
-    <svg {...strokeProps} className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1.5m6.364.136-1.06 1.06M21 12h-1.5M5.636 4.636l1.06 1.06M3 12h1.5M7.5 20.25h9M8.25 20.25V15a3.75 3.75 0 1 1 7.5 0v5.25" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z"
+      />
     </svg>
   );
 }

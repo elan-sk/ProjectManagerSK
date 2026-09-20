@@ -9,7 +9,7 @@ import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload }
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
-import { updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
+import { updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
@@ -21,6 +21,7 @@ import { sendDailyDigestNow } from "@/lib/notifications";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { prepareFileForBot } from "@/lib/botFilePrep";
 import {
   addStep,
   addAttachmentRecord,
@@ -52,9 +53,19 @@ const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 // donde la persona no es PM, asignada ni revisora de ninguna tarea.
 export const READ_TOOLS: Anthropic.Tool[] = [
   {
+    name: "read_uploaded_file",
+    description:
+      "Lee AL INSTANTE el contenido de un archivo que la persona subió en este chat (aparece en su mensaje como «Archivos subidos en el chat: \"nombre\" → /uploads/…»). No hace falta adjuntarlo a ninguna tarea antes. Usala apenas la persona suba un archivo y pregunte por él (resumir, describir, extraer datos).",
+    input_schema: {
+      type: "object",
+      properties: { fileUrl: { type: "string", description: "Ruta /uploads/… tal cual aparece en el mensaje." }, fileName: { type: "string" } },
+      required: ["fileUrl", "fileName"],
+    },
+  },
+  {
     name: "read_attachment",
     description:
-      "Lee el CONTENIDO de un adjunto de una tarea o del proyecto (no solo su nombre): texto/CSV, Excel (.xlsx), PDF e imágenes. Word/PowerPoint no se pueden leer. Necesitás el attachmentId que devuelve get_task_details. Solo funciona si la persona tiene acceso a los archivos de esa tarea.",
+      "Lee el CONTENIDO de un adjunto de una tarea o del proyecto (no solo su nombre): texto/CSV, Excel (.xlsx), Word (.docx), PDF e imágenes (se convierten a texto o se comprimen antes de leerlos). PowerPoint no se puede leer. Necesitás el attachmentId que devuelve get_task_details. Solo funciona si la persona tiene acceso a los archivos de esa tarea.",
     input_schema: {
       type: "object",
       properties: { attachmentId: { type: "string" } },
@@ -300,7 +311,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "update_project",
     description:
-      "Edita un proyecto: nombre, cliente, fecha de inicio, fecha de cierre (targetEndDate, vacío la quita) o ícono (iconUrl = ruta /uploads/… de una imagen subida en el chat). Solo se cambia lo que se mande.",
+      "Edita un proyecto: nombre, cliente, fecha de inicio, fecha de cierre (targetEndDate, vacío la quita), descripción del proyecto (description, el texto de la pestaña Definición; vacío la borra) o ícono (iconUrl = ruta /uploads/… de una imagen subida en el chat). Solo se cambia lo que se mande.",
     input_schema: {
       type: "object",
       properties: {
@@ -309,6 +320,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         clientName: { type: "string" },
         startDate: { type: "string", description: "YYYY-MM-DD." },
         targetEndDate: { type: "string", description: "YYYY-MM-DD, o vacío para quitarla." },
+        description: { type: "string", description: "Descripción del proyecto en texto plano (reemplaza la actual)." },
         iconUrl: { type: "string" },
       },
       required: ["projectId"],
@@ -402,12 +414,13 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "create_task",
-    description: "Crea una tarea nueva en un proyecto. Requiere al menos un asignado (assigneeIds).",
+    description: "Crea una tarea nueva en un proyecto. Requiere al menos un asignado (assigneeIds). La fase se indica por phaseId (los ids de las fases vienen en get_project_status) o, más simple, por su nombre en phaseName; si el proyecto tiene una sola fase, se puede omitir.",
     input_schema: {
       type: "object",
       properties: {
         projectId: { type: "string" },
-        phaseId: { type: "string" },
+        phaseId: { type: "string", description: "Id de la fase (de get_project_status). Opcional si mandás phaseName." },
+        phaseName: { type: "string", description: "Nombre de la fase, tal cual figura en el proyecto. Opcional si mandás phaseId." },
         title: { type: "string" },
         type: { type: "string", description: "SIMPLE | MILESTONE | QA | ADJUSTMENT | ACCEPTANCE" },
         description: { type: "string", description: "Opcional." },
@@ -415,7 +428,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         durationDays: { type: "number", description: "Duración en días hábiles, mínimo 1." },
         assigneeIds: { type: "array", items: { type: "string" }, description: "Al menos un id de usuario." },
       },
-      required: ["projectId", "phaseId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
+      required: ["projectId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
     },
   },
   {
@@ -607,7 +620,6 @@ async function myTasksWhere(userId: string) {
 type ToolResultContent = string | Anthropic.ToolResultBlockParam["content"];
 
 const MAX_READ_BYTES = 5 * 1024 * 1024;
-const MAX_READ_CHARS = 30_000;
 
 // Lee el contenido real de un archivo subido. Solo rutas /uploads/ con nombre
 // simple (nunca una ruta arbitraria del servidor).
@@ -618,27 +630,8 @@ async function readAttachmentContent({ fileUrl, fileName, mimeType }: { fileUrl:
   const info = await stat(filePath).catch(() => null);
   if (!info) return JSON.stringify({ error: "El archivo ya no existe en el servidor." });
   if (info.size > MAX_READ_BYTES) return JSON.stringify({ error: "El archivo pesa más de 5 MB; no lo puedo leer completo." });
-  const buffer = await readFile(filePath);
-
-  if (mimeType.startsWith("text/")) return buffer.toString("utf8").slice(0, MAX_READ_CHARS);
-  if (mimeType === "application/pdf") {
-    return [{ type: "document", title: fileName, source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } }];
-  }
-  if (["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mimeType)) {
-    return [{ type: "image", source: { type: "base64", media_type: mimeType as "image/png", data: buffer.toString("base64") } }];
-  }
-  if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
-    const ExcelJS = (await import("exceljs")).default;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
-    const out: string[] = [];
-    workbook.eachSheet((sheet) => {
-      out.push(`## Hoja: ${sheet.name}`);
-      sheet.eachRow((row) => out.push((row.values as unknown[]).slice(1).map((v) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v))).join(" | ")));
-    });
-    return out.join("\n").slice(0, MAX_READ_CHARS);
-  }
-  return JSON.stringify({ error: "Este formato (Word, PowerPoint, .xls antiguo) no se puede leer desde el chat. Solo puedo ver su nombre." });
+  // El archivo original queda intacto; solo lo que viaja al modelo se convierte/comprime.
+  return prepareFileForBot(await readFile(filePath), fileName, mimeType);
 }
 
 export async function runReadTool(name: string, input: unknown): Promise<ToolResultContent> {
@@ -723,7 +716,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           targetEndDate: true,
           iconUrl: true,
           pm: { select: { name: true, avatarUrl: true } },
-          phases: { select: { name: true } },
+          phases: { select: { id: true, name: true, order: true }, orderBy: { order: "asc" } },
           links: { select: { title: true, url: true } },
           tasks: { select: { status: true } },
         },
@@ -841,6 +834,14 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       );
     }
 
+    case "read_uploaded_file": {
+      const { fileUrl, fileName } = z.object({ fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/), fileName: z.string() }).parse(input);
+      // Solo archivos que ESTA persona subió desde su chat (la ruta está en sus propios mensajes).
+      const mine = await prisma.botMessage.findFirst({ where: { userId, role: "user", content: { contains: fileUrl } }, select: { id: true } });
+      if (!mine) return JSON.stringify({ error: "Ese archivo no fue subido desde tu chat." });
+      const { mimeFromFileName } = await import("@/lib/uploadFile");
+      return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName) });
+    }
     case "read_attachment": {
       const { attachmentId } = z.object({ attachmentId: z.string() }).parse(input);
       const accessibleIds = await getAccessibleProjectIds(userId);
@@ -1050,7 +1051,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const parsed = z
           .object({
             projectId: z.string(),
-            phaseId: z.string(),
+            phaseId: z.string().optional(),
+            phaseName: z.string().optional(),
             title: z.string(),
             type: z.string(),
             description: z.string().optional(),
@@ -1059,8 +1061,16 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             assigneeIds: z.array(z.string()).min(1),
           })
           .parse(input);
+        // La fase se resuelve dentro del proyecto: por id, por nombre, o la única que exista.
+        const phases = await prisma.phase.findMany({ where: { projectId: parsed.projectId }, select: { id: true, name: true }, orderBy: { order: "asc" } });
+        const wanted = parsed.phaseName ? normalizeSearchText(parsed.phaseName.trim()) : null;
+        const phase =
+          phases.find((ph) => ph.id === parsed.phaseId) ??
+          (wanted ? phases.find((ph) => normalizeSearchText(ph.name) === wanted) ?? phases.find((ph) => normalizeSearchText(ph.name).includes(wanted)) : undefined) ??
+          (!parsed.phaseId && !wanted && phases.length === 1 ? phases[0] : undefined);
+        if (!phase) return { ok: false, message: `No encontré esa fase en el proyecto. Fases disponibles: ${phases.map((ph) => `"${ph.name}"`).join(", ") || "ninguna"}.` };
         const formData = new FormData();
-        formData.set("phaseId", parsed.phaseId);
+        formData.set("phaseId", phase.id);
         formData.set("title", parsed.title);
         formData.set("type", parsed.type);
         if (parsed.description) formData.set("description", parsed.description);
@@ -1251,6 +1261,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             clientName: z.string().optional(),
             startDate: z.string().optional(),
             targetEndDate: z.string().optional(),
+            description: z.string().optional(),
             iconUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ícono inválido: tiene que ser una imagen subida.").optional(),
           })
           .parse(input);
@@ -1274,6 +1285,16 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           const r = await updateProjectTargetEndDate(parsed.projectId, fd);
           if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la fecha de cierre." };
           changed.push("fecha de cierre");
+        }
+        if (parsed.description !== undefined) {
+          // La descripción se guarda como HTML (editor de Definición): el texto plano pasa a párrafos escapados.
+          const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const text = parsed.description.trim();
+          const fd = new FormData();
+          fd.set("description", text ? text.split(/\n{2,}/).map((para) => `<p>${esc(para).replace(/\n/g, "<br>")}</p>`).join("") : "");
+          const r = await updateProjectDescription(parsed.projectId, fd);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la descripción." };
+          changed.push("descripción");
         }
         if (changed.length === 0) return { ok: false, message: "No se especificó qué cambiar." };
         revalidatePath(`/projects/${parsed.projectId}`);

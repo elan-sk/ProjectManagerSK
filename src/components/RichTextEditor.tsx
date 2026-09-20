@@ -1,7 +1,7 @@
 "use client";
 
 import { usePasteImage } from "@/lib/usePasteImage";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
@@ -13,7 +13,9 @@ import Image from "@tiptap/extension-image";
  * controlado aparte.
  */
 export function RichTextEditor({ name, defaultValue }: { name: string; defaultValue: string | null }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Estado (no escribir en el input por DOM): cada re-render del editor devolvía el input oculto a su
+  // defaultValue y la descripción escrita no llegaba al enviar el formulario.
+  const [html, setHtml] = useState(defaultValue ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   usePasteImage(fileInputRef);
 
@@ -32,7 +34,7 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
       },
     },
     onUpdate: ({ editor }) => {
-      if (inputRef.current) inputRef.current.value = editor.getHTML();
+      setHtml(editor.getHTML());
     },
   });
 
@@ -55,8 +57,9 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
     `flex h-7 w-7 items-center justify-center rounded text-sm ${active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`;
 
   return (
-    <div>
-      <input ref={inputRef} type="hidden" name={name} defaultValue={defaultValue ?? ""} />
+    // data-paste-zone: el contorno de "Ctrl+V para pegar aquí" se limita al editor (sin él tomaba el formulario entero).
+    <div data-paste-zone>
+      <input type="hidden" name={name} value={html} readOnly />
       <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-slate-300 bg-slate-50 p-1">
         <button type="button" title="Negrita" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))}>
           <span className="font-bold">B</span>

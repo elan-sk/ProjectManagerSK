@@ -3,7 +3,7 @@
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
 import { deleteTask } from "./tasks/[taskId]/actions";
 import { archiveCompletedTasks, duplicateTask, mergeTasks, setTaskUrgent, unarchiveTask } from "./taskOps";
@@ -32,6 +32,8 @@ export type TaskCard = {
   type: string;
   // Urgente (la marcan Admin/PM): la card queda anclada arriba de su columna.
   isUrgent: boolean;
+  /** Tarea archivada (completada que salió del flujo normal). */
+  isArchived?: boolean;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   riskLevel: string;
   // Punto 9: permiso de ESTA tarea puntual (según el proyecto al que
@@ -147,33 +149,17 @@ function CardBody({
           {selected ? "✓" : ""}
         </span>
       )}
-      {canManage && !hideDelete && !selectMode && (
-        <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded-full bg-white/90 px-1 py-0.5 opacity-0 shadow-sm group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
-          {task.status !== "COMPLETED" && (
-            <button
-              type="button"
-              onClick={onToggleUrgent}
-              aria-label={task.isUrgent ? "Quitar urgencia" : "Marcar como urgente"}
-              title={task.isUrgent ? "Quitar urgencia" : "Marcar como urgente"}
-              className={`rounded-full p-1 ${task.isUrgent ? "text-red-600" : "text-slate-400 hover:text-red-600"}`}
-            >
-              <UrgentIcon className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button type="button" onClick={onDuplicate} aria-label="Duplicar tarea" title="Duplicar tarea" className="rounded-full p-1 text-slate-400 hover:text-slate-900">
-            <CopyIcon className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" onClick={onDelete} disabled={deleting} aria-label="Eliminar tarea" title="Eliminar tarea" className="rounded-full p-1 text-slate-400 hover:text-red-600">
-            <TrashIcon className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
       <div className="flex items-start justify-between gap-2 pr-7">
         <div className="flex flex-wrap items-center gap-1">
           <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
           </span>
+          {task.isArchived && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-200 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+              <ArchiveIcon className="h-3 w-3" />
+              Archivada
+            </span>
+          )}
           {task.isUrgent && task.status !== "COMPLETED" && (
             <span className="inline-flex items-center gap-1 rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
               <UrgentIcon className="h-3 w-3" />
@@ -302,6 +288,31 @@ function CardBody({
           </Link>
         </div>
       </div>
+
+      {/* Acciones de Admin/PM en una sola línea, debajo de todo lo demás. */}
+      {canManage && !hideDelete && !selectMode && (
+        <div className="flex items-center gap-1 border-t border-black/5 pt-1.5 text-[11px] font-medium" onPointerDown={(e) => e.stopPropagation()}>
+          {task.status !== "COMPLETED" && (
+            <button
+              type="button"
+              onClick={onToggleUrgent}
+              title={task.isUrgent ? "Quitar urgencia" : "Marcar como urgente"}
+              className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 ${task.isUrgent ? "bg-red-600 text-white" : "text-slate-500 hover:bg-white/70 hover:text-red-600"}`}
+            >
+              <UrgentIcon className="h-3.5 w-3.5" />
+              Urgente
+            </button>
+          )}
+          <button type="button" onClick={onDuplicate} title="Duplicar tarea" className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-500 hover:bg-white/70 hover:text-slate-900">
+            <CopyIcon className="h-3.5 w-3.5" />
+            Duplicar
+          </button>
+          <button type="button" onClick={onDelete} disabled={deleting} title="Eliminar tarea" className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-500 hover:bg-white/70 hover:text-red-600">
+            <TrashIcon className="h-3.5 w-3.5" />
+            Eliminar
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -520,7 +531,7 @@ function Column({
           </button>
         )}
       </h3>
-      <div className="flex flex-col gap-2.5 px-3 pb-3">
+      <div className="flex flex-col gap-2.5 px-3 pb-3 pt-1.5">
         {ordered.map((t) => (
           <Card
             key={t.id}
@@ -576,8 +587,23 @@ export function KanbanBoard({
     });
   }
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null);
-  const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Con Ctrl (o ⌘) sostenido se ven las casillas y un clic selecciona; en cuanto hay una
+  // seleccionada, las casillas y la barra de combinar quedan fijas hasta cancelar o combinar.
+  const [ctrlHeld, setCtrlHeld] = useState(false);
+  const selectMode = ctrlHeld || selectedIds.size > 0;
+  useEffect(() => {
+    const sync = (e: KeyboardEvent) => setCtrlHeld(e.ctrlKey || e.metaKey);
+    const off = () => setCtrlHeld(false);
+    window.addEventListener("keydown", sync);
+    window.addEventListener("keyup", sync);
+    window.addEventListener("blur", off);
+    return () => {
+      window.removeEventListener("keydown", sync);
+      window.removeEventListener("keyup", sync);
+      window.removeEventListener("blur", off);
+    };
+  }, []);
   const [mergeTitle, setMergeTitle] = useState("");
   const [merging, setMerging] = useState(false);
   const router = useRouter();
@@ -658,14 +684,13 @@ export function KanbanBoard({
   }
 
   function exitSelectMode() {
-    setSelectMode(false);
     setSelectedIds(new Set());
     setMergeTitle("");
   }
 
   async function handleMerge() {
     const ok = await confirm(
-      `Se combinarán ${selectedIds.size} tareas en una sola: cada una pasa a ser un paso del checklist, con sus comentarios y archivos reunidos. Las tareas originales se eliminan y no se puede deshacer.`,
+      `Se combinarán ${selectedIds.size} tareas en una sola: cada una pasa a ser un paso del checklist (si ya tenía checklist, sus pasos se suman), con sus comentarios y archivos reunidos. Las tareas originales se eliminan y no se puede deshacer.`,
       { confirmLabel: "Combinar", danger: true }
     );
     if (!ok) return;
@@ -691,29 +716,21 @@ export function KanbanBoard({
           abajo), no de este contenedor — así "Completado" con 50 tareas no
           obliga a scrollear igual a "Bloqueado" con 2. */}
       <div className="flex h-full flex-col gap-2">
-      {canMerge && (
+      {canMerge && selectedIds.size > 0 && (
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${selectMode ? "bg-[#0a6b78] text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
-          >
-            <MergeIcon className="h-4 w-4" />
-            {selectMode ? "Cancelar selección" : "Combinar tareas"}
-          </button>
-          {selectMode && (
+          <MergeIcon className="h-4 w-4 text-[#0a6b78]" />
+          <span className="text-xs text-slate-600">{selectedIds.size} seleccionada(s){selectedIds.size < 2 ? " — elegí al menos una más (Ctrl + clic)" : ""}</span>
+          {selectedIds.size >= 2 && (
             <>
-              <span className="text-xs text-slate-500">{selectedIds.size === 0 ? "Tocá las tareas que querés combinar." : `${selectedIds.size} seleccionada(s)`}</span>
-              {selectedIds.size >= 2 && (
-                <>
-                  <input value={mergeTitle} onChange={(e) => setMergeTitle(e.target.value)} placeholder="Título de la tarea combinada" aria-label="Título de la tarea combinada" className="w-64 rounded-lg border border-slate-300 px-2.5 py-1 text-sm" />
-                  <button type="button" disabled={merging || !mergeTitle.trim()} onClick={handleMerge} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
-                    {merging ? "Combinando…" : "Combinar"}
-                  </button>
-                </>
-              )}
+              <input value={mergeTitle} onChange={(e) => setMergeTitle(e.target.value)} placeholder="Título de la tarea combinada" aria-label="Título de la tarea combinada" className="w-64 rounded-lg border border-slate-300 px-2.5 py-1 text-sm" />
+              <button type="button" disabled={merging || !mergeTitle.trim()} onClick={handleMerge} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+                {merging ? "Combinando…" : "Combinar"}
+              </button>
             </>
           )}
+          <button type="button" onClick={exitSelectMode} className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            Cancelar selección
+          </button>
         </div>
       )}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-visible pb-0 sm:grid-cols-2 lg:grid-cols-4">

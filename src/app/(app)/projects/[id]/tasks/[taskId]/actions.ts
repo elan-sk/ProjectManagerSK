@@ -121,6 +121,7 @@ async function assertCanAddAttachment(taskId: string, kind: AttachmentKind) {
 // — ambos comparten la misma grilla/botón de borrar, así que esta acción
 // resuelve contra la tabla que corresponda según dónde viva el id.
 export async function removeAttachment(attachmentId: string) {
+  if (attachmentId.startsWith("repo-")) throw new Error("Los repositorios se quitan desde el botón «Repositorios» del proyecto.");
   const attachment = await prisma.attachment.findUnique({
     where: { id: attachmentId },
     include: { task: true },

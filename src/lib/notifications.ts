@@ -215,6 +215,18 @@ async function dispatchDirect(userId: string, text: string, immediate = false) {
   }
 }
 
+// Textos de WhatsApp de comentarios y urgentes (exportados para poder previsualizarlos).
+export const commentWhere = (projectName: string, taskTitle?: string | null) =>
+  taskTitle ? `en la tarea "${taskTitle}" (proyecto "${projectName}")` : `en el proyecto "${projectName}"`;
+
+export function commentText(kind: "mention" | "comment", author: string, where: string, content: string, link: string) {
+  const head = kind === "mention" ? `💬 *${author}* te mencionó ${where} y dijo:` : `💬 *${author}* comentó ${where}:`;
+  return `${head}\n\n“${content}”\n\n🔗 ${link}`;
+}
+
+export const urgentText = (title: string, projectName: string, link: string) =>
+  `🚨 *TAREA URGENTE*\n"${title}" (${projectName}) fue marcada como urgente. Requiere atención inmediata.\n\n🔗 ${link}`;
+
 /**
  * Comentario interno nuevo: a los @mencionados ("te mencionó") y a quienes
  * participan de la conversación — asignados, revisores, PM y quienes ya
@@ -254,13 +266,13 @@ export async function notifyInternalComment(messageId: string, opts?: { onlyMent
     for (const id of mentioned) participants.delete(id);
   }
 
-  const where = message.task ? `en la tarea "${message.task.title}"` : `en el proyecto "${message.project.name}"`;
+  const where = commentWhere(message.project.name, message.task?.title);
   const path = message.task ? `/projects/${message.projectId}/tasks/${message.task.id}#internal-conversation` : `/projects/${message.projectId}?view=conversation#internal-conversation`;
   const content = commentPlainText(message.body).trim();
-  const body = (head: string) => `${head}\n\n${content}\n\n🔗 ${absoluteUrl(path)}`;
+  const link = absoluteUrl(path)!;
 
-  for (const id of mentioned) await dispatchDirect(id, body(`💬 *${message.author.name}* te mencionó ${where}:`));
-  for (const id of participants) await dispatchDirect(id, body(`💬 Nuevo comentario de *${message.author.name}* ${where}:`));
+  for (const id of mentioned) await dispatchDirect(id, commentText("mention", message.author.name, where, content, link));
+  for (const id of participants) await dispatchDirect(id, commentText("comment", message.author.name, where, content, link));
 }
 
 /**
@@ -278,7 +290,7 @@ export async function notifyUrgentTask(taskId: string, actorId: string | null) {
   const path = `/projects/${task.projectId}/tasks/${taskId}`;
   const ids = new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]);
   if (actorId) ids.delete(actorId);
-  const text = `🚨 *TAREA URGENTE*\n"${task.title}" (${task.project.name}) fue marcada como urgente. Requiere atención inmediata.\n\n🔗 ${absoluteUrl(path)}`;
+  const text = urgentText(task.title, task.project.name, absoluteUrl(path)!);
   await Promise.all([...ids].map((id) => sendPushToUser(id, `🚨 Tarea urgente: "${task.title}"`, path)));
   for (const id of ids) await dispatchDirect(id, text, true);
 }
@@ -408,7 +420,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
       lines.push(
         "",
         `• *${p.name}*`,
-        `  ↳ _Avance_ · ${progressBar(progress)} ${progress}%`,
+        `  ↳ _Avance_`,
+        `      ${progressBar(progress)} ${progress}%`,
         `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
         `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}`,
         // Sin alertas: una sola línea. Con alertas: el título solo y cada

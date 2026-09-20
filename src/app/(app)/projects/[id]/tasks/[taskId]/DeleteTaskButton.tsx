@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteTask } from "./actions";
 import { useConfirm } from "@/components/Confirm";
+import { TrashIcon } from "@/components/icons";
 import { hrefWithMemory } from "../../../../NavLinkWithMemory";
 
 export function DeleteTaskButton({
@@ -11,11 +12,14 @@ export function DeleteTaskButton({
   projectId,
   title,
   compact = false,
+  pill = false,
 }: {
   taskId: string;
   projectId: string;
   title: string;
   compact?: boolean;
+  /** Mismo aspecto que Urgente/Duplicar, para ir en la misma fila. */
+  pill?: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -43,18 +47,21 @@ export function DeleteTaskButton({
   }
 
   return (
-    <div className={compact ? "ml-2" : "ml-3 space-y-1"}>
+    <div className={pill ? "" : compact ? "ml-2" : "ml-3 space-y-1"}>
       <button
         type="button"
         onClick={handleDelete}
         onPointerDown={(e) => e.stopPropagation()}
         disabled={isPending}
         className={
-          compact
+          pill
+            ? "flex cursor-pointer items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+            : compact
             ? "text-xs font-medium text-slate-400 hover:text-red-600 disabled:opacity-60"
             : "text-sm font-medium text-red-600 hover:underline disabled:opacity-60"
         }
       >
+        {pill && <TrashIcon className="h-3.5 w-3.5" />}
         {isPending ? "Eliminando…" : "Eliminar tarea"}
       </button>
       {error && <p className="text-xs text-red-600">{error}</p>}

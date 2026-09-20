@@ -129,6 +129,10 @@ export default async function TaskDetailPage({
   // linkearla, no solo el texto de la razón.
   const isBottleneck = task.status !== "COMPLETED" && (task.blocks.length >= 2 || task.riskLevel === "HIGH");
 
+  const stepsTotal = task.steps.length;
+  const stepsDone = task.steps.filter((st) => st.done).length;
+  const stepsPct = stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
+
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
 
@@ -217,6 +221,16 @@ export default async function TaskDetailPage({
           />
         </div>
 
+        {stepsTotal > 0 && (
+          <div className="mt-2 max-w-sm">
+            <StepsProgress pct={stepsPct} label={`Checklist: ${stepsDone}/${stepsTotal} pasos · ${stepsPct}%`} />
+          </div>
+        )}
+        {task.archivedAt && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+            Archivada el {task.archivedAt.toLocaleDateString("es-CO", DATE_FMT)}
+          </p>
+        )}
         <p className="mt-1 text-sm text-slate-500">
           Planeada: {task.plannedStart.toLocaleDateString("es-CO", DATE_FMT)} —{" "}
           {task.plannedEnd.toLocaleDateString("es-CO", DATE_FMT)}
@@ -269,12 +283,16 @@ export default async function TaskDetailPage({
         )}
         {alert.level === "overdue" && (
           <p className="mt-1 text-sm font-medium text-red-600">
-            Final retrasado — hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""}.
+            {alert.businessDaysOverdue > 0
+              ? `Final retrasado — hace ${alert.businessDaysOverdue} día${alert.businessDaysOverdue !== 1 ? "s" : ""} hábil${alert.businessDaysOverdue !== 1 ? "es" : ""}.`
+              : "Final retrasado — la fecha límite ya pasó."}
           </p>
         )}
         {alert.level === "lateStart" && (
           <p className="mt-1 text-sm font-medium text-amber-600">
-            Debía iniciar hace {alert.businessDaysOverdue} día{alert.businessDaysOverdue !== 1 ? "s" : ""} hábil{alert.businessDaysOverdue !== 1 ? "es" : ""} y sigue sin arrancar.
+            {alert.businessDaysOverdue > 0
+              ? `Debía iniciar hace ${alert.businessDaysOverdue} día${alert.businessDaysOverdue !== 1 ? "s" : ""} hábil${alert.businessDaysOverdue !== 1 ? "es" : ""} y sigue sin arrancar.`
+              : "Debía iniciar y sigue sin arrancar."}
           </p>
         )}
         {alert.level === "warning" && (
@@ -318,9 +336,15 @@ export default async function TaskDetailPage({
               />
             </ModalTrigger>
           )}
-          {canManage && <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} />}
-          {canManage && <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} />}
         </div>
+
+        {/* Urgente, Duplicar y Eliminar: siempre juntos en UNA sola línea. */}
+        {canManage && (
+          <div className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto">
+            <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
+            <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
+          </div>
+        )}
 
         {session?.user && (
           <div className="mt-2">
@@ -337,7 +361,15 @@ export default async function TaskDetailPage({
       )}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-medium text-slate-900">Checklist de pasos</h2>
+          {stepsTotal > 0 && (
+            <span className="text-xs font-medium text-slate-500">
+              {stepsDone}/{stepsTotal} · {stepsPct}%
+            </span>
+          )}
+        </div>
+        {stepsTotal > 0 && <StepsProgress pct={stepsPct} />}
         <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done }))} canEdit={canEdit} />
         {canEdit && (
           <form action={addStepWithId} className="flex gap-2">
@@ -540,6 +572,18 @@ export default async function TaskDetailPage({
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+// Barra de avance del checklist (verde al completarse).
+function StepsProgress({ pct, label }: { pct: number; label?: string }) {
+  return (
+    <div className="space-y-1">
+      {label && <p className="text-xs text-slate-500">{label}</p>}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className={`h-full rounded-full ${pct === 100 ? "bg-emerald-600" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

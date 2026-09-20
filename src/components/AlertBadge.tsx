@@ -35,10 +35,11 @@ function dayWord(n: number) {
 const LABEL: Partial<Record<TaskAlert["level"], (alert: TaskAlert) => string>> = {
   // "Hace X días"/"En X días" a secas no decían de qué (¿de retraso? ¿de
   // creada?) — ambiguo, reportado por el usuario viendo la card en Agenda.
-  overdue: (a) => `Vencida hace ${dayWord(a.businessDaysOverdue)}`,
+  // Con 0 días hábiles (venció en fin de semana/festivo) "hace 0 días" no dice nada: solo "Vencida".
+  overdue: (a) => (a.businessDaysOverdue > 0 ? `Vencida hace ${dayWord(a.businessDaysOverdue)}` : "Vencida"),
   warning: (a) => `Vence en ${dayWord(a.daysRemaining)}`,
   blocked: () => "Bloqueada",
-  lateStart: (a) => `Inicio retrasado, hace ${dayWord(a.businessDaysOverdue)}`,
+  lateStart: (a) => (a.businessDaysOverdue > 0 ? `Inicio retrasado, hace ${dayWord(a.businessDaysOverdue)}` : "Inicio retrasado"),
 };
 
 export function AlertBadge({ alert, className = "" }: { alert: TaskAlert; className?: string }) {

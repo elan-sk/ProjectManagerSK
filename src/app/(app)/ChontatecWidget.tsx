@@ -331,7 +331,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                           m.pendingAction.destructive ? "border-red-200 bg-red-50" : "border-transparent bg-white"
                         }`}
                       >
-                        <p className={`text-xs font-medium ${m.pendingAction.destructive ? "text-red-700" : ""}`}>{m.pendingAction.label}</p>
+                        <p className={`whitespace-pre-line text-xs font-medium ${m.pendingAction.destructive ? "text-red-700" : ""}`}>{m.pendingAction.label}</p>
                         {m.pendingAction.destructive && (
                           <p className="text-[11px] text-red-600">Esta acción no se puede deshacer — confirmá con cuidado.</p>
                         )}

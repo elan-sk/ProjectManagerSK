@@ -8,6 +8,8 @@ import { deleteInternalMessage, editInternalMessage } from "@/app/(app)/internal
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, splitCommentBody } from "@/lib/commentBody";
 import { useNow } from "@/lib/useNow";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
+import { YouTubeModal } from "@/components/YouTubeModal";
+import { youtubeVideoId } from "@/lib/attachments";
 // El mismo visor de imágenes que usan los archivos (Insumos, Evidencias, Archivos).
 import { AttachmentLightbox } from "@/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox";
 
@@ -53,6 +55,8 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [openImage, setOpenImage] = useState<string | null>(null);
+  // Los enlaces de YouTube se ven en el visor integrado en vez de abrir otra pestaña.
+  const [openVideo, setOpenVideo] = useState<{ id: string; name: string } | null>(null);
 
   // Imágenes de ESTE comentario: el visor navega entre ellas con ‹ › o las flechas.
   const parts = splitCommentBody(body);
@@ -118,6 +122,14 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
               if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
               if (part.type === "mention")
                 return <span key={i} className="rounded bg-[#0a6b78]/10 px-1 font-medium text-[#0a6b78]">@{part.name}</span>;
+              const videoId = part.type === "link" ? youtubeVideoId(part.url) : null;
+              if (part.type === "link" && videoId)
+                return (
+                  <button key={i} type="button" onClick={() => setOpenVideo({ id: videoId, name: part.name })} title="Ver el video aquí" className="mx-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100">
+                    <span aria-hidden>▶</span>
+                    <span className="truncate">{part.name}</span>
+                  </button>
+                );
               if (part.type === "file" || part.type === "link")
                 return (
                   <a key={i} href={part.url} target="_blank" rel="noreferrer" className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
@@ -141,6 +153,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
           </div>
         )}
         {openImage && <AttachmentLightbox images={images} openId={openImage} onClose={() => setOpenImage(null)} onNavigate={setOpenImage} canDelete={false} />}
+        {openVideo && <YouTubeModal videoId={openVideo.id} title={openVideo.name} onClose={() => setOpenVideo(null)} />}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
     </article>
