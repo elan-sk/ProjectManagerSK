@@ -307,6 +307,16 @@ function CardBody({
           </button>
         </div>
       )}
+
+      {/* Quien no administra el proyecto ve el mismo indicador «Urgente», pero solo de lectura: no puede quitarlo. */}
+      {!canManage && task.isUrgent && task.status !== "COMPLETED" && (
+        <div className="flex items-center gap-1 border-t border-black/5 pt-1.5 text-[11px] font-medium">
+          <span title="Tarea urgente — solo un administrador o el PM puede quitar la urgencia" className="flex items-center gap-1 rounded-md bg-red-600 px-1.5 py-0.5 text-white">
+            <UrgentIcon className="h-3.5 w-3.5" />
+            Urgente
+          </span>
+        </div>
+      )}
     </>
   );
 }
