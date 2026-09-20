@@ -140,7 +140,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <form
             action={async () => {
               "use server";
-              await signOut({ redirectTo: "/login" });
+              await signOut({ redirectTo: "/login?logout=1" });
             }}
           >
             <span title={me.name} className="mr-3 text-sm text-slate-500">

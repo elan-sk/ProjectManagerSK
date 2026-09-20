@@ -1,11 +1,29 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { login } from "./actions";
 
 export default function LoginPage() {
   const [error, formAction, pending] = useActionState(login, undefined);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Normalmente el navegador puede autocompletar usuario y clave. Pero al llegar aquí DESPUÉS de cerrar
+  // sesión (?logout=1) el formulario debe quedar en blanco por seguridad: sin autocompletar y limpio,
+  // también al volver con «Atrás» (el navegador restaura lo escrito) y si el autocompletado llega tarde.
+  const [afterLogout, setAfterLogout] = useState(false);
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("logout")) return;
+    setAfterLogout(true);
+    const clear = () => formRef.current?.reset();
+    clear();
+    const timers = [150, 600, 1500].map((ms) => setTimeout(clear, ms));
+    window.addEventListener("pageshow", clear);
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener("pageshow", clear);
+    };
+  }, []);
 
   return (
     <main className="pacific-shell relative flex min-h-screen items-center justify-center overflow-hidden px-4">
@@ -32,6 +50,7 @@ export default function LoginPage() {
         />
       </svg>
       <form
+        ref={formRef}
         action={formAction}
         className="relative w-full max-w-sm space-y-4 rounded-2xl border border-slate-200/80 bg-white p-8 shadow-[0_12px_32px_rgba(7,59,76,0.13)]"
       >
@@ -48,7 +67,7 @@ export default function LoginPage() {
             id="identifier"
             name="identifier"
             type="text"
-            autoComplete="username"
+            autoComplete={afterLogout ? "off" : "username"}
             required
             className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
           />
@@ -67,6 +86,7 @@ export default function LoginPage() {
             id="password"
             name="password"
             type="password"
+            autoComplete={afterLogout ? "new-password" : "current-password"}
             required
             className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
           />
