@@ -41,7 +41,7 @@ export function PublicUploadWidget({
   }
 
   async function handleLink() {
-    if (!linkUrl.trim() || !linkName.trim()) return;
+    if (!linkUrl.trim()) return;
     setUploading(true);
     setError(null);
     try {
@@ -65,7 +65,7 @@ export function PublicUploadWidget({
           value={linkName}
           onChange={(e) => setLinkName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleLink()}
-          placeholder="Nombre (lo que se va a ver)"
+          placeholder="Nombre (opcional)"
           className="min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-xs"
         />
         <div className="flex gap-2">
@@ -78,7 +78,7 @@ export function PublicUploadWidget({
           />
           <button
             type="button"
-            disabled={uploading || !linkUrl.trim() || !linkName.trim()}
+            disabled={uploading || !linkUrl.trim()}
             onClick={handleLink}
             className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >

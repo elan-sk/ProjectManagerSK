@@ -2,6 +2,7 @@
 
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { addAttachmentRecord, addLinkAttachment } from "./actions";
@@ -27,6 +28,7 @@ export function AttachmentUploader({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [addingLink, setAddingLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
@@ -35,14 +37,14 @@ export function AttachmentUploader({
   async function uploadFiles(files: File[]) {
     setUploading(true);
     setError(null);
+    setProgress(0);
     const failed: string[] = [];
-    for (const file of files) {
+    for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        const body = await res.json();
-        if (!res.ok) {
+        const { ok, body } = await uploadWithProgress("/api/upload", formData, (f) => setProgress((i + f) / files.length));
+        if (!ok) {
           failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
           continue;
         }
@@ -85,7 +87,7 @@ export function AttachmentUploader({
     }
   }
 
-  const canSaveLink = linkUrl.trim() !== "" && linkName.trim() !== "";
+  const canSaveLink = linkUrl.trim() !== "";
 
   if (addingLink) {
     return (
@@ -105,7 +107,7 @@ export function AttachmentUploader({
             value={linkName}
             onChange={(e) => setLinkName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSaveLink && saveLink()}
-            placeholder="Nombre (lo que se va a ver)"
+            placeholder="Nombre (opcional)"
             className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs"
           />
           <button
@@ -146,7 +148,7 @@ export function AttachmentUploader({
             dragOver ? "border-slate-500 bg-slate-50" : "border-slate-300 hover:border-slate-400"
           }`}
         >
-          <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} />
+          <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} progress={progress} />
           <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleChange} />
         </label>
         <button

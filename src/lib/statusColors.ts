@@ -45,6 +45,12 @@ export const TASK_TYPE_LABEL: Record<string, string> = {
 // Requerimiento → Fase → Tarea), para poder distinguir de un vistazo qué es
 // qué en la pestaña Definición, incluso cuando un panel referencia el nivel
 // de abajo dentro de sus filas (ej. las Fases dentro de un Objetivo).
+// Botones de acción de la pestaña Definición (+ Objetivo, Editar, Eliminar…):
+// mismo tamaño y forma en todos, para que no queden desparejos.
+const DEFINITION_ACTION_BASE = "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-600 disabled:opacity-60";
+export const DEFINITION_ACTION_BTN = `${DEFINITION_ACTION_BASE} hover:bg-slate-50 hover:text-slate-900`;
+export const DEFINITION_ACTION_BTN_DANGER = `${DEFINITION_ACTION_BASE} hover:border-red-300 hover:bg-red-50 hover:text-red-600`;
+
 export const DEFINITION_LEVEL_COLOR = {
   OBJECTIVE: { border: "border-violet-300", text: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
   REQUIREMENT: { border: "border-sky-300", text: "text-sky-700", bg: "bg-sky-50", dot: "bg-sky-500" },

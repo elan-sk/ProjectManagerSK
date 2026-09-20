@@ -3,8 +3,19 @@
  * ayuda debajo, más chica y apagada, en vez de todo junto entre paréntesis
  * (que se partía en dos líneas desparejas).
  */
-export function UploadZoneLabel({ uploading, dragOver, label }: { uploading: boolean; dragOver: boolean; label: string }) {
-  if (uploading) return <>Subiendo…</>;
+export function UploadZoneLabel({ uploading, dragOver, label, progress }: { uploading: boolean; dragOver: boolean; label: string; progress?: number }) {
+  if (uploading) {
+    if (progress === undefined) return <>Subiendo…</>;
+    const pct = Math.round(progress * 100);
+    return (
+      <span className="flex w-full max-w-xs flex-col items-center gap-1">
+        <span className="font-medium">Subiendo… {pct}%</span>
+        <span className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+          <span className="block h-full rounded-full bg-[#0a6b78] transition-[width]" style={{ width: `${pct}%` }} />
+        </span>
+      </span>
+    );
+  }
   if (dragOver) return <>Soltá el archivo acá</>;
   return (
     <span className="flex flex-col items-center gap-0.5 text-center">

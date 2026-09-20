@@ -10,6 +10,7 @@ import { createCalendarEvent } from "@/lib/googleCalendar";
 import { requireProjectAdmin, canEditTask, type Actor } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { fetchPageTitle } from "@/lib/pageTitle";
 import { bogotaLocalToUTC } from "@/lib/workingHours";
 import { propagateToSuccessors } from "../../actions";
 import type { AttachmentKind, AdjustmentAttachmentKind, DependencyType } from "@prisma/client";
@@ -168,12 +169,12 @@ export async function addLinkAttachment(
   if (!parsedUrlResult.success) {
     throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
   }
-  const parsedNameResult = z.string().trim().min(1).safeParse(name);
-  if (!parsedNameResult.success) {
-    throw new Error("Ponele un nombre al link.");
-  }
   const parsedUrl = parsedUrlResult.data;
-  const parsedName = parsedNameResult.data;
+  // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
+  const parsedName = name.trim() || (await fetchPageTitle(parsedUrl));
+  if (!parsedName) {
+    throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
+  }
   await prisma.attachment.create({
     data: {
       taskId,

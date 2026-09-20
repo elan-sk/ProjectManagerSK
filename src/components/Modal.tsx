@@ -22,6 +22,7 @@ export function ModalTrigger({
   compact = false,
   small = false,
   icon,
+  className,
 }: {
   label: string;
   title: string;
@@ -30,6 +31,7 @@ export function ModalTrigger({
   compact?: boolean;
   small?: boolean;
   icon?: ReactNode;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -40,13 +42,14 @@ export function ModalTrigger({
         onClick={() => setOpen(true)}
         onPointerDown={(e) => e.stopPropagation()}
         className={
-          compact
+          className ??
+          (compact
             ? "inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-900"
             : variant === "primary"
             ? "inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"
             : small
             ? "inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            : "inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            : "inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50")
         }
       >
         {icon}

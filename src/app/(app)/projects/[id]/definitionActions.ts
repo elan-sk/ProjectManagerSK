@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProjectAdmin, type Actor } from "@/lib/permissions";
 import { listGroups } from "@/lib/whatsapp";
+import { fetchPageTitle } from "@/lib/pageTitle";
 
 async function guard(projectId: string, actor?: Actor) {
   try {
@@ -236,7 +237,7 @@ export async function updatePhaseRequirements(phaseId: string, formData: FormDat
 // link sobre subir el archivo, para no llenar la app de contenido que puede
 // vivir en un servicio externo (Drive, Figma, repo).
 const projectLinkSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().trim(),
   url: z.string().trim().url(),
 });
 
@@ -248,9 +249,13 @@ export async function addProjectLink(projectId: string, formData: FormData) {
     title: formData.get("title"),
     url: formData.get("url"),
   });
-  if (!parsed.success) return { ok: false as const, error: "Completá un nombre y un link válido (con https://)." };
+  if (!parsed.success) return { ok: false as const, error: "Completá un link válido (con https://)." };
 
-  await prisma.projectLink.create({ data: { projectId, title: parsed.data.title, url: parsed.data.url } });
+  // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
+  const title = parsed.data.title || (await fetchPageTitle(parsed.data.url));
+  if (!title) return { ok: false as const, error: "No se pudo obtener el nombre de ese link. Escribí uno." };
+
+  await prisma.projectLink.create({ data: { projectId, title, url: parsed.data.url } });
   revalidatePath(`/projects/${projectId}`);
   return { ok: true as const };
 }
