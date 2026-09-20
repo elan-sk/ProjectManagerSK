@@ -17,9 +17,9 @@ import path from "node:path";
 // Qué carpeta fija se usa:
 //   1. PERSISTENT_UPLOADS_DIR, si está definida (manda siempre).
 //   2. Si no, y la app corre dentro de ~/domains/<sitio>/hbuilds/versions/<uuid>
-//      (así despliega Hostinger), <sitio>/public_html/uploads: la raíz pública
-//      del sitio, que NO es una carpeta de versión (el deploy no la borra) y sí
-//      entra en los respaldos de hPanel. NO hace falta configurar nada.
+//      (así despliega Hostinger), <sitio>/persistent-uploads: fuera de las
+//      carpetas de versión Y de public_html (que el deploy vacía). NO hace falta
+//      configurar nada.
 //   3. En cualquier otro caso (dev local) no hace nada: uploads sigue siendo
 //      la carpeta común y corriente del propio checkout.
 //
@@ -35,8 +35,12 @@ function siteRootOf(dir: string): string | null {
 
 // Carpeta permanente por defecto (ver arriba). Las carpetas usadas antes
 // (<sitio>/persistent-uploads) siguen siendo fuente de archivos.
-const defaultTarget = (siteRoot: string) => path.join(siteRoot, "public_html", "uploads");
-const legacyDir = (siteRoot: string) => path.join(siteRoot, "persistent-uploads");
+// 2026-09-20: Hostinger VACÍA public_html/uploads en cada deploy (comprobado por SSH) y borra las versiones
+// viejas; <sitio>/persistent-uploads (hermana de public_html) sobrevivió a todos los deploys. Por eso ahora la
+// carpeta permanente es persistent-uploads, y public_html/uploads pasa a ser solo una FUENTE de la que se importan
+// archivos (ej. si se restaura un respaldo de hPanel ahí).
+const defaultTarget = (siteRoot: string) => path.join(siteRoot, "persistent-uploads");
+const legacyDir = (siteRoot: string) => path.join(siteRoot, "public_html", "uploads");
 
 // Copia a `target` los archivos de public/uploads de las OTRAS versiones. No
 // pisa nada existente (COPYFILE_EXCL) y no toca las carpetas de origen.

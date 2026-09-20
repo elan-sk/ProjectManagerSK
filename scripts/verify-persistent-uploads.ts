@@ -17,7 +17,7 @@ async function main() {
     for (const [name, body] of Object.entries(files)) await writeFile(path.join(dir, "public", "uploads", name), body);
     return dir;
   };
-  const persistent = path.join(site, "public_html", "uploads");
+  const persistent = path.join(site, "persistent-uploads");
   const read = (p: string) => readFile(p, "utf8");
 
   try {
@@ -30,7 +30,7 @@ async function main() {
     await ensurePersistentUploads(v3);
 
     assert.equal((await lstat(path.join(v3, "public/uploads"))).isSymbolicLink(), true, "uploads pasa a ser un enlace");
-    assert.equal(await realpath(path.join(v3, "public/uploads")), await realpath(persistent), "apunta a <sitio>/public_html/uploads");
+    assert.equal(await realpath(path.join(v3, "public/uploads")), await realpath(persistent), "apunta a <sitio>/persistent-uploads");
     for (const [n, body] of [["a.png", "A"], ["b.pdf", "B"], ["c.png", "C"]]) {
       assert.equal(await read(path.join(v3, "public/uploads", n)), body, `${n} se ve desde la versión nueva`);
     }
@@ -68,15 +68,25 @@ async function main() {
     assert.equal(await realpath(path.join(v5, "public/uploads")), await realpath(custom), "la variable tiene prioridad");
     assert.equal(await read(path.join(custom, "a.png")), "A", "y también recupera lo de versiones anteriores");
 
-    // Carpeta anterior <sitio>/persistent-uploads: sus archivos también se recuperan
+    // Lo que quede en <sitio>/public_html/uploads (ej. respaldo de hPanel restaurado) también se importa
     delete process.env.PERSISTENT_UPLOADS_DIR;
     const s2 = await mkdtemp(path.join(os.tmpdir(), "pmsk-site2-"));
     const hv = path.join(s2, "hbuilds", "versions", "v1");
     await mkdir(path.join(hv, "public/uploads"), { recursive: true });
-    await mkdir(path.join(s2, "persistent-uploads"), { recursive: true });
-    await writeFile(path.join(s2, "persistent-uploads", "viejo.png"), "V");
+    await mkdir(path.join(s2, "public_html", "uploads"), { recursive: true });
+    await writeFile(path.join(s2, "public_html", "uploads", "viejo.png"), "V");
     await ensurePersistentUploads(hv);
-    assert.equal(await read(path.join(s2, "public_html", "uploads", "viejo.png")), "V", "recupera la carpeta anterior");
+    assert.equal(await read(path.join(s2, "persistent-uploads", "viejo.png")), "V", "recupera lo de public_html/uploads");
+
+    // Un deploy de Hostinger vacía public_html y borra la versión anterior: lo subido sigue en persistent-uploads
+    await writeFile(path.join(hv, "public/uploads", "nuevo.png"), "N");
+    await rm(path.join(s2, "public_html"), { recursive: true, force: true });
+    await rm(hv, { recursive: true, force: true });
+    const hv2 = path.join(s2, "hbuilds", "versions", "v2");
+    await mkdir(path.join(hv2, "public/uploads"), { recursive: true });
+    await ensurePersistentUploads(hv2);
+    assert.equal(await read(path.join(s2, "persistent-uploads", "viejo.png")), "V", "sobrevive al deploy");
+    assert.equal(await realpath(path.join(hv2, "public/uploads")), await realpath(path.join(s2, "persistent-uploads")));
     await rm(s2, { recursive: true, force: true });
 
     console.log("verify-persistent-uploads: OK");
