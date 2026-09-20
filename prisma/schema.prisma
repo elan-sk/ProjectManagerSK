@@ -431,6 +431,8 @@ model InternalMessage {
   reviewCheck      ReviewCheck?             @relation(fields: [reviewCheckId], references: [id], onDelete: Cascade)
   // Pregunta de selección (única o múltiple) publicada en el hilo; el enunciado es el body.
   poll             SharePoll?
+  adjustmentItem   AdjustmentItem?          @relation(fields: [adjustmentItemId], references: [id])
+  adjustmentItemId String?
 
   @@index([projectId, taskId, createdAt])
   @@index([reviewCheckId])
@@ -564,6 +566,7 @@ model AdjustmentItem {
   attachments      AdjustmentAttachment[]
   shareComments    ShareComment[]
   // Hilo interno de la prueba (Prueba/QA): comentarios, menciones, imágenes y preguntas del equipo.
+  internalMessages InternalMessage[]
 }
 
 // Punto 16: hilo de comentarios de la vista compartida de una tarea —

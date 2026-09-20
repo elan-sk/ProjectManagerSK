@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Informe — Ajustes, comentarios, revisión, preguntas y visor</title>
+<!--
+  PLANTILLA del informe de resultados (skill modos-de-trabajo, sección
+  "Informe de resultados"). NO se edita el diseño ni el script: solo se
+  reemplaza el JSON de <script id="informe-data"> (y opcionalmente <title>).
+  Formato del JSON: ver SKILL.md. Los comentarios admiten capturas pegadas (Ctrl+V); van en el .json descargado como data URLs. El JSON no puede contener la secuencia
+  "</script".
+-->
+<style>
+  :root { --bg:#f4f8f8; --card:#fff; --ink:#0f2a33; --muted:#5b7078; --line:#d5e3e4; --accent:#0a6b78; --ok:#17664e; --warn:#8a5a00; --bad:#a3252f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1b20; --card:#14272e; --ink:#e6f1f1; --muted:#9db4ba; --line:#254149; --accent:#6fd0dc; --ok:#5fd0a3; --warn:#f0c060; --bad:#ff8a93; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .resumen { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+  .track { height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--ok); transition: width .25s; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-top: 8px; font-size: .92rem; }
+  .row .grp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button.btn { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 5px 12px; cursor: pointer; font: inherit; font-size: .88rem; }
+  button.btn:hover { border-color: var(--accent); }
+  label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); font-size: .88rem; }
+  #msg { color: var(--ok); font-size: .85rem; min-height: 1.2em; }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .item.done { opacity: .66; }
+  .item input[type=checkbox] { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--ok); cursor: pointer; }
+  .item h3 { margin: 0; font-size: 1rem; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .item .body { grid-column: 2; font-size: .93rem; }
+  .tag { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: .74rem; font-weight: 600; white-space: nowrap; }
+  .t-hecho { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .t-parcial { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .t-no_hecho { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+  .paso { margin: 6px 0; }
+  ol { margin: 6px 0 6px 18px; padding: 0; }
+  li { margin: 2px 0; }
+  .exp { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); border-radius: 0 8px 8px 0; }
+  .probar { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .probar a { color: var(--accent); font-weight: 600; text-decoration: none; border: 1px solid var(--accent); border-radius: 8px; padding: 3px 10px; }
+  .probar a:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .probar small { color: var(--muted); }
+  textarea { width: 100%; min-height: 58px; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; font-size: .9rem; padding: 8px 10px; resize: vertical; }
+  textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); border-color: var(--accent); }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .thumbs figure { margin: 0; position: relative; }
+  .thumbs img { display: block; max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid var(--line); cursor: zoom-in; }
+  .thumbs figure.big { flex-basis: 100%; }
+  .thumbs figure.big img { max-width: 100%; max-height: none; cursor: zoom-out; }
+  .thumbs .x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 99px; border: 0; background: rgba(15,42,51,.75); color: #fff; cursor: pointer; line-height: 1; font-size: 14px; }
+  code { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 5px; font-size: .88em; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="titulo">Informe</h1>
+  <p class="sub" id="sub"></p>
+  <div class="resumen hide" id="resumen"></div>
+
+  <div class="bar">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="row">
+      <span id="count">0 de 0 probadas</span>
+      <span class="grp">
+        <label class="chk"><input type="checkbox" id="onlyPending"> Solo pendientes</label>
+        <button class="btn" id="copy">Copiar mis comentarios</button>
+        <button class="btn" id="download">Descargar comentarios (.json)</button>
+        <button class="btn" id="reset">Reiniciar marcas y comentarios</button>
+      </span>
+    </div>
+    <div id="msg" role="status"></div>
+  </div>
+
+  <div id="root"></div>
+</main>
+
+<!-- ===== DATOS: lo único que se reemplaza en cada informe ===== -->
+<script type="application/json" id="informe-data">
+{
+  "tema": "ajustes-comentarios",
+  "titulo": "Informe — Ajustes, comentarios, revisión, preguntas y visor",
+  "fecha": "2026-09-20",
+  "modo": "informe",
+  "baseUrl": "http://localhost:3000",
+  "resumen": "Todo lo integrado en esta sesión, por punto. Nada se probó en el navegador: la verificación fue con tsc, lint, lectura de código y scripts contra la base. Antes de probar: reiniciar `npm run dev` (cambió el esquema de Prisma). Migraciones nuevas para producción: 20260920120000_share_comment_attachments_team_replies, 20260920150000_adjustment_client_review_open y 20260920170000_share_polls. Pendientes de decisión: cambiar la píldora «Todo respondido» cuando haya cambios solicitados, el carrusel Antes/Después en la vista interna y las notas solo para el equipo.",
+  "items": [
+    {
+      "id": "1",
+      "titulo": "Botón «Detalle» en la fila de acciones del tablero",
+      "estado": "hecho",
+      "paso": "«Detalle» pasó a la fila de Urgente · Duplicar · Eliminar, alineado a la derecha. Si esa fila no se muestra (sin permisos, modo selección o tarjeta arrastrada), «Detalle» se queda arriba para no perder el enlace. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir el tablero Kanban de un proyecto.",
+        "Mirar una tarjeta con permisos de administración."
+      ],
+      "debe": "«Detalle» aparece a la derecha en la misma línea que Urgente/Duplicar/Eliminar.",
+      "link": "/projects/cmu8viols00026utfiodse6qp",
+      "linkTexto": "Abrir el proyecto",
+      "comando": ""
+    },
+    {
+      "id": "2",
+      "titulo": "Espacio sobrante en la esquina superior derecha de la tarjeta",
+      "estado": "hecho",
+      "paso": "El margen que se reservaba para el botón de eliminar solo se aplica ahora en modo selección (donde el checkbox ocupa esa esquina). No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir el tablero.",
+        "Comparar la esquina superior derecha de una tarjeta con y sin modo selección."
+      ],
+      "debe": "Fuera del modo selección, los íconos quedan pegados al borde derecho, alineados con «Detalle».",
+      "link": "/projects/cmu8viols00026utfiodse6qp",
+      "linkTexto": "Abrir el proyecto",
+      "comando": ""
+    },
+    {
+      "id": "3",
+      "titulo": "Desplegable de notificaciones que se salía del viewport",
+      "estado": "hecho",
+      "paso": "El desplegable tiene altura máxima (100dvh − 6rem), scroll vertical propio y ancho máximo 100vw − 1rem; ambos ejes de overflow fijados. El desplegable de mensajes (badge) puede tener el mismo problema y no se tocó. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Tener varias notificaciones sin leer.",
+        "Abrir la campana del header."
+      ],
+      "debe": "El panel cabe en pantalla y se desplaza por dentro para llegar a las últimas notificaciones.",
+      "link": "/projects/cmu8viols00026utfiodse6qp",
+      "linkTexto": "Abrir cualquier pantalla con header",
+      "comando": ""
+    },
+    {
+      "id": "4",
+      "titulo": "Ícono de pestaña, barra de tareas y app instalada = logo del header",
+      "estado": "hecho",
+      "paso": "Se reemplazaron los tres archivos de ícono (tres barras de colores) por el logo «PM» dorado con la ola. La tipografía del «PM» es Liberation Sans Bold, no Space Grotesk (esa fuente no se pudo leer). El navegador y el sistema cachean los íconos. Se revisó la imagen generada, no la app instalada.",
+      "pasos": [
+        "Recargar con Ctrl+Shift+R y mirar la pestaña.",
+        "Si se instaló como PWA, desinstalar y volver a instalar."
+      ],
+      "debe": "Pestaña y app muestran el cuadrito «PM» dorado.",
+      "link": "/projects/cmu8viols00026utfiodse6qp",
+      "linkTexto": "Abrir la app",
+      "comando": ""
+    },
+    {
+      "id": "5",
+      "titulo": "Identificarse una sola vez (nombre y cargo) en el link compartido",
+      "estado": "hecho",
+      "paso": "La identidad se guarda en el navegador y todos los hilos de la página la comparten al instante. Se pide una sola vez arriba de «Cambios solicitados» (barra «Comentando como … · cambiar»). Los hilos de la pestaña Definición y los comentarios generales siguen pidiéndola en su propia caja. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir el link compartido de una tarea de tipo Ajuste en una ventana privada.",
+        "Indicar nombre y cargo arriba y pulsar Continuar.",
+        "Mirar la caja de comentarios de cada cambio."
+      ],
+      "debe": "Ningún cambio vuelve a pedir nombre ni cargo. «cambiar» permite corregirlos.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "6",
+      "titulo": "Comentarios externos visibles adentro de la app",
+      "estado": "hecho",
+      "paso": "Los comentarios del link ya no quedan invisibles: aparecen dentro de cada cambio del ajuste y, en tareas que no son Ajuste, en un bloque «Comentarios del link compartido». El equipo con permiso de edición puede responder o abrir un hilo nuevo («Escribir al cliente…»). Sus mensajes salen en el link con la etiqueta «Equipo». Las respuestas del equipo no generan notificaciones internas. Requiere reiniciar `npm run dev` por el cambio de esquema. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Comentar desde el link compartido.",
+        "Abrir la tarea Ajuste desde la app y bajar a un cambio.",
+        "Responder desde la app y recargar el link."
+      ],
+      "debe": "El comentario del cliente se ve adentro y la respuesta del equipo aparece en el link con «Equipo».",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "7",
+      "titulo": "Imágenes adjuntas en comentarios (cliente y equipo) que quedan como Insumos",
+      "estado": "hecho",
+      "paso": "Cada caja de comentario y de respuesta permite adjuntar imagen o PDF (elegir o pegar con Ctrl+V). Se ven dentro del comentario y quedan como INSUMO de la tarea con su autor. Con la tarea completada no se aceptan más. Migración de base de datos aplicada en local; falta correrla en producción. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "En el link compartido, comentar adjuntando una imagen.",
+        "Abrir la tarea desde la app.",
+        "Responder adjuntando otra imagen."
+      ],
+      "debe": "Las imágenes se ven en el hilo y también en el bloque Insumos de la tarea.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "8",
+      "titulo": "Bloque «Insumos» en tareas tipo Ajuste (interno y público)",
+      "estado": "hecho",
+      "paso": "Antes esas tareas no mostraban Insumos. Ahora se ve el bloque en la app (con subida manual para quien edita) y en el link (solo lectura). No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir la tarea Ajuste.",
+        "Buscar el bloque Insumos debajo de los cambios."
+      ],
+      "debe": "Aparecen las imágenes subidas desde los comentarios.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "9",
+      "titulo": "Pegar imágenes (Ctrl+V) eligiendo el ajuste y el lado",
+      "estado": "hecho",
+      "paso": "Cada lado Antes/Después de cada cambio es ahora su propia zona de pegado; antes todos compartían la misma y siempre ganaba el primero. Sin mouse encima no se pega en ningún lado. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir la tarea Ajuste con dos o más cambios.",
+        "Copiar una imagen, poner el mouse sobre el «Después» del segundo cambio y pulsar Ctrl+V."
+      ],
+      "debe": "La imagen va al lugar donde estaba el mouse.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "10",
+      "titulo": "Resaltado de zona de pegado más sutil, con aire",
+      "estado": "hecho",
+      "paso": "El contorno azul se cambió por un tinte de fondo suave (7 %) y las zonas marcadas a mano llevan padding y esquinas redondeadas. La regla es global para todas las zonas de subida. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Poner el mouse sobre una zona de subida (Insumos, Antes/Después, comentario)."
+      ],
+      "debe": "La zona se tiñe suave y el contenido no queda pegado al borde.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "11",
+      "titulo": "Visor Antes/Después con etiquetas y carrusel continuo (vista externa)",
+      "estado": "hecho",
+      "paso": "Antes y Después llevan etiquetas de color y el carrusel recorre primero los Antes y luego los Después, con insignia sobre la imagen y contador por tramo. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir el link de una tarea Ajuste con imágenes en Antes y Después.",
+        "Abrir la primera imagen de Antes y avanzar con ›."
+      ],
+      "debe": "Al terminar Antes sigue Después; la insignia cambia y el contador cuenta dentro de cada tramo.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "12",
+      "titulo": "Visor de imágenes reorganizado, con zoom",
+      "estado": "hecho",
+      "paso": "Todos los controles tienen lugar fijo: barra superior (nombre, contador, zoom, Descargar, Cerrar), flechas en los bordes de la pantalla, etiqueta Antes/Después sobre la imagen. Zoom con − / % / +, rueda del mouse, un clic sobre la imagen (200 %/100 %) y teclas +, -, 0; con zoom se arrastra. Se arregló también la flecha «anterior» que quedaba detrás de la imagen. Aplica en todo el sistema. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir cualquier imagen en un carrusel.",
+        "Probar el clic, la rueda, arrastrar con zoom y las flechas."
+      ],
+      "debe": "Ningún control cambia de lugar según el tamaño de la imagen.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "13",
+      "titulo": "Imagen gigante dentro de los comentarios internos",
+      "estado": "hecho",
+      "paso": "La grilla de adjuntos perdía su diseño al pasarle una clase; ahora sale como miniaturas de 3 columnas. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir un cambio del ajuste con un comentario que tenga imagen."
+      ],
+      "debe": "La imagen se ve como miniatura y se abre en el visor.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "14",
+      "titulo": "Tipografía de lectura más grande (sin tocar header ni interfaz general)",
+      "estado": "hecho",
+      "paso": "Se revirtió un aumento global y se subió el tamaño solo en definiciones, checks, ajustes, comentarios, pasos y descripciones (descripciones a 18 px). Las píldoras y etiquetas de estado volvieron a su tamaño original. Los tamaños son ajustables archivo por archivo; la campana de notificaciones y el header no se tocaron. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir Definición, una tarea con checks y un Ajuste.",
+        "Comparar el tamaño de lectura con el header."
+      ],
+      "debe": "El texto de lectura se ve claramente más grande; header y filtros quedan igual.",
+      "link": "/projects/cmu8viols00026utfiodse6qp?view=definition",
+      "linkTexto": "Abrir Definición",
+      "comando": ""
+    },
+    {
+      "id": "15",
+      "titulo": "Aviso explícito «El cliente solicitó cambios» y color del ajuste",
+      "estado": "hecho",
+      "paso": "Recuadro ámbar con el nombre de quien pidió cambios y qué falta hacer, borde y fondo del ajuste en ámbar y punto de estado ámbar. Con aprobación se muestra franja verde. Sugerencia pendiente de aprobación: la píldora del encabezado dice «Todo respondido» aunque haya cambios solicitados. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Enviar una revisión con «Necesita cambios» desde el link.",
+        "Abrir la tarea desde la app."
+      ],
+      "debe": "El ajuste con cambios solicitados se ve ámbar con el aviso destacado.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "16",
+      "titulo": "Revisión del cliente con botón final, cierre y «Habilitar nueva revisión»",
+      "estado": "hecho",
+      "paso": "Los comentarios ya no piden aprobación. Cada cambio se califica (Apruebo / Necesita cambios) como borrador y el botón «Enviar mi revisión» guarda todo junto (todo o nada, con nombre). Al enviar, los cambios quedan cerrados y el cliente no puede modificarlos; solo el equipo puede reabrir con «Habilitar nueva revisión». Los cambios ya calificados antes quedaron cerrados por la migración. Migración de base de datos pendiente en producción. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Abrir el link, calificar todos los cambios y pulsar «Enviar mi revisión».",
+        "Intentar cambiar una calificación.",
+        "En la app, pulsar «Habilitar nueva revisión» en uno con cambios solicitados y recargar el link."
+      ],
+      "debe": "Enviada la revisión no se puede editar; al habilitar, solo ese cambio se reabre.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "17",
+      "titulo": "Sin comentarios del cliente cuando la revisión está cerrada",
+      "estado": "hecho",
+      "paso": "Con la revisión cerrada, el hilo del cambio queda de solo lectura para el cliente (sin caja, sin Responder, sin adjuntar) y el servidor también lo rechaza. El equipo sigue pudiendo comentar. No se probó en el navegador (solo tsc, lint y lectura de código).",
+      "pasos": [
+        "Enviar la revisión desde el link.",
+        "Intentar comentar en un cambio cerrado."
+      ],
+      "debe": "Aparece el aviso de revisión cerrada y no hay caja de comentario.",
+      "link": "/share/H2XajzM6NMJSpwPeQMtwxBd9aJ7CbjPf",
+      "linkTexto": "Abrir el link compartido",
+      "comando": ""
+    },
+    {
+      "id": "18",
+      "titulo": "Preguntas de selección única y múltiple en los hilos, con estadística",
+      "estado": "hecho",
+      "paso": "«Hacer una pregunta» en cualquier hilo del equipo (general y de cada ajuste): 2–10 opciones, radio o casillas. Responden el equipo con permisos (asignados, revisores, PM, admin) y los externos con el link; pueden cambiar hasta que el equipo cierre la pregunta. El equipo ve barras con conteo y porcentaje y quién respondió qué; el externo nunca ve resultados. Se probó la lectura de datos con un script contra la base; la interfaz no se probó en el navegador. Los externos se distinguen por nombre. Migración pendiente en producción. La pestaña Definición no incluye preguntas (no tiene hilo interno).",
+      "pasos": [
+        "Abrir la tarea Ajuste en la app y, en un cambio, pulsar «Hacer una pregunta» y publicarla.",
+        "Responder desde la app y desde el link.",
+        "Volver a la app para ver la estadística y cerrar la pregunta."
+      ],
+      "debe": "La estadística muestra cantidades, porcentajes y nombres; el link solo muestra opciones.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    },
+    {
+      "id": "19",
+      "titulo": "Regla de tercera persona y respeto en los textos",
+      "estado": "parcial",
+      "paso": "La regla quedó guardada en memoria y se corrigieron los textos escritos en esta sesión (sin voseo ni tuteo). Los textos antiguos de la app siguen con voseo (por ejemplo «Contanos», «Ponele», «Completá»); no se barrieron porque no se pidió.",
+      "pasos": [
+        "Leer los avisos nuevos del ajuste y de la revisión."
+      ],
+      "debe": "Los textos nuevos están en tercera persona o impersonales.",
+      "link": "/projects/cmu8viols00026utfiodse6qp/tasks/cmua3zhn00009fbtflmtehueh",
+      "linkTexto": "Abrir la tarea Ajuste",
+      "comando": ""
+    }
+  ]
+}
+</script>
+
+<script>
+// <pure>
+// Funciones puras (sin DOM): se prueban aparte con node.
+function resolveLink(baseUrl, link) {
+  if (!link) return "";
+  if (/^(https?|file):/i.test(link)) return link;
+  const base = String(baseUrl || "").replace(/\/+$/, "");
+  return base + (link.startsWith("/") ? link : "/" + link);
+}
+// Reduce una imagen para que quepan varias en el navegador (localStorage ~5 MB).
+function fitSize(w, h, max) {
+  const k = Math.min(1, max / Math.max(w, h));
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+function buildCommentsText(data, state) {
+  const lines = [`COMENTARIOS — ${data.titulo} (${data.fecha})`];
+  for (const it of data.items) {
+    const note = (state.notes[it.id] || "").trim();
+    const imgs = (state.images[it.id] || []).length;
+    const done = !!state.checks[it.id];
+    if (!note && !done && !imgs) continue;
+    lines.push("", `[${it.id}] ${it.titulo} — probado: ${done ? "sí" : "no"}`);
+    if (note) lines.push(...note.split("\n").map((l) => "  " + l));
+    if (imgs) lines.push(`  [${imgs} captura(s) adjunta(s): usa «Descargar» para enviarlas]`);
+  }
+  if (lines.length === 1) lines.push("", "(sin comentarios ni pruebas marcadas)");
+  return lines.join("\n");
+}
+function buildCommentsJson(data, state, now) {
+  return {
+    tema: data.tema, titulo: data.titulo, fecha: data.fecha, exportadoEn: now,
+    items: data.items
+      .filter((it) => (state.notes[it.id] || "").trim() || state.checks[it.id] || (state.images[it.id] || []).length)
+      .map((it) => {
+        const out = { id: it.id, titulo: it.titulo, estado: it.estado, probado: !!state.checks[it.id], comentario: (state.notes[it.id] || "").trim() };
+        const imgs = state.images[it.id] || [];
+        if (imgs.length) out.imagenes = imgs; // data URLs (jpeg)
+        return out;
+      }),
+  };
+}
+// </pure>
+
+const DATA = JSON.parse(document.getElementById("informe-data").textContent);
+const KEY = `informe:${DATA.tema}:${DATA.fecha}`;
+let state = { checks: {}, notes: {}, images: {} };
+try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (_) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
+const $ = (id) => document.getElementById(id);
+const ESTADO = { hecho: "Hecho", parcial: "Parcial", no_hecho: "No hecho" };
+
+document.title = DATA.titulo;
+$("titulo").textContent = DATA.titulo;
+$("sub").textContent = `${DATA.fecha}${DATA.modo ? " · modo " + DATA.modo : ""} · las casillas y comentarios se guardan en este navegador`;
+if (DATA.resumen) { $("resumen").innerHTML = DATA.resumen; $("resumen").classList.remove("hide"); }
+
+const root = $("root");
+for (const it of DATA.items) {
+  const div = document.createElement("div"); div.className = "item"; div.dataset.id = it.id;
+  const url = resolveLink(DATA.baseUrl, it.link);
+  const probar = url || it.comando
+    ? `<div class="probar">${url ? `<a href="${url}" target="_blank" rel="noopener">${it.linkTexto || "Probar aquí"} →</a><small>${url}</small>` : ""}${it.comando ? `<span>Comando: <code>${it.comando}</code></span>` : ""}</div>`
+    : "";
+  div.innerHTML =
+    `<input type="checkbox" id="c-${it.id}" aria-label="Probado: ${String(it.titulo).replace(/<[^>]*>/g, "").replace(/"/g, "&quot;")}">` +
+    `<h3><label for="c-${it.id}">${it.titulo}</label><span class="tag t-${it.estado}">${ESTADO[it.estado] || it.estado}</span></h3>` +
+    `<div class="body">` +
+      (it.paso ? `<div class="paso"><b>Qué pasó:</b> ${it.paso}</div>` : "") +
+      (it.pasos && it.pasos.length ? `<b>Cómo probarlo:</b><ol>${it.pasos.map((x) => `<li>${x}</li>`).join("")}</ol>` : "") +
+      (it.debe ? `<div class="exp"><b>Debe pasar:</b> ${it.debe}</div>` : "") +
+      probar +
+      `<textarea placeholder="Tus comentarios sobre este ítem (qué mejorar, qué falló, qué cambiar). Puedes pegar capturas con Ctrl+V." aria-label="Comentarios del ítem ${it.id}"></textarea><div class="thumbs"></div>` +
+    `</div>`;
+  root.appendChild(div);
+  const box = div.querySelector("input"), note = div.querySelector("textarea");
+  box.checked = !!state.checks[it.id];
+  note.value = state.notes[it.id] || "";
+  box.addEventListener("change", () => { state.checks[it.id] = box.checked; save(); refresh(); });
+  note.addEventListener("input", () => { state.notes[it.id] = note.value; save(); });
+  renderThumbs(it.id);
+}
+
+// ---- Capturas pegadas (Ctrl+V) en los comentarios ----
+function itemEl(id) { return document.querySelector(`.item[data-id="${id}"]`); }
+function renderThumbs(id) {
+  const box = itemEl(id) && itemEl(id).querySelector(".thumbs");
+  if (!box) return;
+  const imgs = state.images[id] || [];
+  box.innerHTML = "";
+  imgs.forEach((src, n) => {
+    const fig = document.createElement("figure");
+    fig.innerHTML = `<img alt="Captura ${n + 1}" src="${src}"><button type="button" class="x" aria-label="Quitar captura">×</button>`;
+    fig.querySelector("img").addEventListener("click", () => fig.classList.toggle("big"));
+    fig.querySelector(".x").addEventListener("click", () => { state.images[id].splice(n, 1); save(); renderThumbs(id); });
+    box.appendChild(fig);
+  });
+}
+function fileToDataUrl(file, max = 1600) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const { w, h } = fitSize(img.naturalWidth, img.naturalHeight, max);
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url); resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("imagen no válida")); };
+    img.src = url;
+  });
+}
+document.addEventListener("paste", async (e) => {
+  const cd = e.clipboardData; if (!cd) return;
+  const files = Array.from(cd.files).filter((f) => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
+  if (!files.length) return; // texto: pegado normal
+  const t = e.target;
+  const editable = t && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+  if (editable && (cd.types.includes("text/plain") || cd.types.includes("text/html"))) return;
+  // Ítem destino: el del campo enfocado o, si no, el que tiene el mouse encima.
+  const item = (t && t.closest && t.closest(".item")) || [...document.querySelectorAll(".item")].find((d) => d.matches(":hover"));
+  if (!item) return;
+  e.preventDefault();
+  const id = item.dataset.id;
+  for (const f of files) {
+    try {
+      (state.images[id] = state.images[id] || []).push(await fileToDataUrl(f));
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { state.images[id].pop(); say("No cabe en el navegador: descarga los comentarios y quita capturas."); continue; }
+      renderThumbs(id); say("Captura agregada.");
+    } catch (_) { say("No se pudo leer la imagen pegada."); }
+  }
+});
+
+const only = $("onlyPending");
+function refresh() {
+  const total = DATA.items.length; let done = 0;
+  document.querySelectorAll(".item").forEach((div) => {
+    const on = div.querySelector("input").checked;
+    if (on) done++;
+    div.classList.toggle("done", on);
+    div.classList.toggle("hide", only.checked && on);
+  });
+  $("count").textContent = `${done} de ${total} probadas`;
+  $("fill").style.width = total ? `${Math.round((done / total) * 100)}%` : "0%";
+}
+only.addEventListener("change", refresh);
+
+let msgTimer;
+function say(text) { $("msg").textContent = text; clearTimeout(msgTimer); msgTimer = setTimeout(() => ($("msg").textContent = ""), 4000); }
+
+$("copy").addEventListener("click", async () => {
+  const text = buildCommentsText(DATA, state);
+  const hasImgs = Object.values(state.images).some((a) => a && a.length);
+  try { await navigator.clipboard.writeText(text); say(hasImgs ? "Copiado. Las capturas no van en el texto: usa «Descargar»." : "Copiado. Pégalo en el chat."); }
+  catch (_) {
+    const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+    try { document.execCommand("copy"); say("Copiado. Pégalo en el chat."); } catch (__) { say("No se pudo copiar: usa «Descargar»."); }
+    t.remove();
+  }
+});
+$("download").addEventListener("click", () => {
+  const json = JSON.stringify(buildCommentsJson(DATA, state, new Date().toISOString()), null, 2);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  a.download = `comentarios-${DATA.tema}-${DATA.fecha}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  say(`Descargado como comentarios-${DATA.tema}-${DATA.fecha}.json`);
+});
+// Dos pasos en vez de un diálogo nativo: el primer clic arma, el segundo borra.
+const resetBtn = $("reset"); let armed = null;
+resetBtn.addEventListener("click", () => {
+  if (!armed) {
+    resetBtn.textContent = "¿Seguro? Pulsa otra vez";
+    armed = setTimeout(() => { armed = null; resetBtn.textContent = "Reiniciar marcas y comentarios"; }, 3000);
+    return;
+  }
+  clearTimeout(armed); armed = null; resetBtn.textContent = "Reiniciar marcas y comentarios";
+  state = { checks: {}, notes: {}, images: {} }; save();
+  document.querySelectorAll(".item").forEach((div) => { div.querySelector("input").checked = false; div.querySelector("textarea").value = ""; div.querySelector(".thumbs").innerHTML = ""; });
+  refresh();
+});
+refresh();
+</script>
+</body>
+</html>
