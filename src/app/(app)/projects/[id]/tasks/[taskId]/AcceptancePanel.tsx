@@ -17,6 +17,7 @@ import {
   addAcceptanceDeliverableLink,
   addAcceptanceItem,
   removeAcceptanceItem,
+  updateAcceptanceItem,
   addAcceptanceItemEvidence,
   addAcceptanceItemEvidenceLink,
   removeAcceptanceItemEvidence,
@@ -368,6 +369,31 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
   // Solo se puede agregar/quitar evidencia mientras el cliente no calificó
   // esta característica — una vez decidida, queda fija.
   const canAttachEvidence = canEdit && !item.result;
+  const [editing, setEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(item.title);
+  const [draftCriteria, setDraftCriteria] = useState(item.criteria ?? "");
+  const [draftCategory, setDraftCategory] = useState(item.category ?? "");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEditing() {
+    setDraftTitle(item.title);
+    setDraftCriteria(item.criteria ?? "");
+    setDraftCategory(item.category ?? "");
+    setEditError(null);
+    setEditing(true);
+  }
+
+  function handleSaveEdit() {
+    startTransition(async () => {
+      const result = await updateAcceptanceItem(item.id, { title: draftTitle, criteria: draftCriteria, category: draftCategory });
+      if (result.ok) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        setEditError(result.error);
+      }
+    });
+  }
 
   function handleRemove() {
     startTransition(async () => {
@@ -418,6 +444,31 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
         </p>
       )}
       <div className="flex items-start justify-between gap-2">
+        {editing ? (
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex gap-1.5">
+              <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} aria-label="Título de la característica" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
+              <input value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)} placeholder="Categoría" aria-label="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
+            </div>
+            <textarea
+              value={draftCriteria}
+              onChange={(e) => setDraftCriteria(e.target.value)}
+              placeholder="Puntos específicos a verificar, uno por línea (opcional)…"
+              aria-label="Descripción y puntos a verificar"
+              rows={5}
+              className="min-h-24 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
+            />
+            {editError && <p className="text-[15px] text-red-600">{editError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={handleSaveEdit} disabled={isPending || !draftTitle.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+                {isPending ? "Guardando…" : "Guardar cambios"}
+              </button>
+              <button type="button" onClick={() => setEditing(false)} disabled={isPending} className="rounded-lg border border-slate-300 px-3 py-1.5 text-[17px] font-medium text-slate-700 hover:bg-slate-50">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.title} /></p>
@@ -431,13 +482,19 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
             </ul>
           )}
         </div>
+        )}
         {item.result ? (
           <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[item.result]}`}>{RESULT_LABEL[item.result]}</span>
         ) : (
-          canEdit && (
-            <button type="button" onClick={handleRemove} disabled={isPending} className="flex-shrink-0 text-[17px] text-slate-400 hover:text-red-600">
-              Quitar
-            </button>
+          canEdit && !editing && (
+            <div className="flex flex-shrink-0 items-center gap-3">
+              <button type="button" onClick={startEditing} disabled={isPending} className="text-[17px] text-slate-500 hover:text-slate-900 hover:underline">
+                Editar
+              </button>
+              <button type="button" onClick={handleRemove} disabled={isPending} className="text-[17px] text-slate-400 hover:text-red-600">
+                Quitar
+              </button>
+            </div>
           )
         )}
       </div>

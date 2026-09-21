@@ -178,6 +178,33 @@ export async function removeAcceptanceItem(checkId: string) {
   return { ok: true as const };
 }
 
+// Reescribe el texto de una característica (título, puntos a verificar, categoría) sin perder sus
+// capturas ni sus comentarios. Solo mientras el cliente no la calificó y la ronda siga abierta.
+const itemTextSchema = z.object({
+  title: z.string().trim().min(1, "Falta indicar el título de la característica.").max(500, "El título es demasiado largo."),
+  criteria: z.string().trim().max(4000, "La descripción es demasiado larga.").optional(),
+  category: z.string().trim().max(120, "La categoría es demasiado larga.").optional(),
+});
+
+export async function updateAcceptanceItem(checkId: string, input: { title: string; criteria?: string; category?: string }) {
+  const parsed = itemTextSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Los datos no son válidos." };
+  const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, include: { reviewRound: true } });
+  if (!check) return { ok: false as const, error: "Esa característica ya no existe." };
+  if (!(await canEditTask(check.reviewRound.taskId))) {
+    return { ok: false as const, error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden editarla." };
+  }
+  if (check.result !== null || check.reviewRound.outcome !== null) {
+    return { ok: false as const, error: "Esta característica ya fue calificada o su ronda está cerrada, por lo que no se puede editar." };
+  }
+  await prisma.reviewCheck.update({
+    where: { id: checkId },
+    data: { title: parsed.data.title, criteria: parsed.data.criteria || null, category: parsed.data.category || null },
+  });
+  await revalidateTask(check.reviewRound.taskId);
+  return { ok: true as const };
+}
+
 export async function addAcceptanceItemEvidence(checkId: string, file: { url: string; name: string; mimeType: string }) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, include: { reviewRound: true } });
   if (!(await canEditTask(check.reviewRound.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
