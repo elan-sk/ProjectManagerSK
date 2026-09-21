@@ -33,16 +33,17 @@ export function InlineDescription({
       );
     }
     return (
-      <div
-        role={canManage ? "button" : undefined}
-        tabIndex={canManage ? 0 : undefined}
-        title={canManage ? "Click para editar" : undefined}
-        onClick={() => canManage && setEditing(true)}
-        className={`prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg ${
-          canManage ? "-mx-1 cursor-text rounded px-1 hover:bg-slate-100" : ""
-        }`}
-        dangerouslySetInnerHTML={{ __html: description }}
-      />
+      <div>
+        {canManage && (
+          <button type="button" onClick={() => setEditing(true)} className="mb-1 text-xs font-medium text-slate-400 hover:text-slate-700 hover:underline">
+            Editar descripción
+          </button>
+        )}
+        <div
+          className="prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: description }}
+        />
+      </div>
     );
   }
 

@@ -20,14 +20,15 @@ export function ProjectDescription({ projectId, description }: { projectId: stri
       );
     }
     return (
-      <div
-        role="button"
-        tabIndex={0}
-        title="Click para editar"
-        onClick={() => setEditing(true)}
-        className="prose prose-lg -mx-1 max-w-none cursor-text rounded px-1 text-slate-600 hover:bg-slate-100 [&_img]:max-w-full [&_img]:rounded-lg"
-        dangerouslySetInnerHTML={{ __html: description }}
-      />
+      <div>
+        <button type="button" onClick={() => setEditing(true)} className="mb-1 text-xs font-medium text-slate-400 hover:text-slate-700 hover:underline">
+          Editar descripción
+        </button>
+        <div
+          className="prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: description }}
+        />
+      </div>
     );
   }
 
