@@ -41,6 +41,17 @@ export const TASK_TYPE_LABEL: Record<string, string> = {
   ACCEPTANCE: "Aceptación",
 };
 
+// Color de la etiqueta de cada tipo de tarea (Kanban, buscador…): fuente única.
+export const TASK_TYPE_BADGE: Record<string, string> = {
+  SIMPLE: "bg-slate-100 text-slate-600",
+  CHECKLIST: "bg-indigo-50 text-indigo-700",
+  MILESTONE: "bg-violet-50 text-violet-700",
+  MEETING: "bg-sky-50 text-sky-700",
+  QA: "bg-teal-50 text-teal-700",
+  ADJUSTMENT: "bg-orange-50 text-orange-700",
+  ACCEPTANCE: "bg-pink-50 text-pink-700",
+};
+
 // Un mismo color por nivel de la jerarquía de Definición (Objetivo →
 // Requerimiento → Fase → Tarea), para poder distinguir de un vistazo qué es
 // qué en la pestaña Definición, incluso cuando un panel referencia el nivel

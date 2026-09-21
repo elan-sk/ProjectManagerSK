@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
+import { AttachmentLightbox } from "./AttachmentLightbox";
 import {
   addAdjustmentItem,
   removeAdjustmentItem,
@@ -303,6 +305,10 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Imágenes y documentos se abren en los visores de la app (no se descargan directo).
+  const [openImageId, setOpenImageId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<AdjustmentAttachment | null>(null);
+  const images = attachments.filter((a) => a.mimeType.startsWith("image/")).map((a) => ({ id: a.id, url: a.url, name: a.name, group: label }));
 
   async function uploadFile(file: File) {
     if (!userId) return;
@@ -360,7 +366,22 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
           const isLink = a.mimeType === LINK_MIME_TYPE;
           return (
             <div key={a.id} className="group relative">
-              <a href={a.url} target="_blank" rel="noreferrer" download={isLink ? undefined : a.name} className="block">
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                download={isLink ? undefined : a.name}
+                onClick={(e) => {
+                  if (isImage) {
+                    e.preventDefault();
+                    setOpenImageId(a.id);
+                  } else if (isPreviewable(a.mimeType)) {
+                    e.preventDefault();
+                    setPreviewDoc(a);
+                  }
+                }}
+                className="block"
+              >
                 {isImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.url} alt={a.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
@@ -413,6 +434,21 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
         )
       )}
       {error && <p className="text-[13px] text-red-600">{error}</p>}
+      {openImageId && <AttachmentLightbox images={images} openId={openImageId} onClose={() => setOpenImageId(null)} onNavigate={setOpenImageId} canDelete={false} />}
+      {previewDoc && (
+        <AttachmentPreviewModal
+          file={previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          onDelete={
+            canDelete
+              ? async () => {
+                  await removeAdjustmentAttachment(previewDoc.id);
+                  router.refresh();
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

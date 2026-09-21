@@ -24,6 +24,7 @@ export function AttachmentPreview({
   onOpenImage,
   onOpenPreview,
   onOpenVideo,
+  wide,
 }: {
   id: string;
   url: string;
@@ -37,6 +38,8 @@ export function AttachmentPreview({
   onOpenPreview?: () => void;
   /** Link de YouTube — abre el reproductor integrado en vez de salir a otra pestaña. */
   onOpenVideo?: () => void;
+  /** Vista «Archivos»: todas las fichas ocupan el mismo ancho (2 columnas de la grilla), igual que los links. */
+  wide?: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -140,7 +143,7 @@ export function AttachmentPreview({
     );
 
     return (
-      <div className="group relative min-w-0">
+      <div className={`group relative min-w-0 ${wide ? "col-span-2" : ""}`}>
         {onOpenPreview ? (
           <button type="button" onClick={onOpenPreview} className={thumbClass}>
             {thumbContent}
@@ -174,7 +177,7 @@ export function AttachmentPreview({
   }
 
   return (
-    <div className="group relative">
+    <div className={`group relative ${wide ? "col-span-2" : ""}`}>
       <button type="button" onClick={onOpenImage} className="block w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover" />

@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -19,7 +19,7 @@ const GROUP_LABEL: Record<SearchHit["group"], string> = {
 // Un color por grupo (mismos tonos que las etiquetas de abajo) para reconocerlo de un vistazo:
 // título del grupo.
 const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
-  project: { title: "text-[#105361]" },
+  project: { title: "text-[#136673]" },
   task: { title: "text-indigo-700" },
   comment: { title: "text-amber-700" },
   file: { title: "text-sky-700" },
@@ -197,7 +197,7 @@ export function HeaderSearch() {
                           )}
                           {h.kind === "task" && h.taskStatus && (
                             <span className="flex gap-1">
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${TASK_TYPE_BADGE[h.taskType ?? ""] ?? TASK_TYPE_BADGE.SIMPLE}`}>
                                 {TASK_TYPE_LABEL[h.taskType ?? ""] ?? h.taskType}
                               </span>
                               <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${TASK_STATUS_COLOR[h.taskStatus].badge}`}>

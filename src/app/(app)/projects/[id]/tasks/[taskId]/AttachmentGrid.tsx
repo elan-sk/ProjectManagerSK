@@ -26,10 +26,13 @@ export function AttachmentGrid({
   items,
   canDelete,
   className,
+  wide,
 }: {
   items: AttachmentGridItem[];
   canDelete: boolean;
   className?: string;
+  /** Todas las fichas del mismo ancho (vista «Archivos»). */
+  wide?: boolean;
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -48,6 +51,7 @@ export function AttachmentGrid({
             name={a.name}
             mimeType={a.mimeType}
             canDelete={canDelete}
+            wide={wide}
             taskLink={a.taskLink}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}

@@ -18,7 +18,7 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
 import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
-import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, TASK_TYPE_BADGE, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
 import type { TaskStatus } from "@prisma/client";
@@ -74,16 +74,6 @@ const COLUMNS = (Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).filter((s) => s
 // restaura al montar cada columna. Con estado en memoria alcanza: no hace
 // falta persistir entre sesiones.
 const columnScrollPositions = new Map<string, number>();
-
-const TYPE_BADGE: Record<string, string> = {
-  SIMPLE: "bg-slate-100 text-slate-600",
-  CHECKLIST: "bg-indigo-50 text-indigo-700",
-  MILESTONE: "bg-violet-50 text-violet-700",
-  MEETING: "bg-sky-50 text-sky-700",
-  QA: "bg-teal-50 text-teal-700",
-  ADJUSTMENT: "bg-orange-50 text-orange-700",
-  ACCEPTANCE: "bg-pink-50 text-pink-700",
-};
 
 const RISK_DOT: Record<string, string> = {
   HIGH: "bg-red-500",
@@ -162,7 +152,7 @@ function CardBody({
       )}
       <div className={`flex items-start justify-between gap-2 ${selectMode ? "pr-7" : ""}`}>
         <div className="flex flex-wrap items-center gap-1">
-          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TYPE_BADGE[task.type]}`}>
+          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
           </span>
           {task.isArchived && (
