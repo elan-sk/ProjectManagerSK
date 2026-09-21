@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -18,7 +19,7 @@ const GROUP_LABEL: Record<SearchHit["group"], string> = {
 // Un color por grupo (mismos tonos que las etiquetas de abajo) para reconocerlo de un vistazo:
 // título del grupo.
 const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
-  project: { title: "text-[#0a6b78]" },
+  project: { title: "text-[#105361]" },
   task: { title: "text-indigo-700" },
   comment: { title: "text-amber-700" },
   file: { title: "text-sky-700" },
@@ -169,19 +170,18 @@ export function HeaderSearch() {
                     type="button"
                     onClick={() => go(h)}
                     onMouseEnter={() => setActive(i)}
-                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
+                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 text-left ${h.kind === "project" ? "py-2.5" : "py-1.5"} ${i === active ? "bg-slate-100" : ""}`}
                   >
-                    {SHOW_KIND_BADGE.has(h.kind) && (
-                      <span
-                        className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[h.kind]}`}
-                      >
-                        {KIND_LABEL[h.kind]}
-                      </span>
-                    )}
                     <span className="flex w-full min-w-0 items-center gap-2.5">
-                      {h.project && <ProjectIcon name={h.project.name} iconUrl={h.project.iconUrl} size="h-7 w-7 rounded text-xs" />}
+                      {h.project && (
+                        <ProjectIcon
+                          name={h.project.name}
+                          iconUrl={h.project.iconUrl}
+                          size={h.kind === "project" ? "h-10 w-10 rounded-lg text-base" : "h-7 w-7 rounded text-xs"}
+                        />
+                      )}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-slate-900">
+                        <span className={`block truncate text-slate-900 ${h.kind === "project" ? "text-base font-semibold" : "text-sm"}`}>
                           {h.title}
                         </span>
                         {h.context && (
@@ -190,11 +190,31 @@ export function HeaderSearch() {
                           </span>
                         )}
                       </span>
-                      {h.people && (
-                        <span className="flex flex-shrink-0 -space-x-1.5">
-                          {h.people.slice(0, 4).map((u) => (
-                            <Avatar key={u.name} name={u.name} avatarUrl={u.avatarUrl} size="h-5 w-5 text-[9px]" />
-                          ))}
+                      {(h.people || SHOW_KIND_BADGE.has(h.kind) || (h.kind === "task" && h.taskStatus)) && (
+                        <span className="flex flex-shrink-0 flex-col items-end gap-1">
+                          {SHOW_KIND_BADGE.has(h.kind) && (
+                            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[h.kind]}`}>{KIND_LABEL[h.kind]}</span>
+                          )}
+                          {h.kind === "task" && h.taskStatus && (
+                            <span className="flex gap-1">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                {TASK_TYPE_LABEL[h.taskType ?? ""] ?? h.taskType}
+                              </span>
+                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${TASK_STATUS_COLOR[h.taskStatus].badge}`}>
+                                {TASK_STATUS_LABEL[h.taskStatus]}
+                              </span>
+                            </span>
+                          )}
+                          {h.people && (
+                            <span className="flex items-center gap-1">
+                              {h.kind === "project" && <span className="text-[10px] font-semibold text-[#0a6b78]">PM</span>}
+                              <span className="flex -space-x-1.5">
+                                {h.people.slice(0, 4).map((u) => (
+                                  <Avatar key={u.name} name={u.name} avatarUrl={u.avatarUrl} size={h.kind === "project" ? "h-7 w-7 text-[10px]" : "h-5 w-5 text-[9px]"} />
+                                ))}
+                              </span>
+                            </span>
+                          )}
                         </span>
                       )}
                     </span>

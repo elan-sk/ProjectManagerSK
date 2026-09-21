@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { commentPreview } from "@/lib/commentBody";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TaskStatus } from "@prisma/client";
 
 // Los resultados se muestran agrupados y en este orden: Proyectos → Tareas
 // (con sus pasos) → Comentarios → Archivos (con los links).
@@ -23,6 +23,9 @@ export type SearchHit = {
   project?: { name: string; iconUrl: string | null };
   // Involucrados de un comentario: autor primero y luego las personas @mencionadas.
   people?: { name: string; avatarUrl: string | null }[];
+  // Solo en resultados de tarea: tipo y estado (el cliente los traduce a etiqueta y color).
+  taskType?: string;
+  taskStatus?: TaskStatus;
 };
 
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -59,6 +62,7 @@ export async function GET(request: Request) {
       name: true,
       clientName: true,
       iconUrl: true,
+      pm: { select: { name: true, avatarUrl: true } },
       links: { select: { id: true, title: true, url: true } },
       attachments: { select: { id: true, fileName: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
       tasks: {
@@ -66,6 +70,8 @@ export async function GET(request: Request) {
           id: true,
           title: true,
           description: true,
+          type: true,
+          status: true,
           steps: { select: { id: true, description: true } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
           reviewers: { select: { user: { select: { name: true, avatarUrl: true } } } },
@@ -90,16 +96,16 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"]) => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus">) => {
     const score = fuzzyScore(q, text);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" ? "file" : kind;
-    if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people });
+    if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
 
   const taskTitleById = new Map<string, string>();
   for (const p of projects) {
     const logo = { name: p.name, iconUrl: p.iconUrl };
-    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo);
+    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo, [p.pm]);
     for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo);
     for (const a of p.attachments) {
       const isLink = a.mimeType === LINK_MIME_TYPE;
@@ -109,8 +115,8 @@ export async function GET(request: Request) {
       taskTitleById.set(t.id, t.title);
       const taskHref = `/projects/${p.id}/tasks/${t.id}`;
       const involved = [...t.assignees, ...t.reviewers].map((x) => x.user).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i);
-      push("task", t.id, t.title, p.name, taskHref, `${t.title} ${stripHtml(t.description ?? "")}`, logo, involved);
-      for (const s of t.steps) push("step", s.id, snippet(s.description), `${t.title} · ${p.name}`, taskHref, s.description);
+      push("task", t.id, t.title, p.name, taskHref, `${t.title} ${stripHtml(t.description ?? "")}`, logo, involved, { taskType: t.type, taskStatus: t.status });
+      for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
         const isLink = a.mimeType === LINK_MIME_TYPE;
         push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName, logo, [...(a.uploadedBy ? [a.uploadedBy] : []), ...involved].filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i));
