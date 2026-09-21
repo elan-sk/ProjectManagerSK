@@ -51,6 +51,8 @@ export function AttachmentPreviewModal({
   const confirm = useConfirm();
   const isFrame = file.mimeType === PDF_MIME || file.mimeType === HTML_MIME;
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(!isFrame);
   const [error, setError] = useState<string | null>(null);
@@ -146,13 +148,23 @@ export function AttachmentPreviewModal({
   }
 
   const currentSheet = sheets?.[activeSheet];
+  const isHtml = file.mimeType === HTML_MIME;
+
+  // Enlace absoluto del archivo (el origen solo se conoce en el navegador).
+  function copyUrl() {
+    const url = new URL(file.url, window.location.origin).href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/60" />
       <div className="relative flex h-[90vh] w-full max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         {isFrame && (
-          <iframe src={file.url} title={file.name} sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
+          <iframe ref={frameRef} src={file.url} title={file.name} allowFullScreen sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
         )}
 
         {!isFrame && (
@@ -195,7 +207,17 @@ export function AttachmentPreviewModal({
         <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-2">
           <span className="min-w-0 truncate text-sm text-slate-700">{file.name}</span>
           <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
-            {file.mimeType === PDF_MIME && (
+            {isHtml && (
+              <>
+                <button type="button" onClick={() => frameRef.current?.requestFullscreen?.()} className="text-sm font-medium text-slate-900 hover:underline">
+                  Pantalla completa
+                </button>
+                <button type="button" onClick={copyUrl} className="text-sm font-medium text-slate-900 hover:underline">
+                  {copied ? "¡Enlace copiado!" : "Copiar enlace"}
+                </button>
+              </>
+            )}
+            {(file.mimeType === PDF_MIME || isHtml) && (
               <a href={file.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-900 hover:underline">
                 Abrir en pestaña
               </a>
