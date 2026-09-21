@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -67,7 +68,7 @@ const RESULT_COLOR: Record<CheckResult, string> = {
   FAILED: "bg-red-600 text-white",
   NOT_APPLICABLE: "bg-slate-400 text-white",
 };
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
 function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const isLink = file.mimeType === LINK_MIME_TYPE;
@@ -655,7 +656,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
         <div className="min-w-0 space-y-1">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Prueba {index + 1} de {total}</p>
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-[19px] font-semibold text-slate-800">{check.title}</p>
+            <p className="text-[19px] font-semibold text-slate-800"><Linkify text={check.title} /></p>
             {check.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{check.category}</span>}
           </div>
           {check.criteria && (
@@ -720,7 +721,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
         </div>
       )}
 
-      {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: {check.note}</p>}
+      {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={check.note} /></p>}
 
       {check.evidence.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

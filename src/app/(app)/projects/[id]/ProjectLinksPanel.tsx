@@ -12,7 +12,7 @@ import { LINK_MIME_TYPE } from "@/lib/attachments";
 type ProjectLink = { id: string; title: string; url: string };
 type ProjectAttachment = { id: string; fileName: string; fileUrl: string; mimeType: string };
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
 export function ProjectLinksPanel({
   projectId,

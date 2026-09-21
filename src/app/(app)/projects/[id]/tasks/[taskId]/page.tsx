@@ -552,6 +552,7 @@ export default async function TaskDetailPage({
           threads={checkThreads}
           canVote={canEdit || canReview}
           canClose={canEdit}
+          canModerate={Boolean(canManage)}
         >
           <ReviewPanel
             taskId={taskId}

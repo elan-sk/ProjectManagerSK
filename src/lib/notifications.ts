@@ -52,9 +52,11 @@ function absoluteUrl(url?: string) {
 
 async function resolveProjectGroupJid(projectId: string) {
   const [project, { groupJid: defaultGroupJid }] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId }, select: { whatsappGroupJid: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { whatsappGroupJid: true, hidden: true } }),
     getWhatsAppSettings(),
   ]);
+  // Los proyectos ocultos nunca avisan a un grupo, ni al propio ni al por defecto.
+  if (project?.hidden) return null;
   return project?.whatsappGroupJid ?? defaultGroupJid;
 }
 

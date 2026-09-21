@@ -28,6 +28,8 @@ type Ctx = {
   threads: Record<string, CheckMessage[]>;
   canVote: boolean;
   canClose: boolean;
+  /** Administrador o PM del proyecto: puede eliminar cualquier comentario. */
+  canModerate: boolean;
 };
 
 const CheckThreadsContext = createContext<Ctx | null>(null);
@@ -65,6 +67,7 @@ export function CheckThread({ checkId, title }: { checkId: string; title: string
               edited={m.edited}
               currentUserId={ctx.currentUserId}
               asQuestion={Boolean(m.poll)}
+              canModerate={ctx.canModerate}
             />
           );
           return m.poll ? (

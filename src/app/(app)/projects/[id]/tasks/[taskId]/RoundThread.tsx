@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CommentAttachments, type PendingFile } from "@/components/CommentAttachments";
@@ -85,7 +86,7 @@ export function RoundThread({ roundId, messages, userId, canComment, canVote, ca
             {m.poll ? (
               <div className="mt-1.5">
                 <PollFrame author={{ name: m.authorName, role: "Equipo", date: new Date(m.createdAt).toLocaleString("es-CO") }}>
-                  <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900">{m.body}</p>
+                  <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900"><Linkify text={m.body} /></p>
                   <TeamPollCard key={`${m.poll.id}-${m.poll.myVoteIds.join(",")}`} poll={m.poll} canVote={canVote} canClose={canClose} />
                 </PollFrame>
               </div>
@@ -98,7 +99,7 @@ export function RoundThread({ roundId, messages, userId, canComment, canVote, ca
               </span>
             ) : (
               <>
-                <span className="whitespace-pre-wrap text-slate-600">{m.body}</span>
+                <span className="whitespace-pre-wrap text-slate-600"><Linkify text={m.body} /></span>
                 {m.editedAt && <span className="ml-1 text-[13px] text-slate-400">(editado)</span>}
                 {m.authorId === userId && !m.poll && (
                   <button

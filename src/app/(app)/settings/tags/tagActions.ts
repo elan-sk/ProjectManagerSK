@@ -15,7 +15,7 @@ async function requireAdmin() {
 
 async function requirePmOrAdmin() {
   if (!(await isPmOrAdminAnywhere())) {
-    throw new Error("Solo un PM o un administrador pueden crear una categoría de etiqueta nueva.");
+    throw new Error("Solo un PM o un administrador pueden crear o editar una categoría de etiqueta.");
   }
 }
 
@@ -47,6 +47,11 @@ export async function createTagCategory(formData: FormData) {
 }
 
 export async function updateTagCategory(categoryId: string, formData: FormData) {
+  try {
+    await requirePmOrAdmin();
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
   const name = z.string().trim().min(1).safeParse(formData.get("name"));
   if (!name.success) return { ok: false as const, error: "Ponele un nombre a la categoría." };
   const colorHex = z.string().trim().min(1).safeParse(formData.get("colorHex"));

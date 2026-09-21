@@ -1160,7 +1160,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const senderId = await currentUserId();
         const [sender, project, task, whatsapp] = await Promise.all([
           prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
-          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, whatsappGroupJid: true } }),
+          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, whatsappGroupJid: true, hidden: true } }),
           prisma.task.findFirst({
             where: { id: taskId, projectId },
             select: { title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } },
@@ -1172,6 +1172,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           return { ok: false, message: "Solo el PM de este proyecto o un administrador pueden escribir en su grupo." };
         }
         if (!task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
+        if (project.hidden) return { ok: false, message: "Este proyecto está oculto y no envía mensajes a grupos de WhatsApp." };
 
         const groupJid = project.whatsappGroupJid ?? whatsapp.groupJid;
         if (!groupJid) return { ok: false, message: "Este proyecto no tiene un grupo de WhatsApp configurado." };

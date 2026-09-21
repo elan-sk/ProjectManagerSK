@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { submitPublicPollVote } from "./shareActions";
 import { saveShareIdentity, useShareIdentity } from "./shareIdentity";
@@ -111,7 +112,7 @@ export function PublicPollCard({ token, poll }: { token: string; poll: PublicPol
                 checked={selected.includes(o.id)}
                 onChange={() => toggle(o.id)}
               />
-              <span className="min-w-0 break-words">{o.label}</span>
+              <span className="min-w-0 break-words"><Linkify text={o.label} /></span>
             </label>
           </li>
         ))}

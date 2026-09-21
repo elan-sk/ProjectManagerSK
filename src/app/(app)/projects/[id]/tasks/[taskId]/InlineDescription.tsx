@@ -1,5 +1,6 @@
 "use client";
 
+import { linkifyHtml } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateTaskDescription } from "./actions";
@@ -41,7 +42,7 @@ export function InlineDescription({
         )}
         <div
           className="prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg"
-          dangerouslySetInnerHTML={{ __html: description }}
+          dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }}
         />
       </div>
     );

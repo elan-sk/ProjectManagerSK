@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { setSharePollClosed, voteSharePoll } from "./shareThreadActions";
@@ -80,12 +81,12 @@ export function TeamPollCard({ poll, canVote, canClose }: { poll: TeamPoll; canV
                       checked={selected.includes(o.id)}
                       onChange={() => toggle(o.id)}
                     />
-                    <span className="min-w-0 break-words">{o.label}</span>
+                    <span className="min-w-0 break-words"><Linkify text={o.label} /></span>
                   </label>
                 ) : (
                   <span className="min-w-0 flex-1 break-words">
                     {poll.myVoteIds.includes(o.id) && <span className="mr-1 text-emerald-600">✓</span>}
-                    {o.label}
+                    <Linkify text={o.label} />
                   </span>
                 )}
                 <span className="flex-shrink-0 tabular-nums text-[15px] text-slate-500">

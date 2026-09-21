@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
@@ -26,30 +27,39 @@ type Props = {
   currentUserId: string;
   /** El mensaje es el enunciado de una pregunta: el autor va arriba («X hizo esta pregunta») y el enunciado como título. */
   asQuestion?: boolean;
+  /** Administrador o PM del proyecto: puede eliminar cualquier comentario, sin límite de tiempo. */
+  canModerate?: boolean;
 };
 
 /** Botones «Editar · Eliminar» del autor: solo se ven durante los primeros 5 minutos (con cuenta regresiva). */
-function OwnControls({ createdAtMs, disabled, onEdit, onDelete }: { createdAtMs: number; disabled: boolean; onEdit: () => void; onDelete: () => void }) {
+function OwnControls({ createdAtMs, isOwn, canModerate, disabled, onEdit, onDelete }: { createdAtMs: number; isOwn: boolean; canModerate: boolean; disabled: boolean; onEdit: () => void; onDelete: () => void }) {
   const now = useNow();
+  if (now === 0) return null;
   const left = COMMENT_EDIT_WINDOW_MS - (now - createdAtMs);
-  if (now === 0 || left <= 0) return null;
+  // Quien administra elimina siempre; el autor edita y elimina solo dentro de la ventana.
+  const inWindow = isOwn && left > 0;
+  if (!inWindow && !canModerate) return null;
   const secs = Math.ceil(left / 1000);
   return (
     <span className="ml-2 inline-flex items-center gap-2 text-[17px]">
-      <button type="button" onClick={onEdit} disabled={disabled} className="cursor-pointer text-slate-500 hover:text-slate-900 hover:underline disabled:opacity-50">
-        Editar
-      </button>
+      {inWindow && (
+        <button type="button" onClick={onEdit} disabled={disabled} className="cursor-pointer text-slate-500 hover:text-slate-900 hover:underline disabled:opacity-50">
+          Editar
+        </button>
+      )}
       <button type="button" onClick={onDelete} disabled={disabled} className="cursor-pointer text-slate-500 hover:text-red-600 hover:underline disabled:opacity-50">
         Eliminar
       </button>
-      <span className="text-slate-400" title="Tiempo que queda para editar o eliminar">
-        {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
-      </span>
+      {inWindow && (
+        <span className="text-slate-400" title="Tiempo que queda para editar o eliminar">
+          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
+        </span>
+      )}
     </span>
   );
 }
 
-export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, edited, currentUserId, asQuestion = false }: Props) {
+export function CommentItem({ id, authorId, authorName, authorAvatarUrl, createdLabel, createdAtMs, body, edited, currentUserId, asQuestion = false, canModerate = false }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -100,8 +110,8 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
             authorName
           )}{" "}
           <span className="font-normal text-slate-400">{createdLabel}{edited ? " · editado" : ""}</span>
-          {authorId === currentUserId && !editing && (
-            <OwnControls createdAtMs={createdAtMs} disabled={pending} onEdit={() => { setDraft(body); setError(null); setEditing(true); }} onDelete={remove} />
+          {(authorId === currentUserId || canModerate) && !editing && (
+            <OwnControls createdAtMs={createdAtMs} isOwn={authorId === currentUserId} canModerate={canModerate} disabled={pending} onEdit={() => { setDraft(body); setError(null); setEditing(true); }} onDelete={remove} />
           )}
         </p>
   );
@@ -130,7 +140,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
         ) : (
           <div className={asQuestion ? "mt-1 whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900" : "text-[18px] text-slate-700"}>
             {parts.map((part, i) => {
-              if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+              if (part.type === "text") return <span key={i} className="whitespace-pre-wrap"><Linkify text={part.text} /></span>;
               if (part.type === "mention")
                 return <span key={i} className="rounded bg-[#0a6b78]/10 px-1 font-medium text-[#0a6b78]">@{part.name}</span>;
               const videoId = part.type === "link" ? youtubeVideoId(part.url) : null;

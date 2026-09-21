@@ -1,4 +1,5 @@
 import { PublicCommentThread } from "./PublicCommentThread";
+import { linkifyHtml } from "@/lib/linkify";
 import type { PublicCommentWithReplies } from "@/lib/publicView";
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -34,7 +35,7 @@ export function PublicDefinitionView({
     <div className="space-y-4">
       {description && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="prose prose-lg max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: description }} />
+          <div className="prose prose-lg max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }} />
         </div>
       )}
 

@@ -265,6 +265,26 @@ export async function removeCheck(checkId: string, actor: Actor) {
   return { ok: true as const };
 }
 
+// Reescribe el texto de una prueba o característica sin perder sus capturas ni
+// sus comentarios. Mismo criterio que removeCheck: sin resultado y ronda abierta.
+export async function updateCheck(checkId: string, actor: Actor, data: { title?: string; criteria?: string | null; category?: string | null }) {
+  const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, select: { result: true, reviewRound: { select: { outcome: true, task: { select: { id: true, projectId: true, type: true } } } } } });
+  if (!check) return fail(404, "Esa prueba o característica no existe.");
+  const task = check.reviewRound.task;
+  if (!(await canDesignChecks(task, actor))) return fail(403, task.type === "QA" ? NO_REVIEW : NO_EDIT);
+  if (check.reviewRound.outcome !== null || check.result !== null) return fail(409, "Ya tiene resultado o la ronda está cerrada; no se puede editar.");
+  await prisma.reviewCheck.update({
+    where: { id: checkId },
+    data: {
+      ...(data.title !== undefined ? { title: data.title } : {}),
+      ...(data.criteria !== undefined ? { criteria: data.criteria?.trim() || null } : {}),
+      ...(data.category !== undefined ? { category: data.category?.trim() || null } : {}),
+    },
+  });
+  touch(task);
+  return { ok: true as const };
+}
+
 export async function addCheckEvidence(checkId: string, actor: Actor, files: FileRef[]) {
   const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, select: { result: true, reviewRound: { select: { outcome: true, task: { select: { id: true, projectId: true, type: true } } } } } });
   if (!check) return fail(404, "Esa prueba o característica no existe.");

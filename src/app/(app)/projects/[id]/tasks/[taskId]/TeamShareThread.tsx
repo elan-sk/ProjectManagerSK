@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CommentAttachments, type PendingFile } from "@/components/CommentAttachments";
@@ -45,12 +46,12 @@ function Bubble({ c, canVote, canClose }: { c: Omit<TeamThreadComment, "replies"
       {c.poll ? (
         <div className="mt-1.5">
           <PollFrame author={{ name: c.authorName, role: c.authorRole, date: new Date(c.createdAt).toLocaleString("es-CO", DATE_FMT) }}>
-            <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900">{c.body}</p>
+            <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900"><Linkify text={c.body} /></p>
             <TeamPollCard key={`${c.poll.id}-${c.poll.myVoteIds.join(",")}`} poll={c.poll} canVote={canVote} canClose={canClose} />
           </PollFrame>
         </div>
       ) : (
-        c.body && <p className="mt-0.5 whitespace-pre-wrap text-slate-600">{c.body}</p>
+        c.body && <p className="mt-0.5 whitespace-pre-wrap text-slate-600"><Linkify text={c.body} /></p>
       )}
       {c.attachments.length > 0 && <AttachmentGrid items={c.attachments} canDelete={false} className="mt-1.5 grid grid-cols-3 gap-2" />}
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -106,7 +107,7 @@ export function PublicTaskDetail({
         <h1 className="text-2xl font-semibold text-slate-900">{task.title}</h1>
         <p className="text-[17px] text-slate-400">{task.phaseName}</p>
         {task.description && (
-          <div className="prose prose-lg max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: task.description }} />
+          <div className="prose prose-lg max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: linkifyHtml(task.description) }} />
         )}
         <p className="text-[17px] text-slate-500">
           Estimado: {new Date(task.plannedStart).toLocaleDateString("es-CO", DATE_FMT)} — {new Date(task.plannedEnd).toLocaleDateString("es-CO", DATE_FMT)}
@@ -144,7 +145,7 @@ export function PublicTaskDetail({
                   className={`h-2 w-2 flex-shrink-0 rounded-full ${item.answered ? "bg-emerald-500" : "bg-amber-500"}`}
                   title={item.answered ? "Respondido" : "Todavía no se ha realizado"}
                 />
-                <p className="text-[19px] font-semibold text-slate-800">{item.description}</p>
+                <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.description} /></p>
               </div>
               {!item.answered && <p className="text-[17px] text-amber-600">Todavía no se ha realizado.</p>}
               {/* Un solo carrusel: al terminar las imágenes de Antes sigue con las de Después. */}
@@ -158,7 +159,7 @@ export function PublicTaskDetail({
                   <PublicFileGrid files={item.after} sequence={beforeAfterSequence(item)} />
                 </div>
               </div>
-              {item.note && <p className="text-[17px] text-slate-500">Nota: {item.note}</p>}
+              {item.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={item.note} /></p>}
               {item.reviewOpen ? (
                 <fieldset className="space-y-1 rounded-lg bg-slate-50 p-2 text-[15px] text-slate-700">
                   <legend className="px-1 font-medium">Calificación de este cambio</legend>

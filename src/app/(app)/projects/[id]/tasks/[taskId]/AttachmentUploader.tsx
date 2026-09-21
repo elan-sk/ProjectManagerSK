@@ -9,7 +9,7 @@ import { addAttachmentRecord, addLinkAttachment } from "./actions";
 import { MediaGalleryButton } from "./MediaGalleryButton";
 import type { AttachmentKind } from "@prisma/client";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
 export function AttachmentUploader({
   taskId,

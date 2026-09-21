@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -201,7 +202,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
               <button type="button" disabled={savingDescription} onClick={() => { setDescription(item.description); setEditingDescription(false); }} className="text-[17px] text-slate-400 hover:underline">Cancelar</button>
             </div>
           ) : (
-            <p className="min-w-0 text-[19px] font-semibold text-slate-800">{item.description}</p>
+            <p className="min-w-0 text-[19px] font-semibold text-slate-800"><Linkify text={item.description} /></p>
           )}
           </div>
         </div>
@@ -262,7 +263,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
             </div>
           ) : item.note ? (
             <p className="text-[17px] text-slate-500">
-              Nota: {item.note}{" "}
+              Nota: <Linkify text={item.note} />{" "}
               <button type="button" onClick={() => setEditingNote(true)} className="text-slate-400 hover:underline">
                 Editar
               </button>
@@ -282,7 +283,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   );
 }
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
 function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, canDelete }: {
   label: string;

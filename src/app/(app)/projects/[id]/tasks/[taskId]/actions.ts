@@ -7,7 +7,7 @@ import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createCalendarEvent } from "@/lib/googleCalendar";
-import { requireProjectAdmin, canEditTask, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, getActingUser, type Actor } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { fetchPageTitle } from "@/lib/pageTitle";
@@ -463,6 +463,9 @@ export async function deleteTask(taskId: string, actor?: Actor) {
 }
 
 export async function syncTaskToGoogleCalendar(taskId: string, userId: string) {
+  // El evento va al calendario de quien tiene la sesión: nunca al de otra persona.
+  const me = await getActingUser();
+  if (!me || me.id !== userId) return { ok: false, error: "No se pudo verificar la sesión." };
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   try {
     await createCalendarEvent(userId, {

@@ -159,18 +159,27 @@ Flujo: se envía una ronda (con entregables) → el revisor califica cada prueba
 
 Una tarea solo aparece en `delays` si **su propia duración real** superó la planeada — no por haber arrancado tarde porque una tarea de la que dependía se demoró. Si el usuario pregunta "¿quién generó el atraso?", la respuesta está en este campo, no en comparar fechas de fin a simple vista.
 
+## Tono de todo texto que se sube a la app — tercera persona, de usted, cordial y respetuoso (regla dura, 2026-09-21)
+
+Todo lo que se redacte para la app (descripciones, Ajustes, checks y criterios de Pruebas y Aceptaciones, comentarios, preguntas, mensajes) lo leen miembros del equipo y clientes externos. Se escribe siempre **de usted, en tercera persona o impersonal, con calidez y respeto**:
+
+- Nunca tuteo ni voseo: no «mira», «pulsa», «comprueba», «anota», «vas a probar», «querés», «podés».
+- Sí: «Observe la parte superior…», «Pulse cada pestaña y verifique que…», «¿Qué es lo que usted va a probar?», «Se solicita indicar qué botón o función echa de menos.», «Quedamos atentos a sus comentarios».
+- Amable y cálido, sin confianza ni jerga técnica: agradecer, invitar («Por favor», «Sería de gran ayuda que…»), nunca ordenar en seco.
+- Aplica también a los textos de ejemplo y a los que se corrijan en contenido ya subido.
+
 ## Diseñar Ajustes, Pruebas y Aceptaciones (y subirlos al sistema)
 
 La idea: la persona diseña en la conversación (los cambios pedidos, las pruebas, las características a aceptar) y Claude lo sube. **Confirmá la lista completa con la persona antes de subirla.**
 
-**Archivos e imágenes.** Todo campo «archivo» es `{ "url", "name", "mimeType"? }`: la `url` es la que devuelve `POST /api/upload` (multipart, campo `file`, mismo `Authorization: Bearer`; imágenes PNG/JPG/WEBP/GIF, PDF, Word, Excel, PowerPoint, TXT/CSV, hasta 20 MB; sin SVG ni video) o un link `https://…`. Cualquier otra ruta se rechaza (400). Solo se puede subir un archivo que Claude pueda leer desde donde corre (Claude Code en la computadora de la persona: `curl -F "file=@/ruta/imagen.png"`); si no, usar un link.
+**Archivos e imágenes.** Todo campo «archivo» es `{ "url", "name", "mimeType"? }`: la `url` es la que devuelve `POST /api/upload` (multipart, campo `file`, mismo `Authorization: Bearer`; imágenes PNG/JPG/WEBP/GIF, PDF, Word, Excel, PowerPoint, TXT/CSV, hasta 20 MB; sin SVG ni video; HTML solo si quien inició sesión es administrador o PM de algún proyecto, y se ve aislado en un visor con sandbox) o un link `https://…`. Cualquier otra ruta se rechaza (400). Solo se puede subir un archivo que Claude pueda leer desde donde corre (Claude Code en la computadora de la persona: `curl -F "file=@/ruta/imagen.png"`); si no, usar un link.
 
 - `GET /api/v1/tasks/:id/design` — estructura completa de una tarea Ajuste/Prueba/Aceptación: cambios (con antes/después y calificación del cliente) o rondas con sus pruebas/características, resultados, evidencias y quién calificó. Trae los ids que piden los demás endpoints. Cualquier usuario con sesión.
 - `POST /api/v1/tasks/:id/design` — **el diseño completo en un llamado**, según el tipo de la tarea:
   - **Ajuste**: `{ "items": [{ "description": "…", "note": "?", "before": [archivo], "after": [archivo] }] }` (agrega al final).
   - **Prueba y Aceptación**: `{ "deliverables": [archivo], "templateId": "?", "checks": [{ "title": "…", "criteria": "un punto por línea", "category": "?", "evidence": [archivo] }] }`. Si la tarea no tiene ronda, la crea (con lo entregado: exige al menos un `deliverable`); si la ronda 1 sigue abierta, solo agrega. `templateId` solo en Prueba. Devuelve `roundId` y los ids de los checks.
 - Ajustes, en detalle: `PATCH|DELETE /api/v1/adjustment-items/:itemId` (descripción/nota), `POST /api/v1/adjustment-items/:itemId/attachments` (`{ "kind": "BEFORE|AFTER", "files": […] }`), `POST /api/v1/adjustment-items/:itemId/reopen-review` (deja que el cliente califique de nuevo ese cambio), `DELETE /api/v1/adjustment-attachments/:id` (solo PM/admin).
-- Pruebas y Aceptación, en detalle: `POST /api/v1/rounds/:roundId/checks` (`{ "checks": […] }`, solo la primera ronda abierta), `DELETE /api/v1/checks/:checkId` (sin resultado), `POST /api/v1/checks/:checkId/evidence` (`{ "files": […] }`), `POST /api/v1/rounds/:roundId/deliverables`, `POST /api/v1/rounds/:roundId/apply-template` (`{ "templateId" }`, solo Prueba).
+- Pruebas y Aceptación, en detalle: `POST /api/v1/rounds/:roundId/checks` (`{ "checks": […] }`, solo la primera ronda abierta), `PATCH /api/v1/checks/:checkId` (`{ title?, criteria?, category? }`, reescribe el texto sin perder capturas ni comentarios; sin resultado y ronda abierta), `DELETE /api/v1/checks/:checkId` (sin resultado), `POST /api/v1/checks/:checkId/evidence` (`{ "files": […] }`), `POST /api/v1/rounds/:roundId/deliverables`, `POST /api/v1/rounds/:roundId/apply-template` (`{ "templateId" }`, solo Prueba).
 - Aceptación: `POST /api/v1/tasks/:id/acceptance/rounds` (envía o reenvía la entrega al cliente: `{ "deliverables": […] }`), `POST /api/v1/tasks/:id/acceptance/complete` (cuando el cliente aceptó la última ronda). **El cliente califica desde su link**: la API nunca acepta ni devuelve por él.
 - Adjuntos de la tarea: `GET|POST /api/v1/tasks/:id/attachments` (`{ "kind": "INSUMO|RESULTADO", "files": […] }`).
 - Link para el cliente: `GET|POST|DELETE /api/v1/tasks/:id/share-link` y `/api/v1/projects/:id/share-link`. Devuelven `path` (`/share/<token>`); anteponer la URL del servidor. El cliente, sin cuenta, comenta (con imágenes), responde preguntas, califica ajustes con «Enviar mi revisión» y acepta o devuelve características.

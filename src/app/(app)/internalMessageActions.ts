@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { getActingUser, type Actor } from "@/lib/permissions";
+import { getActingUser, getProjectAdmin, type Actor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { COMMENT_MAX_LENGTH, commentEditError, commentAttachments, commentMentionIds } from "@/lib/commentBody";
@@ -136,10 +136,15 @@ export async function editInternalMessage(messageId: string, body: string) {
 }
 
 export async function deleteInternalMessage(messageId: string) {
-  const found = await ownMessageInWindow(messageId);
-  if ("error" in found) return { ok: false as const, error: found.error };
+  // El autor elimina dentro de la ventana; el administrador o el PM del proyecto, siempre.
+  const message = await prisma.internalMessage.findUnique({ where: { id: messageId }, select: { projectId: true, taskId: true } });
+  if (!message) return { ok: false as const, error: "Ese comentario ya no existe." };
+  if (!(await getProjectAdmin(message.projectId))) {
+    const found = await ownMessageInWindow(messageId);
+    if ("error" in found) return { ok: false as const, error: found.error };
+  }
   await prisma.internalMessage.delete({ where: { id: messageId } });
-  revalidatePath(messagePath(found.message));
+  revalidatePath(messagePath(message));
   return { ok: true as const };
 }
 

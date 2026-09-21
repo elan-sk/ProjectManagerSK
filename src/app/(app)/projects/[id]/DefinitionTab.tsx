@@ -1,4 +1,5 @@
 import { DEFINITION_ACTION_BTN } from "@/lib/statusColors";
+import { linkifyHtml } from "@/lib/linkify";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ProjectDescription } from "./ProjectDescription";
@@ -54,7 +55,7 @@ export function DefinitionTab({
               <ProjectDescription projectId={projectId} description={description} />
             ) : (
               description ? (
-                <div className="prose prose-lg max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: description }} />
+                <div className="prose prose-lg max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }} />
               ) : (
                 <p className="text-[18px] text-slate-400">Sin descripción todavía.</p>
               )

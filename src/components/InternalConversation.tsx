@@ -10,9 +10,10 @@ export async function InternalConversation({ projectId, taskId = null, title }: 
   const session = await auth();
   if (!session?.user) return null;
   // Quien participa puede responder las preguntas; cerrarlas, quien las publicó o quien administra.
-  const [canVote, canCloseAny] = await Promise.all([
+  const [canVote, canCloseAny, canModerate] = await Promise.all([
     canParticipateInProject(projectId, taskId),
     taskId ? canEditTask(taskId) : getProjectAdmin(projectId).then(Boolean),
+    getProjectAdmin(projectId).then(Boolean),
   ]);
   const [people, messages] = await Promise.all([
     prisma.user.findMany({ where: { active: true, id: { not: session.user.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -47,6 +48,7 @@ export async function InternalConversation({ projectId, taskId = null, title }: 
                 edited={Boolean(m.editedAt)}
                 currentUserId={session.user.id}
                 asQuestion={Boolean(m.poll)}
+                canModerate={canModerate}
               />
             );
             return m.poll ? (

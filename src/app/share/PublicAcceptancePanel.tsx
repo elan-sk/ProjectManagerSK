@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PublicFileGrid } from "./PublicFileGrid";
@@ -65,7 +66,7 @@ function RoundSummary({ round, label }: { round: PublicAcceptanceRound; label: s
       <ul className="space-y-1.5">
         {round.items.map((item) => (
           <li key={item.id} className="flex items-start justify-between gap-2 text-[18px]">
-            <span className="text-slate-700">{item.title}</span>
+            <span className="text-slate-700"><Linkify text={item.title} /></span>
             {item.result && <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[item.result]}`}>{RESULT_LABEL[item.result]}</span>}
           </li>
         ))}
@@ -153,13 +154,13 @@ function PendingItemRow({
     <li className="space-y-1.5 rounded-xl border border-l-4 border-slate-300 border-l-[#0a6b78] bg-white p-3 shadow-sm">
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Característica {number} de {total}</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <p className="text-[19px] font-semibold text-slate-800">{item.title}</p>
+        <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.title} /></p>
         {item.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{item.category}</span>}
       </div>
       {item.criteria && (
         <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
           {item.criteria.split("\n").filter((l) => l.trim()).map((l, i) => (
-            <li key={i}>{l}</li>
+            <li key={i}><Linkify text={l} /></li>
           ))}
         </ul>
       )}
@@ -221,10 +222,10 @@ function DecidedItemRow({ token, item, number, total }: { token: string; item: P
     <li className="space-y-1 rounded-xl border border-l-4 border-slate-300 border-l-[#0a6b78] bg-white p-3 shadow-sm">
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Característica {number} de {total}</p>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[19px] font-semibold text-slate-800">{item.title}</p>
+        <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.title} /></p>
         <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[item.result]}`}>{RESULT_LABEL[item.result]}</span>
       </div>
-      {item.note && <p className="text-[17px] text-slate-500">Nota de la devolución: {item.note}</p>}
+      {item.note && <p className="text-[17px] text-slate-500">Nota de la devolución: <Linkify text={item.note} /></p>}
       {item.comments.length > 0 && <PublicCommentThread token={token} reviewCheckId={item.id} contextLabel={`Característica ${number}`} identityAbove locked comments={item.comments} />}
     </li>
   );

@@ -27,6 +27,11 @@ const EXTENSION_MIME: Record<string, string> = {
   ".csv": "text/csv",
 };
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
+
+// HTML (prototipos): solo lo sube quien pasa allowHtml (admin o PM). Es el único
+// tipo con código propio; por eso se sirve siempre aislado (CSP sandbox, ver
+// next.config.ts y /uploads/[name]) y se muestra en un iframe con sandbox.
+const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — evidencias/capturas, no video
 
 /** Tipo MIME a partir de la extensión del nombre (mismo criterio que la subida). */
@@ -42,18 +47,22 @@ export type UploadResult =
 // compartido, punto 15/16) — misma validación de tipo/tamaño en un solo
 // lugar, para que cambiar el límite (como ya pasó una vez) no quede
 // desincronizado entre los dos endpoints.
-export async function saveUploadedFile(file: File): Promise<UploadResult> {
+export async function saveUploadedFile(file: File, options: { allowHtml?: boolean } = {}): Promise<UploadResult> {
   const ext = path.extname(file.name).toLowerCase();
-  const mimeType = EXTENSION_MIME[ext] ?? file.type;
+  const isHtml = HTML_EXTENSIONS.has(ext);
+  if (isHtml && !options.allowHtml) {
+    return { ok: false, status: 403, error: "Solo el PM de un proyecto o un administrador pueden subir archivos HTML." };
+  }
+  const mimeType = isHtml ? "text/html" : EXTENSION_MIME[ext] ?? file.type;
 
-  if (!EXTENSION_MIME[ext] && !ALLOWED_MIME_TYPES.has(file.type)) {
+  if (!isHtml && !EXTENSION_MIME[ext] && !ALLOWED_MIME_TYPES.has(file.type)) {
     return { ok: false, status: 415, error: "Tipo de archivo no permitido. Usá imagen, PDF, Word, Excel, PowerPoint o texto/CSV." };
   }
   if (file.size > MAX_FILE_SIZE) {
     return { ok: false, status: 413, error: "El archivo supera los 20MB." };
   }
 
-  const fileName = `${randomUUID()}${ext}`;
+  const fileName = `${randomUUID()}${isHtml ? ".html" : ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   const uploadsDir = path.join(process.cwd(), "public/uploads");
   await mkdir(uploadsDir, { recursive: true });

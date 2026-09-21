@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addShareComment } from "./shareActions";
@@ -34,12 +35,12 @@ function CommentBubble({ author, role, body, attachments, poll, token, createdAt
       {poll ? (
         <div className="mt-1.5">
           <PublicPollFrame author={{ name: author, role, date: new Date(createdAt).toLocaleString("es-CO", DATE_FMT) }}>
-            <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900">{body}</p>
+            <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900"><Linkify text={body} /></p>
             <PublicPollCard key={poll.id} token={token} poll={poll} />
           </PublicPollFrame>
         </div>
       ) : (
-        body && <p className="mt-0.5 whitespace-pre-wrap text-slate-600">{body}</p>
+        body && <p className="mt-0.5 whitespace-pre-wrap text-slate-600"><Linkify text={body} /></p>
       )}
 
       {attachments.length > 0 && (

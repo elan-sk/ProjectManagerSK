@@ -41,7 +41,7 @@ const MEETING_TIME_FORMAT = new Intl.DateTimeFormat("es-CO", {
 async function dispatchMeetingReminders() {
   const now = new Date();
   const upcoming = await prisma.task.findMany({
-    where: { meetingAt: { gt: now }, meetingReminderSentAt: null, meetingUrl: { not: null } },
+    where: { meetingAt: { gt: now }, meetingReminderSentAt: null, meetingUrl: { not: null }, project: { hidden: false } },
     include: { project: { select: { pmId: true, whatsappGroupJid: true } }, assignees: true },
   });
   if (upcoming.length === 0) return;

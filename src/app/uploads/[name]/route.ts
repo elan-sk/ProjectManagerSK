@@ -28,7 +28,11 @@ const MIME: Record<string, string> = {
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".txt": "text/plain",
   ".csv": "text/csv",
+  ".html": "text/html; charset=utf-8",
 };
+
+// HTML subido: origen aislado (sin cookies ni acceso a la app) aunque se abra directo.
+export const HTML_CSP = "sandbox allow-scripts allow-forms allow-popups";
 
 const notFound = () => new Response("No encontrado", { status: 404 });
 
@@ -48,6 +52,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ nam
         "Content-Length": String(info.size),
         "Cache-Control": "public, max-age=0, must-revalidate",
         "X-Content-Type-Options": "nosniff",
+        ...(type.startsWith("text/html") ? { "Content-Security-Policy": HTML_CSP } : {}),
       },
     });
   }

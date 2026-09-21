@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -50,7 +51,7 @@ type Round = {
 
 const RESULT_LABEL: Record<"APPROVED" | "FAILED", string> = { APPROVED: "Aceptada por el cliente", FAILED: "Devuelta por el cliente" };
 const RESULT_COLOR: Record<"APPROVED" | "FAILED", string> = { APPROVED: "bg-emerald-600 text-white", FAILED: "bg-red-600 text-white" };
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
 function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const isLink = file.mimeType === LINK_MIME_TYPE;
@@ -419,13 +420,13 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-[19px] font-semibold text-slate-800">{item.title}</p>
+            <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.title} /></p>
             {item.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{item.category}</span>}
           </div>
           {item.criteria && (
             <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
               {item.criteria.split("\n").filter((l) => l.trim()).map((l, i) => (
-                <li key={i}>{l}</li>
+                <li key={i}><Linkify text={l} /></li>
               ))}
             </ul>
           )}
@@ -442,7 +443,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
       </div>
 
       {!item.result && <p className="text-[15px] text-slate-400">Pendiente de aceptación del cliente.</p>}
-      {item.result && item.note && <p className="text-[17px] text-slate-500">Nota del cliente: {item.note}</p>}
+      {item.result && item.note && <p className="text-[17px] text-slate-500">Nota del cliente: <Linkify text={item.note} /></p>}
       {item.result && item.reviewedByExternalName && (
         <p className="text-[13px] text-slate-400">
           {item.reviewedByExternalName}

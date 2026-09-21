@@ -15,9 +15,10 @@ export type PreviewFile = {
 const WORD_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const PDF_MIME = "application/pdf";
+const HTML_MIME = "text/html";
 
 export function isPreviewable(mimeType: string) {
-  return mimeType === PDF_MIME || mimeType === WORD_MIME || mimeType === EXCEL_MIME;
+  return mimeType === PDF_MIME || mimeType === HTML_MIME || mimeType === WORD_MIME || mimeType === EXCEL_MIME;
 }
 
 function tabClass(active: boolean) {
@@ -48,15 +49,16 @@ export function AttachmentPreviewModal({
   onDelete?: () => Promise<void>;
 }) {
   const confirm = useConfirm();
+  const isFrame = file.mimeType === PDF_MIME || file.mimeType === HTML_MIME;
   const containerRef = useRef<HTMLDivElement>(null);
   const [deleting, setDeleting] = useState(false);
-  const [loading, setLoading] = useState(file.mimeType !== PDF_MIME);
+  const [loading, setLoading] = useState(!isFrame);
   const [error, setError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<{ name: string; rows: string[][] }[] | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
 
   useEffect(() => {
-    if (file.mimeType === PDF_MIME) return; // el iframe se encarga solo
+    if (isFrame) return; // el iframe se encarga solo
     let cancelled = false;
 
     (async () => {
@@ -117,7 +119,7 @@ export function AttachmentPreviewModal({
     return () => {
       cancelled = true;
     };
-  }, [file.mimeType, file.url]);
+  }, [file.mimeType, file.url, isFrame]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -149,11 +151,11 @@ export function AttachmentPreviewModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/60" />
       <div className="relative flex h-[90vh] w-full max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-        {file.mimeType === PDF_MIME && (
-          <iframe src={file.url} title={file.name} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
+        {isFrame && (
+          <iframe src={file.url} title={file.name} sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
         )}
 
-        {file.mimeType !== PDF_MIME && (
+        {!isFrame && (
           <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-xl bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.3)]">
             {loading && <p className="text-sm text-slate-400">Cargando…</p>}
             {error && <p className="text-sm text-red-600">{error}</p>}
