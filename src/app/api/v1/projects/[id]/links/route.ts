@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { projectVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
@@ -9,6 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if ("error" in auth) return auth.error;
 
   const { id: projectId } = await params;
+  if (!(await projectVisibleTo(projectId, auth.actor))) return NextResponse.json({ error: "No existe." }, { status: 404 });
   const links = await prisma.projectLink.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
   return NextResponse.json(links);
 }

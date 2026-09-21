@@ -204,6 +204,9 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
 export async function setProjectHidden(projectId: string, hidden: boolean): Promise<Result> {
   const session = await auth();
   if (session?.user?.role !== "ADMIN") return { ok: false, error: "Solo un administrador puede ocultar o mostrar un proyecto." };
+  // Un proyecto oculto lo ve únicamente su responsable (PM), así que solo él, siendo administrador, lo gestiona.
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true } });
+  if (!project || project.pmId !== session.user.id) return { ok: false, error: "Solo el administrador que es responsable (PM) de este proyecto puede ocultarlo o mostrarlo." };
   await prisma.project.update({ where: { id: projectId }, data: { hidden } });
   refresh(projectId);
   return { ok: true, id: projectId };

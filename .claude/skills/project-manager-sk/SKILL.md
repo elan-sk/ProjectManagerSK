@@ -155,6 +155,10 @@ Flujo: se envía una ronda (con entregables) → el revisor califica cada prueba
 - `POST /api/v1/tasks/:id/review/rounds/:roundId/close` — cierra la ronda (exige que todas las pruebas tengan resultado). Si alguna quedó "Con errores", la tarea pasa a "Devuelta".
 - `POST /api/v1/tasks/:id/review/complete` — completa la tarea de Prueba (exige última ronda aprobada).
 
+## Proyectos ocultos (regla dura, 2026-09-21)
+
+Un proyecto oculto solo lo ve (por la app, la API, el chat y los avisos) el **administrador que además es su responsable (PM)**. Un segundo administrador, o un PM que no sea administrador, recibe 404 y no aparece en listas, búsquedas, resúmenes ni respaldos. Nunca envía avisos a grupos de WhatsApp. Ocultar o mostrar solo lo hace ese mismo administrador-PM.
+
 ## Regla de atrasos (importante para no malinterpretar `delays`)
 
 Una tarea solo aparece en `delays` si **su propia duración real** superó la planeada — no por haber arrancado tarde porque una tarea de la que dependía se demoró. Si el usuario pregunta "¿quién generó el atraso?", la respuesta está en este campo, no en comparar fechas de fin a simple vista.

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   const projectIds = rawIds.length > 0 && searchParams.get("scope") !== "all" ? rawIds : undefined;
 
   const projects = await prisma.project.findMany({
-    where: projectIds ? { id: { in: projectIds } } : undefined,
+    where: { ...(projectIds ? { id: { in: projectIds } } : {}), ...visibleProjectWhere(session.user) },
     orderBy: { name: "asc" },
     include: {
       pm: { select: { username: true } },

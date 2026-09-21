@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canSeeProject } from "@/lib/permissions";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -152,8 +153,8 @@ export default async function TaskDetailPage({
       poll: m.poll ? toTeamPoll(m.poll, session?.user?.id ?? null) : null,
     });
   }
-  // Un proyecto oculto solo lo ve el administrador.
-  if (task.project.hidden && session?.user?.role !== "ADMIN") notFound();
+  // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
+  if (!session?.user || !canSeeProject(task.project, session.user)) notFound();
 
   const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags] = await Promise.all([
     prisma.task.findMany({

@@ -1,4 +1,5 @@
 import { getUserActivityStats } from "@/lib/activity";
+import { visibleProjectWhere } from "@/lib/permissions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -196,13 +197,15 @@ export default async function IndividualPerformancePage({
   const myPmProjectIds = isAdmin
     ? null
     : (await prisma.project.findMany({ where: { pmId: session.user.id }, select: { id: true } })).map((p) => p.id);
+  // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
+  const adminVisibleIds = isAdmin ? (await prisma.project.findMany({ where: visibleProjectWhere(session.user), select: { id: true } })).map((p) => p.id) : null;
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);
   // Cualquiera ve su propio rendimiento completo. Ver el de otra persona es
   // privilegio de admin (todos) o PM (solo miembros de sus propios
   // proyectos, acotado a esos proyectos) — un miembro normal no ve datos ajenos.
   if (!isOwnPage && !isAdmin && !isPM) redirect(`/performance/${session.user.id}`);
 
-  const scopeProjectIds = isOwnPage || isAdmin ? undefined : myPmProjectIds!;
+  const scopeProjectIds = isAdmin ? adminVisibleIds! : isOwnPage ? undefined : myPmProjectIds!;
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, avatarUrl: true } });
   if (!targetUser) redirect("/performance");

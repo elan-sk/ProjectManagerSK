@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { AlertBadge } from "@/components/AlertBadge";
 import { AvatarGroup } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
@@ -187,7 +188,7 @@ export default async function AgendaPage({
         projectId: scopedProjectIds ? { in: scopedProjectIds } : projectId || undefined,
         status: status || undefined,
         archivedAt: null,
-        ...(isAdmin ? {} : { project: { hidden: false } }),
+        project: visibleProjectWhere(session.user),
       },
       include: {
         project: true,
@@ -198,7 +199,7 @@ export default async function AgendaPage({
       orderBy: { plannedStart: "asc" },
     }),
     prisma.project.findMany({
-      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...(isAdmin ? {} : { hidden: false }) },
+      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...visibleProjectWhere(session.user) },
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -208,7 +209,7 @@ export default async function AgendaPage({
     getAgendaCounts(effectiveUserId),
     // "Mis proyectos"/"Mi rendimiento" — solo tienen sentido en tu propia
     // agenda, nunca mirando la de otra persona.
-    viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id),
+    viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user),
     viewingOther ? Promise.resolve([]) : getUserPerformance(session.user.id),
     // Resumen de pruebas entregadas (si el usuario nunca entrega nada a QA,
     // roundsSubmitted queda en 0 y no se muestra ese dato extra) — Aceptación

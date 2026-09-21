@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canSeeProject } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import type { Actor } from "@/lib/permissions";
 import { fileMarker, imageMarker, linkMarker, mentionMarker, commentPlainText } from "@/lib/commentBody";
@@ -181,8 +182,8 @@ const shareOut = (c: ShareRow, userId: string) => ({
 });
 
 export async function listTaskThreads(taskId: string, actor: Actor) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, project: { select: { hidden: true } } } });
-  if (!task || (task.project.hidden && actor.role !== "ADMIN")) return fail(404, "La tarea no existe.");
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, project: { select: { hidden: true, pmId: true } } } });
+  if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
 
   const [shared, internal, roundMsgs] = await Promise.all([
     prisma.shareComment.findMany({ where: { taskId, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),

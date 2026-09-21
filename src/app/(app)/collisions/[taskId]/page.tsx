@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canSeeProject, visibleProjectWhere } from "@/lib/permissions";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,11 +27,11 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
   const anchorTask = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      project: { select: { id: true, name: true, iconUrl: true } },
+      project: { select: { id: true, name: true, iconUrl: true, hidden: true, pmId: true } },
       assignees: { include: { user: true } },
     },
   });
-  if (!anchorTask) notFound();
+  if (!anchorTask || !canSeeProject(anchorTask.project, session.user)) notFound();
 
   // Mismo criterio que "canSeeCollisions" en /projects: solo quien administra
   // algo ve colisiones — un miembro normal no llega ni por URL directa.
@@ -43,6 +44,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
 
   const [allTasksRaw, allUsers] = await Promise.all([
     prisma.task.findMany({
+      where: { project: visibleProjectWhere(session.user) },
       select: {
         id: true,
         projectId: true,

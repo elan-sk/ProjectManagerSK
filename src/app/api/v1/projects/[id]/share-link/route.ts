@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { projectVisibleTo } from "@/lib/visibility";
 import { withAuth, withBody } from "@/lib/apiResult";
 import { createShare, getShareLink, revokeShare } from "@/lib/taskDesign";
 
@@ -7,7 +8,7 @@ import { createShare, getShareLink, revokeShare } from "@/lib/taskDesign";
 // La respuesta trae `path` (/share/<token>); anteponé la URL del servidor para armar el link completo.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return withAuth(request, () => getShareLink({ projectId: id }));
+  return withAuth(request, async (actor) => ((await projectVisibleTo(id, actor)) ? getShareLink({ projectId: id }) : { ok: false, status: 404, error: "No existe." }));
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

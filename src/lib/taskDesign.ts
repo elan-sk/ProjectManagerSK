@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { canEditTask, canReviewTask, getProjectAdmin, type Actor } from "@/lib/permissions";
+import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { createShareLink, getActiveShareLink, revokeShareLink } from "@/lib/shareLinks";
@@ -42,7 +42,7 @@ const fileList = z.array(fileRefSchema).max(20);
 // ---------- Helpers ----------
 
 async function loadTask(taskId: string) {
-  return prisma.task.findUnique({ where: { id: taskId }, select: { id: true, projectId: true, type: true, status: true, project: { select: { hidden: true } } } });
+  return prisma.task.findUnique({ where: { id: taskId }, select: { id: true, projectId: true, type: true, status: true, project: { select: { hidden: true, pmId: true } } } });
 }
 const touch = (task: { projectId: string; id: string }) => revalidatePath(`/projects/${task.projectId}/tasks/${task.id}`);
 const NO_EDIT = "No se cuenta con permiso para editar esta tarea (se necesita ser asignado, PM del proyecto o administrador).";
@@ -54,7 +54,7 @@ const fileOut = (a: { id: string; fileUrl: string; fileName: string; mimeType: s
 
 export async function getTaskDesign(taskId: string, actor: Actor) {
   const task = await loadTask(taskId);
-  if (!task || (task.project.hidden && actor.role !== "ADMIN")) return fail(404, "La tarea no existe.");
+  if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
 
   if (task.type === "ADJUSTMENT") {
     const items = await prisma.adjustmentItem.findMany({
@@ -385,7 +385,7 @@ export async function designReviewTask(
 
 export async function listTaskAttachments(taskId: string, actor: Actor) {
   const task = await loadTask(taskId);
-  if (!task || (task.project.hidden && actor.role !== "ADMIN")) return fail(404, "La tarea no existe.");
+  if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
   const rows = await prisma.attachment.findMany({
     where: { taskId },
     orderBy: { uploadedAt: "asc" },

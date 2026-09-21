@@ -386,7 +386,7 @@ export async function buildDailyDigestText(userId: string, name: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
   const [counts, managedProjects] = await Promise.all([
     getAgendaCounts(userId),
-    user.role === "ADMIN" ? getProjectsSummary() : getPmProjectsSummary(userId),
+    user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId),
   ]);
   const firstName = name.split(" ")[0];
 

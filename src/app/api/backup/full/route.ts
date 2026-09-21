@@ -45,6 +45,12 @@ export async function GET() {
     return NextResponse.json({ error: "Solo un administrador puede crear respaldos." }, { status: 403 });
   }
 
+  // El respaldo total lleva TODA la base: si hay proyectos ocultos de otro responsable, no se puede generar sin exponerlos.
+  const foreignHidden = await prisma.project.count({ where: { hidden: true, pmId: { not: session.user.id } } });
+  if (foreignHidden > 0) {
+    return NextResponse.json({ error: "Hay proyectos ocultos de otro responsable; el respaldo total solo puede hacerlo el responsable de todos ellos." }, { status: 403 });
+  }
+
   const tables = await applicationTables();
   const contents = await Promise.all(
     tables.map(async (table) => [table, await prisma.$queryRawUnsafe<TableRow[]>(`SELECT * FROM ${identifier(table)}`)] as const),

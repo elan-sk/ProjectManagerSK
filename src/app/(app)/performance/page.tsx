@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -173,6 +174,8 @@ export default async function PerformancePage({
   const myPmProjectIds = isAdmin
     ? null
     : (await prisma.project.findMany({ where: { pmId: session.user.id }, select: { id: true } })).map((p) => p.id);
+  // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
+  const adminVisibleIds = isAdmin ? (await prisma.project.findMany({ where: visibleProjectWhere(session.user), select: { id: true } })).map((p) => p.id) : null;
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);
   // Un miembro normal no tiene informe grupal — lo mandamos directo al suyo.
   if (!isAdmin && !isPM) redirect(`/performance/${session.user.id}`);
@@ -181,9 +184,9 @@ export default async function PerformancePage({
   // Si es PM, queda acotado a sus proyectos aunque el projectId de la URL
   // sea de uno ajeno (o no exista) — nunca ve datos de un proyecto que no administra.
   const selectedProjectIds = isAdmin
-    ? projectId
+    ? projectId && adminVisibleIds!.includes(projectId)
       ? [projectId]
-      : undefined
+      : adminVisibleIds!
     : projectId && myPmProjectIds!.includes(projectId)
     ? [projectId]
     : myPmProjectIds!;
@@ -202,7 +205,7 @@ export default async function PerformancePage({
     acceptanceResponseCategories,
   ] = await Promise.all([
     prisma.project.findMany({
-      where: isAdmin ? undefined : { id: { in: myPmProjectIds! } },
+      where: isAdmin ? visibleProjectWhere(session.user) : { id: { in: myPmProjectIds! } },
       orderBy: { name: "asc" },
     }),
     getUserPerformance(undefined, selectedProjectIds),

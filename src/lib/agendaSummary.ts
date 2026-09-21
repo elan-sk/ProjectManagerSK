@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { visibleProjectWhere, type Actor } from "@/lib/permissions";
 import { getTaskAlert } from "@/lib/delays";
 import { projectHealth } from "@/lib/projectHealth";
 import { isStartingSoon } from "@/lib/statusColors";
@@ -18,8 +19,9 @@ export type AgendaCounts = {
 // no es una alerta real, así que ahora se cuenta por getTaskAlert (mismo
 // nivel que ya usan /projects y el badge de la card), no por status.
 export async function getAgendaCounts(userId: string): Promise<AgendaCounts> {
+  const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
   const tasks = await prisma.task.findMany({
-    where: { assignees: { some: { userId } }, status: { not: "COMPLETED" } },
+    where: { assignees: { some: { userId } }, status: { not: "COMPLETED" }, project: visibleProjectWhere(me) },
     include: {
       project: { select: { countryCode: true } },
       assignees: { where: { userId }, select: { viewedAt: true } },
@@ -57,9 +59,11 @@ export type PmProjectSummary = {
 // Resumen liviano por proyecto — mira TODAS las tareas del proyecto (no solo
 // las asignadas al PM). Para un PM se filtra por sus proyectos; para admin se
 // usa sin filtro y cubre toda la cartera activa.
-export async function getProjectsSummary(pmId?: string): Promise<PmProjectSummary[]> {
+// Los proyectos ocultos solo entran al resumen de su administrador responsable
+// (viewer); para cualquier otra persona quedan fuera.
+export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise<PmProjectSummary[]> {
   const projects = await prisma.project.findMany({
-    where: { ...(pmId ? { pmId } : {}), status: { not: "ARCHIVED" } },
+    where: { ...(pmId ? { pmId } : {}), status: { not: "ARCHIVED" }, ...(viewer ? visibleProjectWhere(viewer) : { hidden: false }) },
     select: {
       id: true,
       name: true,
@@ -97,6 +101,6 @@ export async function getProjectsSummary(pmId?: string): Promise<PmProjectSummar
 
 // Alias explícito para la Agenda y los sitios donde el alcance debe ser solo
 // lo administrado por una persona.
-export async function getPmProjectsSummary(userId: string) {
-  return getProjectsSummary(userId);
+export async function getPmProjectsSummary(userId: string, viewer?: Actor) {
+  return getProjectsSummary(userId, viewer);
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { getAppCountryCode } from "@/lib/appSettings";
 
 export async function GET(request: Request) {
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const projects = await prisma.project.findMany({
+    where: visibleProjectWhere(auth.actor),
     include: {
       pm: { select: PUBLIC_USER_SELECT },
       phases: true,

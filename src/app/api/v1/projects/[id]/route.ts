@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { projectVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
@@ -11,6 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if ("error" in auth) return auth.error;
 
   const { id } = await params;
+  if (!(await projectVisibleTo(id, auth.actor))) return NextResponse.json({ error: "No existe." }, { status: 404 });
   const project = await prisma.project.findUnique({
     where: { id },
     include: {

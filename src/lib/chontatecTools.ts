@@ -13,7 +13,7 @@ import { updateProjectDescription, updatePhase, deletePhase, addObjective, updat
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
-import { requireProjectAdmin, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, visibleProjectWhere, type Actor } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -671,7 +671,8 @@ async function currentUserId(): Promise<string> {
 // muestra todos los adjuntos del proyecto a cualquiera que la abra).
 async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (user.role === "ADMIN") return null;
+  // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
+  if (user.role === "ADMIN") return (await prisma.project.findMany({ where: visibleProjectWhere(user), select: { id: true } })).map((p) => p.id);
 
   const [pmProjects, assigned, reviewed] = await Promise.all([
     prisma.project.findMany({ where: { pmId: userId }, select: { id: true } }),
@@ -701,7 +702,10 @@ function hasAccess(accessibleIds: string[] | null, projectId: string) {
 // get_project_status).
 async function getFileAccessibleTaskIds(userId: string): Promise<Set<string> | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (user.role === "ADMIN") return null;
+  if (user.role === "ADMIN") {
+    const tasks = await prisma.task.findMany({ where: { project: visibleProjectWhere(user) }, select: { id: true } });
+    return new Set(tasks.map((t) => t.id));
+  }
 
   const [pmProjects, assigned, reviewed] = await Promise.all([
     prisma.project.findMany({ where: { pmId: userId }, select: { tasks: { select: { id: true } } } }),
@@ -736,7 +740,7 @@ function computePhase(tasks: { status: string }[]) {
 // defecto — ADMIN todas, PM las de sus proyectos, MEMBER las asignadas.
 async function myTasksWhere(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (user.role === "ADMIN") return {};
+  if (user.role === "ADMIN") return { project: visibleProjectWhere(user) };
   const pmProjects = await prisma.project.findMany({ where: { pmId: userId }, select: { id: true } });
   if (pmProjects.length > 0) return { projectId: { in: pmProjects.map((p) => p.id) } };
   return { assignees: { some: { userId } } };

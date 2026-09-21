@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { ComboFilter } from "@/components/ComboFilter";
 import { OverlapIcon } from "@/components/icons";
 import { SearchBox } from "@/components/SearchBox";
@@ -126,8 +127,8 @@ export default async function ProjectsPage({
     // getProjectSummaryRows por su cuenta — acá solo hace falta lo que
     // alimenta la vista Archivos del panorama general y el selector "Buscar".
     prisma.project.findMany({
-      // Un proyecto oculto solo lo ve el administrador.
-      where: { status: { not: "ARCHIVED" }, ...(isAdmin ? {} : { hidden: false }) },
+      // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
+      where: { status: { not: "ARCHIVED" }, ...visibleProjectWhere(session.user) },
       include: {
         // Insumos del proyecto cargados en Definición (repositorio de
         // archivos + links de referencia) — se mezclan más abajo con los
@@ -139,7 +140,7 @@ export default async function ProjectsPage({
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.task.findMany({
-      where: { archivedAt: null, ...(isAdmin ? {} : { project: { hidden: false } }) },
+      where: { archivedAt: null, project: visibleProjectWhere(session.user) },
       select: {
         id: true,
         projectId: true,
@@ -206,7 +207,7 @@ export default async function ProjectsPage({
   const projectRows = await getProjectSummaryRows(
     {
       status: { not: "ARCHIVED" },
-      ...(isAdmin ? {} : { hidden: false }),
+      ...visibleProjectWhere(session.user),
       ...(myAssignedProjectIds ? { id: { in: [...myAssignedProjectIds] } } : {}),
     },
     canSeeCollisions,
@@ -224,7 +225,7 @@ export default async function ProjectsPage({
 
   const boardTasksRaw = await prisma.task.findMany({
     // Las tareas archivadas salen del flujo visual; las de proyectos ocultos, para quien no es admin.
-    where: { ...boardWhere, archivedAt: null, ...(isAdmin ? {} : { project: { hidden: false } }) },
+    where: { ...boardWhere, archivedAt: null, project: visibleProjectWhere(session.user) },
     include: {
       project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
       phase: { select: { name: true } },

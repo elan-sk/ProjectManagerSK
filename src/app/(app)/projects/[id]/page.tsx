@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { canSeeProject } from "@/lib/permissions";
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -179,8 +180,8 @@ export default async function ProjectPage({
   ]);
 
   if (!project) notFound();
-  // Un proyecto oculto solo lo ve el administrador.
-  if (project.hidden && !isGlobalAdmin) notFound();
+  // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
+  if (!session?.user || !canSeeProject(project, session.user)) notFound();
 
   // Sin ?view= en la URL: un proyecto sin nada definido (sin descripción, objetivos
   // ni requerimientos) abre en Definición; el resto, en el Tablero de siempre.
@@ -546,7 +547,7 @@ export default async function ProjectPage({
                 <ModalTrigger label="Repositorios" title="Repositorios del proyecto" variant="secondary" small>
                   <EditReposForm projectId={project.id} urls={repoUrls} />
                 </ModalTrigger>
-                {isGlobalAdmin && (
+                {isGlobalAdmin && project.pmId === myUserId && (
                   <div className="ml-1.5 flex items-center gap-2 border-l border-slate-200 pl-2.5">
                     <HideProjectButton projectId={project.id} hidden={project.hidden} />
                     <ArchiveProjectButton projectId={project.id} projectName={project.name} />

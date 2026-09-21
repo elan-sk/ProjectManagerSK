@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   const userId = session.user.id;
   const projectWhere: Prisma.ProjectWhereInput =
     session.user.role === "ADMIN"
-      ? { status: { not: "ARCHIVED" } }
+      ? { status: { not: "ARCHIVED" }, ...visibleProjectWhere(session.user) }
       : {
           status: { not: "ARCHIVED" },
           hidden: false,

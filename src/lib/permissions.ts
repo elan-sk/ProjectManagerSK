@@ -14,6 +14,20 @@ async function resolveActor(actor?: Actor): Promise<Actor | null> {
 }
 
 /**
+ * Proyecto oculto: solo lo ve (y lo toca) un administrador que ADEMÁS es su
+ * responsable (PM). Un segundo administrador, o un PM que no sea administrador,
+ * no lo ven ni por la app, ni por la API, ni por el chat, ni por avisos.
+ */
+export function canSeeProject(project: { hidden: boolean; pmId: string }, user: Actor) {
+  return !project.hidden || (user.role === "ADMIN" && project.pmId === user.id);
+}
+
+/** Filtro de Prisma para consultas de proyectos: deja fuera los ocultos que esa persona no puede ver. */
+export function visibleProjectWhere(user: Actor) {
+  return user.role === "ADMIN" ? { NOT: { hidden: true, pmId: { not: user.id } } } : { hidden: false };
+}
+
+/**
  * Punto 3 (manuscrito): el PM de un proyecto tiene control de administrador
  * sobre ESE proyecto, sin importar su rol global. Un ADMIN global siempre
  * pasa. Devuelve el usuario si tiene permiso, o null si no.
@@ -21,10 +35,10 @@ async function resolveActor(actor?: Actor): Promise<Actor | null> {
 export async function getProjectAdmin(projectId: string, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return null;
-  if (user.role === "ADMIN") return user;
 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
-  if (project?.pmId === user.id) return user;
+  if (!project || !canSeeProject(project, user)) return null;
+  if (user.role === "ADMIN" || project.pmId === user.id) return user;
   return null;
 }
 
@@ -44,14 +58,13 @@ export async function requireProjectAdmin(projectId: string, actor?: Actor) {
 export async function canEditTask(taskId: string, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return false;
-  if (user.role === "ADMIN") return true;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: { project: true, assignees: true },
   });
-  if (!task) return false;
-  if (task.project.pmId === user.id) return true;
+  if (!task || !canSeeProject(task.project, user)) return false;
+  if (user.role === "ADMIN" || task.project.pmId === user.id) return true;
   return task.assignees.some((a) => a.userId === user.id);
 }
 
@@ -64,14 +77,13 @@ export async function canEditTask(taskId: string, actor?: Actor) {
 export async function canReviewTask(taskId: string, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return false;
-  if (user.role === "ADMIN") return true;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: { project: true, reviewers: true },
   });
-  if (!task) return false;
-  if (task.project.pmId === user.id) return true;
+  if (!task || !canSeeProject(task.project, user)) return false;
+  if (user.role === "ADMIN" || task.project.pmId === user.id) return true;
   return task.reviewers.some((r) => r.userId === user.id);
 }
 
@@ -119,9 +131,9 @@ export async function isPmOrAdminAnywhere() {
 export async function canParticipateInProject(projectId: string, taskId?: string | null, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return false;
-  if (user.role === "ADMIN") return true;
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true } });
-  if (project?.pmId === user.id) return true;
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true, hidden: true } });
+  if (!project || !canSeeProject(project, user)) return false;
+  if (user.role === "ADMIN" || project.pmId === user.id) return true;
   const scope = taskId ? { id: taskId } : { projectId };
   const member = await prisma.task.findFirst({
     where: { ...scope, OR: [{ assignees: { some: { userId: user.id } } }, { reviewers: { some: { userId: user.id } } }] },

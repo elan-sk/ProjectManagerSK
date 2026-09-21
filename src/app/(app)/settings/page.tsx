@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { visibleProjectWhere } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -43,7 +44,7 @@ export default async function SettingsPage({
           select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true, active: true },
         })
       : Promise.resolve(null),
-    isAdmin ? prisma.project.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
+    isAdmin ? prisma.project.findMany({ where: visibleProjectWhere(session.user), orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
     isAdmin ? getAppCountryCode() : Promise.resolve(null),
     isAdmin ? getAvailableCountries() : Promise.resolve(null),
     isAdmin ? getWhatsAppSettings() : Promise.resolve(null),

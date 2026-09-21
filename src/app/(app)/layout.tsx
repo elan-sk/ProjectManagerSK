@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { visibleProjectWhere } from "@/lib/permissions";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -78,20 +79,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         isUrgent: true,
         status: { not: "COMPLETED" },
         archivedAt: null,
+        project: visibleProjectWhere(session.user),
         ...(isAdmin
           ? {}
-          : { project: { hidden: false }, OR: [{ project: { pmId: uid } }, { assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] }),
+          : { OR: [{ project: { pmId: uid } }, { assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] }),
       },
       select: { id: true, title: true, projectId: true, plannedEnd: true },
       orderBy: { plannedEnd: "asc" },
     }),
     prisma.task.findMany({
-      where: { status: "RETURNED", assignees: { some: { userId: session.user.id } } },
+      where: { status: "RETURNED", assignees: { some: { userId: session.user.id } }, project: visibleProjectWhere(session.user) },
       select: { id: true, title: true, projectId: true, plannedEnd: true },
       orderBy: { plannedEnd: "asc" },
     }),
     prisma.task.findMany({
-      where: { reviewers: { some: { userId: session.user.id } }, reviewRounds: { some: { outcome: null } } },
+      where: { reviewers: { some: { userId: session.user.id } }, reviewRounds: { some: { outcome: null } }, project: visibleProjectWhere(session.user) },
       select: { id: true, title: true, projectId: true, plannedEnd: true },
       orderBy: { plannedEnd: "asc" },
     }),
