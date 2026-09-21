@@ -24,7 +24,6 @@ export function AttachmentPreview({
   onOpenImage,
   onOpenPreview,
   onOpenVideo,
-  wide,
 }: {
   id: string;
   url: string;
@@ -38,8 +37,6 @@ export function AttachmentPreview({
   onOpenPreview?: () => void;
   /** Link de YouTube — abre el reproductor integrado en vez de salir a otra pestaña. */
   onOpenVideo?: () => void;
-  /** Vista «Archivos»: todas las fichas ocupan el mismo ancho (2 columnas de la grilla), igual que los links. */
-  wide?: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -67,36 +64,34 @@ export function AttachmentPreview({
   if (isLink) {
     // Tarjeta de link: dominio visible y, para YouTube, miniatura con play.
     const linkClass =
-      "flex h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition-colors hover:border-[#0a6b78]/50 hover:bg-slate-50";
+      "relative flex h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition-colors hover:border-[#0a6b78]/50 hover:bg-slate-50";
     const content = videoId ? (
+      // Video: la miniatura ocupa toda la ficha, con el título abajo y el play al centro.
       <>
-        <span className="relative w-28 flex-shrink-0 bg-slate-900">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`} alt="" className="h-full w-full object-cover opacity-90" />
-          <span className="absolute inset-0 flex items-center justify-center">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4"><path d="M8 5v14l11-7z" /></svg>
-            </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4"><path d="M8 5v14l11-7z" /></svg>
           </span>
         </span>
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3">
-          <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
-          <span className="text-[11px] text-slate-400">YouTube · ver aquí</span>
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pt-4 pb-1.5">
+          <span className="line-clamp-1 break-words text-xs font-medium text-white">{name}</span>
         </span>
       </>
     ) : (
       <>
-        <span className="flex w-12 flex-shrink-0 items-center justify-center bg-[#0a6b78]/10 text-[#0a6b78]">
-          <LinkIcon className="h-5 w-5" />
+        <span className="flex w-9 flex-shrink-0 items-center justify-center bg-[#0a6b78]/10 text-[#0a6b78]">
+          <LinkIcon className="h-4 w-4" />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3">
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2.5">
           <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
           <span className="truncate text-[11px] text-slate-400">{linkHostname(url)} ↗</span>
         </span>
       </>
     );
     return (
-      <div className="group relative col-span-2 min-w-0">
+      <div className="group relative min-w-0">
         {videoId && onOpenVideo ? (
           <button type="button" onClick={onOpenVideo} className={linkClass}>
             {content}
@@ -143,7 +138,7 @@ export function AttachmentPreview({
     );
 
     return (
-      <div className={`group relative min-w-0 ${wide ? "col-span-2" : ""}`}>
+      <div className="group relative min-w-0">
         {onOpenPreview ? (
           <button type="button" onClick={onOpenPreview} className={thumbClass}>
             {thumbContent}
@@ -177,7 +172,7 @@ export function AttachmentPreview({
   }
 
   return (
-    <div className={`group relative ${wide ? "col-span-2" : ""}`}>
+    <div className="group relative">
       <button type="button" onClick={onOpenImage} className="block w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover" />

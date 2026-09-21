@@ -110,7 +110,6 @@ export function ProjectFilesView({
         (!showSharedLinks || sharedLinks.length === 0) && <p className="text-sm text-slate-400">Sin archivos.</p>
       ) : (
         <AttachmentGrid
-          wide
           className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
           canDelete={canDelete}
           items={files.map((f) => ({
