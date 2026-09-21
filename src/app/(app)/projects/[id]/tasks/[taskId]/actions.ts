@@ -137,6 +137,24 @@ export async function removeAttachment(attachmentId: string) {
     return;
   }
 
+  const messageAttachment = await prisma.reviewMessageAttachment.findUnique({
+    where: { id: attachmentId },
+    include: { reviewMessage: { include: { reviewRound: true } } },
+  });
+  if (messageAttachment) {
+    // Adjunto de un mensaje del hilo de la ronda: solo lo quita quien escribió el mensaje.
+    const user = await getActingUser();
+    if (!user || user.id !== messageAttachment.reviewMessage.authorId) {
+      throw new Error("Solo quien escribió el mensaje puede quitar sus adjuntos.");
+    }
+    await prisma.reviewMessageAttachment.delete({ where: { id: attachmentId } });
+    if (messageAttachment.mimeType !== LINK_MIME_TYPE) {
+      await deleteFileIfUnused(messageAttachment.fileUrl);
+    }
+    await revalidateTask(messageAttachment.reviewMessage.reviewRound.taskId);
+    return;
+  }
+
   const projectAttachment = await prisma.projectAttachment.findUnique({ where: { id: attachmentId } });
   if (!projectAttachment) {
     // Enlace del proyecto (pestaña Definición / Archivos): no tiene archivo físico.

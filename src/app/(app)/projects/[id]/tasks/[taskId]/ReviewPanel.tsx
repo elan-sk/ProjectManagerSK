@@ -19,6 +19,7 @@ import {
   submitReviewRound,
   addReviewDeliverable,
   addReviewDeliverableLink,
+  removeReviewDeliverable,
   applyTestTemplate,
   addReviewCheck,
   removeReviewCheck,
@@ -124,8 +125,9 @@ function FileChips({ files, onRemove }: { files: FileRef[]; onRemove?: (id: stri
               <button
                 type="button"
                 onClick={() => onRemove(file.id)}
-                aria-label="Eliminar evidencia"
-                className="absolute -top-1 -right-1 rounded-full bg-white p-0.5 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
+                aria-label="Quitar adjunto"
+                title="Quitar"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-slate-200 bg-white px-1 text-[12px] leading-4 text-slate-500 shadow-sm hover:text-red-600"
               >
                 ✕
               </button>
@@ -444,8 +446,15 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
   responseCategories: { name: string; responses: string[] }[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  async function handleRemoveDeliverable(id: string) {
+    if (!(await confirm("¿Quitar este adjunto de la ronda?", { confirmLabel: "Sí, quitar" }))) return;
+    await removeReviewDeliverable(id);
+    router.refresh();
+  }
   // Punto 8: la gestión completa de plantilla (aplicar/agregar puntos nuevos)
   // solo tiene sentido en la ronda 1 — de ahí en más, la ronda nace ya con
   // las mismas pruebas que fallaron (misma prueba, otra ronda), el revisor
@@ -478,7 +487,7 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
           Ronda {round.roundNumber} — enviada por {round.submittedByName}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <FileChips files={round.deliverables} />
+          <FileChips files={round.deliverables} onRemove={canEdit ? handleRemoveDeliverable : undefined} />
           {canEdit && <AddDeliverableForm reviewRoundId={round.id} />}
         </div>
       </div>

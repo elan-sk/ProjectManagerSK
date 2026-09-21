@@ -115,7 +115,7 @@ export function RoundThread({ roundId, messages, userId, canComment, canVote, ca
                 )}
               </>
             )}
-            {m.attachments.length > 0 && <AttachmentGrid items={m.attachments} canDelete={false} className="mt-1.5 grid grid-cols-3 gap-2" />}
+            {m.attachments.length > 0 && <AttachmentGrid items={m.attachments} canDelete={canComment && m.authorId === userId} className="mt-1.5 grid grid-cols-3 gap-2" />}
           </li>
         ))}
       </ul>

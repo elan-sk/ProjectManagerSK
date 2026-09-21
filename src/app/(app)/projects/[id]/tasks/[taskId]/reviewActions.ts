@@ -202,6 +202,23 @@ export async function addReviewDeliverable(
   await revalidateTask(round.taskId);
 }
 
+export async function removeReviewDeliverable(deliverableId: string) {
+  const deliverable = await prisma.reviewDeliverable.findUnique({ where: { id: deliverableId }, include: { reviewRound: true } });
+  if (!deliverable) return { ok: false as const, error: "Ese adjunto ya no existe." };
+  if (!(await canEditTask(deliverable.reviewRound.taskId))) {
+    return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
+  }
+  if (deliverable.reviewRound.outcome !== null) {
+    return { ok: false as const, error: "La ronda ya está cerrada, por lo que no se pueden quitar sus adjuntos." };
+  }
+  await prisma.reviewDeliverable.delete({ where: { id: deliverableId } });
+  if (deliverable.mimeType !== LINK_MIME_TYPE) {
+    await unlink(path.join(process.cwd(), "public", deliverable.fileUrl)).catch(() => {});
+  }
+  await revalidateTask(deliverable.reviewRound.taskId);
+  return { ok: true as const };
+}
+
 export async function addReviewDeliverableLink(reviewRoundId: string, url: string, name: string) {
   const round = await prisma.reviewRound.findUniqueOrThrow({ where: { id: reviewRoundId } });
   if (!(await canEditTask(round.taskId))) {

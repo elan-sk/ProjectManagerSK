@@ -10,14 +10,15 @@ import { prisma } from "@/lib/prisma";
  */
 export async function deleteFileIfUnused(fileUrl: string) {
   if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(fileUrl)) return;
-  const [a, pa, aa, dl, ev, msg] = await Promise.all([
+  const [a, pa, aa, dl, ev, msg, rma] = await Promise.all([
     prisma.attachment.count({ where: { fileUrl } }),
     prisma.projectAttachment.count({ where: { fileUrl } }),
     prisma.adjustmentAttachment.count({ where: { fileUrl } }),
     prisma.reviewDeliverable.count({ where: { fileUrl } }),
     prisma.reviewCheckEvidence.count({ where: { fileUrl } }),
     prisma.internalMessage.count({ where: { body: { contains: fileUrl } } }),
+    prisma.reviewMessageAttachment.count({ where: { fileUrl } }),
   ]);
-  if (a + pa + aa + dl + ev + msg > 0) return;
+  if (a + pa + aa + dl + ev + msg + rma > 0) return;
   await unlink(path.join(process.cwd(), "public", fileUrl)).catch(() => {});
 }
