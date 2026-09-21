@@ -302,6 +302,33 @@ export async function removeReviewCheck(checkId: string) {
   return { ok: true as const };
 }
 
+// Reescribe el texto de una prueba (título, puntos a verificar, categoría) sin perder sus capturas ni
+// sus comentarios. Solo mientras no tenga resultado y la ronda siga abierta.
+const checkTextSchema = z.object({
+  title: z.string().trim().min(1, "Falta indicar el título de la prueba.").max(500, "El título es demasiado largo."),
+  criteria: z.string().trim().max(4000, "La descripción es demasiado larga.").optional(),
+  category: z.string().trim().max(120, "La categoría es demasiado larga.").optional(),
+});
+
+export async function updateReviewCheck(checkId: string, input: { title: string; criteria?: string; category?: string }) {
+  const parsed = checkTextSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Los datos no son válidos." };
+  const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, include: { reviewRound: true } });
+  if (!check) return { ok: false as const, error: "Esa prueba ya no existe." };
+  if (!(await canReviewTask(check.reviewRound.taskId))) {
+    return { ok: false as const, error: "Solo el revisor, el PM del proyecto o un administrador pueden editar esta prueba." };
+  }
+  if (check.result !== null || check.reviewRound.outcome !== null) {
+    return { ok: false as const, error: "Esta prueba ya fue calificada o su ronda está cerrada, por lo que no se puede editar." };
+  }
+  await prisma.reviewCheck.update({
+    where: { id: checkId },
+    data: { title: parsed.data.title, criteria: parsed.data.criteria || null, category: parsed.data.category || null },
+  });
+  await revalidateTask(check.reviewRound.taskId);
+  return { ok: true as const };
+}
+
 // Punto 6: calificar "Con errores" o "Con hallazgos" exige evidencia ya
 // cargada en la prueba — "Aprobada"/"No aplica" no la necesitan.
 export async function setReviewCheckResult(checkId: string, result: CheckResult, note: string, actor?: Actor) {
