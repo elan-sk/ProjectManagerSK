@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -13,6 +14,27 @@ const backupSchema = z.object({
 });
 
 type TableRow = Record<string, unknown>;
+
+// Si hay proyectos ocultos de otro responsable, el respaldo viaja cifrado con una
+// llave del servidor (AES-256-GCM): el archivo no deja leer nada de ellos, pero
+// cualquier administrador lo puede restaurar aquí. Al restaurar, la marca de oculto
+// y el PM vuelven tal cual, así que solo su administrador-PM los sigue viendo.
+const encryptionKey = () => createHash("sha256").update(`respaldo-total:${process.env.AUTH_SECRET ?? ""}`).digest();
+
+function encryptBackup(plain: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const data = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return { format: BACKUP_FORMAT, version: 1, encrypted: true, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
+}
+
+function decryptBackup(envelope: { iv: string; tag: string; data: string }) {
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(envelope.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]).toString("utf8");
+}
+
+const encryptedSchema = z.object({ format: z.literal(BACKUP_FORMAT), encrypted: z.literal(true), iv: z.string(), tag: z.string(), data: z.string() });
 
 function identifier(name: string) {
   if (!tableNameSchema.test(name)) throw new Error("Nombre de tabla no válido en el respaldo.");
@@ -45,11 +67,7 @@ export async function GET() {
     return NextResponse.json({ error: "Solo un administrador puede crear respaldos." }, { status: 403 });
   }
 
-  // El respaldo total lleva TODA la base: si hay proyectos ocultos de otro responsable, no se puede generar sin exponerlos.
   const foreignHidden = await prisma.project.count({ where: { hidden: true, pmId: { not: session.user.id } } });
-  if (foreignHidden > 0) {
-    return NextResponse.json({ error: "Hay proyectos ocultos de otro responsable; el respaldo total solo puede hacerlo el responsable de todos ellos." }, { status: 403 });
-  }
 
   const tables = await applicationTables();
   const contents = await Promise.all(
@@ -62,7 +80,8 @@ export async function GET() {
     tables: Object.fromEntries(contents),
   };
 
-  return new NextResponse(JSON.stringify(backup, null, 2), {
+  const json = JSON.stringify(backup, null, 2);
+  return new NextResponse(foreignHidden > 0 ? JSON.stringify(encryptBackup(json)) : json, {
     headers: {
       "Content-Type": "application/json",
       "Content-Disposition": `attachment; filename="projectmanagersk-respaldo-total-${new Date().toISOString().slice(0, 10)}.json"`,
@@ -90,6 +109,15 @@ export async function POST(request: Request) {
     raw = JSON.parse(await file.text());
   } catch {
     return redirectToSettings(request, { backupError: "El archivo no es JSON válido" });
+  }
+
+  const encrypted = encryptedSchema.safeParse(raw);
+  if (encrypted.success) {
+    try {
+      raw = JSON.parse(decryptBackup(encrypted.data));
+    } catch {
+      return redirectToSettings(request, { backupError: "No se pudo abrir el respaldo cifrado (fue creado en otro servidor o está dañado)" });
+    }
   }
 
   const parsed = backupSchema.safeParse(raw);
