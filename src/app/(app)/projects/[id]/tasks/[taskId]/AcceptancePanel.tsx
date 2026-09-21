@@ -15,6 +15,7 @@ import {
   submitAcceptanceRound,
   addAcceptanceDeliverable,
   addAcceptanceDeliverableLink,
+  removeAcceptanceDeliverable,
   addAcceptanceItem,
   removeAcceptanceItem,
   updateAcceptanceItem,
@@ -94,8 +95,9 @@ function FileChips({ files, onRemove }: { files: FileRef[]; onRemove?: (id: stri
               <button
                 type="button"
                 onClick={() => onRemove(file.id)}
-                aria-label="Eliminar evidencia"
-                className="absolute -top-1 -right-1 rounded-full bg-white p-0.5 text-slate-400 opacity-0 shadow-sm hover:text-red-600 group-hover:opacity-100"
+                aria-label="Quitar adjunto"
+                title="Quitar"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-slate-200 bg-white px-1 text-[12px] leading-4 text-slate-500 shadow-sm hover:text-red-600"
               >
                 ✕
               </button>
@@ -324,7 +326,16 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
 }
 
 function ActiveRound({ taskId, round, userId, canEdit, canVote }: { taskId: string; round: Round; userId: string | null; canEdit: boolean; canVote: boolean }) {
+  const router = useRouter();
+  const confirm = useConfirm();
   const isFirstRound = round.roundNumber === 1;
+
+  async function handleRemoveDeliverable(id: string) {
+    if (!(await confirm("¿Quitar este adjunto de la ronda?", { confirmLabel: "Sí, quitar" }))) return;
+    await removeAcceptanceDeliverable(id);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -332,7 +343,7 @@ function ActiveRound({ taskId, round, userId, canEdit, canVote }: { taskId: stri
           Ronda {round.roundNumber} — enviada por {round.submittedByName} · esperando al cliente
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <FileChips files={round.deliverables} />
+          <FileChips files={round.deliverables} onRemove={canEdit ? handleRemoveDeliverable : undefined} />
           {canEdit && <AddDeliverableForm reviewRoundId={round.id} />}
         </div>
       </div>

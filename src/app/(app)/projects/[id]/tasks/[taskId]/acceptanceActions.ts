@@ -145,6 +145,23 @@ export async function addAcceptanceDeliverableLink(reviewRoundId: string, url: s
 
 // "Prueba" en QA = "Característica/funcionalidad" acá — mismo modelo
 // (ReviewCheck), mismo formulario (title + category + criteria).
+export async function removeAcceptanceDeliverable(deliverableId: string) {
+  const deliverable = await prisma.reviewDeliverable.findUnique({ where: { id: deliverableId }, include: { reviewRound: true } });
+  if (!deliverable) return { ok: false as const, error: "Ese adjunto ya no existe." };
+  if (!(await canEditTask(deliverable.reviewRound.taskId))) {
+    return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
+  }
+  if (deliverable.reviewRound.outcome !== null) {
+    return { ok: false as const, error: "La ronda ya está cerrada, por lo que no se pueden quitar sus adjuntos." };
+  }
+  await prisma.reviewDeliverable.delete({ where: { id: deliverableId } });
+  if (deliverable.mimeType !== LINK_MIME_TYPE) {
+    await unlink(path.join(process.cwd(), "public", deliverable.fileUrl)).catch(() => {});
+  }
+  await revalidateTask(deliverable.reviewRound.taskId);
+  return { ok: true as const };
+}
+
 export async function addAcceptanceItem(reviewRoundId: string, formData: FormData) {
   const round = await prisma.reviewRound.findUniqueOrThrow({ where: { id: reviewRoundId } });
   if (!(await canEditTask(round.taskId))) {
