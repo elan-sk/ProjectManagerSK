@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useConfirm } from "@/components/Confirm";
+import { HTML_SANDBOX } from "@/lib/htmlShell";
 
 export type PreviewFile = {
   id: string;
@@ -164,7 +165,7 @@ export function AttachmentPreviewModal({
       <div className="absolute inset-0 bg-slate-900/60" />
       <div className="relative flex h-[90vh] w-full max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         {isFrame && (
-          <iframe ref={frameRef} src={file.url} title={file.name} allowFullScreen sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
+          <iframe ref={frameRef} src={file.url} title={file.name} allowFullScreen sandbox={file.mimeType === HTML_MIME ? HTML_SANDBOX : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
         )}
 
         {!isFrame && (
