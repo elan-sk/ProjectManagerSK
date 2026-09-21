@@ -16,12 +16,12 @@ const GROUP_LABEL: Record<SearchHit["group"], string> = {
 };
 
 // Un color por grupo (mismos tonos que las etiquetas de abajo) para reconocerlo de un vistazo:
-// título del grupo y franja a la izquierda de cada resultado.
-const GROUP_COLOR: Record<SearchHit["group"], { title: string; bar: string }> = {
-  project: { title: "text-[#0a6b78]", bar: "border-l-[#0a6b78]" },
-  task: { title: "text-indigo-700", bar: "border-l-indigo-500" },
-  comment: { title: "text-amber-700", bar: "border-l-amber-500" },
-  file: { title: "text-sky-700", bar: "border-l-sky-500" },
+// título del grupo.
+const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
+  project: { title: "text-[#0a6b78]" },
+  task: { title: "text-indigo-700" },
+  comment: { title: "text-amber-700" },
+  file: { title: "text-sky-700" },
 };
 
 // La etiqueta por resultado solo aporta cuando distingue algo dentro del grupo
@@ -169,7 +169,7 @@ export function HeaderSearch() {
                     type="button"
                     onClick={() => go(h)}
                     onMouseEnter={() => setActive(i)}
-                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg border-l-[3px] ${GROUP_COLOR[h.group].bar} px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
+                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
                   >
                     {SHOW_KIND_BADGE.has(h.kind) && (
                       <span

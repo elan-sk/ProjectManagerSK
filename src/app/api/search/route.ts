@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       clientName: true,
       iconUrl: true,
       links: { select: { id: true, title: true, url: true } },
-      attachments: { select: { id: true, fileName: true, mimeType: true } },
+      attachments: { select: { id: true, fileName: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
       tasks: {
         select: {
           id: true,
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
           steps: { select: { id: true, description: true } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
           reviewers: { select: { user: { select: { name: true, avatarUrl: true } } } },
-          attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true } },
+          attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
         },
       },
     },
@@ -100,10 +100,10 @@ export async function GET(request: Request) {
   for (const p of projects) {
     const logo = { name: p.name, iconUrl: p.iconUrl };
     push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo);
-    for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`);
+    for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo);
     for (const a of p.attachments) {
       const isLink = a.mimeType === LINK_MIME_TYPE;
-      push(isLink ? "link" : "file", a.id, a.fileName, p.name, `/projects/${p.id}?view=definition`, a.fileName);
+      push(isLink ? "link" : "file", a.id, a.fileName, p.name, `/projects/${p.id}?view=definition`, a.fileName, logo, a.uploadedBy ? [a.uploadedBy] : undefined);
     }
     for (const t of p.tasks) {
       taskTitleById.set(t.id, t.title);
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
       for (const s of t.steps) push("step", s.id, snippet(s.description), `${t.title} · ${p.name}`, taskHref, s.description);
       for (const a of t.attachments) {
         const isLink = a.mimeType === LINK_MIME_TYPE;
-        push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName);
+        push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName, logo, [...(a.uploadedBy ? [a.uploadedBy] : []), ...involved].filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i));
       }
     }
   }

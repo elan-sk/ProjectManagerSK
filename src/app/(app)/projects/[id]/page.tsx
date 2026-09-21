@@ -500,7 +500,7 @@ export default async function ProjectPage({
   return (
     <div className="space-y-6">
       <SaveLastProject projectId={project.id} />
-      <RememberViewState storageKey={`project:${project.id}`} />
+      <RememberViewState key={project.id} storageKey={`project:${project.id}`} restore />
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>
