@@ -5,9 +5,9 @@ import Link from "next/link";
 
 type Health = { status: "disconnected" | "connecting" | "connected"; expected: boolean; needsQr: boolean; reason: string | null };
 
-// Alarma del header (solo admin): aparece cuando el bot de WhatsApp debería
-// estar conectado y no lo está. Consulta cada 30 s; el servidor ya reintenta
-// solo en segundo plano, así que normalmente desaparece sola.
+// Aviso del header (solo admin): aparece siempre que WhatsApp NO está conectado
+// (caído, desvinculado, detenido a mano o sin vincular todavía). Consulta cada
+// 30 s; si fue una caída, el servidor reintenta solo y el aviso desaparece.
 export function WhatsAppHealthAlert() {
   const [health, setHealth] = useState<Health | null>(null);
 
@@ -26,19 +26,21 @@ export function WhatsAppHealthAlert() {
     };
   }, []);
 
-  if (!health || health.status === "connected" || !health.expected) return null;
+  if (!health || health.status === "connected") return null;
   const detail = health.needsQr
-    ? "Hay que volver a vincular WhatsApp escaneando el QR."
-    : (health.reason ?? "Sin conexión; reintentando en segundo plano.");
+    ? "Falta vincular WhatsApp escaneando el QR."
+    : health.expected
+      ? (health.reason ?? "Sin conexión; reintentando en segundo plano.")
+      : "La conexión está detenida.";
   return (
     <Link
-      href="/settings"
+      href="/settings#whatsapp"
       title={`WhatsApp desconectado — ${detail}`}
       aria-label={`WhatsApp desconectado. ${detail}`}
-      className="relative flex items-center gap-1.5 rounded-full bg-red-500/90 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600"
+      className="relative flex items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[11px] font-medium leading-4 text-white hover:bg-red-600"
     >
-      <span className="h-2 w-2 animate-pulse rounded-full bg-white" aria-hidden />
-      WhatsApp caído
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />
+      WhatsApp
     </Link>
   );
 }

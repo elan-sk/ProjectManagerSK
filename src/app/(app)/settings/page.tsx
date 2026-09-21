@@ -77,7 +77,7 @@ export default async function SettingsPage({
       )}
 
       {isAdmin && (
-        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        <section id="whatsapp" className="scroll-mt-20 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">WhatsApp (alertas)</h2>
           <p className="text-sm text-slate-500">
             Vincula el número que va a mandar las alertas de tareas y proyectos al grupo del equipo.
