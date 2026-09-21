@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -15,26 +15,40 @@ const backupSchema = z.object({
 
 type TableRow = Record<string, unknown>;
 
-// Si hay proyectos ocultos de otro responsable, el respaldo viaja cifrado con una
-// llave del servidor (AES-256-GCM): el archivo no deja leer nada de ellos, pero
-// cualquier administrador lo puede restaurar aquí. Al restaurar, la marca de oculto
-// y el PM vuelven tal cual, así que solo su administrador-PM los sigue viendo.
-const encryptionKey = () => createHash("sha256").update(`respaldo-total:${process.env.AUTH_SECRET ?? ""}`).digest();
+// Si hay proyectos ocultos de otro responsable, el respaldo viaja cifrado (AES-256-GCM):
+// el archivo no deja leer nada de ellos. La clave es BACKUP_PASSPHRASE (variable de entorno del
+// servidor; si falta, AUTH_SECRET) y nunca la conoce quien descarga. Se restaura en CUALQUIER
+// parte (otro servidor o en local) con la misma clave: por variable de entorno o escribiéndola
+// en el formulario de restauración. Al restaurar, la marca de oculto y el PM vuelven tal cual.
+const serverPassphrase = () => process.env.BACKUP_PASSPHRASE || process.env.AUTH_SECRET || "";
 
 function encryptBackup(plain: string) {
+  const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const cipher = createCipheriv("aes-256-gcm", scryptSync(serverPassphrase(), salt, 32), iv);
   const data = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return { format: BACKUP_FORMAT, version: 1, encrypted: true, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
+  return { format: BACKUP_FORMAT, version: 1, encrypted: true, salt: salt.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
 }
 
-function decryptBackup(envelope: { iv: string; tag: string; data: string }) {
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(envelope.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
-  return Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]).toString("utf8");
+function decryptBackup(envelope: { salt?: string; iv: string; tag: string; data: string }, typedPassphrase: string) {
+  // Prueba la clave escrita en el formulario y las del servidor; el respaldo inicial (sin salt) usaba solo AUTH_SECRET.
+  const candidates = [typedPassphrase, process.env.BACKUP_PASSPHRASE, process.env.AUTH_SECRET].filter((c): c is string => Boolean(c));
+  for (const passphrase of candidates) {
+    try {
+      const key = envelope.salt
+        ? scryptSync(passphrase, Buffer.from(envelope.salt, "base64"), 32)
+        : createHash("sha256").update(`respaldo-total:${passphrase}`).digest();
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "base64"));
+      decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+      return Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]).toString("utf8");
+    } catch {
+      // clave incorrecta: se intenta la siguiente
+    }
+  }
+  return null;
 }
 
-const encryptedSchema = z.object({ format: z.literal(BACKUP_FORMAT), encrypted: z.literal(true), iv: z.string(), tag: z.string(), data: z.string() });
+const encryptedSchema = z.object({ format: z.literal(BACKUP_FORMAT), encrypted: z.literal(true), salt: z.string().optional(), iv: z.string(), tag: z.string(), data: z.string() });
 
 function identifier(name: string) {
   if (!tableNameSchema.test(name)) throw new Error("Nombre de tabla no válido en el respaldo.");
@@ -113,11 +127,12 @@ export async function POST(request: Request) {
 
   const encrypted = encryptedSchema.safeParse(raw);
   if (encrypted.success) {
-    try {
-      raw = JSON.parse(decryptBackup(encrypted.data));
-    } catch {
-      return redirectToSettings(request, { backupError: "No se pudo abrir el respaldo cifrado (fue creado en otro servidor o está dañado)" });
+    const typed = formData.get("passphrase");
+    const plain = decryptBackup(encrypted.data, typeof typed === "string" ? typed.trim() : "");
+    if (plain === null) {
+      return redirectToSettings(request, { backupError: "El respaldo está cifrado: escriba la clave del respaldo (BACKUP_PASSPHRASE del servidor donde se creó) o el archivo está dañado" });
     }
+    raw = JSON.parse(plain);
   }
 
   const parsed = backupSchema.safeParse(raw);

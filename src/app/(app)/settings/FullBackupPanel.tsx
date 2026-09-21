@@ -38,6 +38,13 @@ export function FullBackupPanel() {
           required
           className="block w-full text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-100"
         />
+        <input
+          type="password"
+          name="passphrase"
+          autoComplete="off"
+          placeholder="Clave del respaldo (solo si el archivo está cifrado)"
+          className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700"
+        />
         <label className="flex items-start gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
