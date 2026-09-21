@@ -51,8 +51,9 @@ export function AttachmentPreviewModal({
   const confirm = useConfirm();
   const isFrame = file.mimeType === PDF_MIME || file.mimeType === HTML_MIME;
   const containerRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
+  // Los HTML (prototipos) se abren por defecto ocupando toda la pantalla.
+  const [full, setFull] = useState(file.mimeType === HTML_MIME);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(!isFrame);
   const [error, setError] = useState<string | null>(null);
@@ -159,12 +160,37 @@ export function AttachmentPreviewModal({
     });
   }
 
+  if (isHtml && full) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-slate-900">
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 bg-white px-4 py-2 shadow">
+          <span className="min-w-0 truncate text-sm font-medium text-slate-800">{file.name}</span>
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+            <button type="button" onClick={copyUrl} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              {copied ? "¡Enlace copiado!" : "Copiar enlace"}
+            </button>
+            <a href={file.url} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              Abrir en pestaña
+            </a>
+            <button type="button" onClick={() => setFull(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              Vista normal
+            </button>
+            <button type="button" onClick={onClose} className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-slate-700">
+              Salir ✕
+            </button>
+          </div>
+        </div>
+        <iframe src={file.url} title={file.name} sandbox="allow-scripts allow-forms allow-popups" className="min-h-0 w-full flex-1 border-0 bg-white" />
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/60" />
       <div className="relative flex h-[90vh] w-full max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         {isFrame && (
-          <iframe ref={frameRef} src={file.url} title={file.name} allowFullScreen sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
+          <iframe src={file.url} title={file.name} sandbox={file.mimeType === HTML_MIME ? "allow-scripts allow-forms allow-popups" : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
         )}
 
         {!isFrame && (
@@ -209,7 +235,7 @@ export function AttachmentPreviewModal({
           <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
             {isHtml && (
               <>
-                <button type="button" onClick={() => frameRef.current?.requestFullscreen?.()} className="text-sm font-medium text-slate-900 hover:underline">
+                <button type="button" onClick={() => setFull(true)} className="text-sm font-medium text-slate-900 hover:underline">
                   Pantalla completa
                 </button>
                 <button type="button" onClick={copyUrl} className="text-sm font-medium text-slate-900 hover:underline">
