@@ -1,7 +1,6 @@
 "use client";
 
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
-import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
@@ -89,7 +88,7 @@ function fmtDate(iso: string) {
 // arrastrable) y su copia en el DragOverlay (ver KanbanBoard) — así ambas se
 // ven idénticas sin duplicar el string de Tailwind.
 function cardClassName(task: TaskCard, extra: string) {
-  // [&_button]/[&_a]:cursor-[inherit]: los controles internos (Asignar, Detalle…)
+  // [&_button]/[&_a]:cursor-[inherit]: los controles internos (Asignar…)
   // usan el mismo cursor de la card (manito; mano que agarra al presionar) en
   // vez del cursor por defecto de los botones.
   return `group relative touch-none space-y-2 rounded-2xl p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${task.isUrgent && task.status !== "COMPLETED" ? "bg-red-50 ring-2 ring-red-500/70" : taskCardTint(
@@ -130,16 +129,6 @@ function CardBody({
   const myCollisionsHref = `${collisionUrlBase}${collisionUrlBase.includes("?") ? "&" : "?"}collision=${task.id}`;
 
   const showActions = canManage && !hideDelete && !selectMode;
-  const detailLink = (
-    <Link
-      href={`/projects/${task.projectId}/tasks/${task.id}`}
-      onPointerDown={(e) => e.stopPropagation()}
-      className="text-xs font-medium text-slate-400 hover:text-slate-900"
-    >
-      Detalle
-    </Link>
-  );
-
   return (
     <>
       {selectMode && (
@@ -274,7 +263,6 @@ function CardBody({
               {task.attachmentsCount}
             </span>
           )}
-          {!showActions && detailLink}
         </div>
       </div>
 
@@ -300,7 +288,6 @@ function CardBody({
             <TrashIcon className="h-3.5 w-3.5" />
             Eliminar
           </button>
-          <span className="ml-auto">{detailLink}</span>
         </div>
       )}
 
@@ -383,7 +370,7 @@ function Card({
       ref={setNodeRef}
       {...attributes}
       // El arranque del arrastre va en la fase de captura (no burbujeo): así
-      // también empieza desde "Asignar", "Detalle", etc., que frenan
+      // también empieza desde "Asignar", etc., que frenan
       // onPointerDown para sí mismos. Un click sin mover nunca activa el
       // arrastre (sensor con `distance`), así que esos botones siguen
       // funcionando. Se ignora lo que llega de un modal portaleado (no es hijo
@@ -394,7 +381,7 @@ function Card({
       onClick={(e) => {
         // Click simple abre la tarea; el arrastre lo decide el sensor del
         // tablero (distance) y dnd-kit ya suprime el click que sigue a un
-        // drag. Se ignoran clicks de controles internos (Detalle, eliminar,
+        // drag. Se ignoran clicks de controles internos (eliminar,
         // popovers/modales que burbujean por portal) — solo el fondo de la
         // card navega.
         if (!e.currentTarget.contains(e.target as Node)) return;
