@@ -197,15 +197,18 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             <button type="button" onClick={() => fileRef.current?.click()} title="Adjuntar archivo" aria-label="Adjuntar archivo" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <PaperclipIcon className="h-4 w-4" />
             </button>
-            <BoldButton targetRef={areaRef} />
             <button type="button" onClick={() => setLinkOpen((v) => !v)} title="Agregar enlace" aria-label="Agregar enlace" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <LinkIcon className="h-4 w-4" />
             </button>
-            {allowPoll && (
-              <button type="button" onClick={() => setAsPoll((v) => !v)} className="ml-auto cursor-pointer rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                {asPoll ? "Volver a comentario" : "Hacer una pregunta"}
-              </button>
-            )}
+            {/* La negrita da formato al texto: va aparte de los adjuntos, a la derecha. */}
+            <span className="ml-auto flex items-center gap-1">
+              <BoldButton targetRef={areaRef} />
+              {allowPoll && (
+                <button type="button" onClick={() => setAsPoll((v) => !v)} className="cursor-pointer rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                  {asPoll ? "Volver a comentario" : "Hacer una pregunta"}
+                </button>
+              )}
+            </span>
             <input
               ref={fileRef}
               type="file"
