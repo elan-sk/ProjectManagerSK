@@ -1,6 +1,6 @@
 "use client";
 
-import { Linkify } from "@/lib/linkify";
+import { Linkify, LinkifyBold } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -488,7 +488,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
           {item.criteria && (
             <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
               {item.criteria.split("\n").filter((l) => l.trim()).map((l, i) => (
-                <li key={i}><Linkify text={l} /></li>
+                <li key={i}><LinkifyBold text={l} /></li>
               ))}
             </ul>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Linkify } from "@/lib/linkify";
+import { Linkify, LinkifyBold } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -723,7 +723,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
           {check.criteria && (
             <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
               {check.criteria.split("\n").filter((line) => line.trim()).map((line, i) => (
-                <li key={i}>{line}</li>
+                <li key={i}><LinkifyBold text={line} /></li>
               ))}
             </ul>
           )}

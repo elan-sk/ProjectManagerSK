@@ -12,8 +12,7 @@ function splitTrailing(raw: string) {
 
 const LINK_CLASS = "text-[#0a6b78] underline underline-offset-2 hover:text-[#085560] break-all";
 
-/** Texto plano → nodos con las URLs como enlaces (abren en pestaña nueva). */
-export function Linkify({ text }: { text: string }): ReactNode {
+function LinkifyUrls({ text }: { text: string }): ReactNode {
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(URL_RE)) {
@@ -51,3 +50,25 @@ export function linkifyHtml(html: string): string {
     })
     .join("");
 }
+
+const BOLD_RE = /\*([^*\n]+)\*/g;
+
+/** Texto plano → nodos con las URLs como enlaces (pestaña nueva) y `*texto*` en negrita. */
+export function Linkify({ text }: { text: string }): ReactNode {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(BOLD_RE)) {
+    if (m.index > last) out.push(<LinkifyUrls key={`t${last}`} text={text.slice(last, m.index)} />);
+    out.push(
+      <strong key={`b${m.index}`} className="font-semibold">
+        <LinkifyUrls text={m[1]} />
+      </strong>
+    );
+    last = m.index + m[0].length;
+  }
+  if (last === 0) return <LinkifyUrls text={text} />;
+  if (last < text.length) out.push(<LinkifyUrls key={`t${last}`} text={text.slice(last)} />);
+  return <>{out}</>;
+}
+
+export const LinkifyBold = Linkify;

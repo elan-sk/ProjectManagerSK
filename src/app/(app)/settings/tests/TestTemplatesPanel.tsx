@@ -1,5 +1,6 @@
 "use client";
 
+import { LinkifyBold } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -197,7 +198,7 @@ function ItemCard({ templateId, item, isAdmin }: { templateId: string; item: Ite
       {item.criteria && (
         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-slate-500">
           {item.criteria.split("\n").filter((line) => line.trim()).map((line, i) => (
-            <li key={i}>{line}</li>
+            <li key={i}><LinkifyBold text={line} /></li>
           ))}
         </ul>
       )}

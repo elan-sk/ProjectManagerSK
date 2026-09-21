@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -80,7 +81,7 @@ export function StepCheckbox({
             <button type="button" disabled={busy} onClick={() => { setValue(description); setEditing(false); }} className="text-xs text-slate-400 hover:underline">Cancelar</button>
           </div>
         ) : (
-          <span className={`min-w-0 flex-1 ${done ? "text-slate-400 line-through" : ""}`}>{description}</span>
+          <span className={`min-w-0 flex-1 ${done ? "text-slate-400 line-through" : ""}`}><Linkify text={description} /></span>
         )}
         {canEdit && !editing && (
           <div className="flex flex-shrink-0 items-center gap-2 text-xs">
