@@ -4,6 +4,7 @@ import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
 import { SharedLinkTiles } from "@/components/SharedLinkTiles";
+import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -59,6 +60,7 @@ export function ProjectFilesView({
         <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
           Evidencia
         </Link>
+        {canDelete && <ProjectInsumoUploader projectId={projectId} />}
       </div>
 
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
