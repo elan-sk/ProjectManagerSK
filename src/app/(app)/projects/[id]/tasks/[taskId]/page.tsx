@@ -7,6 +7,7 @@ import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVarian
 import { utcToBogotaLocalInputValue } from "@/lib/workingHours";
 import { getProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
+import { NewStepInput } from "./NewStepInput";
 import { StepList } from "./StepList";
 import { AttachmentUploader } from "./AttachmentUploader";
 import { AttachmentGrid } from "./AttachmentGrid";
@@ -447,12 +448,7 @@ export default async function TaskDetailPage({
         <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done }))} canEdit={canEdit} />
         {canEdit && (
           <form action={addStepWithId} className="flex gap-2">
-            <input
-              name="description"
-              placeholder="Nuevo paso / prueba"
-              required
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+            <NewStepInput />
             <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
               Agregar
             </button>

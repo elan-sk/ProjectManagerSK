@@ -19,6 +19,10 @@ export type SearchHit = {
   context: string | null;
   href: string;
   score: number;
+  // Logo del proyecto (solo en resultados de proyecto y tarea): nombre para el respaldo con inicial + imagen si tiene.
+  project?: { name: string; iconUrl: string | null };
+  // Involucrados de un comentario: autor primero y luego las personas @mencionadas.
+  people?: { name: string; avatarUrl: string | null }[];
 };
 
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -54,6 +58,7 @@ export async function GET(request: Request) {
       id: true,
       name: true,
       clientName: true,
+      iconUrl: true,
       links: { select: { id: true, title: true, url: true } },
       attachments: { select: { id: true, fileName: true, mimeType: true } },
       tasks: {
@@ -62,6 +67,8 @@ export async function GET(request: Request) {
           title: true,
           description: true,
           steps: { select: { id: true, description: true } },
+          assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
+          reviewers: { select: { user: { select: { name: true, avatarUrl: true } } } },
           attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true } },
         },
       },
@@ -70,21 +77,29 @@ export async function GET(request: Request) {
   const projectIds = projects.map((p) => p.id);
   const messages = await prisma.internalMessage.findMany({
     where: { projectId: { in: projectIds } },
-    select: { id: true, body: true, projectId: true, taskId: true, author: { select: { name: true } } },
+    select: {
+      id: true,
+      body: true,
+      projectId: true,
+      taskId: true,
+      author: { select: { name: true, avatarUrl: true } },
+      mentions: { select: { user: { select: { name: true, avatarUrl: true } } } },
+    },
     orderBy: { createdAt: "desc" },
     take: 2000, // ponytail: solo los 2000 más recientes; FULLTEXT si hace falta más historia
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string) => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"]) => {
     const score = fuzzyScore(q, text);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" ? "file" : kind;
-    if (score > 0) hits.push({ kind, group, id, title, context, href, score });
+    if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people });
   };
 
   const taskTitleById = new Map<string, string>();
   for (const p of projects) {
-    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`);
+    const logo = { name: p.name, iconUrl: p.iconUrl };
+    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo);
     for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`);
     for (const a of p.attachments) {
       const isLink = a.mimeType === LINK_MIME_TYPE;
@@ -93,7 +108,8 @@ export async function GET(request: Request) {
     for (const t of p.tasks) {
       taskTitleById.set(t.id, t.title);
       const taskHref = `/projects/${p.id}/tasks/${t.id}`;
-      push("task", t.id, t.title, p.name, taskHref, `${t.title} ${stripHtml(t.description ?? "")}`);
+      const involved = [...t.assignees, ...t.reviewers].map((x) => x.user).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i);
+      push("task", t.id, t.title, p.name, taskHref, `${t.title} ${stripHtml(t.description ?? "")}`, logo, involved);
       for (const s of t.steps) push("step", s.id, snippet(s.description), `${t.title} · ${p.name}`, taskHref, s.description);
       for (const a of t.attachments) {
         const isLink = a.mimeType === LINK_MIME_TYPE;
@@ -101,17 +117,20 @@ export async function GET(request: Request) {
       }
     }
   }
-  const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+  const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {
     const body = commentPreview(stripHtml(m.body));
+    const proj = projectById.get(m.projectId);
     const where = m.taskId ? taskTitleById.get(m.taskId) ?? "Tarea" : "Proyecto";
     push(
       "comment",
       m.id,
       snippet(body),
-      `${m.author.name} · ${where} · ${projectNameById.get(m.projectId) ?? ""}`,
+      `${m.author.name} · ${where} · ${projectById.get(m.projectId)?.name ?? ""}`,
       m.taskId ? `/projects/${m.projectId}/tasks/${m.taskId}` : `/projects/${m.projectId}?view=conversation`,
-      body
+      body,
+      proj && { name: proj.name, iconUrl: proj.iconUrl },
+      [m.author, ...m.mentions.map((x) => x.user).filter((u) => u.name !== m.author.name)]
     );
   }
 

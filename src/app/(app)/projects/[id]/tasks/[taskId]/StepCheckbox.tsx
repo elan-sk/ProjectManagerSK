@@ -1,7 +1,8 @@
 "use client";
 
 import { Linkify } from "@/lib/linkify";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
 import { removeStep, toggleStep, updateStep } from "./actions";
@@ -21,6 +22,7 @@ export function StepCheckbox({
   dragHandle?: React.ReactNode;
 }) {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(description);
@@ -76,7 +78,8 @@ export function StepCheckbox({
         />
         {editing ? (
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveDescription()} className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm" autoFocus />
+            <input ref={inputRef} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (boldOnKeyDown(e)) return; if (e.key === "Enter") saveDescription(); }} className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm" autoFocus />
+            <BoldButton targetRef={inputRef} />
             <button type="button" disabled={busy || !value.trim()} onClick={saveDescription} className="text-xs font-medium text-slate-700 hover:underline disabled:opacity-50">Guardar</button>
             <button type="button" disabled={busy} onClick={() => { setValue(description); setEditing(false); }} className="text-xs text-slate-400 hover:underline">Cancelar</button>
           </div>

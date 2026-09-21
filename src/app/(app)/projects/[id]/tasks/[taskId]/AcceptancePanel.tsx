@@ -1,6 +1,7 @@
 "use client";
 
 import { Linkify, LinkifyBold } from "@/lib/linkify";
+import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -382,6 +383,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
   const canAttachEvidence = canEdit && !item.result;
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(item.title);
+  const criteriaRef = useRef<HTMLTextAreaElement>(null);
   const [draftCriteria, setDraftCriteria] = useState(item.criteria ?? "");
   const [draftCategory, setDraftCategory] = useState(item.category ?? "");
   const [editError, setEditError] = useState<string | null>(null);
@@ -462,6 +464,8 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
               <input value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)} placeholder="Categoría" aria-label="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
             </div>
             <textarea
+              ref={criteriaRef}
+              onKeyDown={boldOnKeyDown}
               value={draftCriteria}
               onChange={(e) => setDraftCriteria(e.target.value)}
               placeholder="Puntos específicos a verificar, uno por línea (opcional)…"
@@ -469,6 +473,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
               rows={5}
               className="min-h-24 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
             />
+            <BoldButton targetRef={criteriaRef} className="mt-1 cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-sm font-bold text-slate-500 hover:bg-slate-50" />
             {editError && <p className="text-[15px] text-red-600">{editError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={handleSaveEdit} disabled={isPending || !draftTitle.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
@@ -620,6 +625,7 @@ function AddItemForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
+  const newCriteriaRef = useRef<HTMLTextAreaElement>(null);
   const [criteria, setCriteria] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -655,12 +661,15 @@ function AddItemForm({ reviewRoundId }: { reviewRoundId: string }) {
         </button>
       </div>
       <textarea
+        ref={newCriteriaRef}
+        onKeyDown={boldOnKeyDown}
         value={criteria}
         onChange={(e) => setCriteria(e.target.value)}
         placeholder="Descripción / puntos específicos, uno por línea (opcional)…"
         rows={2}
         className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] min-h-24"
       />
+      <BoldButton targetRef={newCriteriaRef} className="cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-sm font-bold text-slate-500 hover:bg-slate-50" />
     </div>
   );
 }

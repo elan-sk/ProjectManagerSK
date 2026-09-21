@@ -181,6 +181,14 @@ Todo lo que se redacte para la app (descripciones, Ajustes, checks y criterios d
 - Amable y cálido, sin confianza ni jerga técnica: agradecer, invitar («Por favor», «Sería de gran ayuda que…»), nunca ordenar en seco.
 - Aplica también a los textos de ejemplo y a los que se corrijan en contenido ya subido.
 
+## Negritas para dar jerarquía (regla dura, 2026-09-21)
+
+En los textos que se suben a la app, los **títulos y rótulos** de cada bloque van en negrita, en especial los que llevan dos puntos («Para qué sirve:», «Cómo probarlo:»). La negrita marca la jerarquía y hace el texto más fácil de recorrer.
+
+- **Texto plano** (`criteria` de los checks de Prueba/Aceptación, comentarios, pasos del checklist): la app interpreta `*texto*` (un asterisco a cada lado, en la misma línea) como negrita. Escribir el rótulo así: `*Para qué sirve:* Comprobar que…`. No usar `**doble**` ni `<strong>` (se vería literal).
+- **Campos HTML** (`description` de tareas y del proyecto): usar `<strong>` o `<h3>`.
+- Aplicarla donde haga falta para mostrar la jerarquía (rótulos, términos clave); no resaltar frases enteras ni todo el texto. Al cargar o corregir checks, poner los rótulos ya con asteriscos.
+
 ## Diseñar Ajustes, Pruebas y Aceptaciones (y subirlos al sistema)
 
 La idea: la persona diseña en la conversación (los cambios pedidos, las pruebas, las características a aceptar) y Claude lo sube. **Confirmá la lista completa con la persona antes de subirla.**

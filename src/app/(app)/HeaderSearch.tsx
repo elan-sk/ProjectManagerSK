@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/Avatar";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import type { SearchHit } from "@/app/api/search/route";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -167,13 +169,23 @@ export function HeaderSearch() {
                         {KIND_LABEL[h.kind]}
                       </span>
                     )}
-                    <span className="w-full min-w-0">
-                      <span className="block truncate text-sm text-slate-900">
-                        {h.title}
+                    <span className="flex w-full min-w-0 items-center gap-2.5">
+                      {h.project && <ProjectIcon name={h.project.name} iconUrl={h.project.iconUrl} size="h-7 w-7 rounded text-xs" />}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-slate-900">
+                          {h.title}
+                        </span>
+                        {h.context && (
+                          <span className="block truncate text-xs text-slate-400">
+                            {h.context}
+                          </span>
+                        )}
                       </span>
-                      {h.context && (
-                        <span className="block truncate text-xs text-slate-400">
-                          {h.context}
+                      {h.people && (
+                        <span className="flex flex-shrink-0 -space-x-1.5">
+                          {h.people.slice(0, 4).map((u) => (
+                            <Avatar key={u.name} name={u.name} avatarUrl={u.avatarUrl} size="h-5 w-5 text-[9px]" />
+                          ))}
                         </span>
                       )}
                     </span>

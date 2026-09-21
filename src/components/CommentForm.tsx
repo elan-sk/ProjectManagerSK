@@ -1,5 +1,6 @@
 "use client";
 
+import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
@@ -163,6 +164,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             value={value}
             onChange={onChange}
             onKeyDown={(e) => {
+              if (boldOnKeyDown(e)) return;
               if (e.key === "Escape") setQuery(null);
               if (suggestions.length > 0) {
                 if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -195,6 +197,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             <button type="button" onClick={() => fileRef.current?.click()} title="Adjuntar archivo" aria-label="Adjuntar archivo" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <PaperclipIcon className="h-4 w-4" />
             </button>
+            <BoldButton targetRef={areaRef} />
             <button type="button" onClick={() => setLinkOpen((v) => !v)} title="Agregar enlace" aria-label="Agregar enlace" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <LinkIcon className="h-4 w-4" />
             </button>
