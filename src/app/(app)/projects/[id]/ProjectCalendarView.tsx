@@ -3,7 +3,7 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendarGrid";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { LinkIcon, OverlapIcon, PaperclipIcon, UrgentIcon } from "@/components/icons";
+import { OverlapIcon, PaperclipIcon, ShareIcon, UrgentIcon } from "@/components/icons";
 import { TaskIndicators } from "@/components/TaskIndicators";
 import { CalendarTaskLink } from "./CalendarTaskLink";
 import type { TaskAlert } from "@/lib/delays";
@@ -185,7 +185,7 @@ export function ProjectCalendarView({
                       {isUrgentOpen(t) && <UrgentIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {collision && <OverlapIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       <span className="truncate">{label}</span>
-                      {t.shareToken && <LinkIcon className="h-2.5 w-2.5 flex-shrink-0" />}
+                      {t.shareToken && <ShareIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {t.attachmentsCount > 0 && <PaperclipIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                     </CalendarTaskLink>
                   );

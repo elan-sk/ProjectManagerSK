@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LinkIcon, CheckIcon } from "@/components/icons";
+import { ShareIcon, CheckIcon } from "@/components/icons";
 
 /**
  * Indicador de "este proyecto/tarea tiene un link compartido activo" +
@@ -32,7 +32,7 @@ export function CopyLinkButton({ token, className }: { token: string; className?
       {copied ? (
         <CheckIcon className="h-3 w-3 text-emerald-500" />
       ) : (
-        <LinkIcon className="h-3 w-3" />
+        <ShareIcon className="h-3 w-3" />
       )}
     </button>
   );

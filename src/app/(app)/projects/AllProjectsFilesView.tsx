@@ -2,7 +2,7 @@ import { ComboFilter } from "@/components/ComboFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
-import { AttachmentGrid } from "./[id]/tasks/[taskId]/AttachmentGrid";
+import { AttachmentSections } from "./[id]/tasks/[taskId]/AttachmentSections";
 import { SharedLinkTiles } from "@/components/SharedLinkTiles";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
@@ -108,7 +108,7 @@ export function AllProjectsFilesView({
       {files.length === 0 ? (
         (!showSharedLinks || sharedLinks.length === 0) && <p className="text-sm text-slate-400">Sin archivos.</p>
       ) : (
-        <AttachmentGrid
+        <AttachmentSections
           className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
           canDelete={false}
           items={files.map((f) => ({
