@@ -15,6 +15,15 @@ const GROUP_LABEL: Record<SearchHit["group"], string> = {
   file: "Archivos y links",
 };
 
+// Un color por grupo (mismos tonos que las etiquetas de abajo) para reconocerlo de un vistazo:
+// título del grupo y franja a la izquierda de cada resultado.
+const GROUP_COLOR: Record<SearchHit["group"], { title: string; bar: string }> = {
+  project: { title: "text-[#0a6b78]", bar: "border-l-[#0a6b78]" },
+  task: { title: "text-indigo-700", bar: "border-l-indigo-500" },
+  comment: { title: "text-amber-700", bar: "border-l-amber-500" },
+  file: { title: "text-sky-700", bar: "border-l-sky-500" },
+};
+
 // La etiqueta por resultado solo aporta cuando distingue algo dentro del grupo
 // (paso vs. tarea, archivo vs. link); en los demás sería repetir el título.
 const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link"]);
@@ -152,7 +161,7 @@ export function HeaderSearch() {
               hits.map((h, i) => (
                 <Fragment key={`${h.kind}:${h.id}`}>
                   {(i === 0 || hits[i - 1].group !== h.group) && (
-                    <p className={`px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide text-slate-400 uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
+                    <p className={`px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide ${GROUP_COLOR[h.group].title} uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
                       {GROUP_LABEL[h.group]}
                     </p>
                   )}
@@ -160,7 +169,7 @@ export function HeaderSearch() {
                     type="button"
                     onClick={() => go(h)}
                     onMouseEnter={() => setActive(i)}
-                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
+                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg border-l-[3px] ${GROUP_COLOR[h.group].bar} px-2.5 py-1.5 text-left ${i === active ? "bg-slate-100" : ""}`}
                   >
                     {SHOW_KIND_BADGE.has(h.kind) && (
                       <span
