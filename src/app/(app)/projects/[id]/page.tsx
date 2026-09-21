@@ -29,7 +29,9 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/sta
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { viewCookieName } from "@/lib/viewCookie";
 import { NavLinkWithMemory } from "../../NavLinkWithMemory";
 import { RememberViewState } from "../../RememberViewState";
 import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
@@ -75,7 +77,20 @@ export default async function ProjectPage({
   }>;
 }) {
   const { id } = await params;
-  const { view: viewParam, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = await searchParams;
+  const sp = await searchParams;
+  // Sin filtros en la URL (enlace suelto: buscador, aviso, lista…): se abre DIRECTO en la última vista de este
+  // proyecto (cookie que deja RememberViewState). Se hace acá, en el servidor, para no mostrar antes la vista por defecto.
+  if (Object.keys(sp).length === 0) {
+    const raw = (await cookies()).get(viewCookieName(`project:${id}`))?.value;
+    let saved = "";
+    try {
+      saved = raw ? decodeURIComponent(raw) : "";
+    } catch {
+      saved = raw ?? "";
+    }
+    if (saved && saved.length < 1500) redirect(`/projects/${id}?${saved}`);
+  }
+  const { view: viewParam, date, mode, status, type, userId, risk, q, tag, from: fromParam, to: toParam, fileKind, fileType, fileTask, fileQ, archived } = sp;
   // «Archivadas» vive en el filtro Estado (solo Admin/PM): status=ARCHIVED. `archived=1` queda por compatibilidad.
   const archivedView = archived === "1" || (status as string | undefined) === "ARCHIVED";
   const from = parseDayKey(fromParam);
@@ -500,7 +515,7 @@ export default async function ProjectPage({
   return (
     <div className="space-y-6">
       <SaveLastProject projectId={project.id} />
-      <RememberViewState key={project.id} storageKey={`project:${project.id}`} restore />
+      <RememberViewState storageKey={`project:${project.id}`} />
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>

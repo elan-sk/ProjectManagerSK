@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { removeAttachment } from "./actions";
-import { LINK_MIME_TYPE, linkHostname, youtubeVideoId } from "@/lib/attachments";
+import { LINK_MIME_TYPE, documentStyle, linkHostname, youtubeVideoId } from "@/lib/attachments";
 import { useConfirm } from "@/components/Confirm";
 
 /**
@@ -125,15 +125,20 @@ export function AttachmentPreview({
   }
 
   if (!isImage) {
-    const thumbClass = "flex h-24 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 p-2 text-center text-xs text-slate-500";
+    const doc = documentStyle(mimeType, name);
+    // Al pasar el mouse resalta el borde y el fondo con el color del tipo, sin mover ni cambiar el tamaño de la ficha.
+    const thumbClass = `flex h-24 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-1.5 text-center text-xs transition-colors duration-150 ${isLink ? "border-slate-200 text-slate-500 hover:border-slate-400" : `${doc.border} ${doc.bg} ${doc.text} ${doc.hover}`}`;
     const thumbContent = (
       <>
         {isLink ? (
           <LinkIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
         ) : (
-          <DocumentIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+          <span className="flex flex-shrink-0 flex-col items-center gap-0.5">
+            <DocumentIcon className="h-7 w-7" />
+            <span className="rounded bg-current/10 px-1 text-[10px] leading-4 font-bold tracking-wide">{name.includes(".") ? name.split(".").pop()!.toUpperCase() : doc.label}</span>
+          </span>
         )}
-        <span className="line-clamp-2 w-full break-words">{name}</span>
+        <span className={`line-clamp-2 w-full break-words ${isLink ? "text-slate-600" : `font-medium ${doc.name}`}`}>{name}</span>
       </>
     );
 
@@ -175,7 +180,7 @@ export function AttachmentPreview({
     <div className="group relative">
       <button type="button" onClick={onOpenImage} className="block w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover" />
+        <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover transition-colors duration-150 hover:border-[#0a6b78]" />
       </button>
       {taskLink && (
         <Link

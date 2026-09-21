@@ -20,7 +20,7 @@ export function YouTubeModal({ videoId, title, onClose }: { videoId: string; tit
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
             title={title}
-            allow="accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share; fullscreen"
             allowFullScreen
             className="h-full w-full border-0"
           />
