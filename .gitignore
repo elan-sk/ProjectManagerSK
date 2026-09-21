@@ -96,3 +96,6 @@ _tmp*/
 *~
 *.swp
 ._*
+
+# registro local del servidor
+/logs

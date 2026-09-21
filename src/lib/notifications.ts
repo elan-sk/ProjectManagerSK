@@ -481,6 +481,7 @@ export async function dispatchDailyDigests() {
   });
 
   const failures: { name: string; reason: string }[] = [];
+  let digestsSent = 0;
   for (const user of users) {
     if (user.lastDigestScheduleKey === scheduleKey) continue;
     // Compatibilidad con los resúmenes enviados antes de guardar su horario:
@@ -493,10 +494,14 @@ export async function dispatchDailyDigests() {
     }
     const text = await buildDailyDigestText(user.id, user.name);
     const sent = await sendDirectAlert(user.phone, text);
+    if (sent) digestsSent++;
     if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now, lastDigestScheduleKey: scheduleKey } });
     else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío por WhatsApp" : "WhatsApp está desconectado" });
   }
 
+  if (digestsSent > 0 || failures.length > 0) {
+    console.log(`[resumen-diario] horario ${scheduleKey}: enviados ${digestsSent}, fallidos ${failures.length}${failures.length ? ` (${failures.map((f) => f.reason).join("; ")})` : ""}, WhatsApp ${getWhatsAppStatus().status}`);
+  }
   if (failures.length > 0 && elapsed >= DIGEST_REPORT_AFTER_MINUTES && !digestReported.has(scheduleKey)) {
     digestReported.add(scheduleKey);
     await reportDigestFailures(failures);

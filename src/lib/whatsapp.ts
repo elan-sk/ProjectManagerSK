@@ -49,7 +49,10 @@ const state: WhatsAppState =
     lastDisconnectAt: null,
     reconnectTimer: null,
   };
-if (process.env.NODE_ENV !== "production") globalForWhatsApp.whatsapp = state;
+// Siempre (también en producción): la cabecera, Configuración y el programador de tareas se
+// cargan como módulos distintos y, sin esto, cada uno tenía SU copia del estado (uno decía
+// "Conectado" y otro "caído", y el programador nunca veía la conexión real).
+globalForWhatsApp.whatsapp = state;
 
 // Reconexión automática en segundo plano: ante una caída que NO sea un
 // cierre de sesión explícito (logout desde el teléfono), se reintenta sin
@@ -132,6 +135,7 @@ async function connect() {
   } = await import("@whiskeysockets/baileys");
   const { state: authState, saveCreds } = await loadAuthState(AUTH_DIR);
   const socket = makeWASocket({ auth: authState });
+  console.log(`[whatsapp] abriendo conexión (pid ${process.pid}, intento ${state.retryCount + 1})`);
   state.rawSocket = socket;
   socket.ev.on("creds.update", saveCreds);
 
@@ -171,6 +175,7 @@ async function connect() {
       const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output
         ?.statusCode;
       state.lastDisconnectAt = Date.now();
+      console.warn(`[whatsapp] conexión cerrada (código ${statusCode ?? "desconocido"}, pid ${process.pid}, intento ${state.retryCount + 1})`);
       state.lastDisconnectReason =
         statusCode === DisconnectReason.loggedOut ? "La sesión se cerró desde el teléfono: hay que escanear el QR de nuevo." : `Se cortó la conexión (código ${statusCode ?? "desconocido"}); reintentando.`;
       if (statusCode === DisconnectReason.loggedOut) {
@@ -287,7 +292,7 @@ export async function sendRawMessage(jid: string, text: string) {
     }
     return true;
   } catch (err) {
-    console.error("[whatsapp] no se pudo enviar el mensaje", err);
+    console.error(`[whatsapp] no se pudo enviar a ${jid.replace(/^(\d{4})\d+/, "$1***")} (estado ${state.status}, pid ${process.pid})`, err);
     return false;
   }
 }
