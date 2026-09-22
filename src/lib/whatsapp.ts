@@ -218,7 +218,11 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
   if (!state.sock || blockedByTestMode(groupJid)) return false;
 
   try {
-    const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
+    const [botName, avatar, intro] = await Promise.all([
+      getBotName(),
+      getBotAvatarBuffer(),
+      prisma.whatsAppGroupIntro.findUnique({ where: { groupJid } }),
+    ]);
     const mentioned = userIds.length
       ? await prisma.user.findMany({
           where: { id: { in: userIds }, phone: { not: null } },
@@ -230,11 +234,13 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
     const linkLine = link ? `\n\n🔗 ${link}` : "";
     const text = `🤖 *${botName}*\n${body}${mentionLine}${linkLine}`;
 
-    // Punto 5: se manda la foto de perfil del bot junto al texto (como
-    // caption) para que se identifique de un vistazo quién escribe — mismo
-    // mensaje, un solo envío, sin depender de convertir nada a webp.
-    if (avatar) {
+    // Punto 5: la foto de perfil del bot va junto al texto (como caption)
+    // solo la primera vez que se le escribe a este grupo — WhatsApp la
+    // cachea con esa primera aparición y no la vuelve a mostrar aunque se
+    // reenvíe, así que mandarla de nuevo en cada alerta es puro desperdicio.
+    if (avatar && !intro) {
       await state.sock.sendMessage(groupJid, { image: avatar, caption: text, mentions });
+      await prisma.whatsAppGroupIntro.create({ data: { groupJid } });
     } else {
       await state.sock.sendMessage(groupJid, { text, mentions });
     }

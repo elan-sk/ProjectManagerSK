@@ -798,6 +798,15 @@ model BotMessage {
   @@index([userId, createdAt])
 }
 
+// Marca qué grupos de WhatsApp ya recibieron la foto de perfil del bot.
+// WhatsApp solo la muestra la primera vez que se le escribe a un chat en
+// toda su historia (la cachea junto al preview) — mandarla de nuevo en
+// cada alerta no sirve de nada, así que se manda una única vez por grupo.
+model WhatsAppGroupIntro {
+  groupJid     String   @id
+  introducedAt DateTime @default(now())
+}
+
 // Cola de alertas de WhatsApp generadas fuera de horario laboral — el
 // poller de scheduler.ts las despacha apenas vuelve a abrir el horario.
 // `target` ya viene resuelto (JID de grupo o de persona) para no repetir
