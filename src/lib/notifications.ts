@@ -209,7 +209,13 @@ export async function notifyShareActivity(taskId: string, message: string) {
 // `immediate` (urgencias), que ignora el horario.
 async function dispatchDirect(userId: string, text: string, immediate = false, imageUrls?: string[]) {
   const user = await prisma.user.findFirst({ where: { id: userId, active: true, phone: { not: null } }, select: { phone: true } });
-  if (!user?.phone) return;
+  if (!user?.phone) {
+    // Antes se cortaba en silencio (ej. alguien mencionado sin teléfono cargado/inactivo
+    // nunca se enteraba, sin dejar rastro de por qué) — ahora al menos queda en
+    // persistent-logs con el id, para poder revisar el perfil de esa persona.
+    console.warn(`[notificaciones] no se pudo avisar a ${userId} por WhatsApp: sin teléfono cargado o usuario inactivo.`);
+    return;
+  }
   if (immediate || (await isCurrentlyWorkingHour())) {
     void sendDirectAlert(user.phone, text, imageUrls);
   } else {

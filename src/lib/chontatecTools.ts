@@ -202,7 +202,8 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "add_task_comment",
     description:
-      "Deja un comentario/nota (bitácora) interno en una tarea, o en el proyecto si no se indica taskId. Queda a nombre de la persona que conversa. Opcional: mentionUserIds para @mencionar personas del equipo.",
+      "Deja un comentario/nota (bitácora) interno en una tarea, o en el proyecto si no se indica taskId. Queda a nombre de la persona que conversa. " +
+      "Si el texto que te dictaron nombra a alguien con \"@Nombre\" (ej. \"avisale a @Max\"), es SIEMPRE una mención real: resolvé ese nombre contra list_team_members y pasá su id en mentionUserIds antes de llamar a esta tool — la mención (\"@Nombre\") se agrega sola al final del comentario, así que NO escribas tú \"@Nombre\" dentro de body (queda duplicado). Sin mentionUserIds esa persona NO recibe ningún aviso (el comentario le llega solo al PM/asignados como comentario genérico, no a quien nombraste).",
     input_schema: {
       type: "object",
       properties: {
@@ -354,7 +355,8 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "post_thread_comment",
     description:
-      "Publica un comentario o una PREGUNTA de selección (única o múltiple) en un hilo, a nombre de la persona que conversa. scope de tarea (taskId): task = comentario general que ve el cliente por su link (admite archivos, que quedan como Insumos); adjustment_item = hilo de un cambio (targetId = itemId); acceptance_check = hilo de una característica (targetId = checkId); qa_check = hilo interno de una prueba (targetId = checkId; admite @menciones); round = hilo interno de una ronda (targetId = roundId); conversation = conversación interna de la tarea. scope de proyecto (projectId): project_conversation = conversación interna del proyecto; project_definition = hilo de la Definición que ve el cliente. Para mencionar, pasá mentionUserIds (ids de list_team_members).",
+      "Publica un comentario o una PREGUNTA de selección (única o múltiple) en un hilo, a nombre de la persona que conversa. scope de tarea (taskId): task = comentario general que ve el cliente por su link (admite archivos, que quedan como Insumos); adjustment_item = hilo de un cambio (targetId = itemId); acceptance_check = hilo de una característica (targetId = checkId); qa_check = hilo interno de una prueba (targetId = checkId; admite @menciones); round = hilo interno de una ronda (targetId = roundId); conversation = conversación interna de la tarea. scope de proyecto (projectId): project_conversation = conversación interna del proyecto; project_definition = hilo de la Definición que ve el cliente. " +
+      "Si el texto que te dictaron nombra a alguien con \"@Nombre\" (ej. \"avisale a @Max\"), es SIEMPRE una mención real: resolvé ese nombre contra list_team_members y pasá su id en mentionUserIds — nunca lo dejes como texto suelto \"@Nombre\" dentro de body. Sin mentionUserIds esa persona NO recibe ningún aviso (el comentario le llega solo al PM/asignados/revisores como comentario genérico, no a quien nombraste).",
     input_schema: {
       type: "object",
       properties: {
