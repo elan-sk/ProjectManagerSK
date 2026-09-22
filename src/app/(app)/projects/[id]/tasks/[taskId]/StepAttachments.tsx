@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { usePasteImage } from "@/lib/usePasteImage";
@@ -104,17 +104,11 @@ function HtmlEmbed({ file, canDelete, onDeleted }: { file: AttachmentGridItem; c
  * un HTML subido queda incrustado y siempre visible (HtmlEmbed, sin necesitar clic), los links son
  * clicables y todo queda también como INSUMO de la tarea (ver addStepAttachment).
  */
-export function StepAttachments({
-  stepId,
-  attachments,
-  canEdit,
-  canAdd,
-}: {
-  stepId: string;
-  attachments: AttachmentGridItem[];
-  canEdit: boolean;
-  canAdd: boolean;
-}) {
+/** Métodos que dispara el menú "+" de StepCheckbox (al final del paso) — ver StepAttachMenu. */
+export type StepAttachmentsHandle = { openFilePicker: () => void; openLinkForm: () => void };
+
+export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: string; attachments: AttachmentGridItem[]; canEdit: boolean; canAdd: boolean }>(
+  function StepAttachments({ stepId, attachments, canEdit, canAdd }, ref) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   // Ctrl+V con una captura: va al paso sobre el que está el mouse o el foco (data-paste-zone en
@@ -168,8 +162,14 @@ export function StepAttachments({
     }
   }
 
+  // El botón único que dispara esto vive en StepCheckbox (al final del paso, junto a Editar/Eliminar) —
+  // acá solo se atiende: abrir el selector de archivo, o mostrar el formulario del link.
+  useImperativeHandle(ref, () => ({
+    openFilePicker: () => inputRef.current?.click(),
+    openLinkForm: () => setAddingLink(true),
+  }));
+
   if (attachments.length === 0 && !canAdd) return null;
-  const btn = "cursor-pointer rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-400 hover:text-slate-700";
   const htmlFiles = attachments.filter((a) => a.mimeType === HTML_MIME_TYPE);
   const rest = attachments.filter((a) => a.mimeType !== HTML_MIME_TYPE);
 
@@ -179,55 +179,48 @@ export function StepAttachments({
         <HtmlEmbed key={f.id} file={f} canDelete={canEdit} onDeleted={router.refresh} />
       ))}
       {rest.length > 0 && <AttachmentGrid items={rest} canDelete={canEdit} className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" />}
-      {canAdd &&
-        (addingLink ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <input
-              type="url"
-              autoFocus
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && linkUrl.trim() && saveLink()}
-              placeholder="https://…"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
-            />
-            <input
-              type="text"
-              value={linkName}
-              onChange={(e) => setLinkName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && linkUrl.trim() && saveLink()}
-              placeholder="Nombre (opcional)"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
-            />
-            <button type="button" disabled={uploading || !linkUrl.trim()} onClick={saveLink} className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
-              Guardar
-            </button>
-            <button type="button" onClick={() => { setAddingLink(false); setError(null); }} className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:border-slate-400">
-              Cancelar
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5">
-            <label className={btn} title="Subir un archivo, o pegar una captura con Ctrl+V">
-              {uploading ? `Subiendo… ${Math.round(progress * 100)} %` : "+ Archivo"}
-              <input
-                ref={inputRef}
-                type="file"
-                multiple
-                accept={ACCEPT}
-                className="hidden"
-                onChange={() => {
-                  const files = Array.from(inputRef.current?.files ?? []);
-                  if (files.length > 0) uploadFiles(files);
-                }}
-              />
-            </label>
-            <button type="button" onClick={() => setAddingLink(true)} className={btn}>
-              + Link
-            </button>
-          </div>
-        ))}
+      {canAdd && (
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept={ACCEPT}
+          className="hidden"
+          onChange={() => {
+            const files = Array.from(inputRef.current?.files ?? []);
+            if (files.length > 0) uploadFiles(files);
+          }}
+        />
+      )}
+      {canAdd && addingLink && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            type="url"
+            autoFocus
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && linkUrl.trim() && saveLink()}
+            placeholder="https://…"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+          />
+          <input
+            type="text"
+            value={linkName}
+            onChange={(e) => setLinkName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && linkUrl.trim() && saveLink()}
+            placeholder="Nombre (opcional)"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+          />
+          <button type="button" disabled={uploading || !linkUrl.trim()} onClick={saveLink} className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+            Guardar
+          </button>
+          <button type="button" onClick={() => { setAddingLink(false); setError(null); }} className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:border-slate-400">
+            Cancelar
+          </button>
+        </div>
+      )}
+      {uploading && !addingLink && <p className="text-xs text-slate-400">Subiendo… {Math.round(progress * 100)} %</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
-}
+});
