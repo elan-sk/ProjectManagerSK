@@ -174,7 +174,9 @@ export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: strin
   const rest = attachments.filter((a) => a.mimeType !== HTML_MIME_TYPE);
 
   return (
-    <div className="space-y-1.5 pl-6">
+    // pl-12 (no pl-6): alinea bajo el texto del paso, no bajo el asa+checkbox — así se lee claro
+    // que este bloque es DE ese paso, no algo suelto pegado al borde de la lista.
+    <div className="space-y-1.5 pl-12">
       {htmlFiles.map((f) => (
         <HtmlEmbed key={f.id} file={f} canDelete={canEdit} onDeleted={router.refresh} />
       ))}

@@ -155,15 +155,19 @@ export function StepCheckbox({
         )}
         {canEdit && !editing && (
           <div className="flex flex-shrink-0 items-center gap-2 text-xs">
+            {canAddFiles && (
+              <>
+                <StepAttachMenu
+                  disabled={busy}
+                  onFile={() => attachRef.current?.openFilePicker()}
+                  onLink={() => attachRef.current?.openLinkForm()}
+                />
+                {/* Separador propio: evita presionar "Editar" sin querer al ir a buscar el clip. */}
+                <span className="h-4 w-px bg-slate-200" aria-hidden />
+              </>
+            )}
             <button type="button" disabled={busy} onClick={() => setEditing(true)} className="text-slate-400 hover:text-slate-700 hover:underline">Editar</button>
             <button type="button" disabled={busy} onClick={deleteStep} className="text-slate-400 hover:text-red-600 hover:underline">Eliminar</button>
-            {canAddFiles && (
-              <StepAttachMenu
-                disabled={busy}
-                onFile={() => attachRef.current?.openFilePicker()}
-                onLink={() => attachRef.current?.openLinkForm()}
-              />
-            )}
           </div>
         )}
       </div>
