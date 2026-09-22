@@ -3,8 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { canEditTask } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { addAttachmentRecord, addLinkAttachment } from "./actions";
-import type { AttachmentKind } from "@prisma/client";
+import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment } from "./actions";
+import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
 export type MediaItem = { url: string; name: string; mimeType: string };
 
@@ -39,6 +39,23 @@ export async function reuseMedia(taskId: string, kind: AttachmentKind, url: stri
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
     if (item.mimeType === LINK_MIME_TYPE) await addLinkAttachment(taskId, kind, item.url, item.name, userId);
     else await addAttachmentRecord(taskId, kind, item, userId);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
+}
+
+// Igual que reuseMedia, pero para adjuntar el elemento de la galería a un
+// AdjustmentItem puntual (ej. Insumos de un ajuste) en vez de a la tarea.
+export async function reuseMediaForAdjustment(itemId: string, kind: AdjustmentAttachmentKind, url: string, userId: string) {
+  try {
+    const { taskId } = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId }, select: { taskId: true } });
+    const gallery = await listReusableMedia(taskId);
+    if (!gallery.ok) return gallery;
+    const item = gallery.items.find((i) => i.url === url);
+    if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
+    if (item.mimeType === LINK_MIME_TYPE) await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId);
+    else await addAdjustmentAttachment(itemId, kind, item, userId);
     return { ok: true as const };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };

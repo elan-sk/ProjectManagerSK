@@ -485,6 +485,7 @@ export default async function TaskDetailPage({
             note: item.note,
             before: item.attachments.filter((a) => a.kind === "BEFORE").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             after: item.attachments.filter((a) => a.kind === "AFTER").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            insumos: item.attachments.filter((a) => a.kind === "INSUMO").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             clientApproval: item.clientApproval,
             clientApprovalBy: item.clientApprovalBy,
             clientReviewOpen: item.clientReviewOpen,

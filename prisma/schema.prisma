@@ -669,6 +669,10 @@ model SharePollVote {
 enum AdjustmentAttachmentKind {
   BEFORE
   AFTER
+  // Insumos propios de este ajuste (referencias, capturas, archivos que
+  // necesita el equipo para resolverlo) — nunca se mapean en publicView.ts,
+  // así que el cliente nunca los ve, a diferencia de BEFORE/AFTER.
+  INSUMO
 }
 
 model AdjustmentAttachment {

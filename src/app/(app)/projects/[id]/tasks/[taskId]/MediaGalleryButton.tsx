@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
 import { attachmentFileType } from "@/lib/attachments";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
-import { listReusableMedia, reuseMedia, type MediaItem } from "./mediaGallery";
-import type { AttachmentKind } from "@prisma/client";
+import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, type MediaItem } from "./mediaGallery";
+import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
 // «Galería»: elegir un archivo o link ya subido en el proyecto en vez de subirlo otra vez.
-export function MediaGalleryButton({ taskId, userId, kind }: { taskId: string; userId: string; kind: AttachmentKind }) {
+// Con `adjustmentItemId`, el elemento elegido se adjunta a ese ajuste (ej.
+// Insumos) en vez de a la tarea directamente.
+type Props =
+  | { taskId: string; userId: string; kind: AttachmentKind; adjustmentItemId?: undefined }
+  | { taskId: string; userId: string; kind: AdjustmentAttachmentKind; adjustmentItemId: string };
+
+export function MediaGalleryButton(props: Props) {
+  const { taskId, userId } = props;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<MediaItem[] | null>(null);
@@ -28,7 +35,9 @@ export function MediaGalleryButton({ taskId, userId, kind }: { taskId: string; u
   async function pick(item: MediaItem) {
     setBusy(item.url);
     setError(null);
-    const result = await reuseMedia(taskId, kind, item.url, userId);
+    const result = props.adjustmentItemId !== undefined
+      ? await reuseMediaForAdjustment(props.adjustmentItemId, props.kind, item.url, userId)
+      : await reuseMedia(taskId, props.kind, item.url, userId);
     setBusy(null);
     if (!result.ok) return setError(result.error);
     setOpen(false);

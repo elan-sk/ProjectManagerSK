@@ -9,6 +9,7 @@ import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
+import { MediaGalleryButton } from "./MediaGalleryButton";
 import {
   addAdjustmentItem,
   removeAdjustmentItem,
@@ -29,6 +30,7 @@ type AdjustmentItemData = {
   note: string | null;
   before: AdjustmentAttachment[];
   after: AdjustmentAttachment[];
+  insumos: AdjustmentAttachment[];
   clientApproval: boolean | null;
   clientApprovalBy: string | null;
   clientReviewOpen: boolean;
@@ -249,6 +251,10 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
         <AdjustmentSide label="Después" kind="AFTER" itemId={item.id} attachments={item.after} userId={userId} canEdit={canEdit} canDelete={canDelete} />
       </div>
 
+      {(item.insumos.length > 0 || canEdit) && (
+        <AdjustmentSide label="Insumos" kind="INSUMO" itemId={item.id} taskId={taskId} attachments={item.insumos} userId={userId} canEdit={canEdit} canDelete={canDelete} />
+      )}
+
       {canEdit && item.after.length === 0 && (
         <div>
           {editingNote ? (
@@ -287,10 +293,11 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
-function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, canDelete }: {
+function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canEdit, canDelete }: {
   label: string;
   kind: AdjustmentAttachmentKind;
   itemId: string;
+  taskId?: string;
   attachments: AdjustmentAttachment[];
   userId: string | null;
   canEdit: boolean;
@@ -430,6 +437,9 @@ function AdjustmentSide({ label, kind, itemId, attachments, userId, canEdit, can
             <button type="button" onClick={() => setAddingLink(true)} className="flex-1 rounded-lg border border-dashed border-slate-300 py-1 text-[15px] text-slate-500 hover:border-slate-400">
               + Link
             </button>
+            {kind === "INSUMO" && taskId && userId && (
+              <MediaGalleryButton taskId={taskId} userId={userId} kind="INSUMO" adjustmentItemId={itemId} />
+            )}
           </div>
         )
       )}
