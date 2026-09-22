@@ -6,18 +6,26 @@ import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
 import { removeStep, toggleStep, updateStep } from "./actions";
+import { StepAttachments } from "./StepAttachments";
+import type { AttachmentGridItem } from "./AttachmentGrid";
 
 export function StepCheckbox({
   stepId,
   description,
   done,
   canEdit,
+  canAddFiles,
+  attachments,
   dragHandle,
 }: {
   stepId: string;
   description: string;
   done: boolean;
   canEdit: boolean;
+  /** Se pueden subir archivos/links al paso (la tarea no está completada). */
+  canAddFiles: boolean;
+  /** Archivos, imágenes y links subidos desde este paso. */
+  attachments: AttachmentGridItem[];
   /** Asa de arrastre (la pone StepList) — se pinta antes del checkbox. */
   dragHandle?: React.ReactNode;
 }) {
@@ -93,6 +101,7 @@ export function StepCheckbox({
           </div>
         )}
       </div>
+      <StepAttachments stepId={stepId} attachments={attachments} canEdit={canEdit} canAdd={canEdit && canAddFiles} />
       {error && <p className="pl-6 text-xs text-red-600">{error}</p>}
     </div>
   );

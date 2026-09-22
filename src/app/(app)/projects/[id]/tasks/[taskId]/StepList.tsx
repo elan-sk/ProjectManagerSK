@@ -8,9 +8,9 @@ import { useState } from "react";
 import { StepCheckbox } from "./StepCheckbox";
 import { reorderSteps } from "./actions";
 
-type Step = { id: string; description: string; done: boolean };
+type Step = { id: string; description: string; done: boolean; attachments: { id: string; url: string; name: string; mimeType: string }[] };
 
-function SortableStep({ step, canEdit }: { step: Step; canEdit: boolean }) {
+function SortableStep({ step, canEdit, canAddFiles }: { step: Step; canEdit: boolean; canAddFiles: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id, disabled: !canEdit });
   return (
     <div
@@ -23,6 +23,8 @@ function SortableStep({ step, canEdit }: { step: Step; canEdit: boolean }) {
         description={step.description}
         done={step.done}
         canEdit={canEdit}
+        canAddFiles={canAddFiles}
+        attachments={step.attachments}
         dragHandle={
           canEdit && (
             <button
@@ -47,7 +49,7 @@ function SortableStep({ step, canEdit }: { step: Step; canEdit: boolean }) {
 }
 
 /** Checklist reordenable por arrastre: el orden se ve al instante y se guarda en el servidor; si falla, vuelve al anterior. */
-export function StepList({ taskId, steps, canEdit }: { taskId: string; steps: Step[]; canEdit: boolean }) {
+export function StepList({ taskId, steps, canEdit, canAddFiles }: { taskId: string; steps: Step[]; canEdit: boolean; canAddFiles: boolean }) {
   const router = useRouter();
   const [items, setItems] = useState(steps);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function StepList({ taskId, steps, canEdit }: { taskId: string; steps: St
       <DndContext id={`steps-${taskId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {items.map((s) => (
-            <SortableStep key={s.id} step={s} canEdit={canEdit} />
+            <SortableStep key={s.id} step={s} canEdit={canEdit} canAddFiles={canAddFiles} />
           ))}
         </SortableContext>
       </DndContext>

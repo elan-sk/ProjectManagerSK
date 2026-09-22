@@ -39,9 +39,10 @@ export function toggleBold(el: Field) {
   el.setSelectionRange(a, b);
 }
 
-/** Atajo Ctrl+B (⌘+B en Mac) para el onKeyDown del campo. Devuelve true si lo atendió. */
+/** Atajo Ctrl+B o Ctrl+N — «N» de negrita — (⌘ en Mac) para el onKeyDown del campo. Devuelve true si lo atendió. */
 export function boldOnKeyDown(e: KeyboardEvent<Field>) {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+  const key = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (key === "b" || key === "n")) {
     e.preventDefault();
     toggleBold(e.currentTarget);
     return true;
@@ -49,7 +50,7 @@ export function boldOnKeyDown(e: KeyboardEvent<Field>) {
   return false;
 }
 
-/** Botón «B»: aplica la negrita a lo seleccionado en el campo de `targetRef`. */
+/** Botón «N» (negrita): aplica la negrita a lo seleccionado en el campo de `targetRef`. */
 export function BoldButton({ targetRef, className }: { targetRef: RefObject<Field | null>; className?: string }) {
   return (
     <button
@@ -59,11 +60,11 @@ export function BoldButton({ targetRef, className }: { targetRef: RefObject<Fiel
         e.preventDefault();
         if (targetRef.current) toggleBold(targetRef.current);
       }}
-      title="Negrita (Ctrl+B)"
+      title="Negrita (Ctrl+N o Ctrl+B)"
       aria-label="Negrita"
       className={className ?? "cursor-pointer rounded px-1.5 py-0.5 text-sm font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700"}
     >
-      B
+      N
     </button>
   );
 }

@@ -15,6 +15,8 @@ export type AttachmentGridItem = {
   name: string;
   mimeType: string;
   taskLink?: { href: string; title: string };
+  /** Texto corto bajo la ficha (ej. «del paso: …» en los Insumos que salieron de un paso del checklist). */
+  caption?: string;
 };
 
 /**
@@ -49,6 +51,7 @@ export function AttachmentGrid({
             mimeType={a.mimeType}
             canDelete={canDelete}
             taskLink={a.taskLink}
+            caption={a.caption}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
             onOpenVideo={

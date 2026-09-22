@@ -515,6 +515,8 @@ model TaskStep {
   description String  @db.Text
   done        Boolean @default(false)
   order       Int
+  // Archivos, imágenes y links subidos desde este paso (también quedan como INSUMO de la tarea).
+  attachments Attachment[]
 }
 
 // Insumos (archivos/imágenes de entrada) y Resultados (evidencia) de una
@@ -538,6 +540,9 @@ model Attachment {
   // apunta a ese comentario (además de quedar como INSUMO de la tarea).
   shareCommentId       String?
   shareComment         ShareComment?  @relation(fields: [shareCommentId], references: [id], onDelete: SetNull)
+  // Si se subió desde un paso del checklist, apunta a ese paso (sigue siendo un INSUMO más de la tarea).
+  stepId               String?
+  step                 TaskStep?      @relation(fields: [stepId], references: [id], onDelete: SetNull)
   uploadedAt           DateTime       @default(now())
 }
 

@@ -107,6 +107,35 @@ export async function addAttachmentRecord(
   await revalidateTask(taskId);
 }
 
+// Archivos, imágenes y links que se suben desde un paso del checklist: quedan como INSUMO de la tarea,
+// marcados con el paso del que salieron (Attachment.stepId).
+export async function addStepAttachment(stepId: string, file: { url: string; name: string; mimeType: string }) {
+  const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
+  if (!(await canEditTask(step.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+  await assertCanAddAttachment(step.taskId, "INSUMO");
+  const user = await getActingUser();
+  await prisma.attachment.create({
+    data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: user?.id ?? null },
+  });
+  await revalidateTask(step.taskId);
+}
+
+export async function addStepLinkAttachment(stepId: string, url: string, name: string) {
+  const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
+  if (!(await canEditTask(step.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+  await assertCanAddAttachment(step.taskId, "INSUMO");
+  const parsedUrl = z.string().trim().url().safeParse(url);
+  if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
+  // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
+  const parsedName = name.trim() || (await fetchPageTitle(parsedUrl.data));
+  if (!parsedName) throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
+  const user = await getActingUser();
+  await prisma.attachment.create({
+    data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: parsedUrl.data, fileName: parsedName, mimeType: LINK_MIME_TYPE, uploadedById: user?.id ?? null },
+  });
+  await revalidateTask(step.taskId);
+}
+
 // Una tarea ya completada no admite más archivos — tanto insumos como
 // evidencia se suben ANTES de cerrarla.
 async function assertCanAddAttachment(taskId: string, kind: AttachmentKind) {
@@ -128,7 +157,12 @@ export async function removeAttachment(attachmentId: string) {
     include: { task: true },
   });
   if (attachment) {
-    await requireProjectAdmin(attachment.task.projectId);
+    // Lo subido desde un paso del checklist lo puede quitar quien edita la tarea; el resto, PM/administrador.
+    if (attachment.stepId) {
+      if (!(await canEditTask(attachment.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+    } else {
+      await requireProjectAdmin(attachment.task.projectId);
+    }
     await prisma.attachment.delete({ where: { id: attachmentId } });
     if (attachment.mimeType !== LINK_MIME_TYPE) {
       await deleteFileIfUnused(attachment.fileUrl);

@@ -21,6 +21,7 @@ export function AttachmentPreview({
   mimeType,
   canDelete,
   taskLink,
+  caption,
   onOpenImage,
   onOpenPreview,
   onOpenVideo,
@@ -32,6 +33,8 @@ export function AttachmentPreview({
   canDelete: boolean;
   /** Solo en la vista "Archivos" del proyecto, que junta adjuntos de varias tareas — lleva de vuelta a la tarea dueña. */
   taskLink?: { href: string; title: string };
+  /** Texto corto bajo la ficha (sin enlace). */
+  caption?: string;
   onOpenImage?: () => void;
   /** PDF/Word/Excel — abre el visor (AttachmentPreviewModal) en vez de descargar directo. */
   onOpenPreview?: () => void;
@@ -101,6 +104,7 @@ export function AttachmentPreview({
             {content}
           </a>
         )}
+        {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
         {taskLink && (
           <Link
             href={taskLink.href}
@@ -153,6 +157,7 @@ export function AttachmentPreview({
             {thumbContent}
           </a>
         )}
+        {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
         {taskLink && (
           <Link
             href={taskLink.href}
@@ -182,7 +187,8 @@ export function AttachmentPreview({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover transition-colors duration-150 hover:border-[#0a6b78]" />
       </button>
-      {taskLink && (
+      {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
+        {taskLink && (
         <Link
           href={taskLink.href}
           className="mt-0.5 block truncate text-center text-[11px] text-slate-400 hover:text-slate-700 hover:underline"

@@ -98,7 +98,7 @@ export default async function TaskDetailPage({
       phase: true,
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
-      steps: { orderBy: { order: "asc" } },
+      steps: { orderBy: { order: "asc" }, include: { attachments: { orderBy: { uploadedAt: "asc" } } } },
       attachments: { include: { uploadedBy: true }, orderBy: { uploadedAt: "desc" } },
       adjustmentItems: {
         include: {
@@ -203,6 +203,15 @@ export default async function TaskDetailPage({
   const stepsPct = stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
 
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
+  // Los Insumos que salieron de un paso del checklist llevan una nota con el nombre del paso.
+  const stepTitleById = new Map(task.steps.map((st) => [st.id, st.description.replace(/\*([^*\n]+)\*/g, "$1")]));
+  const insumoItems = insumos.map((a) => ({
+    id: a.id,
+    url: a.fileUrl,
+    name: a.fileName,
+    mimeType: a.mimeType,
+    caption: a.stepId && stepTitleById.has(a.stepId) ? `del paso: ${stepTitleById.get(a.stepId)}` : undefined,
+  }));
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
 
   // Punto 5: mismas reglas de "¿puede completarse ya?" que updateTaskStatus
@@ -445,7 +454,7 @@ export default async function TaskDetailPage({
           )}
         </div>
         {stepsTotal > 0 && <StepsProgress pct={stepsPct} />}
-        <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done }))} canEdit={canEdit} />
+        <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done, attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })) }))} canEdit={canEdit} canAddFiles={task.status !== "COMPLETED"} />
         {canEdit && (
           <form action={addStepWithId} className="flex gap-2">
             <NewStepInput />
@@ -481,7 +490,7 @@ export default async function TaskDetailPage({
           <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
             <AttachmentGrid
-              items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+              items={insumoItems}
               canDelete={canManage}
             />
             {canEdit && session?.user && task.status !== "COMPLETED" && (
@@ -523,7 +532,7 @@ export default async function TaskDetailPage({
         <section className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
           <AttachmentGrid
-            items={insumos.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
+            items={insumoItems}
             canDelete={canManage}
           />
           {canEdit && session?.user && task.status !== "COMPLETED" && (
