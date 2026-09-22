@@ -117,7 +117,8 @@ export function StepAttachments({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  // Ctrl+V con una captura: va al paso sobre el que está el mouse o el foco (data-paste-zone).
+  // Ctrl+V con una captura: va al paso sobre el que está el mouse o el foco (data-paste-zone en
+  // StepCheckbox — cubre el paso entero, no solo este bloque de archivos).
   usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -173,7 +174,7 @@ export function StepAttachments({
   const rest = attachments.filter((a) => a.mimeType !== HTML_MIME_TYPE);
 
   return (
-    <div data-paste-zone className="space-y-1.5 pl-6">
+    <div className="space-y-1.5 pl-6">
       {htmlFiles.map((f) => (
         <HtmlEmbed key={f.id} file={f} canDelete={canEdit} onDeleted={router.refresh} />
       ))}

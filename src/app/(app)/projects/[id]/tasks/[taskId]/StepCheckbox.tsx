@@ -71,7 +71,9 @@ export function StepCheckbox({
   const accentColor = avatarColor(stepId);
 
   return (
-    <div className="space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5" style={{ borderLeftColor: accentColor }}>
+    // data-paste-zone en TODO el paso (no solo en el bloque de archivos): Ctrl+V con una captura
+    // funciona con el mouse en cualquier parte del paso, no solo sobre los botones + Archivo/+ Link.
+    <div data-paste-zone className="space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5" style={{ borderLeftColor: accentColor }}>
       <div className={`flex items-center gap-2 text-sm text-slate-700 ${canEdit ? "" : "cursor-default"}`}>
         {dragHandle}
         <input
