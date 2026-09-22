@@ -11,7 +11,10 @@ import { ExpandIcon, TrashIcon } from "@/components/icons";
 import { HTML_SANDBOX } from "@/lib/htmlShell";
 import { HTML_MIME_TYPE } from "@/lib/attachments";
 import { addStepAttachment, addStepLinkAttachment, removeAttachment } from "./actions";
+import { addStepPoll, removeStepPoll } from "./shareThreadActions";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
+import { PollFields, type TeamPoll } from "./TeamShareThread";
+import { PollFrame, TeamPollCard } from "./TeamPollCard";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
 
@@ -105,11 +108,23 @@ function HtmlEmbed({ file, canDelete, onDeleted }: { file: AttachmentGridItem; c
  * clicables y todo queda también como INSUMO de la tarea (ver addStepAttachment).
  */
 /** Métodos que dispara el menú "+" de StepCheckbox (al final del paso) — ver StepAttachMenu. */
-export type StepAttachmentsHandle = { openFilePicker: () => void; openLinkForm: () => void };
+export type StepAttachmentsHandle = { openFilePicker: () => void; openLinkForm: () => void; openPollForm: () => void };
 
-export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: string; attachments: AttachmentGridItem[]; canEdit: boolean; canAdd: boolean }>(
-  function StepAttachments({ stepId, attachments, canEdit, canAdd }, ref) {
+export const StepAttachments = forwardRef<
+  StepAttachmentsHandle,
+  {
+    stepId: string;
+    attachments: AttachmentGridItem[];
+    canEdit: boolean;
+    canAdd: boolean;
+    /** Pregunta de selección del paso (el texto del paso es el enunciado), si tiene una. */
+    poll: TeamPoll | null;
+    /** Corre justo al responder con éxito — StepCheckbox marca el paso solo. */
+    onPollAnswered?: () => Promise<void>;
+  }
+>(function StepAttachments({ stepId, attachments, canEdit, canAdd, poll, onPollAnswered }, ref) {
   const router = useRouter();
+  const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   // Ctrl+V con una captura: va al paso sobre el que está el mouse o el foco (data-paste-zone en
   // StepCheckbox — cubre el paso entero, no solo este bloque de archivos).
@@ -119,6 +134,9 @@ export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: strin
   const [addingLink, setAddingLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
+  const [addingPoll, setAddingPoll] = useState(false);
+  const [pollMultiple, setPollMultiple] = useState(false);
+  const [pollOptions, setPollOptions] = useState(["", ""]);
   const [error, setError] = useState<string | null>(null);
 
   async function uploadFiles(files: File[]) {
@@ -162,14 +180,40 @@ export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: strin
     }
   }
 
+  async function savePoll() {
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await addStepPoll(stepId, { multiple: pollMultiple, options: pollOptions });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setAddingPoll(false);
+      setPollOptions(["", ""]);
+      router.refresh();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function deletePoll() {
+    if (!poll) return;
+    const ok = await confirm("¿Eliminar esta pregunta? Se pierden las respuestas ya dadas.", { confirmLabel: "Eliminar", danger: true });
+    if (!ok) return;
+    await removeStepPoll(poll.id);
+    router.refresh();
+  }
+
   // El botón único que dispara esto vive en StepCheckbox (al final del paso, junto a Editar/Eliminar) —
-  // acá solo se atiende: abrir el selector de archivo, o mostrar el formulario del link.
+  // acá solo se atiende: abrir el selector de archivo, mostrar el formulario del link o el de la pregunta.
   useImperativeHandle(ref, () => ({
     openFilePicker: () => inputRef.current?.click(),
     openLinkForm: () => setAddingLink(true),
+    openPollForm: () => setAddingPoll(true),
   }));
 
-  if (attachments.length === 0 && !canAdd) return null;
+  if (attachments.length === 0 && !canAdd && !poll) return null;
   const htmlFiles = attachments.filter((a) => a.mimeType === HTML_MIME_TYPE);
   const rest = attachments.filter((a) => a.mimeType !== HTML_MIME_TYPE);
 
@@ -177,10 +221,43 @@ export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: strin
     // pl-12 (no pl-6): alinea bajo el texto del paso, no bajo el asa+checkbox — así se lee claro
     // que este bloque es DE ese paso, no algo suelto pegado al borde de la lista.
     <div className="space-y-1.5 pl-12">
+      {poll && (
+        <PollFrame>
+          <TeamPollCard poll={poll} canVote={canEdit} canClose={canEdit} afterVote={onPollAnswered} />
+          {canEdit && (
+            <button type="button" onClick={deletePoll} className="text-[13px] text-slate-400 hover:text-red-600 hover:underline">
+              Eliminar pregunta
+            </button>
+          )}
+        </PollFrame>
+      )}
       {htmlFiles.map((f) => (
         <HtmlEmbed key={f.id} file={f} canDelete={canEdit} onDeleted={router.refresh} />
       ))}
       {rest.length > 0 && <AttachmentGrid items={rest} canDelete={canEdit} className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" />}
+      {canAdd && addingPoll && (
+        <div className="space-y-1.5 rounded-lg border border-slate-200 p-2">
+          <p className="text-xs text-slate-500">El texto del paso es el enunciado de la pregunta — acá solo se eligen las opciones.</p>
+          <PollFields multiple={pollMultiple} setMultiple={setPollMultiple} options={pollOptions} setOptions={setPollOptions} />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={uploading || pollOptions.filter((o) => o.trim()).length < 2}
+              onClick={savePoll}
+              className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Guardar
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAddingPoll(false); setPollOptions(["", ""]); setError(null); }}
+              className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:border-slate-400"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       {canAdd && (
         <input
           ref={inputRef}
@@ -221,7 +298,7 @@ export const StepAttachments = forwardRef<StepAttachmentsHandle, { stepId: strin
           </button>
         </div>
       )}
-      {uploading && !addingLink && <p className="text-xs text-slate-400">Subiendo… {Math.round(progress * 100)} %</p>}
+      {uploading && !addingLink && !addingPoll && <p className="text-xs text-slate-400">Subiendo… {Math.round(progress * 100)} %</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

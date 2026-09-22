@@ -30,7 +30,18 @@ export function PollFrame({ children, author }: { children: React.ReactNode; aut
 // permisos sobre la tarea) y muestra siempre la estadística — cuántas personas
 // eligieron cada opción y quién respondió qué. Cada persona tiene una sola
 // respuesta, que puede cambiar hasta que se cierre la pregunta.
-export function TeamPollCard({ poll, canVote, canClose }: { poll: TeamPoll; canVote: boolean; canClose: boolean }) {
+export function TeamPollCard({
+  poll,
+  canVote,
+  canClose,
+  afterVote,
+}: {
+  poll: TeamPoll;
+  canVote: boolean;
+  canClose: boolean;
+  /** Corre justo después de responder con éxito, antes del refresh (ej. StepCheckbox: marcar el paso solo). */
+  afterVote?: () => Promise<void>;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(poll.myVoteIds);
   const [busy, setBusy] = useState(false);
@@ -93,8 +104,8 @@ export function TeamPollCard({ poll, canVote, canClose }: { poll: TeamPoll; canV
                   {o.voters.length} · {pct}%
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-[#0a6b78]" style={{ width: `${pct}%` }} />
+              <div className="h-1.5 overflow-hidden rounded-xs bg-slate-100">
+                <div className="progress-fill-teal h-full rounded-xs" style={{ width: `${pct}%` }} />
               </div>
               {o.voters.length > 0 && (
                 <p className="text-[15px] text-slate-500">
@@ -120,7 +131,13 @@ export function TeamPollCard({ poll, canVote, canClose }: { poll: TeamPoll; canV
           <button
             type="button"
             disabled={busy || selected.length === 0 || !changed}
-            onClick={() => run(() => voteSharePoll(poll.id, selected))}
+            onClick={() =>
+              run(async () => {
+                const result = await voteSharePoll(poll.id, selected);
+                if (result.ok) await afterVote?.();
+                return result;
+              })
+            }
             className="rounded-lg bg-slate-900 px-3 py-1.5 text-[15px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {poll.myVoteIds.length > 0 ? "Cambiar mi respuesta" : "Enviar mi respuesta"}

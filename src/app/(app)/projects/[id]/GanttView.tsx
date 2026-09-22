@@ -1013,11 +1013,11 @@ export function GanttView({
                   <div data-gantt-timeline className="relative z-10 flex-1 cursor-grab" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
                     <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
                     <div
-                      className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-full bg-slate-200"
+                      className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-xs bg-slate-200"
                       style={{ left: phaseStart * DAY_WIDTH, width: (phaseEnd - phaseStart) * DAY_WIDTH }}
                     >
                       <div
-                        className={phaseHasOverdue ? "h-full bg-red-400" : "h-full bg-emerald-400"}
+                        className={phaseHasOverdue ? "progress-fill-red h-full" : "progress-fill-emerald h-full"}
                         style={{ width: `${phasePct}%` }}
                       />
                     </div>

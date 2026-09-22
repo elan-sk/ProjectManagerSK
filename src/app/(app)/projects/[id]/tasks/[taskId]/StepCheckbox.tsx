@@ -10,13 +10,14 @@ import { useConfirm } from "@/components/Confirm";
 import { removeStep, toggleStep, updateStep } from "./actions";
 import { StepAttachments, type StepAttachmentsHandle } from "./StepAttachments";
 import type { AttachmentGridItem } from "./AttachmentGrid";
+import type { TeamPoll } from "./TeamShareThread";
 
 /**
  * Un solo botón "adjuntar" al final del paso (junto a Editar/Eliminar) en vez de los dos botones
  * + Archivo / + Link permanentes de antes, que ensuciaban visualmente cada paso — despliega las
  * mismas dos opciones en un menú chico. Mismo patrón de click-afuera-cierra que InternalMessageBell.
  */
-function StepAttachMenu({ onFile, onLink, disabled }: { onFile: () => void; onLink: () => void; disabled?: boolean }) {
+function StepAttachMenu({ onFile, onLink, onPoll, disabled }: { onFile: () => void; onLink: () => void; onPoll?: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +56,11 @@ function StepAttachMenu({ onFile, onLink, disabled }: { onFile: () => void; onLi
           <button type="button" onClick={() => { onLink(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
             Link
           </button>
+          {onPoll && (
+            <button type="button" onClick={() => { onPoll(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
+              Pregunta
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -68,6 +74,7 @@ export function StepCheckbox({
   canEdit,
   canAddFiles,
   attachments,
+  poll,
   dragHandle,
 }: {
   stepId: string;
@@ -78,6 +85,8 @@ export function StepCheckbox({
   canAddFiles: boolean;
   /** Archivos, imágenes y links subidos desde este paso. */
   attachments: AttachmentGridItem[];
+  /** Pregunta de selección del paso (el texto del paso es el enunciado), si tiene una. */
+  poll: TeamPoll | null;
   /** Asa de arrastre (la pone StepList) — se pinta antes del checkbox. */
   dragHandle?: React.ReactNode;
 }) {
@@ -89,6 +98,19 @@ export function StepCheckbox({
   const [value, setValue] = useState(description);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Con pregunta y todavía sin nadie que responda: el paso no se puede marcar a mano — se marca
+  // solo apenas alguien vota (ver onPollAnswered), como pidió el usuario.
+  const gated = !!poll && poll.totalVoters === 0;
+
+  async function markDone(next: boolean) {
+    setBusy(true);
+    try {
+      await toggleStep(stepId, next);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveDescription() {
     if (!value.trim()) return;
@@ -131,16 +153,9 @@ export function StepCheckbox({
         <input
           type="checkbox"
           checked={done}
-          disabled={!canEdit || busy}
-          onChange={async (e) => {
-            setBusy(true);
-            try {
-              await toggleStep(stepId, e.target.checked);
-              router.refresh();
-            } finally {
-              setBusy(false);
-            }
-          }}
+          disabled={!canEdit || busy || (gated && !done)}
+          title={gated && !done ? "Responda la pregunta para poder marcar este paso." : undefined}
+          onChange={(e) => markDone(e.target.checked)}
           className="h-4 w-4 rounded border-slate-300 disabled:opacity-50"
         />
         {editing ? (
@@ -161,6 +176,7 @@ export function StepCheckbox({
                   disabled={busy}
                   onFile={() => attachRef.current?.openFilePicker()}
                   onLink={() => attachRef.current?.openLinkForm()}
+                  onPoll={poll ? undefined : () => attachRef.current?.openPollForm()}
                 />
                 {/* Separador propio: evita presionar "Editar" sin querer al ir a buscar el clip. */}
                 <span className="h-4 w-px bg-slate-200" aria-hidden />
@@ -171,7 +187,16 @@ export function StepCheckbox({
           </div>
         )}
       </div>
-      <StepAttachments ref={attachRef} stepId={stepId} attachments={attachments} canEdit={canEdit} canAdd={canEdit && canAddFiles} />
+      <StepAttachments
+        ref={attachRef}
+        stepId={stepId}
+        attachments={attachments}
+        canEdit={canEdit}
+        canAdd={canEdit && canAddFiles}
+        poll={poll}
+        onPollAnswered={() => markDone(true)}
+      />
+      {gated && !done && <p className="pl-6 text-xs text-amber-600">Responda la pregunta para poder marcar este paso.</p>}
       {error && <p className="pl-6 text-xs text-red-600">{error}</p>}
     </div>
   );

@@ -7,8 +7,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { StepCheckbox } from "./StepCheckbox";
 import { reorderSteps } from "./actions";
+import type { TeamPoll } from "./TeamShareThread";
 
-type Step = { id: string; description: string; done: boolean; attachments: { id: string; url: string; name: string; mimeType: string }[] };
+type Step = { id: string; description: string; done: boolean; attachments: { id: string; url: string; name: string; mimeType: string }[]; poll: TeamPoll | null };
 
 function SortableStep({ step, canEdit, canAddFiles }: { step: Step; canEdit: boolean; canAddFiles: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id, disabled: !canEdit });
@@ -25,6 +26,7 @@ function SortableStep({ step, canEdit, canAddFiles }: { step: Step; canEdit: boo
         canEdit={canEdit}
         canAddFiles={canAddFiles}
         attachments={step.attachments}
+        poll={step.poll}
         dragHandle={
           canEdit && (
             <button

@@ -216,9 +216,9 @@ function CardBody({
 
       {task.stepsProgress && (
         <div className="space-y-1">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="h-1.5 w-full overflow-hidden rounded-xs bg-slate-100">
             <div
-              className="h-full rounded-full bg-emerald-500"
+              className="progress-fill-emerald h-full rounded-xs"
               style={{
                 width: `${Math.round((task.stepsProgress.done / task.stepsProgress.total) * 100)}%`,
               }}

@@ -98,7 +98,7 @@ export default async function TaskDetailPage({
       phase: true,
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
-      steps: { orderBy: { order: "asc" }, include: { attachments: { orderBy: { uploadedAt: "asc" } } } },
+      steps: { orderBy: { order: "asc" }, include: { attachments: { orderBy: { uploadedAt: "asc" } }, poll: threadInclude.poll } },
       attachments: { include: { uploadedBy: true }, orderBy: { uploadedAt: "desc" } },
       adjustmentItems: {
         include: {
@@ -454,7 +454,18 @@ export default async function TaskDetailPage({
           )}
         </div>
         {stepsTotal > 0 && <StepsProgress pct={stepsPct} />}
-        <StepList taskId={taskId} steps={task.steps.map((st) => ({ id: st.id, description: st.description, done: st.done, attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })) }))} canEdit={canEdit} canAddFiles={task.status !== "COMPLETED"} />
+        <StepList
+          taskId={taskId}
+          steps={task.steps.map((st) => ({
+            id: st.id,
+            description: st.description,
+            done: st.done,
+            attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            poll: st.poll ? toTeamPoll(st.poll, session?.user?.id ?? null) : null,
+          }))}
+          canEdit={canEdit}
+          canAddFiles={task.status !== "COMPLETED"}
+        />
         {canEdit && (
           <form action={addStepWithId} className="flex gap-2">
             <NewStepInput />
@@ -687,8 +698,8 @@ function StepsProgress({ pct, label }: { pct: number; label?: string }) {
   return (
     <div className="space-y-1">
       {label && <p className="text-xs text-slate-500">{label}</p>}
-      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className={`h-full rounded-full ${pct === 100 ? "bg-emerald-600" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} />
+      <div className="h-2 w-full overflow-hidden rounded-xs bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="progress-fill-emerald h-full rounded-xs" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

@@ -517,6 +517,8 @@ model TaskStep {
   order       Int
   // Archivos, imágenes y links subidos desde este paso (también quedan como INSUMO de la tarea).
   attachments Attachment[]
+  // Pregunta de selección única o múltiple: el texto del paso ES el enunciado (sin campo aparte).
+  poll        SharePoll?
 }
 
 // Insumos (archivos/imágenes de entrada) y Resultados (evidencia) de una
@@ -626,6 +628,9 @@ model SharePoll {
   // Alternativa: pregunta publicada en el hilo interno de una prueba.
   internalMessageId String?           @unique
   internalMessage   InternalMessage?  @relation(fields: [internalMessageId], references: [id], onDelete: Cascade)
+  // Alternativa: pregunta de un paso del checklist (el texto del paso es el enunciado).
+  taskStepId        String?           @unique
+  taskStep          TaskStep?         @relation(fields: [taskStepId], references: [id], onDelete: Cascade)
   multiple          Boolean           @default(false)
   closed            Boolean           @default(false)
   options           SharePollOption[]

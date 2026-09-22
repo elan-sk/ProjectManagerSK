@@ -388,8 +388,8 @@ export default async function AgendaPage({
                       <span className="max-w-[110px] truncate text-sm font-medium text-slate-800">{p.name}</span>
                     </Link>
                     <div className="flex flex-shrink-0 items-center gap-1.5">
-                      <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                      <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-xs bg-slate-100">
+                        <div className="progress-fill-emerald h-full rounded-xs" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="flex-shrink-0 text-[11px] text-slate-400">
                         {pct}% · {p.completed}/{p.total}

@@ -122,8 +122,9 @@ async function canAnswerTask(taskId: string, actor?: Actor) {
 
 // Una pregunta cuelga de un comentario del hilo compartido (de una tarea o de la
 // Definición del proyecto), de un mensaje de una conversación interna (del
-// proyecto, de la tarea o de una prueba) o de un mensaje del hilo interno de una
-// ronda; en todos los casos se resuelve el proyecto y, si la hay, la tarea.
+// proyecto, de la tarea o de una prueba), de un mensaje del hilo interno de una
+// ronda, o de un paso del checklist; en todos los casos se resuelve el proyecto
+// y, si la hay, la tarea.
 async function loadPoll(pollId: string) {
   const poll = await prisma.sharePoll.findUnique({
     where: { id: pollId },
@@ -135,13 +136,20 @@ async function loadPoll(pollId: string) {
       comment: { select: { taskId: true, projectId: true, authorUserId: true, task: { select: { projectId: true } } } },
       reviewMessage: { select: { authorId: true, reviewRound: { select: { taskId: true, task: { select: { projectId: true } } } } } },
       internalMessage: { select: { taskId: true, projectId: true, authorId: true } },
+      taskStep: { select: { taskId: true, task: { select: { projectId: true } } } },
     },
   });
   if (!poll) return null;
-  const taskId = poll.comment?.taskId ?? poll.reviewMessage?.reviewRound.taskId ?? poll.internalMessage?.taskId ?? null;
+  const taskId = poll.comment?.taskId ?? poll.reviewMessage?.reviewRound.taskId ?? poll.internalMessage?.taskId ?? poll.taskStep?.taskId ?? null;
   const projectId =
-    poll.comment?.task?.projectId ?? poll.comment?.projectId ?? poll.reviewMessage?.reviewRound.task.projectId ?? poll.internalMessage?.projectId ?? null;
+    poll.comment?.task?.projectId ??
+    poll.comment?.projectId ??
+    poll.reviewMessage?.reviewRound.task.projectId ??
+    poll.internalMessage?.projectId ??
+    poll.taskStep?.task.projectId ??
+    null;
   if (!projectId) return null;
+  // El paso no tiene un "autor" propio: cerrar/reabrir su pregunta queda solo para quien edita la tarea (ver canAnswerPoll/allowed más abajo).
   const authorId = poll.comment?.authorUserId ?? poll.reviewMessage?.authorId ?? poll.internalMessage?.authorId ?? null;
   return { id: poll.id, multiple: poll.multiple, closed: poll.closed, options: poll.options, taskId, projectId, authorId };
 }
@@ -272,5 +280,41 @@ export async function addTeamProjectShareComment(
     },
   });
   revalidatePath(`/projects/${projectId}`);
+  return { ok: true as const };
+}
+
+// Pregunta de selección en un paso del checklist: el enunciado ES el texto del paso (sin campo
+// aparte) — solo hace falta indicar única/múltiple y las opciones. Vota/cierra con voteSharePoll
+// y setSharePollClosed de más arriba, igual que cualquier otra pregunta (loadPoll ya sabe resolverla).
+export async function addStepPoll(stepId: string, data: { multiple: boolean; options: string[] }, actor?: Actor) {
+  const step = await prisma.taskStep.findUnique({
+    where: { id: stepId },
+    select: { taskId: true, poll: { select: { id: true } }, task: { select: { projectId: true, status: true } } },
+  });
+  if (!step) return { ok: false as const, error: "Ese paso ya no existe." };
+  if (!(await canEditTask(step.taskId, actor))) return { ok: false as const, error: "No se cuenta con permiso para editar esta tarea." };
+  if (step.poll) return { ok: false as const, error: "Este paso ya tiene una pregunta." };
+  if (step.task.status === "COMPLETED") return { ok: false as const, error: "La tarea ya está completada." };
+
+  const options = data.options.map((o) => o.trim()).filter(Boolean);
+  if (options.length < 2 || options.length > 10) return { ok: false as const, error: "La pregunta necesita entre 2 y 10 opciones." };
+  if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) return { ok: false as const, error: "Hay opciones repetidas." };
+
+  await prisma.sharePoll.create({
+    data: { taskStepId: stepId, multiple: data.multiple, options: { create: options.map((label, order) => ({ label, order })) } },
+  });
+  revalidatePath(`/projects/${step.task.projectId}/tasks/${step.taskId}`);
+  return { ok: true as const };
+}
+
+export async function removeStepPoll(pollId: string, actor?: Actor) {
+  const poll = await prisma.sharePoll.findUnique({
+    where: { id: pollId },
+    select: { taskStep: { select: { taskId: true, task: { select: { projectId: true } } } } },
+  });
+  if (!poll?.taskStep) return { ok: false as const, error: "Esa pregunta ya no existe." };
+  if (!(await canEditTask(poll.taskStep.taskId, actor))) return { ok: false as const, error: "No se cuenta con permiso para editar esta tarea." };
+  await prisma.sharePoll.delete({ where: { id: pollId } });
+  revalidatePath(`/projects/${poll.taskStep.task.projectId}/tasks/${poll.taskStep.taskId}`);
   return { ok: true as const };
 }
