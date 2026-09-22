@@ -112,8 +112,8 @@ function ReviewUserSection({
           <h3 className="mb-3 text-sm font-medium text-slate-700">Rondas: aprobadas a la 1ra vs. devueltas</h3>
           <BarChart
             data={[
-              { label: "Aprobadas", value: review.roundsApprovedFirstTry, colorClass: "progress-fill-emerald" },
-              { label: "Devueltas", value: review.roundsReturned, colorClass: "progress-fill-red" },
+              { label: "Aprobadas", value: review.roundsApprovedFirstTry, colorClass: "progress-fill-emerald-performance" },
+              { label: "Devueltas", value: review.roundsReturned, colorClass: "progress-fill-red-performance" },
             ]}
           />
         </div>

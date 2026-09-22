@@ -140,13 +140,19 @@ h1, h2 {
   background: linear-gradient(115deg, var(--pacific-deep) 0%, #0a5866 62%, var(--pacific-tide) 100%);
   box-shadow: 0 10px 28px rgba(7, 59, 76, 0.18);
 }
-/* Barras de progreso (checklist, Definición, Rendimiento, encuestas, subida de archivos…):
-   degradado marcado (para que se note que la barra se está "llenando" de verdad) y esquinas
-   cuadradas (sin redondeo, a pedido). Un color por familia, sin tocar el semántico ya
-   establecido (verde = avance/completado, teal = marca/pregunta/subida, rojo = atraso). */
-.progress-fill-emerald { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }
-.progress-fill-teal { background: linear-gradient(100deg, #a7ecef 0%, var(--color-blue-400) 30%, var(--pacific-tide) 65%, var(--pacific-deep) 100%); }
-.progress-fill-red { background: linear-gradient(100deg, #ffc6bc 0%, var(--color-red-400) 35%, var(--color-red-600) 70%, var(--color-red-800) 100%); }
+/* Barras de progreso "internas" (checklist, Definición, Gantt, encuestas, subida de archivos…):
+   degradado marcado (para que se note que la barra se está "llenando" de verdad), oscuro→claro
+   de izquierda a derecha, y esquinas cuadradas (sin redondeo, a pedido). Un color por familia,
+   sin tocar el semántico ya establecido (verde = avance/completado, teal = marca/pregunta/subida,
+   rojo = atraso). */
+.progress-fill-emerald { background: linear-gradient(100deg, var(--color-emerald-800) 0%, var(--color-emerald-600) 30%, var(--color-emerald-400) 65%, #8ee6ac 100%); }
+.progress-fill-teal { background: linear-gradient(100deg, var(--pacific-deep) 0%, var(--pacific-tide) 35%, var(--color-blue-400) 70%, #a7ecef 100%); }
+.progress-fill-red { background: linear-gradient(100deg, var(--color-red-800) 0%, var(--color-red-600) 30%, var(--color-red-400) 65%, #ffc6bc 100%); }
+/* Mismas barras pero para Rendimiento (BarChart.tsx): claro→oscuro, dirección propia a pedido —
+   no tocar, las de arriba son las que se invierten si hace falta. */
+.progress-fill-emerald-performance { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }
+.progress-fill-teal-performance { background: linear-gradient(100deg, #a7ecef 0%, var(--color-blue-400) 30%, var(--pacific-tide) 65%, var(--pacific-deep) 100%); }
+.progress-fill-red-performance { background: linear-gradient(100deg, #ffc6bc 0%, var(--color-red-400) 35%, var(--color-red-600) 70%, var(--color-red-800) 100%); }
 .pacific-header::after {
   content: "";
   position: absolute;
