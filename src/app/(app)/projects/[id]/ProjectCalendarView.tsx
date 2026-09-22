@@ -93,14 +93,25 @@ export function ProjectCalendarView({
                   // saltar el render de filas fuera de vista.
                   style={{ contentVisibility: "auto", containIntrinsicSize: "auto 48px" }}
                 >
-                  <div className="flex items-center justify-between gap-3 p-3 hover:bg-slate-50">
+                  {/* Mobile: nombre de proyecto arriba y título de tarea debajo (dos líneas
+                      apiladas, sin truncar) — antes quedaban lado a lado, cada uno en una
+                      columna angosta. De sm en adelante vuelve a ser una sola línea truncada
+                      "Proyecto · Título", como antes. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 p-3 hover:bg-slate-50">
                     <Link
                       href={`/projects/${t.projectId}/tasks/${t.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-slate-900"
+                      className="flex min-w-0 basis-full flex-col text-sm text-slate-900 sm:basis-0 sm:flex-1 sm:flex-row sm:items-center sm:gap-1.5"
                     >
-                      {isUrgentOpen(t) && <UrgentIcon className="h-4 w-4 flex-shrink-0 text-red-600" />}
-                      {showProjectName && <span className="flex-shrink-0 text-slate-400">{t.projectName} ·</span>}
-                      <span className={`truncate ${isUrgentOpen(t) ? "font-semibold text-red-700" : ""}`}>{t.title}</span>
+                      {showProjectName && (
+                        <span className="flex-shrink-0 text-xs text-slate-400 sm:text-sm">
+                          {t.projectName}
+                          <span className="hidden sm:inline"> ·</span>
+                        </span>
+                      )}
+                      <span className="flex min-w-0 items-center gap-1.5 sm:contents">
+                        {isUrgentOpen(t) && <UrgentIcon className="h-4 w-4 flex-shrink-0 text-red-600" />}
+                        <span className={`sm:truncate ${isUrgentOpen(t) ? "font-semibold text-red-700" : ""}`}>{t.title}</span>
+                      </span>
                     </Link>
                     {t.collidesWith && t.collidesWith.length > 0 && (
                       <ReferencePopover

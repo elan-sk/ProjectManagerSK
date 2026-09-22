@@ -1,12 +1,13 @@
 "use client";
 
-import { Linkify } from "@/lib/linkify";
+import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { MediaGalleryButton } from "./MediaGalleryButton";
@@ -49,18 +50,15 @@ export function AdjustmentPanel({ taskId, items, userId, canEdit, canDelete, can
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [description, setDescription] = useState("");
+  const [addFormKey, setAddFormKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  function handleAdd() {
-    if (!description.trim()) return;
+  function handleAdd(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("description", description);
       const result = await addAdjustmentItem(taskId, formData);
       if (result.ok) {
-        setDescription("");
+        setAddFormKey((k) => k + 1);
         router.refresh();
       } else {
         setError(result.error ?? "No se pudo agregar el cambio.");
@@ -89,23 +87,16 @@ export function AdjustmentPanel({ taskId, items, userId, canEdit, canDelete, can
       </div>
 
       {canEdit && (
-        <div className="flex gap-2 border-t border-slate-100 pt-3">
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="Describir un cambio solicitado…"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-[18px]"
-          />
+        <form key={addFormKey} action={handleAdd} className="space-y-2 border-t border-slate-100 pt-3">
+          <RichTextEditor name="description" defaultValue="" />
           <button
-            type="button"
-            disabled={isPending || !description.trim()}
-            onClick={handleAdd}
-            className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-slate-900 px-3 py-2 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             Agregar
           </button>
-        </div>
+        </form>
       )}
       {error && <p className="text-[17px] text-red-600">{error}</p>}
     </section>
@@ -128,7 +119,6 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   const [editingNote, setEditingNote] = useState(false);
   const [note, setNote] = useState(item.note ?? "");
   const [editingDescription, setEditingDescription] = useState(false);
-  const [description, setDescription] = useState(item.description);
   const [savingNote, setSavingNote] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -162,7 +152,8 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   }
 
   async function handleDeleteItem() {
-    const ok = await confirm(`¿Seguro que querés eliminar el cambio "${item.description}"? No vas a poder deshacer esto.`, {
+    const plainDescription = item.description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const ok = await confirm(`¿Seguro que querés eliminar el cambio "${plainDescription}"? No vas a poder deshacer esto.`, {
       confirmLabel: "Eliminar",
       danger: true,
     });
@@ -176,11 +167,11 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
     }
   }
 
-  async function handleSaveDescription() {
+  async function handleSaveDescription(formData: FormData) {
     setSavingDescription(true);
     setError(null);
     try {
-      const result = await updateAdjustmentItem(item.id, description);
+      const result = await updateAdjustmentItem(item.id, formData);
       if (!result.ok) {
         setError(result.error ?? "No se pudo editar el cambio.");
         return;
@@ -195,20 +186,30 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   return (
     <div className={`space-y-2 rounded-xl border border-l-4 p-3 shadow-sm ${needsChanges ? "border-amber-400 border-l-amber-500 bg-amber-50" : "border-slate-300 border-l-[#0a6b78] bg-white"}`}>
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Cambio {index + 1} de {total}</p>
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${needsChanges || !answered ? "bg-amber-500" : "bg-emerald-500"}`} title={needsChanges ? "El cliente pidió cambios" : answered ? "Respondido" : "Pendiente"} />
           {editingDescription ? (
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <input value={description} onChange={(e) => setDescription(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSaveDescription()} className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-[18px]" autoFocus />
-              <button type="button" disabled={savingDescription || !description.trim()} onClick={handleSaveDescription} className="text-[17px] font-medium text-slate-700 hover:underline disabled:opacity-50">Guardar</button>
-              <button type="button" disabled={savingDescription} onClick={() => { setDescription(item.description); setEditingDescription(false); }} className="text-[17px] text-slate-400 hover:underline">Cancelar</button>
-            </div>
+            <form action={handleSaveDescription} className="space-y-1.5">
+              <RichTextEditor name="description" defaultValue={item.description} />
+              {/* pl-1.5: mismo padding del wrapper del editor (RichTextEditor), para que el
+                  borde izquierdo de estos botones quede a plomo con la barra/texto de arriba. */}
+              <div className="flex items-center gap-2 pt-1 pl-1.5">
+                <button type="submit" disabled={savingDescription} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+                  {savingDescription ? "Guardando…" : "Guardar"}
+                </button>
+                <button type="button" disabled={savingDescription} onClick={() => setEditingDescription(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-[17px] font-medium text-slate-700 hover:bg-slate-50">
+                  Cancelar
+                </button>
+              </div>
+            </form>
           ) : (
-            <p className="min-w-0 text-[19px] font-semibold text-slate-800"><Linkify text={item.description} /></p>
+            <div className="flex items-start gap-2">
+              {/* prose-lg: line-height de párrafo = 32px (round(32/18) en @tailwindcss/typography), así que
+                  mt-3 (12px) centra este punto de 8px dentro de esa primera línea en vez de adivinar a ojo. */}
+              <span className={`mt-3 h-2 w-2 flex-shrink-0 rounded-full ${needsChanges || !answered ? "bg-amber-500" : "bg-emerald-500"}`} title={needsChanges ? "El cliente pidió cambios" : answered ? "Respondido" : "Pendiente"} />
+              <div className="prose prose-lg min-w-0 max-w-none flex-1 text-slate-800 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.description) }} />
+            </div>
           )}
-          </div>
         </div>
         {canEdit && !editingDescription && (
           <div className="flex flex-shrink-0 items-center gap-2 text-[17px]">
@@ -432,7 +433,16 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
           <div className="flex gap-1">
             <label className="flex-1 cursor-pointer rounded-lg border border-dashed border-slate-300 py-1 text-center text-[15px] text-slate-500 hover:border-slate-400">
               {uploading ? "…" : "+ Archivo"}
-              <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+              <input
+                ref={inputRef}
+                type="file"
+                accept={ACCEPT}
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  for (const file of Array.from(e.target.files ?? [])) await uploadFile(file);
+                }}
+              />
             </label>
             <button type="button" onClick={() => setAddingLink(true)} className="flex-1 rounded-lg border border-dashed border-slate-300 py-1 text-[15px] text-slate-500 hover:border-slate-400">
               + Link

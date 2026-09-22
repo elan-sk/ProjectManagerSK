@@ -1,6 +1,6 @@
 "use client";
 
-import { Linkify, LinkifyBold } from "@/lib/linkify";
+import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PublicFileGrid } from "./PublicFileGrid";
@@ -158,11 +158,7 @@ function PendingItemRow({
         {item.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{item.category}</span>}
       </div>
       {item.criteria && (
-        <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
-          {item.criteria.split("\n").filter((l) => l.trim()).map((l, i) => (
-            <li key={i}><LinkifyBold text={l} /></li>
-          ))}
-        </ul>
+        <div className="prose prose-sm max-w-none text-slate-500 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.criteria) }} />
       )}
       {item.evidence.length > 0 && <PublicFileGrid files={item.evidence} />}
 

@@ -16,6 +16,7 @@ import { HeaderSearch } from "./HeaderSearch";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
+import { MobileMenuToggle } from "./MobileMenuToggle";
 import { Avatar } from "@/components/Avatar";
 import { ToastProvider } from "@/components/Toast";
 import { ConfirmProvider } from "@/components/Confirm";
@@ -109,51 +110,55 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <LiveRefresh />
     <ActivityPing />
     <div className="pacific-shell min-h-screen bg-slate-50">
-      <header className="pacific-header sticky top-0 z-50 relative flex items-center justify-between px-4 py-1 sm:px-6">
-        <nav className="pacific-nav flex flex-shrink-0 items-center gap-4 text-sm font-medium">
+      <header className="pacific-header sticky top-0 z-50 relative flex items-center gap-2 px-4 py-1 sm:px-6">
+        <div className="flex flex-shrink-0 items-center gap-2 text-sm font-medium">
           <BackButton />
           <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="mr-1 flex items-center gap-2 text-slate-900">
             <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">PM</span></span>
-            <span className="hidden font-display tracking-[-0.02em] sm:inline">ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span></span>
+            <span className="font-display tracking-[-0.02em]">ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span></span>
           </Link>
-          <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
-            Agenda
-          </NavLinkWithMemory>
-          <Link href={performanceHref}>Rendimiento</Link>
-          <Link href="/settings">Configuración</Link>
-        </nav>
-        <HeaderSearch />
-        <div className="flex flex-shrink-0 items-center gap-3">
-          <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
-            Hoy: {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" }).replace(" de ", " ")}
-          </span>
-          {isAdmin && <WhatsAppHealthAlert />}
-          <PushSubscribeButton />
-          <HeaderAlerts
-            urgent={urgentTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
-            returned={returnedTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
-            pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
-          />
-          <NotificationBell items={bellItems} userId={session.user.id} />
-          <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name, mentioned: m.mentions.length > 0 }))} />
-          <Link href="/settings" className="flex items-center gap-2">
-            <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />
-          </Link>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login?logout=1" });
-            }}
-          >
-            <span title={me.name} className="mr-3 text-sm text-slate-500">
-              {/* Máx. 10 caracteres: con el buscador en el header no alcanza el ancho. */}
-              {me.name.length > 10 ? `${me.name.slice(0, 10).trimEnd()}…` : me.name}
-            </span>
-            <button type="submit" className="text-sm text-slate-500 hover:text-slate-900">
-              Salir
-            </button>
-          </form>
         </div>
+        <MobileMenuToggle>
+          <nav className="pacific-nav flex flex-col gap-1 text-sm font-medium lg:flex-shrink-0 lg:flex-row lg:items-center lg:gap-4">
+            <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
+              Agenda
+            </NavLinkWithMemory>
+            <Link href={performanceHref}>Rendimiento</Link>
+            <Link href="/settings">Configuración</Link>
+          </nav>
+          <HeaderSearch />
+          <div className="flex flex-wrap items-center gap-3 lg:flex-shrink-0 lg:flex-nowrap">
+            <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
+              Hoy: {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" }).replace(" de ", " ")}
+            </span>
+            {isAdmin && <WhatsAppHealthAlert />}
+            <PushSubscribeButton />
+            <HeaderAlerts
+              urgent={urgentTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
+              returned={returnedTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
+              pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
+            />
+            <NotificationBell items={bellItems} userId={session.user.id} />
+            <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name, mentioned: m.mentions.length > 0 }))} />
+            <Link href="/settings" className="flex items-center gap-2">
+              <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />
+            </Link>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login?logout=1" });
+              }}
+            >
+              <span title={me.name} className="mr-3 text-sm text-slate-500">
+                {/* Máx. 10 caracteres: con el buscador en el header no alcanza el ancho. */}
+                {me.name.length > 10 ? `${me.name.slice(0, 10).trimEnd()}…` : me.name}
+              </span>
+              <button type="submit" className="text-sm text-slate-500 hover:text-slate-900">
+                Salir
+              </button>
+            </form>
+          </div>
+        </MobileMenuToggle>
       </header>
       <main className="p-4 sm:p-6">{children}</main>
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />

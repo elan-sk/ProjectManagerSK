@@ -21,6 +21,8 @@ import { redirect } from "next/navigation";
 import { RememberViewState } from "../RememberViewState";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
+import { MobileFiltersToggle } from "@/components/MobileFiltersToggle";
+import { MobileCalendarDayEnforcer } from "@/components/MobileCalendarDayEnforcer";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
@@ -542,28 +544,30 @@ export default async function ProjectsPage({
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <div className="flex gap-2">
+          {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver las píldoras
+              en más líneas — se veía apretado. De lg en adelante entra sin scroll, como antes. */}
+          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
             <Link
               href={boardHref({ view: undefined })}
-              className={`rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
             >
               Tablero
             </Link>
             <Link
               href={boardHref({ view: "gantt" })}
-              className={`rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
             >
               Gantt
             </Link>
             <Link
               href={boardHref({ view: "calendar" })}
-              className={`rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
             >
               Calendario
             </Link>
             <Link
               href={filesHref({})}
-              className={`rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
             >
               Archivos
             </Link>
@@ -587,7 +591,7 @@ export default async function ProjectsPage({
         </div>
 
         {view !== "files" && (
-          <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
+          <MobileFiltersToggle>
             <div className="flex flex-col gap-1">
               <span className="text-xs text-slate-400">Buscar</span>
               <SearchBox
@@ -710,21 +714,27 @@ export default async function ProjectsPage({
               count={[q, userId, status, type, tag, risk, collision, from || to].filter(Boolean).length}
               href={boardHref({ status: undefined, type: undefined, userId: undefined, risk: undefined, q: undefined, tag: undefined, collision: undefined, from: undefined, to: undefined })}
             />
-          </div>
+          </MobileFiltersToggle>
         )}
 
         {view === "calendar" && (
-          <div className="flex gap-1 text-sm">
-            {(["month", "week", "day"] as const).map((m) => (
-              <Link
-                key={m}
-                href={boardHref({ mode: m === "month" ? undefined : m })}
-                className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-              >
-                {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
-              </Link>
-            ))}
-          </div>
+          <>
+            {/* Debajo de lg solo hay vista Día (ver ProjectCalendarView) — nada de selector, y si
+                venía de Mes/Semana lo redirige. De lg en adelante, selector normal. */}
+            <MobileCalendarDayEnforcer isDayMode={calendarMode === "day"} dayHref={boardHref({ mode: "day" })} />
+            <p className="text-sm font-medium text-slate-600 lg:hidden">Vista: Día</p>
+            <div className="hidden gap-1 text-sm lg:flex">
+              {(["month", "week", "day"] as const).map((m) => (
+                <Link
+                  key={m}
+                  href={boardHref({ mode: m === "month" ? undefined : m })}
+                  className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+                >
+                  {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
+                </Link>
+              ))}
+            </div>
+          </>
         )}
 
         {view === "files" ? (
@@ -763,7 +773,9 @@ export default async function ProjectsPage({
             collisionUrlBase={collisionUrlBase}
           />
         ) : (
-          <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
+          /* Mobile (< sm): columnas apiladas (grid-cols-1 en KanbanBoard) — sin altura fija, ver
+             mismo comentario en projects/[id]/page.tsx. */
+          <div className="sticky-view-panel-kanban sticky top-[57px] h-auto sm:h-[calc(100vh-150px)]">
             <KanbanBoard
               // Solo cambia con los filtros: las cards movidas de estado siguen
               // visibles hasta que se toquen los filtros (ver KanbanBoard).

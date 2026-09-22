@@ -1,9 +1,10 @@
 "use client";
 
-import { Linkify, LinkifyBold } from "@/lib/linkify";
+import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
@@ -583,21 +584,21 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
   const canAttachEvidence = canReview || (canEdit && check.result === "FAILED");
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(check.title);
-  const [draftCriteria, setDraftCriteria] = useState(check.criteria ?? "");
   const [draftCategory, setDraftCategory] = useState(check.category ?? "");
+  const editFormRef = useRef<HTMLFormElement>(null);
   const [editError, setEditError] = useState<string | null>(null);
 
   function startEditing() {
     setDraftTitle(check.title);
-    setDraftCriteria(check.criteria ?? "");
     setDraftCategory(check.category ?? "");
     setEditError(null);
     setEditing(true);
   }
 
   function handleSaveEdit() {
+    const criteria = editFormRef.current ? String(new FormData(editFormRef.current).get("criteria") ?? "") : "";
     startTransition(async () => {
-      const result = await updateReviewCheck(check.id, { title: draftTitle, criteria: draftCriteria, category: draftCategory });
+      const result = await updateReviewCheck(check.id, { title: draftTitle, criteria, category: draftCategory });
       if (result.ok) {
         setEditing(false);
         router.refresh();
@@ -689,20 +690,13 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
     <li className="space-y-1.5 rounded-xl border border-slate-300 border-l-4 border-l-[#0a6b78] bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         {editing ? (
-          <div className="min-w-0 flex-1 space-y-1.5">
+          <form ref={editFormRef} className="min-w-0 flex-1 space-y-1.5">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Prueba {index + 1} de {total}</p>
             <div className="flex gap-1.5">
               <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} aria-label="Título de la prueba" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
               <input value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)} placeholder="Categoría" aria-label="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
             </div>
-            <textarea
-              value={draftCriteria}
-              onChange={(e) => setDraftCriteria(e.target.value)}
-              placeholder="Puntos específicos a verificar, uno por línea (opcional)…"
-              aria-label="Descripción y puntos a verificar"
-              rows={5}
-              className="min-h-24 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
-            />
+            <RichTextEditor name="criteria" defaultValue={check.criteria} />
             {editError && <p className="text-[15px] text-red-600">{editError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={handleSaveEdit} disabled={isPending || !draftTitle.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
@@ -712,7 +706,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
                 Cancelar
               </button>
             </div>
-          </div>
+          </form>
         ) : (
         <div className="min-w-0 space-y-1">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Prueba {index + 1} de {total}</p>
@@ -721,11 +715,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
             {check.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{check.category}</span>}
           </div>
           {check.criteria && (
-            <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
-              {check.criteria.split("\n").filter((line) => line.trim()).map((line, i) => (
-                <li key={i}><LinkifyBold text={line} /></li>
-              ))}
-            </ul>
+            <div className="prose prose-sm max-w-none text-slate-500 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(check.criteria) }} />
           )}
         </div>
         )}
@@ -917,28 +907,28 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
-  const [criteria, setCriteria] = useState("");
+  const [criteriaKey, setCriteriaKey] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleAdd() {
-    if (!title.trim()) return;
+    if (!title.trim() || !formRef.current) return;
+    const formData = new FormData(formRef.current);
+    formData.set("title", title);
+    formData.set("category", category);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("title", title);
-      formData.set("category", category);
-      formData.set("criteria", criteria);
       const result = await addReviewCheck(reviewRoundId, formData);
       if (result.ok) {
         setTitle("");
         setCategory("");
-        setCriteria("");
+        setCriteriaKey((k) => k + 1);
         router.refresh();
       }
     });
   }
 
   return (
-    <div className="space-y-1.5">
+    <form ref={formRef} className="space-y-1.5">
       <div className="flex gap-1.5">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva prueba…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
@@ -951,13 +941,7 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
           Agregar
         </button>
       </div>
-      <textarea
-        value={criteria}
-        onChange={(e) => setCriteria(e.target.value)}
-        placeholder="Puntos específicos, uno por línea (opcional)…"
-        rows={2}
-        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] min-h-24"
-      />
-    </div>
+      <RichTextEditor key={criteriaKey} name="criteria" defaultValue="" />
+    </form>
   );
 }

@@ -35,8 +35,10 @@ export function InlineDescription({
     }
     return (
       <div>
+        {/* Posicionado contra la <section> del padre (page.tsx: relative), no contra este div —
+            así queda en la esquina de la tarjeta, a la altura del título "Descripción". */}
         {canManage && (
-          <button type="button" onClick={() => setEditing(true)} className="mb-1 text-xs font-medium text-slate-400 hover:text-slate-700 hover:underline">
+          <button type="button" onClick={() => setEditing(true)} className="absolute right-4 top-4 text-xs font-medium text-slate-400 hover:text-slate-700 hover:underline">
             Editar descripción
           </button>
         )}

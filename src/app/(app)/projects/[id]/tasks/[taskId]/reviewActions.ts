@@ -11,6 +11,8 @@ import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import type { CheckResult } from "@prisma/client";
 
+const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
+
 async function revalidateTask(taskId: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
@@ -300,7 +302,7 @@ export async function addReviewCheck(reviewRoundId: string, formData: FormData) 
       reviewRoundId,
       title: parsed.data,
       category: typeof category === "string" && category.trim() ? category.trim() : null,
-      criteria: typeof criteria === "string" && criteria.trim() ? criteria.trim() : null,
+      criteria: typeof criteria === "string" && !isBlankHtml(criteria) ? criteria.trim() : null,
       order: count,
     },
     include: { reviewRound: true },
@@ -323,7 +325,8 @@ export async function removeReviewCheck(checkId: string) {
 // sus comentarios. Solo mientras no tenga resultado y la ronda siga abierta.
 const checkTextSchema = z.object({
   title: z.string().trim().min(1, "Falta indicar el título de la prueba.").max(500, "El título es demasiado largo."),
-  criteria: z.string().trim().max(4000, "La descripción es demasiado larga.").optional(),
+  // Tope subido de 4000 a 20000: el criterio viaja como HTML del editor, que pesa más que texto plano.
+  criteria: z.string().trim().max(20000, "La descripción es demasiado larga.").optional(),
   category: z.string().trim().max(120, "La categoría es demasiado larga.").optional(),
 });
 
@@ -338,9 +341,10 @@ export async function updateReviewCheck(checkId: string, input: { title: string;
   if (check.result !== null || check.reviewRound.outcome !== null) {
     return { ok: false as const, error: "Esta prueba ya fue calificada o su ronda está cerrada, por lo que no se puede editar." };
   }
+  const criteria = parsed.data.criteria && !isBlankHtml(parsed.data.criteria) ? parsed.data.criteria : null;
   await prisma.reviewCheck.update({
     where: { id: checkId },
-    data: { title: parsed.data.title, criteria: parsed.data.criteria || null, category: parsed.data.category || null },
+    data: { title: parsed.data.title, criteria, category: parsed.data.category || null },
   });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };

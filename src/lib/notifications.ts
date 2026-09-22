@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { progressBar } from "@/lib/progressBar";
-import { commentPlainText, commentMentionIds } from "@/lib/commentBody";
+import { commentMentionIds, splitCommentBody } from "@/lib/commentBody";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
@@ -207,14 +207,39 @@ export async function notifyShareActivity(taskId: string, message: string) {
 // Mensaje directo de WhatsApp a una persona: en horario laboral sale al
 // instante; fuera de horario se encola (poller de scheduler.ts), salvo
 // `immediate` (urgencias), que ignora el horario.
-async function dispatchDirect(userId: string, text: string, immediate = false) {
+async function dispatchDirect(userId: string, text: string, immediate = false, imageUrls?: string[]) {
   const user = await prisma.user.findFirst({ where: { id: userId, active: true, phone: { not: null } }, select: { phone: true } });
   if (!user?.phone) return;
   if (immediate || (await isCurrentlyWorkingHour())) {
-    void sendDirectAlert(user.phone, text);
+    void sendDirectAlert(user.phone, text, imageUrls);
   } else {
-    await prisma.whatsAppQueueItem.create({ data: { target: `${user.phone}@s.whatsapp.net`, message: text } });
+    // ponytail: fuera de horario la cola solo guarda texto (WhatsAppQueueItem no tiene
+    // columna de imagen), así que la foto queda como link en vez de foto real. Sumar esa
+    // columna si hace falta que también llegue como foto al vaciarse la cola.
+    const imageLinks = (imageUrls ?? []).map((u) => `\n📷 ${absoluteUrl(u)}`).join("");
+    await prisma.whatsAppQueueItem.create({ data: { target: `${user.phone}@s.whatsapp.net`, message: `${text}${imageLinks}` } });
   }
+}
+
+// Para WhatsApp: las imágenes se mandan como foto real (no como texto "[imagen]") y los
+// archivos quedan como link con URL completa dentro del mensaje (el texto corto que usa el
+// resto de la app no necesita la URL, porque ahí ya se puede tocar el adjunto).
+function commentWhatsAppParts(body: string) {
+  const images: string[] = [];
+  const text = splitCommentBody(body)
+    .map((p) => {
+      if (p.type === "text") return p.text;
+      if (p.type === "image") {
+        images.push(p.url);
+        return "";
+      }
+      if (p.type === "file") return `📎 ${p.name}: ${absoluteUrl(p.url)}`;
+      if (p.type === "link") return `${p.name} (${p.url})`;
+      return `@${p.name}`;
+    })
+    .join("")
+    .trim();
+  return { text, images };
 }
 
 // Textos de WhatsApp de comentarios y urgentes (exportados para poder previsualizarlos).
@@ -270,11 +295,11 @@ export async function notifyInternalComment(messageId: string, opts?: { onlyMent
 
   const where = commentWhere(message.project.name, message.task?.title);
   const path = message.task ? `/projects/${message.projectId}/tasks/${message.task.id}#internal-conversation` : `/projects/${message.projectId}?view=conversation#internal-conversation`;
-  const content = commentPlainText(message.body).trim();
+  const { text: content, images } = commentWhatsAppParts(message.body);
   const link = absoluteUrl(path)!;
 
-  for (const id of mentioned) await dispatchDirect(id, commentText("mention", message.author.name, where, content, link));
-  for (const id of participants) await dispatchDirect(id, commentText("comment", message.author.name, where, content, link));
+  for (const id of mentioned) await dispatchDirect(id, commentText("mention", message.author.name, where, content, link), false, images);
+  for (const id of participants) await dispatchDirect(id, commentText("comment", message.author.name, where, content, link), false, images);
 }
 
 /**

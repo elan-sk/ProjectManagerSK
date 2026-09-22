@@ -145,7 +145,7 @@ export function PublicTaskDetail({
                   className={`h-2 w-2 flex-shrink-0 rounded-full ${item.answered ? "bg-emerald-500" : "bg-amber-500"}`}
                   title={item.answered ? "Respondido" : "Todavía no se ha realizado"}
                 />
-                <p className="text-[19px] font-semibold text-slate-800"><Linkify text={item.description} /></p>
+                <div className="prose prose-lg min-w-0 max-w-none text-slate-800 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.description) }} />
               </div>
               {!item.answered && <p className="text-[17px] text-amber-600">Todavía no se ha realizado.</p>}
               {/* Un solo carrusel: al terminar las imágenes de Antes sigue con las de Después. */}

@@ -16,7 +16,11 @@ import {
 type Item = { id: string; title: string; criteria: string | null; category: string | null };
 type Template = { id: string; name: string; items: Item[] };
 
-export function TestTemplatesPanel({ templates, isAdmin, canCreate }: { templates: Template[]; isAdmin: boolean; canCreate: boolean }) {
+// Mismas categorías que ya se usan en Aceptación (ReviewCheck.category) y en otras
+// plantillas de QA, en un único <datalist> que referencian todos los inputs de categoría.
+const CATEGORY_DATALIST_ID = "qa-template-category-options";
+
+export function TestTemplatesPanel({ templates, isAdmin, canCreate, knownCategories }: { templates: Template[]; isAdmin: boolean; canCreate: boolean; knownCategories: string[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -41,6 +45,9 @@ export function TestTemplatesPanel({ templates, isAdmin, canCreate }: { template
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="font-medium text-slate-900">Plantillas de pruebas</h2>
+      <datalist id={CATEGORY_DATALIST_ID}>
+        {knownCategories.map((c) => <option key={c} value={c} />)}
+      </datalist>
       <div className="space-y-4">
         {templates.map((template) => (
           <TemplateCard key={template.id} template={template} isAdmin={isAdmin} />
@@ -249,6 +256,7 @@ function ItemForm({
         value={category}
         onChange={(e) => setCategory(e.target.value)}
         placeholder="Categoría (ej. Responsividad)"
+        list={CATEGORY_DATALIST_ID}
         className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs"
       />
       <textarea

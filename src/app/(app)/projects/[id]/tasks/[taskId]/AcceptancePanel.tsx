@@ -1,8 +1,8 @@
 "use client";
 
-import { Linkify, LinkifyBold } from "@/lib/linkify";
-import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
+import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -112,8 +112,13 @@ function FileChips({ files, onRemove }: { files: FileRef[]; onRemove?: (id: stri
   );
 }
 
+// Sugerencias de categoría (mismas que ya se usan en Pruebas/QA y en otras
+// características de Aceptación) en un único <datalist>: el <input list=…>
+// de cada formulario lo referencia por id, sin duplicarlo por cada uno.
+const CATEGORY_DATALIST_ID = "acceptance-category-options";
+
 /** Lista de características a aceptar/devolver por el cliente vía link compartido — mismo motor de rondas que Prueba (QA), ver acceptanceActions.ts. */
-export function AcceptancePanel({ taskId, userId, canEdit, canVote, rounds, taskStatus }: {
+export function AcceptancePanel({ taskId, userId, canEdit, canVote, rounds, taskStatus, knownCategories }: {
   taskId: string;
   userId: string | null;
   canEdit: boolean;
@@ -121,6 +126,7 @@ export function AcceptancePanel({ taskId, userId, canEdit, canVote, rounds, task
   canVote: boolean;
   rounds: Round[];
   taskStatus: TaskStatus;
+  knownCategories: string[];
 }) {
   const activeRound = rounds.find((r) => r.outcome === null) ?? null;
   const closedRounds = rounds.filter((r) => r.outcome !== null);
@@ -130,6 +136,9 @@ export function AcceptancePanel({ taskId, userId, canEdit, canVote, rounds, task
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="text-[21px] font-semibold text-slate-900">Aceptación</h2>
+      <datalist id={CATEGORY_DATALIST_ID}>
+        {knownCategories.map((c) => <option key={c} value={c} />)}
+      </datalist>
 
       {activeRound ? (
         <ActiveRound taskId={taskId} round={activeRound} userId={userId} canEdit={canEdit} canVote={canVote} />
@@ -264,7 +273,6 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
   }
 
   function handleSubmit() {
-    if (items.length === 0) return;
     setError(null);
     startTransition(async () => {
       const result = await submitAcceptanceRound(taskId, items);
@@ -277,7 +285,7 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
 
   return (
     <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3">
-      <p className="text-[18px] text-slate-600">{nextRoundNumber === 1 ? "Enviar a aceptación del cliente" : `Reenviar (ronda ${nextRoundNumber})`}</p>
+      <p className="text-[18px] text-slate-600">{nextRoundNumber === 1 ? "Crear ronda de aceptación" : `Reenviar (ronda ${nextRoundNumber})`}</p>
       {items.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {items.map((it, i) => (
@@ -313,11 +321,11 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
           </button>
           <button
             type="button"
-            disabled={isPending || items.length === 0}
+            disabled={isPending}
             onClick={handleSubmit}
             className="ml-auto flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Enviar
+            {nextRoundNumber === 1 ? "Crear" : "Enviar"}
           </button>
         </div>
       )}
@@ -383,22 +391,21 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
   const canAttachEvidence = canEdit && !item.result;
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(item.title);
-  const criteriaRef = useRef<HTMLTextAreaElement>(null);
-  const [draftCriteria, setDraftCriteria] = useState(item.criteria ?? "");
   const [draftCategory, setDraftCategory] = useState(item.category ?? "");
+  const editFormRef = useRef<HTMLFormElement>(null);
   const [editError, setEditError] = useState<string | null>(null);
 
   function startEditing() {
     setDraftTitle(item.title);
-    setDraftCriteria(item.criteria ?? "");
     setDraftCategory(item.category ?? "");
     setEditError(null);
     setEditing(true);
   }
 
   function handleSaveEdit() {
+    const criteria = editFormRef.current ? String(new FormData(editFormRef.current).get("criteria") ?? "") : "";
     startTransition(async () => {
-      const result = await updateAcceptanceItem(item.id, { title: draftTitle, criteria: draftCriteria, category: draftCategory });
+      const result = await updateAcceptanceItem(item.id, { title: draftTitle, criteria, category: draftCategory });
       if (result.ok) {
         setEditing(false);
         router.refresh();
@@ -458,22 +465,12 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
       )}
       <div className="flex items-start justify-between gap-2">
         {editing ? (
-          <div className="min-w-0 flex-1 space-y-1.5">
+          <form ref={editFormRef} className="min-w-0 flex-1 space-y-1.5">
             <div className="flex gap-1.5">
               <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} aria-label="Título de la característica" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
-              <input value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)} placeholder="Categoría" aria-label="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
+              <input value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)} placeholder="Categoría" aria-label="Categoría" list={CATEGORY_DATALIST_ID} className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
             </div>
-            <textarea
-              ref={criteriaRef}
-              onKeyDown={boldOnKeyDown}
-              value={draftCriteria}
-              onChange={(e) => setDraftCriteria(e.target.value)}
-              placeholder="Puntos específicos a verificar, uno por línea (opcional)…"
-              aria-label="Descripción y puntos a verificar"
-              rows={5}
-              className="min-h-24 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
-            />
-            <BoldButton targetRef={criteriaRef} className="mt-1 cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-sm font-bold text-slate-500 hover:bg-slate-50" />
+            <RichTextEditor name="criteria" defaultValue={item.criteria} />
             {editError && <p className="text-[15px] text-red-600">{editError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={handleSaveEdit} disabled={isPending || !draftTitle.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
@@ -483,7 +480,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
                 Cancelar
               </button>
             </div>
-          </div>
+          </form>
         ) : (
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -491,11 +488,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
             {item.category && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-500">{item.category}</span>}
           </div>
           {item.criteria && (
-            <ul className="list-disc space-y-0.5 pl-4 text-[17px] text-slate-500">
-              {item.criteria.split("\n").filter((l) => l.trim()).map((l, i) => (
-                <li key={i}><LinkifyBold text={l} /></li>
-              ))}
-            </ul>
+            <div className="prose prose-sm max-w-none text-slate-500 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.criteria) }} />
           )}
         </div>
         )}
@@ -625,32 +618,31 @@ function AddItemForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
-  const newCriteriaRef = useRef<HTMLTextAreaElement>(null);
-  const [criteria, setCriteria] = useState("");
+  const [criteriaKey, setCriteriaKey] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleAdd() {
-    if (!title.trim()) return;
+    if (!title.trim() || !formRef.current) return;
+    const formData = new FormData(formRef.current);
+    formData.set("title", title);
+    formData.set("category", category);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("title", title);
-      formData.set("category", category);
-      formData.set("criteria", criteria);
       const result = await addAcceptanceItem(reviewRoundId, formData);
       if (result.ok) {
         setTitle("");
         setCategory("");
-        setCriteria("");
+        setCriteriaKey((k) => k + 1);
         router.refresh();
       }
     });
   }
 
   return (
-    <div className="space-y-1.5">
+    <form ref={formRef} className="space-y-1.5">
       <div className="flex gap-1.5">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nueva característica o funcionalidad…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
-        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoría" list={CATEGORY_DATALIST_ID} className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]" />
         <button
           type="button"
           disabled={isPending || !title.trim()}
@@ -660,16 +652,7 @@ function AddItemForm({ reviewRoundId }: { reviewRoundId: string }) {
           Agregar
         </button>
       </div>
-      <textarea
-        ref={newCriteriaRef}
-        onKeyDown={boldOnKeyDown}
-        value={criteria}
-        onChange={(e) => setCriteria(e.target.value)}
-        placeholder="Descripción / puntos específicos, uno por línea (opcional)…"
-        rows={2}
-        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] min-h-24"
-      />
-      <BoldButton targetRef={newCriteriaRef} className="cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-sm font-bold text-slate-500 hover:bg-slate-50" />
-    </div>
+      <RichTextEditor key={criteriaKey} name="criteria" defaultValue="" />
+    </form>
   );
 }

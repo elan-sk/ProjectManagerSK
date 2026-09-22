@@ -18,9 +18,9 @@ export function BarChart({
           <span className="w-28 flex-shrink-0 truncate text-slate-600" title={d.label}>
             {d.label}
           </span>
-          <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-3 flex-1 overflow-hidden bg-slate-100">
             <div
-              className={`h-full rounded-full ${d.colorClass ?? "bg-slate-900"}`}
+              className={`h-full ${d.colorClass ?? "bg-slate-900"}`}
               style={{ width: `${(d.value / max) * 100}%` }}
             />
           </div>
@@ -45,7 +45,7 @@ export function TrendBars({ data }: { data: { label: string; value: number }[] }
           <span className="text-[10px] text-slate-500">{d.value > 0 ? d.value : ""}</span>
           <div className="flex w-full flex-1 items-end">
             <div
-              className="w-full rounded-t bg-emerald-500"
+              className="w-full bg-emerald-500"
               style={{ height: d.value > 0 ? `${Math.max((d.value / max) * 100, 6)}%` : 0 }}
               title={`${d.label}: ${d.value}`}
             />

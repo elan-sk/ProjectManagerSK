@@ -13,11 +13,11 @@ const FILE_TYPE_LABEL: Record<string, string> = {
 };
 
 function tabClass(active: boolean) {
-  return `rounded-lg px-3 py-1.5 ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
+  return `flex-shrink-0 rounded-lg px-3 py-1.5 ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
 }
 
 function pillClass(active: boolean) {
-  return `rounded-lg px-2.5 py-1 text-xs ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
+  return `flex-shrink-0 rounded-lg px-2.5 py-1 text-xs ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
 }
 
 // Igual que ProjectFilesView (misma pestaña Insumos/Evidencia, mismo filtro
@@ -50,7 +50,8 @@ export function AllProjectsFilesView({
   const showSharedLinks = !fileType || fileType === "all" || fileType === "link";
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 text-sm">
+      {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver en más líneas. */}
+      <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 text-sm lg:overflow-visible lg:pb-0">
         <Link href={filesHref({ fileKind: undefined })} className={tabClass(!fileKind)}>
           Todos
         </Link>
@@ -88,7 +89,7 @@ export function AllProjectsFilesView({
 
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Tipo</span>
-          <div className="flex gap-1.5">
+          <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
             {(["all", "image", "document", "link"] as const).map((t) => (
               <Link key={t} href={filesHref({ fileType: t === "all" ? undefined : t })} className={pillClass((fileType ?? "all") === t)}>
                 {FILE_TYPE_LABEL[t]}

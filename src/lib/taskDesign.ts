@@ -355,7 +355,9 @@ export async function designReviewTask(
   let createdRound = false;
   if (!round) {
     const deliverables = (data.deliverables ?? []).map(toFile);
-    if (deliverables.length === 0) return fail(400, "Para crear la primera ronda falta al menos un entregable (archivo subido con /api/upload o un link).");
+    // Aceptación no exige entregable para arrancar la ronda (las características que se
+    // agregan después son lo que el cliente acepta); Pruebas (QA) sí lo sigue exigiendo.
+    if (task.type === "QA" && deliverables.length === 0) return fail(400, "Para crear la primera ronda falta al menos un entregable (archivo subido con /api/upload o un link).");
     const result = task.type === "QA" ? await submitReviewRound(taskId, deliverables, actor) : await submitAcceptanceRound(taskId, deliverables, actor);
     if (!result.ok) return fail(409, result.error);
     round = await prisma.reviewRound.findFirst({ where: { taskId }, orderBy: { roundNumber: "desc" }, select: { id: true, roundNumber: true, outcome: true } });

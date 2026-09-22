@@ -31,6 +31,7 @@ export function ShareIdentityBar() {
       <p className="text-[17px] font-medium text-slate-600">Para comentar, primero se debe indicar quién escribe</p>
       <div className="flex flex-wrap gap-1.5">
         <input
+          id="share-identity-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && save()}

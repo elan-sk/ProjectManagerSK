@@ -19,6 +19,10 @@ export async function addStep(taskId: string, formData: FormData, actor?: Actor)
   if (!(await canEditTask(taskId, actor))) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { type: true } });
+  if (CHECKLIST_LESS_TYPES.has(task.type)) {
+    throw new Error("Las tareas de tipo Prueba, Ajuste o Aceptación no tienen checklist de pasos.");
+  }
   const description = z.string().min(1).parse(formData.get("description"));
   const count = await prisma.taskStep.count({ where: { taskId } });
   await prisma.taskStep.create({ data: { taskId, description, order: count } });
@@ -318,6 +322,54 @@ export async function updateTaskTitle(taskId: string, title: string) {
   return { ok: true };
 }
 
+// Los tipos QA, ADJUSTMENT y ACCEPTANCE no tienen checklist de pasos (confunde más
+// de lo que ayuda ahí) — ver moveStepsToDescription más abajo.
+const CHECKLIST_LESS_TYPES = new Set(["QA", "ADJUSTMENT", "ACCEPTANCE"]);
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// Mismo *negrita* que ya usa el checklist (StepCheckbox/Linkify) → <strong>, para no perder ese énfasis.
+const stepTextToHtml = (s: string) => escapeHtml(s).replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
+
+// Al convertir una tarea a un tipo sin checklist, sus pasos ya no tienen dónde mostrarse:
+// se vuelcan como lista al final de la descripción (con su estado y, si tenían una
+// pregunta de selección, el enunciado con el conteo de votos) para no perder esa
+// información, y se borran. Los archivos adjuntos a cada paso sobreviven solos como
+// Insumo de la tarea (Attachment.stepId → SetNull en el schema), no hace falta moverlos.
+export async function moveStepsToDescription(taskId: string) {
+  const task = await prisma.task.findUniqueOrThrow({
+    where: { id: taskId },
+    select: {
+      description: true,
+      steps: {
+        orderBy: { order: "asc" },
+        select: {
+          description: true,
+          done: true,
+          poll: { select: { options: { select: { label: true, votes: { select: { id: true } } } } } },
+        },
+      },
+    },
+  });
+  if (task.steps.length === 0) return;
+
+  const items = task.steps.map((s) => {
+    const mark = s.done ? "✓" : "○";
+    let line = `<li>${mark} ${stepTextToHtml(s.description)}`;
+    if (s.poll) {
+      const opts = s.poll.options.map((o) => `${escapeHtml(o.label)} (${o.votes.length})`).join(", ");
+      line += ` — pregunta: ${opts}`;
+    }
+    return `${line}</li>`;
+  });
+  // list-none: el ✓/○ ya marca cada ítem, sin esto el <ul> del editor le suma su propia viñeta encima.
+  const migrated = `<p><strong>Checklist (movido al cambiar el tipo de tarea):</strong></p><ul class="list-none pl-0">${items.join("")}</ul>`;
+
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: taskId }, data: { description: (task.description ?? "") + migrated } }),
+    prisma.taskStep.deleteMany({ where: { taskId } }),
+  ]);
+}
+
 // Punto 2.3: cambiar el tipo de tarea es solo del PM/admin — a diferencia
 // del resto de los campos, no lo puede tocar un asignado (canEditTask).
 export async function updateTaskType(taskId: string, type: string) {
@@ -332,6 +384,9 @@ export async function updateTaskType(taskId: string, type: string) {
   if (!parsed.success) return { ok: false, error: "Tipo inválido." };
 
   await prisma.task.update({ where: { id: taskId }, data: { type: parsed.data } });
+  if (CHECKLIST_LESS_TYPES.has(parsed.data)) {
+    await moveStepsToDescription(taskId);
+  }
   await revalidateTask(taskId);
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };
@@ -401,12 +456,17 @@ export async function updateTaskMeetingUrl(taskId: string, formData: FormData) {
 // Punto 2.5: "cambios solicitados" de una tarea tipo Ajuste — cada uno con
 // su Antes/Después (o una nota cuando no aplica). El estado de cada cambio
 // se deriva solo de esto, nunca de un checkbox manual.
+// La descripción viaja como HTML (editor WYSIWYG); min(1) por sí solo no
+// alcanza porque un párrafo vacío del editor ("<p></p>") también pasa esa
+// validación.
+const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
+
 export async function addAdjustmentItem(taskId: string, formData: FormData) {
   if (!(await canEditTask(taskId))) {
     return { ok: false, error: "No tenés permiso para editar esta tarea." };
   }
   const parsed = z.string().trim().min(1).safeParse(formData.get("description"));
-  if (!parsed.success) return { ok: false, error: "Describí el cambio solicitado." };
+  if (!parsed.success || isBlankHtml(parsed.data)) return { ok: false, error: "Describí el cambio solicitado." };
   const count = await prisma.adjustmentItem.count({ where: { taskId } });
   await prisma.adjustmentItem.create({ data: { taskId, description: parsed.data, order: count } });
   await revalidateTask(taskId);
@@ -422,13 +482,14 @@ export async function removeAdjustmentItem(itemId: string) {
   await revalidateTask(item.taskId);
 }
 
-export async function updateAdjustmentItem(itemId: string, description: string) {
+export async function updateAdjustmentItem(itemId: string, formData: FormData) {
   const item = await prisma.adjustmentItem.findUniqueOrThrow({ where: { id: itemId } });
   if (!(await canEditTask(item.taskId))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
-  const parsed = z.string().trim().min(1, "Describí el cambio solicitado.").max(1000).safeParse(description);
-  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Cambio inválido." };
+  // Tope subido de 1000 a 20000: el HTML del editor pesa más que el texto plano anterior.
+  const parsed = z.string().trim().min(1).max(20000).safeParse(formData.get("description"));
+  if (!parsed.success || isBlankHtml(parsed.data)) return { ok: false as const, error: "Describí el cambio solicitado." };
   await prisma.adjustmentItem.update({ where: { id: itemId }, data: { description: parsed.data } });
   await revalidateTask(item.taskId);
   return { ok: true as const };

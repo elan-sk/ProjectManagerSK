@@ -114,8 +114,8 @@ export function ProjectProgress({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-xs bg-black/10">
-          <div className="progress-fill-emerald h-full rounded-xs" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 flex-1 overflow-hidden bg-black/10">
+          <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
         </div>
         <span className="flex-shrink-0 text-xs text-slate-500">
           {pct}% · {completed}/{total} tareas

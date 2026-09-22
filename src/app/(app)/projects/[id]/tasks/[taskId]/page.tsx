@@ -36,6 +36,7 @@ import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { NavLinkWithMemory } from "../../../../NavLinkWithMemory";
 import { getActiveShareLink } from "@/lib/shareLinks";
+import { getKnownCategories } from "@/lib/reviewCategories";
 import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { TaskTagsEditor } from "./TaskTagsEditor";
@@ -157,7 +158,7 @@ export default async function TaskDetailPage({
   // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
   if (!session?.user || !canSeeProject(task.project, session.user)) notFound();
 
-  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags] = await Promise.all([
+  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags, knownCategories] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
@@ -175,6 +176,7 @@ export default async function TaskDetailPage({
       : Promise.resolve([]),
     prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
     prisma.tag.findMany({ where: { projectId }, select: { id: true, categoryId: true, name: true } }),
+    task.type === "ACCEPTANCE" ? getKnownCategories() : Promise.resolve([]),
   ]);
 
   // Mismo mapa que en projects/[id]/page.tsx: nombres ya usados en este
@@ -198,6 +200,10 @@ export default async function TaskDetailPage({
   // linkearla, no solo el texto de la razón.
   const isBottleneck = task.status !== "COMPLETED" && (task.blocks.length >= 2 || task.riskLevel === "HIGH");
 
+  // Prueba, Ajuste y Aceptación no usan checklist de pasos — confunde más de lo que ayuda
+  // ahí; si la tarea tenía pasos antes de convertirse a uno de estos tipos, actions.ts los
+  // movió a la descripción (moveStepsToDescription) al cambiar el tipo.
+  const hasChecklist = !["QA", "ADJUSTMENT", "ACCEPTANCE"].includes(task.type);
   const stepsTotal = task.steps.length;
   const stepsDone = task.steps.filter((st) => st.done).length;
   const stepsPct = stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
@@ -438,43 +444,45 @@ export default async function TaskDetailPage({
       </div>
 
       {(task.description || canEdit) && (
-        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+        <section className="relative space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-[21px] font-semibold text-slate-900">Descripción</h2>
           <InlineDescription taskId={taskId} description={task.description} canManage={canEdit} />
         </section>
       )}
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[21px] font-semibold text-slate-900">Checklist de pasos</h2>
-          {stepsTotal > 0 && (
-            <span className="text-xs font-medium text-slate-500">
-              {stepsDone}/{stepsTotal} · {stepsPct}%
-            </span>
+      {hasChecklist && (
+        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[21px] font-semibold text-slate-900">Checklist de pasos</h2>
+            {stepsTotal > 0 && (
+              <span className="text-xs font-medium text-slate-500">
+                {stepsDone}/{stepsTotal} · {stepsPct}%
+              </span>
+            )}
+          </div>
+          {stepsTotal > 0 && <StepsProgress pct={stepsPct} />}
+          <StepList
+            taskId={taskId}
+            steps={task.steps.map((st) => ({
+              id: st.id,
+              description: st.description,
+              done: st.done,
+              attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+              poll: st.poll ? toTeamPoll(st.poll, session?.user?.id ?? null) : null,
+            }))}
+            canEdit={canEdit}
+            canAddFiles={task.status !== "COMPLETED"}
+          />
+          {canEdit && (
+            <form action={addStepWithId} className="flex gap-2">
+              <NewStepInput />
+              <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                Agregar
+              </button>
+            </form>
           )}
-        </div>
-        {stepsTotal > 0 && <StepsProgress pct={stepsPct} />}
-        <StepList
-          taskId={taskId}
-          steps={task.steps.map((st) => ({
-            id: st.id,
-            description: st.description,
-            done: st.done,
-            attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
-            poll: st.poll ? toTeamPoll(st.poll, session?.user?.id ?? null) : null,
-          }))}
-          canEdit={canEdit}
-          canAddFiles={task.status !== "COMPLETED"}
-        />
-        {canEdit && (
-          <form action={addStepWithId} className="flex gap-2">
-            <NewStepInput />
-            <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
-              Agregar
-            </button>
-          </form>
-        )}
-      </section>
+        </section>
+      )}
 
       {task.type === "ADJUSTMENT" ? (
         <AdjustmentPanel
@@ -553,14 +561,6 @@ export default async function TaskDetailPage({
         </section>
       )}
 
-      {/* Hilo general del link compartido (en Ajuste cada cambio lleva su propio hilo, dentro del panel). */}
-      {task.type !== "ADJUSTMENT" && (task.shareComments.length > 0 || (canEdit && activeShareLink)) && (
-        <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-[21px] font-semibold text-slate-900">Comentarios del link compartido</h2>
-          <TeamShareThread taskId={taskId} comments={task.shareComments.map((c) => toThread(c, session?.user?.id ?? null))} canReply={canEdit} canVote={canEdit || canReview} canAttach={task.status !== "COMPLETED"} />
-        </section>
-      )}
-
       {task.type === "QA" && session?.user && (
         <CheckThreadsProvider
           projectId={projectId}
@@ -622,6 +622,7 @@ export default async function TaskDetailPage({
           canEdit={canEdit}
           canVote={canEdit || canReview}
           taskStatus={task.status}
+          knownCategories={knownCategories}
           rounds={task.reviewRounds.map((round) => ({
             id: round.id,
             roundNumber: round.roundNumber,
@@ -645,8 +646,6 @@ export default async function TaskDetailPage({
           }))}
         />
       )}
-
-      <InternalConversation projectId={projectId} taskId={taskId} title="Conversación de la tarea" />
 
       <section>
         <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -690,6 +689,20 @@ export default async function TaskDetailPage({
           )}
         </div>
       </section>
+
+      {/* Zona de comentarios (link compartido + interna) al final, con fondo propio para que se lea
+          como una zona aparte del resto de la ficha — no otra sección de datos de la tarea más. */}
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        {/* Hilo general del link compartido (en Ajuste cada cambio lleva su propio hilo, dentro del panel). */}
+        {task.type !== "ADJUSTMENT" && (task.shareComments.length > 0 || (canEdit && activeShareLink)) && (
+          <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-[21px] font-semibold text-slate-900">Comentarios del link compartido</h2>
+            <TeamShareThread taskId={taskId} comments={task.shareComments.map((c) => toThread(c, session?.user?.id ?? null))} canReply={canEdit} canVote={canEdit || canReview} canAttach={task.status !== "COMPLETED"} />
+          </section>
+        )}
+
+        <InternalConversation projectId={projectId} taskId={taskId} title="Conversación de la tarea" />
+      </div>
     </div>
   );
 }
@@ -699,8 +712,8 @@ function StepsProgress({ pct, label }: { pct: number; label?: string }) {
   return (
     <div className="space-y-1">
       {label && <p className="text-xs text-slate-500">{label}</p>}
-      <div className="h-2 w-full overflow-hidden rounded-xs bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="progress-fill-emerald h-full rounded-xs" style={{ width: `${pct}%` }} />
+      <div className="h-2 w-full overflow-hidden bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

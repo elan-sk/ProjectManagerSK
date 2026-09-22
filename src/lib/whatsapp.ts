@@ -1,5 +1,5 @@
 import type { WASocket } from "@whiskeysockets/baileys";
-import { rm } from "node:fs/promises";
+import { rm, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import QRCode from "qrcode";
@@ -259,14 +259,27 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
 // ÚNICAMENTE en el primer mensaje que recibe esa persona, junto con un
 // mensaje de presentación (quién es el bot, qué hace) — de ahí en más, ya
 // la conoce, así que solo se ve el ícono 🤖 + nombre en el texto.
-export async function sendRawMessage(jid: string, text: string) {
+// Imágenes adjuntas de un comentario (rutas /uploads/... en disco, ver
+// uploadFile.ts) → buffers listos para mandar como foto real de WhatsApp.
+async function loadImageBuffers(urls: string[]) {
+  const bufs = await Promise.all(
+    urls.map((url) => readFile(path.join(process.cwd(), "public", url)).catch(() => null))
+  );
+  return bufs.filter((b) => b !== null);
+}
+
+export async function sendRawMessage(jid: string, text: string, imageUrls?: string[]) {
   if (blockedByTestMode(jid)) return false;
   if (!state.sock) {
     console.error(`[whatsapp] no se pudo enviar a ${jid}: no hay conexión activa.`);
     return false;
   }
   try {
-    const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
+    const [botName, avatar, images] = await Promise.all([
+      getBotName(),
+      getBotAvatarBuffer(),
+      imageUrls?.length ? loadImageBuffers(imageUrls) : Promise.resolve([]),
+    ]);
     const fullText = `🤖 *${botName}*\n${text}`;
     const isDirect = jid.endsWith("@s.whatsapp.net");
     const user = isDirect
@@ -275,6 +288,17 @@ export async function sendRawMessage(jid: string, text: string) {
           select: { id: true, username: true, whatsappIntroducedAt: true },
         })
       : null;
+
+    // Con imágenes adjuntas: la primera va como foto con el texto de caption,
+    // el resto (si hay más de una) como fotos sueltas a continuación.
+    const sendFullText = async () => {
+      if (images.length) {
+        await state.sock!.sendMessage(jid, { image: images[0], caption: fullText });
+        for (const img of images.slice(1)) await state.sock!.sendMessage(jid, { image: img });
+      } else {
+        await state.sock!.sendMessage(jid, { text: fullText });
+      }
+    };
 
     if (user && !user.whatsappIntroducedAt) {
       // La presentación resuelve de una vez el dato que la persona necesita
@@ -287,12 +311,12 @@ export async function sendRawMessage(jid: string, text: string) {
         await state.sock.sendMessage(jid, { text: introText });
       }
       await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
-      await state.sock.sendMessage(jid, { text: fullText });
+      await sendFullText();
       return true;
     }
 
     if (isDirect || !avatar) {
-      await state.sock.sendMessage(jid, { text: fullText });
+      await sendFullText();
     } else {
       await state.sock.sendMessage(jid, { image: avatar, caption: fullText });
     }
@@ -306,6 +330,6 @@ export async function sendRawMessage(jid: string, text: string) {
 // DM directo a una persona (fono en formato internacional sin "+", ej.
 // "573144018901") — usado para las alertas de bajo impacto que le competen
 // solo a esa persona.
-export async function sendDirectAlert(phone: string, text: string) {
-  return sendRawMessage(`${phone}@s.whatsapp.net`, text);
+export async function sendDirectAlert(phone: string, text: string, imageUrls?: string[]) {
+  return sendRawMessage(`${phone}@s.whatsapp.net`, text, imageUrls);
 }

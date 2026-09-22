@@ -90,8 +90,8 @@ function ReviewPerformanceSection({
           <h3 className="mb-3 text-sm font-medium text-slate-700">Rondas: aprobadas a la 1ra vs. devueltas</h3>
           <BarChart
             data={[
-              { label: "Aprobadas", value: roundsApprovedFirstTryTotal, colorClass: "bg-emerald-500" },
-              { label: "Devueltas", value: roundsReturnedTotal, colorClass: "bg-red-500" },
+              { label: "Aprobadas", value: roundsApprovedFirstTryTotal, colorClass: "progress-fill-emerald" },
+              { label: "Devueltas", value: roundsReturnedTotal, colorClass: "progress-fill-red" },
             ]}
           />
         </div>
@@ -227,7 +227,7 @@ export default async function PerformancePage({
 
   const delayRanked = performance
     .filter((p) => p.totalDelayDays > 0)
-    .map((p) => ({ label: p.userName, value: p.totalDelayDays, colorClass: "bg-red-500" }))
+    .map((p) => ({ label: p.userName, value: p.totalDelayDays, colorClass: "progress-fill-red" }))
     .sort((a, b) => b.value - a.value);
 
   const [onTimeTrends, qaTrends, acceptanceTrends] = await Promise.all([
@@ -246,7 +246,7 @@ export default async function PerformancePage({
     .map((w) => ({
       label: w.userName,
       value: w.percent,
-      colorClass: w.percent === 0 ? "bg-slate-300" : "bg-teal-600",
+      colorClass: w.percent === 0 ? "bg-slate-300" : "progress-fill-teal",
       note: w.openTotal > 0 ? `${w.openTotal} abierta${w.openTotal !== 1 ? "s" : ""}` : undefined,
     }));
 
@@ -365,7 +365,7 @@ export default async function PerformancePage({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h3 className="mb-3 text-sm font-medium text-slate-700">% cumplimiento a tiempo</h3>
-            <BarChart data={onTimeRanked.map((r) => ({ ...r, colorClass: "bg-emerald-500" }))} valueSuffix="%" />
+            <BarChart data={onTimeRanked.map((r) => ({ ...r, colorClass: "progress-fill-emerald" }))} valueSuffix="%" />
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h3 className="mb-3 text-sm font-medium text-slate-700">Días de atraso acumulados</h3>

@@ -4,6 +4,8 @@ import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
+import { MobileFiltersToggle } from "@/components/MobileFiltersToggle";
+import { MobileCalendarDayEnforcer } from "@/components/MobileCalendarDayEnforcer";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -642,38 +644,39 @@ export default async function ProjectPage({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <div className="flex gap-2">
+        {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver en más líneas. */}
+        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
           <Link
             href={filterHref({ view: "definition" })}
-            className={`rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Definición
           </Link>
           <Link
             href={filterHref({ view: "kanban" })}
-            className={`rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Tablero
           </Link>
           <Link
             href={filterHref({ view: "gantt" })}
-            className={`rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Gantt
           </Link>
           <Link
             href={filterHref({ view: "calendar" })}
-            className={`rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Calendario
           </Link>
           <Link
             href={filesHref({})}
-            className={`rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             Archivos
           </Link>
-          <Link href={filterHref({ view: "conversation" })} className={`rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
+          <Link href={filterHref({ view: "conversation" })} className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
         </div>
 
         {view === "calendar" && calendarMode !== "day" && (
@@ -694,7 +697,7 @@ export default async function ProjectPage({
       </div>
 
       {view !== "definition" && view !== "files" && view !== "conversation" && (
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
+      <MobileFiltersToggle>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox
@@ -822,21 +825,27 @@ export default async function ProjectPage({
             <CriticalPathButton />
           </div>
         )}
-      </div>
+      </MobileFiltersToggle>
       )}
 
       {view === "calendar" && (
-        <div className="flex gap-1 text-sm">
-          {(["month", "week", "day"] as const).map((m) => (
-            <Link
-              key={m}
-              href={calendarHref({ mode: m === "month" ? undefined : m })}
-              className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
-            </Link>
-          ))}
-        </div>
+        <>
+          {/* Debajo de lg solo hay vista Día (ver ProjectCalendarView) — nada de selector, y si
+              venía de Mes/Semana lo redirige. De lg en adelante, selector normal. */}
+          <MobileCalendarDayEnforcer isDayMode={calendarMode === "day"} dayHref={calendarHref({ mode: "day" })} />
+          <p className="text-sm font-medium text-slate-600 lg:hidden">Vista: Día</p>
+          <div className="hidden gap-1 text-sm lg:flex">
+            {(["month", "week", "day"] as const).map((m) => (
+              <Link
+                key={m}
+                href={calendarHref({ mode: m === "month" ? undefined : m })}
+                className={`rounded-lg px-2.5 py-1 ${calendarMode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+              >
+                {m === "month" ? "Mes" : m === "week" ? "Semana" : "Día"}
+              </Link>
+            ))}
+          </div>
+        </>
       )}
 
       {view === "conversation" ? (
@@ -904,7 +913,11 @@ export default async function ProjectPage({
       ) : view === "calendar" ? (
         <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} />
       ) : (
-        <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100vh-150px)]">
+        /* Mobile (< sm): columnas apiladas (grid-cols-1 en KanbanBoard) — sin altura fija para
+           que cada una crezca con su contenido en vez de repartirse una altura de escritorio
+           entre 4 filas. De sm en adelante (columnas lado a lado) vuelve a la altura fija con
+           scroll propio por columna. */
+        <div className="sticky-view-panel-kanban sticky top-[57px] h-auto sm:h-[calc(100vh-150px)]">
           <KanbanBoard
             // Solo cambia al cambiar los filtros (no al cambiar una tarea): así
             // las cards que dejaron de coincidir tras un cambio de estado

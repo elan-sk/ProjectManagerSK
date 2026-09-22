@@ -945,7 +945,10 @@ export function GanttView({
         {/* Header: meses — sticky verticalmente (debajo del header fijo del
             programa), siempre visible aunque haya muchas fases/tareas debajo. */}
         <div className="sticky top-0 z-40 flex border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
-          <div style={{ width: LABEL_WIDTH }} className="sticky left-0 z-10 flex flex-shrink-0 items-center bg-white px-3 py-2">
+          {/* Mobile (< sm): sin sticky — la columna "Tarea" se desliza junto con la línea de
+              tiempo en vez de comerse casi todo el ancho fijada en 260px; de sm en adelante
+              vuelve a quedar fija al hacer scroll horizontal, como en escritorio. */}
+          <div style={{ width: LABEL_WIDTH }} className="z-10 flex flex-shrink-0 items-center bg-white px-3 py-2 sm:sticky sm:left-0">
             Tarea
           </div>
           <div className="flex flex-col">
@@ -999,7 +1002,7 @@ export function GanttView({
                   <div
                     onClick={() => scrollToPhaseStart(phaseStart)}
                     title="Ir al inicio de la fase"
-                    className="sticky left-0 z-30 flex flex-shrink-0 cursor-pointer select-none items-center gap-1.5 self-stretch bg-slate-50 px-3 py-1.5"
+                    className="z-30 flex flex-shrink-0 cursor-pointer select-none items-center gap-1.5 self-stretch bg-slate-50 px-3 py-1.5 sm:sticky sm:left-0"
                     style={{ width: LABEL_WIDTH }}
                   >
                     <Link href={`/projects/${first.projectId}`} aria-label={`Ir al proyecto ${first.projectName}`} onClick={(e) => e.stopPropagation()} className="contents">
@@ -1013,7 +1016,7 @@ export function GanttView({
                   <div data-gantt-timeline className="relative z-10 flex-1 cursor-grab" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
                     <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
                     <div
-                      className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden rounded-xs bg-slate-200"
+                      className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden bg-slate-200"
                       style={{ left: phaseStart * DAY_WIDTH, width: (phaseEnd - phaseStart) * DAY_WIDTH }}
                     >
                       <div
@@ -1032,7 +1035,7 @@ export function GanttView({
                   >
                     <div
                       style={{ width: LABEL_WIDTH }}
-                      className={`sticky left-0 z-30 flex h-full flex-shrink-0 items-center gap-1 pl-3 pr-1 text-sm ${
+                      className={`z-30 flex h-full flex-shrink-0 items-center gap-1 pl-3 pr-1 text-sm sm:sticky sm:left-0 ${
                         t.isUrgent && t.status !== "COMPLETED" ? "border-l-4 border-red-600 bg-red-50 font-medium text-red-800" : "bg-white text-slate-700"
                       }`}
                     >

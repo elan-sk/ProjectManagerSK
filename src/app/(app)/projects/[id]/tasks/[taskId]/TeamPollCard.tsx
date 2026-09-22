@@ -104,8 +104,8 @@ export function TeamPollCard({
                   {o.voters.length} · {pct}%
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-xs bg-slate-100">
-                <div className="progress-fill-teal h-full rounded-xs" style={{ width: `${pct}%` }} />
+              <div className="h-1.5 overflow-hidden bg-slate-100">
+                <div className="progress-fill-teal h-full" style={{ width: `${pct}%` }} />
               </div>
               {o.voters.length > 0 && (
                 <p className="text-[15px] text-slate-500">

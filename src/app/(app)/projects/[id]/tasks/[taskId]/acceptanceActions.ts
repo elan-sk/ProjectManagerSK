@@ -23,6 +23,9 @@ async function revalidateTask(taskId: string) {
   revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
 }
 
+// El criterio viaja como HTML (editor WYSIWYG): un "<p></p>" vacío no debe guardarse como si hubiera contenido.
+const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
+
 const deliverableInputSchema = z.object({
   id: z.string().optional(),
   name: z.string().trim().min(1),
@@ -44,9 +47,11 @@ export async function submitAcceptanceRound(
   const session = actor ?? (await auth())?.user;
   if (!session) return { ok: false as const, error: "Sesión inválida." };
 
-  const parsed = z.array(deliverableInputSchema).min(1).safeParse(deliverables);
+  // Sin mínimo: los archivos/links son opcionales, lo que se acepta son las
+  // características que se agregan después de crear la ronda.
+  const parsed = z.array(deliverableInputSchema).safeParse(deliverables);
   if (!parsed.success) {
-    return { ok: false as const, error: "Agregá al menos un link o archivo a entregar." };
+    return { ok: false as const, error: "No se pudo enviar: revisá los archivos o links agregados." };
   }
   for (const d of parsed.data) {
     if (d.mimeType === LINK_MIME_TYPE && !z.string().trim().url().safeParse(d.url).success) {
@@ -177,7 +182,7 @@ export async function addAcceptanceItem(reviewRoundId: string, formData: FormDat
       reviewRoundId,
       title: parsed.data,
       category: typeof category === "string" && category.trim() ? category.trim() : null,
-      criteria: typeof criteria === "string" && criteria.trim() ? criteria.trim() : null,
+      criteria: typeof criteria === "string" && !isBlankHtml(criteria) ? criteria.trim() : null,
       order: count,
     },
   });
@@ -199,7 +204,8 @@ export async function removeAcceptanceItem(checkId: string) {
 // capturas ni sus comentarios. Solo mientras el cliente no la calificó y la ronda siga abierta.
 const itemTextSchema = z.object({
   title: z.string().trim().min(1, "Falta indicar el título de la característica.").max(500, "El título es demasiado largo."),
-  criteria: z.string().trim().max(4000, "La descripción es demasiado larga.").optional(),
+  // Tope subido de 4000 a 20000: el criterio viaja como HTML del editor, que pesa más que texto plano.
+  criteria: z.string().trim().max(20000, "La descripción es demasiado larga.").optional(),
   category: z.string().trim().max(120, "La categoría es demasiado larga.").optional(),
 });
 
@@ -214,9 +220,10 @@ export async function updateAcceptanceItem(checkId: string, input: { title: stri
   if (check.result !== null || check.reviewRound.outcome !== null) {
     return { ok: false as const, error: "Esta característica ya fue calificada o su ronda está cerrada, por lo que no se puede editar." };
   }
+  const criteria = parsed.data.criteria && !isBlankHtml(parsed.data.criteria) ? parsed.data.criteria : null;
   await prisma.reviewCheck.update({
     where: { id: checkId },
-    data: { title: parsed.data.title, criteria: parsed.data.criteria || null, category: parsed.data.category || null },
+    data: { title: parsed.data.title, criteria, category: parsed.data.category || null },
   });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };

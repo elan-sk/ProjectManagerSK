@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isReviewerAnywhere } from "@/lib/permissions";
+import { getKnownCategories } from "@/lib/reviewCategories";
 import { TestTemplatesPanel } from "./TestTemplatesPanel";
 import { ResponseCategoriesPanel } from "./ResponseCategoriesPanel";
 
@@ -11,7 +12,7 @@ export default async function TestsSettingsPage() {
   if (!session?.user) redirect("/login");
   const isAdmin = session.user.role === "ADMIN";
 
-  const [templates, categories, canCreate] = await Promise.all([
+  const [templates, categories, canCreate, knownCategories] = await Promise.all([
     prisma.testTemplate.findMany({
       include: { items: { orderBy: { order: "asc" } } },
       orderBy: { createdAt: "asc" },
@@ -21,6 +22,7 @@ export default async function TestsSettingsPage() {
       orderBy: { name: "asc" },
     }),
     isReviewerAnywhere(),
+    getKnownCategories(),
   ]);
 
   return (
@@ -36,7 +38,7 @@ export default async function TestsSettingsPage() {
         definitivamente es solo del administrador.
       </p>
 
-      <TestTemplatesPanel templates={templates} isAdmin={isAdmin} canCreate={canCreate} />
+      <TestTemplatesPanel templates={templates} isAdmin={isAdmin} canCreate={canCreate} knownCategories={knownCategories} />
       <ResponseCategoriesPanel categories={categories} isAdmin={isAdmin} canCreate={canCreate} />
     </div>
   );

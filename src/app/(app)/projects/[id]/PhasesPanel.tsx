@@ -17,8 +17,8 @@ import type { TaskStatus } from "@prisma/client";
 function ProgressBar({ pct }: { pct: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden rounded-xs bg-slate-100">
-        <div className="progress-fill-emerald h-full rounded-xs" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
+        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
       </div>
       <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
     </div>

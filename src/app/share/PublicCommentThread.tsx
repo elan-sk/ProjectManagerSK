@@ -23,6 +23,27 @@ type CommentData = {
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" };
 
+// Con identityAbove, el nombre se pide una sola vez en ShareIdentityBar (arriba de la
+// lista, id="share-identity-name"): este botón lleva y enfoca ese campo en vez de dejar
+// un input de comentario que no hace nada mientras no haya nombre.
+function focusIdentityName() {
+  const el = document.getElementById("share-identity-name");
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  (el as HTMLInputElement | null)?.focus();
+}
+
+function GoToIdentityButton() {
+  return (
+    <button
+      type="button"
+      onClick={focusIdentityName}
+      className="w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-left text-[17px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
+    >
+      Para comentar, primero indicá tu nombre arriba ↑
+    </button>
+  );
+}
+
 function CommentBubble({ author, role, body, attachments, poll, token, createdAt }: { author: string; role: string | null; body: string; attachments: PublicFile[]; poll: PublicPoll | null; token: string; createdAt: string }) {
   return (
     <div className="rounded-lg bg-slate-50 p-2 text-[17px]">
@@ -188,32 +209,38 @@ export function PublicCommentThread({
               )}
               {replyingTo === c.id && !locked && (
                 <div data-paste-zone className="ml-4 space-y-1 rounded-lg p-1.5">
-                  {!identity && !identityAbove && (
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Tu nombre"
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
-                    />
+                  {identityAbove && !identity ? (
+                    <GoToIdentityButton />
+                  ) : (
+                    <>
+                      {!identity && !identityAbove && (
+                        <input
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="Tu nombre"
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
+                        />
+                      )}
+                      <div className="flex gap-1.5">
+                        <input
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleReply(c.id)}
+                          placeholder="Responder…"
+                          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
+                        />
+                        <button
+                          type="button"
+                          disabled={sendingReply || !authorName.trim() || (!replyBody.trim() && replyFiles.length === 0)}
+                          onClick={() => handleReply(c.id)}
+                          className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          Enviar
+                        </button>
+                      </div>
+                      {allowAttachments && <CommentAttachments files={replyFiles} onChange={setReplyFiles} token={token} />}
+                    </>
                   )}
-                  <div className="flex gap-1.5">
-                    <input
-                      value={replyBody}
-                      onChange={(e) => setReplyBody(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleReply(c.id)}
-                      placeholder="Responder…"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
-                    />
-                    <button
-                      type="button"
-                      disabled={sendingReply || !authorName.trim() || (!replyBody.trim() && replyFiles.length === 0)}
-                      onClick={() => handleReply(c.id)}
-                      className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      Enviar
-                    </button>
-                  </div>
-                  {allowAttachments && <CommentAttachments files={replyFiles} onChange={setReplyFiles} token={token} />}
                 </div>
               )}
             </li>
@@ -252,24 +279,30 @@ export function PublicCommentThread({
             </button>
           </p>
         )}
-        <div className="flex gap-1.5">
-          <input
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder={identityAbove && !identity ? "Primero se debe indicar el nombre arriba" : "Escribir un comentario…"}
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
-          />
-          <button
-            type="button"
-            disabled={sending || !authorName.trim() || (!body.trim() && files.length === 0)}
-            onClick={handleSend}
-            className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            Comentar
-          </button>
-        </div>
-        {allowAttachments && <CommentAttachments files={files} onChange={setFiles} token={token} />}
+        {identityAbove && !identity ? (
+          <GoToIdentityButton />
+        ) : (
+          <>
+            <div className="flex gap-1.5">
+              <input
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                placeholder="Escribir un comentario…"
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
+              />
+              <button
+                type="button"
+                disabled={sending || !authorName.trim() || (!body.trim() && files.length === 0)}
+                onClick={handleSend}
+                className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                Comentar
+              </button>
+            </div>
+            {allowAttachments && <CommentAttachments files={files} onChange={setFiles} token={token} />}
+          </>
+        )}
         {error && <p className="text-[17px] text-red-600">{error}</p>}
       </div>
       )}

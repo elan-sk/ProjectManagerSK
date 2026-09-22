@@ -21,6 +21,26 @@
   --choco-canopy: #17664e;
   --sand-warm: #e5c979;
   --coral-alert: #c5403a;
+  /* Scroll delgado y de fondo transparente en toda la app — Firefox (propiedades
+     estándar, heredables desde :root) y Chrome/Safari/Edge (pseudo-elementos webkit,
+     abajo) — con el mismo teal de énfasis que ya usan links y acentos del resto de la UI. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--pacific-tide) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--pacific-tide);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pacific-deep);
 }
 
 @theme inline {
@@ -120,13 +140,13 @@ h1, h2 {
   background: linear-gradient(115deg, var(--pacific-deep) 0%, #0a5866 62%, var(--pacific-tide) 100%);
   box-shadow: 0 10px 28px rgba(7, 59, 76, 0.18);
 }
-/* Barras de progreso (checklist, Definición, encuestas, subida de archivos…): degradado más marcado
-   que el sutil del header de arriba — el rango de cada uno cubre más luminosidad a propósito, para
-   que se note que la barra se está "llenando" de verdad. Un color por familia, sin tocar el semántico
-   ya establecido (verde = avance/completado, teal = marca/pregunta/subida, rojo = atraso). */
-.progress-fill-emerald { background: linear-gradient(100deg, var(--color-emerald-800) 0%, var(--color-emerald-600) 30%, var(--color-emerald-400) 65%, #8ee6ac 100%); }
-.progress-fill-teal { background: linear-gradient(100deg, var(--pacific-deep) 0%, var(--pacific-tide) 35%, var(--color-blue-400) 70%, #a7ecef 100%); }
-.progress-fill-red { background: linear-gradient(100deg, var(--color-red-800) 0%, var(--color-red-600) 30%, var(--color-red-400) 65%, #ffc6bc 100%); }
+/* Barras de progreso (checklist, Definición, Rendimiento, encuestas, subida de archivos…):
+   degradado marcado (para que se note que la barra se está "llenando" de verdad) y esquinas
+   cuadradas (sin redondeo, a pedido). Un color por familia, sin tocar el semántico ya
+   establecido (verde = avance/completado, teal = marca/pregunta/subida, rojo = atraso). */
+.progress-fill-emerald { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }
+.progress-fill-teal { background: linear-gradient(100deg, #a7ecef 0%, var(--color-blue-400) 30%, var(--pacific-tide) 65%, var(--pacific-deep) 100%); }
+.progress-fill-red { background: linear-gradient(100deg, #ffc6bc 0%, var(--color-red-400) 35%, var(--color-red-600) 70%, var(--color-red-800) 100%); }
 .pacific-header::after {
   content: "";
   position: absolute;
@@ -173,6 +193,29 @@ h1, h2 {
 .pacific-header .pacific-popover .hover\:bg-slate-100:hover,
 .pacific-header .pacific-popover .hover\:bg-slate-200:hover { background-color: var(--color-slate-200); }
 .pacific-header .pacific-popover .hover\:text-slate-900:hover { color: var(--color-slate-900); }
+/* Menú hamburguesa del header en móvil/tablet (MobileMenuToggle): mismo escape que
+   pacific-popover arriba, pero acotado a ese ancho — de lg (1024px) en adelante el mismo
+   contenido vuelve a vivir inline dentro del header oscuro y necesita el texto claro normal, no
+   el oscuro de este escape. El corte es en lg y no en md/768px porque a 768px la fila completa
+   (nav + buscador + campanas + cuenta) no entraba en una sola línea y se salía del viewport. */
+@media (max-width: 1023.98px) {
+  .pacific-header .pacific-mobile-menu,
+  .pacific-header .pacific-mobile-menu .text-slate-400,
+  .pacific-header .pacific-mobile-menu .text-slate-500,
+  .pacific-header .pacific-mobile-menu .text-slate-600,
+  .pacific-header .pacific-mobile-menu .text-slate-700,
+  .pacific-header .pacific-mobile-menu .text-slate-900 {
+    color: var(--color-slate-900);
+  }
+  .pacific-header .pacific-mobile-menu .text-slate-400 { color: var(--color-slate-400); }
+  .pacific-header .pacific-mobile-menu .text-slate-500 { color: var(--color-slate-500); }
+  .pacific-header .pacific-mobile-menu .text-slate-600 { color: var(--color-slate-600); }
+  .pacific-header .pacific-mobile-menu .text-slate-700 { color: var(--color-slate-700); }
+  .pacific-header .pacific-mobile-menu .bg-slate-100 { background-color: var(--color-slate-100); }
+  .pacific-header .pacific-mobile-menu .hover\:bg-slate-100:hover,
+  .pacific-header .pacific-mobile-menu .hover\:bg-slate-200:hover { background-color: var(--color-slate-200); }
+  .pacific-header .pacific-mobile-menu .hover\:text-slate-900:hover { color: var(--color-slate-900); }
+}
 .pacific-brand-mark {
   position: relative;
   display: grid;
