@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useConfirm } from "@/components/Confirm";
 import { HTML_SANDBOX } from "@/lib/htmlShell";
+import { ToolbarButton, toolbarButtonClass } from "@/components/ToolbarButton";
+import { CheckIcon, CopyIcon, DownloadIcon, ExpandIcon, ExternalLinkIcon, TaskIcon, TrashIcon, XIcon } from "@/components/icons";
 
 export type PreviewFile = {
   id: string;
@@ -161,9 +163,42 @@ export function AttachmentPreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    // Márgenes chicos y sin límite de ancho fijo (solo un tope generoso en monitores muy anchos): aprovecha
+    // casi toda la pantalla — un instructivo HTML se ve como una página, no como una ventanita en el medio.
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/60" />
-      <div className="relative flex h-[90vh] w-full max-w-5xl flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative flex h-[97vh] w-full max-w-[1600px] flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* Barra arriba, no abajo: mismo lugar y mismos iconos que el visor incrustado del checklist (StepAttachments). */}
+        <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2 py-1 shadow-sm">
+          <span className="min-w-0 truncate pl-1 text-xs text-slate-700">{file.name}</span>
+          <div className="flex flex-shrink-0 items-center gap-0.5">
+            {isHtml && (
+              <>
+                <ToolbarButton icon={<ExpandIcon className="h-4 w-4" />} label="Pantalla completa del navegador" onClick={() => frameRef.current?.requestFullscreen?.()} />
+                <ToolbarButton icon={copied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : <CopyIcon className="h-4 w-4" />} label={copied ? "¡Enlace copiado!" : "Copiar enlace"} onClick={copyUrl} />
+              </>
+            )}
+            {(file.mimeType === PDF_MIME || isHtml) && (
+              <a href={file.url} target="_blank" rel="noreferrer" title="Abrir en pestaña" aria-label="Abrir en pestaña" className={toolbarButtonClass()}>
+                <ExternalLinkIcon className="h-4 w-4" />
+              </a>
+            )}
+            <a href={file.url} download={file.name} title="Descargar" aria-label="Descargar" className={toolbarButtonClass()}>
+              <DownloadIcon className="h-4 w-4" />
+            </a>
+            {file.taskLink && (
+              <Link href={file.taskLink.href} title="Ver tarea" aria-label="Ver tarea" className={toolbarButtonClass()}>
+                <TaskIcon className="h-4 w-4" />
+              </Link>
+            )}
+            {onDelete && (
+              <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />
+            )}
+            <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden />
+            <ToolbarButton icon={<XIcon className="h-4 w-4" />} label="Cerrar" onClick={onClose} />
+          </div>
+        </div>
+
         {isFrame && (
           <iframe ref={frameRef} src={file.url} title={file.name} allowFullScreen sandbox={file.mimeType === HTML_MIME ? HTML_SANDBOX : undefined} className="min-h-0 flex-1 rounded-xl border-0 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.3)]" />
         )}
@@ -204,43 +239,6 @@ export function AttachmentPreviewModal({
             {file.mimeType === WORD_MIME && <div className="min-h-0 flex-1 overflow-auto" ref={containerRef} />}
           </div>
         )}
-
-        <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-2">
-          <span className="min-w-0 truncate text-sm text-slate-700">{file.name}</span>
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
-            {isHtml && (
-              <>
-                <button type="button" onClick={() => frameRef.current?.requestFullscreen?.()} className="text-sm font-medium text-slate-900 hover:underline">
-                  Pantalla completa
-                </button>
-                <button type="button" onClick={copyUrl} className="text-sm font-medium text-slate-900 hover:underline">
-                  {copied ? "¡Enlace copiado!" : "Copiar enlace"}
-                </button>
-              </>
-            )}
-            {(file.mimeType === PDF_MIME || isHtml) && (
-              <a href={file.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-900 hover:underline">
-                Abrir en pestaña
-              </a>
-            )}
-            <a href={file.url} download={file.name} className="text-sm font-medium text-slate-900 hover:underline">
-              Descargar
-            </a>
-            {file.taskLink && (
-              <Link href={file.taskLink.href} className="text-sm font-medium text-slate-900 hover:underline">
-                Ver tarea
-              </Link>
-            )}
-            {onDelete && (
-              <button type="button" onClick={handleDelete} disabled={deleting} className="text-sm font-medium text-red-600 hover:underline">
-                Eliminar
-              </button>
-            )}
-            <button type="button" onClick={onClose} className="text-sm text-slate-500 hover:text-slate-900">
-              Cerrar
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

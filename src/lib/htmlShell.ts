@@ -1,8 +1,14 @@
 // Los prototipos HTML nunca se sirven "sueltos" desde el origen de la app: el enlace directo devuelve
-// esta página envoltorio, que los mete en un iframe con sandbox (srcdoc, origen opaco: sin sesión,
-// cookies ni acceso a la app). Así el aislamiento no depende de cabeceras que el servidor pueda pisar.
-// Límite: sin "allow-same-origin", el prototipo no puede usar localStorage/cookies propios.
-export const HTML_SANDBOX = "allow-scripts allow-forms allow-popups allow-modals";
+// esta página envoltorio, que los mete en un iframe con sandbox (srcdoc). Así el aislamiento no depende
+// de cabeceras que el servidor pueda pisar.
+// "allow-same-origin" (decisión 2026-09-21, a pedido del usuario): con srcdoc, un iframe con este flag
+// toma el origen del documento PADRE (acá, el propio origen de la app) — no un origen aparte. Es lo que
+// permite que el HTML subido guarde su progreso en localStorage (checklists de instructivos), pero
+// también le da a ese HTML acceso al localStorage de la app y le permite hacer pedidos a la API de
+// PMSK con la sesión de quien lo esté mirando. Aceptado porque solo admin/PM pueden subir HTML y son
+// quienes escriben ese contenido — un aislamiento real (sin este riesgo) exigiría servir estos archivos
+// desde un subdominio aparte, no solo este sandbox.
+export const HTML_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-modals";
 
 const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 const escapeText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");

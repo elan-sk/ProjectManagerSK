@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { removeAttachment } from "./actions";
 import { useConfirm } from "@/components/Confirm";
+import { ToolbarButton, toolbarButtonClass } from "@/components/ToolbarButton";
+import { DownloadIcon, TaskIcon, TrashIcon, XIcon } from "@/components/icons";
 
 export type LightboxImage = {
   id: string;
@@ -24,7 +26,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.5;
 
-const barButton = "rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent";
+const barButton = "flex h-8 items-center justify-center rounded-md px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent";
 const navButton = "absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2.5 text-slate-700 shadow-md hover:bg-white";
 
 /**
@@ -140,7 +142,7 @@ export function AttachmentLightbox({
     <div className="fixed inset-0 z-50 bg-slate-900/70" onClick={onClose}>
       {/* Barra superior: siempre en el mismo lugar. */}
       <div
-        className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 shadow-md"
+        className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1 shadow-md"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="min-w-0 truncate text-sm text-slate-700">
@@ -157,23 +159,17 @@ export function AttachmentLightbox({
           <button type="button" onClick={zoomIn} disabled={view.scale >= MAX_ZOOM} aria-label="Acercar" title="Acercar (+)" className={barButton}>
             +
           </button>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
-          <a href={current.url} download={current.name} className={barButton}>
-            Descargar
+          <span className="mx-0.5 h-5 w-px bg-slate-200" aria-hidden />
+          <a href={current.url} download={current.name} title="Descargar" aria-label="Descargar" className={toolbarButtonClass()}>
+            <DownloadIcon className="h-4 w-4" />
           </a>
           {current.taskLink && (
-            <Link href={current.taskLink.href} className={barButton}>
-              Ver tarea
+            <Link href={current.taskLink.href} title="Ver tarea" aria-label="Ver tarea" className={toolbarButtonClass()}>
+              <TaskIcon className="h-4 w-4" />
             </Link>
           )}
-          {canDelete && (
-            <button type="button" onClick={handleDelete} disabled={deleting} className={`${barButton} text-red-600`}>
-              Eliminar
-            </button>
-          )}
-          <button type="button" onClick={onClose} className={`${barButton} text-slate-500`}>
-            Cerrar
-          </button>
+          {canDelete && <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />}
+          <ToolbarButton icon={<XIcon className="h-4 w-4" />} label="Cerrar" onClick={onClose} />
         </div>
       </div>
 

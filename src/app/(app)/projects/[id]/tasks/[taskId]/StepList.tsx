@@ -78,7 +78,7 @@ export function StepList({ taskId, steps, canEdit, canAddFiles }: { taskId: stri
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <DndContext id={`steps-${taskId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {items.map((s) => (

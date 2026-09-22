@@ -2,6 +2,7 @@
 // archivo subido — reusa el mismo modelo Attachment en vez de sumar una
 // tabla/columna nueva solo para esto.
 export const LINK_MIME_TYPE = "text/uri-list";
+export const HTML_MIME_TYPE = "text/html";
 
 export type AttachmentFileType = "image" | "document" | "link";
 

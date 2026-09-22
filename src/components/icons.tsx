@@ -272,3 +272,38 @@ export function MergeIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v1.5A2.25 2.25 0 0 0 5.25 20.25h13.5A2.25 2.25 0 0 0 21 18v-1.5M7.5 12l4.5 4.5m0 0 4.5-4.5m-4.5 4.5V3" />
+    </svg>
+  );
+}
+
+/** Expandir a pantalla completa (esquinas hacia afuera) — no confundir con ExternalLinkIcon (abrir en otra pestaña). */
+export function ExpandIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3.75H4.5a.75.75 0 0 0-.75.75v3.75m16.5 0V4.5a.75.75 0 0 0-.75-.75h-3.75m0 16.5h3.75a.75.75 0 0 0 .75-.75v-3.75M3.75 15.75v3.75c0 .414.336.75.75.75h3.75" />
+    </svg>
+  );
+}
+
+/** Libreta (sin chulo): "ir a la tarea" — no confundir con ReviewChecklistIcon (una insignia de aprobado). */
+export function TaskIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3.75h10.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8.25h6M9 12h6M9 15.75h3.5" />
+    </svg>
+  );
+}
+
+export function ExternalLinkIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-9 4.5L20.25 3.75m0 0h-5.5m5.5 0v5.5" />
+    </svg>
+  );
+}

@@ -2,6 +2,7 @@
 
 import { Linkify } from "@/lib/linkify";
 import { useRef, useState } from "react";
+import { avatarColor } from "@/components/Avatar";
 import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
@@ -65,8 +66,12 @@ export function StepCheckbox({
     }
   }
 
+  // Franja de color propia del paso (mismo generador que Avatar): ata visualmente su checkbox con todo
+  // lo que cuelga de él — archivos, links y el HTML incrustado — y separa un paso del siguiente en la lista.
+  const accentColor = avatarColor(stepId);
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5" style={{ borderLeftColor: accentColor }}>
       <div className={`flex items-center gap-2 text-sm text-slate-700 ${canEdit ? "" : "cursor-default"}`}>
         {dragHandle}
         <input
