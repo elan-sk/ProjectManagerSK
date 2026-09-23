@@ -815,6 +815,24 @@ model WhatsAppGroupIntro {
 // poller de scheduler.ts las despacha apenas vuelve a abrir el horario.
 // `target` ya viene resuelto (JID de grupo o de persona) para no repetir
 // la lógica de destino al momento de despachar.
+// Alertas graves de grupo (vencidas, bloqueadas, devueltas, inicio retrasado) pendientes de enviar:
+// se acumulan y salen juntas, en UN solo mensaje por grupo, a la hora del resumen diario
+// (ver dispatchGroupAlertDigest en notifications.ts). `type` = NotificationType como texto;
+// `mentionUserIds` = ids separados por coma.
+model GroupAlertItem {
+  id             String    @id @default(cuid())
+  groupJid       String
+  projectId      String
+  taskId         String?
+  type           String
+  message        String    @db.Text
+  mentionUserIds String    @db.Text
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
+
+  @@index([sentAt, groupJid])
+}
+
 model WhatsAppQueueItem {
   id        String    @id @default(cuid())
   target    String

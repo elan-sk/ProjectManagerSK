@@ -213,8 +213,9 @@ export async function listGroups() {
 // Best-effort: nunca tira error hacia notify(), si WhatsApp no está
 // conectado o falla el envío, la notificación in-app/push sigue intacta.
 // El link va al final (después de las menciones) en su propia línea, sin
-// nada pegado, para que WhatsApp lo detecte como clickeable.
-export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string) {
+// nada pegado, para que WhatsApp lo detecte como clickeable. Con `inlineMentions` el cuerpo ya
+// trae sus "@teléfono" donde corresponde: no se agrega la línea de menciones al final.
+export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string, inlineMentions = false) {
   if (!state.sock || blockedByTestMode(groupJid)) return false;
 
   try {
@@ -226,7 +227,7 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
         })
       : [];
     const mentions = mentioned.map((u) => `${u.phone}@s.whatsapp.net`);
-    const mentionLine = mentions.length ? `\n👤 ${mentions.map((m) => `@${m.split("@")[0]}`).join(" ")}` : "";
+    const mentionLine = mentions.length && !inlineMentions ? `\n👤 ${mentions.map((m) => `@${m.split("@")[0]}`).join(" ")}` : "";
     const linkLine = link ? `\n\n🔗 ${link}` : "";
     const text = `🤖 *${botName}*\n${body}${mentionLine}${linkLine}`;
 

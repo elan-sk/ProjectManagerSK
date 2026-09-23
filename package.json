@@ -24,6 +24,7 @@
     "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts",
     "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts",
     "verify:search-filters": "tsx scripts/verify-search-filters.ts",
+    "verify:group-alert-digest": "tsx scripts/verify-group-alert-digest.ts",
     "verify:paste-image": "tsx scripts/verify-paste-image.ts",
     "verify:comments": "tsx scripts/verify-comments.ts",
     "verify:persistent-uploads": "tsx scripts/verify-persistent-uploads.ts",

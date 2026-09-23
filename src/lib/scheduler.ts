@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendGroupAlert, sendRawMessage } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, meetingReminderTargetTime } from "@/lib/workingHours";
-import { dispatchDailyDigests } from "@/lib/notifications";
+import { dispatchDailyDigests, dispatchGroupAlertDigest } from "@/lib/notifications";
 import { ensureWhatsAppAlive } from "@/lib/whatsapp";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -73,6 +73,7 @@ export function startScheduler() {
   void dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts inicial falló", err));
   void dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders inicial falló", err));
   void dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests inicial falló", err));
+  void dispatchGroupAlertDigest().catch((err) => console.error("[scheduler] dispatchGroupAlertDigest inicial falló", err));
   // Cada tarea ataja su propio error: una falla de una (ej. una columna que
   // todavía no llegó por una migración pendiente) no debe tumbar el proceso
   // entero — un rechazo de promesa sin atajar en Node mata el server completo,
@@ -83,5 +84,6 @@ export function startScheduler() {
     dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts falló", err));
     dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders falló", err));
     dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests falló", err));
+    dispatchGroupAlertDigest().catch((err) => console.error("[scheduler] dispatchGroupAlertDigest falló", err));
   }, POLL_INTERVAL_MS);
 }

@@ -8,11 +8,11 @@ import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
-import type { NotificationType } from "@prisma/client";
+import type { NotificationType, TaskStatus } from "@prisma/client";
 
 // Escalamiento acordado con el usuario: lo grave (vencidas, bloqueos,
-// devoluciones) va en tiempo real al grupo del proyecto (o al de por
-// defecto), mencionando a los involucrados y al PM. Lo que solo le compete a
+// devoluciones) va al grupo del proyecto (o al de por defecto), mencionando a los
+// involucrados y al PM, todo junto en UN mensaje a la hora del resumen diario. Lo que solo le compete a
 // una persona (asignación, por vencer, revisión, etc. — antes iba directo a
 // su WhatsApp evento por evento) ya NO se manda individual: queda en el
 // resumen diario (ver dispatchDailyDigests más abajo) para no saturarle el
@@ -20,26 +20,14 @@ import type { NotificationType } from "@prisma/client";
 // in-app y el push de todos modos, eso no cambió.
 const GROUP_ALERT_TYPES: NotificationType[] = ["OVERDUE", "BLOCKED", "RETURNED", "LATE_START_CRITICAL"];
 
-// Semáforo de severidad (mismo criterio que NOTIFICATION_TYPE_COLOR en
-// statusColors.ts: rojo = urgente, ámbar = por vencer, azul = informativo,
-// naranja = devuelta) — encabezado corto para distinguir el tipo de un
-// vistazo dentro del chat/grupo de WhatsApp.
-const NOTIFICATION_TYPE_HEADER: Partial<Record<NotificationType, string>> = {
-  ASSIGNED: "🔵 *Nueva asignación*",
-  DEADLINE_APPROACHING: "🟡 *Por vencer*",
-  OVERDUE: "🔴 *Tarea vencida*",
-  BLOCKED: "🔴 *Tarea bloqueada*",
-  RETURNED: "🟠 *Tarea devuelta*",
-  LATE_START: "🟡 *Inicio retrasado*",
-  LATE_START_CRITICAL: "🔴 *Inicio retrasado hace días*",
-  REVIEW_REQUESTED: "🔵 *Para revisar*",
-  SHARE_ACTIVITY: "🔵 *Actividad en link compartido*",
-};
-
-function formatWhatsAppText(type: NotificationType, message: string) {
-  const header = NOTIFICATION_TYPE_HEADER[type];
-  return header ? `${header}\n${message}` : message;
-}
+// Secciones del mensaje único de alertas de grupo, en orden de importancia. `query` = filtro de la página
+// del proyecto que muestra justo esas tareas (el link de cada sección lleva al proyecto ya filtrado).
+const GROUP_SECTIONS: { type: NotificationType; title: string; query: string }[] = [
+  { type: "OVERDUE", title: "🔴 *VENCIDAS*", query: "risk=overdue" },
+  { type: "LATE_START_CRITICAL", title: "🟡 *INICIO RETRASADO HACE DÍAS*", query: "risk=lateStart" },
+  { type: "BLOCKED", title: "🔒 *BLOQUEADAS*", query: "status=BLOCKED" },
+  { type: "RETURNED", title: "🟠 *DEVUELTAS*", query: "status=RETURNED" },
+];
 
 // El link va SIEMPRE al final (después de las menciones, ver sendGroupAlert)
 // en su propia línea con protocolo completo — así el detector de URLs de
@@ -65,22 +53,10 @@ async function isCurrentlyWorkingHour() {
   return isWorkingMoment(new Date(), countryCode, workHoursStart, workHoursEnd);
 }
 
-// Fuera de horario laboral, en vez de mandar directo, se encola para que el
-// poller de scheduler.ts la despache apenas vuelve a abrir el horario.
-async function dispatchGroup(groupJid: string, body: string, mentionUserIds: string[], link?: string) {
-  if (await isCurrentlyWorkingHour()) {
-    void sendGroupAlert(groupJid, body, mentionUserIds, link);
-  } else {
-    // ponytail: se pierde el resaltado de mención real de WhatsApp para los
-    // mensajes encolados (quedan como texto plano) — upgrade si hace falta:
-    // guardar también los teléfonos a mencionar en WhatsAppQueueItem.
-    const mentioned = mentionUserIds.length
-      ? await prisma.user.findMany({ where: { id: { in: mentionUserIds }, phone: { not: null } }, select: { phone: true } })
-      : [];
-    const mentionLine = mentioned.length ? `\n👤 ${mentioned.map((u) => `@${u.phone}`).join(" ")}` : "";
-    const linkLine = link ? `\n\n🔗 ${link}` : "";
-    await prisma.whatsAppQueueItem.create({ data: { target: groupJid, message: `${body}${mentionLine}${linkLine}` } });
-  }
+// Las alertas graves de grupo no salen sueltas: se guardan y se mandan todas juntas, en un solo
+// mensaje por grupo, a la hora del resumen diario (ver dispatchGroupAlertDigest).
+async function dispatchGroup(groupJid: string, type: NotificationType, message: string, projectId: string, taskId: string | undefined, mentionUserIds: string[]) {
+  await prisma.groupAlertItem.create({ data: { groupJid, projectId, taskId, type, message, mentionUserIds: mentionUserIds.join(",") } });
 }
 
 // Toda alarma pasa por acá: queda in-app (columna Notification) Y se manda
@@ -116,13 +92,10 @@ export async function notify(
 
   await Promise.all(userIds.map((userId) => sendPushToUser(userId, message, url)));
 
-  const body = formatWhatsAppText(type, message);
-  const link = absoluteUrl(url);
-
   if (GROUP_ALERT_TYPES.includes(type)) {
     if (!options?.projectId) return;
     const groupJid = await resolveProjectGroupJid(options.projectId);
-    if (groupJid) await dispatchGroup(groupJid, body, options.mentionUserIds ?? userIds, link);
+    if (groupJid) await dispatchGroup(groupJid, type, message, options.projectId, taskId, options.mentionUserIds ?? userIds);
   }
 }
 
@@ -487,6 +460,126 @@ async function reportDigestFailures(failures: { name: string; reason: string }[]
   const message = `⚠️ El resumen diario no llegó a ${failures.length} persona(s):\n${list}`;
   await prisma.notification.createMany({ data: admins.map((a) => ({ userId: a.id, type: "SYSTEM" as const, message })) });
   for (const admin of admins) if (admin.phone) await sendDirectAlert(admin.phone, `*Reporte del resumen diario*\n${message}`);
+}
+
+// Ventana de envío compartida por los resúmenes: desde la hora configurada del resumen diario hasta
+// DIGEST_GRACE_MINUTES después, solo en horario laboral. Devuelve false fuera de ella.
+async function inDigestWindow(now: Date) {
+  const { workHoursStart, workHoursEnd, dailyDigestHour, dailyDigestMinute } = await getWhatsAppSettings();
+  if (!(await isWorkingMoment(now, await getAppCountryCode(), workHoursStart, workHoursEnd))) return false;
+  const local = localParts(now);
+  const elapsed = local.hour * 60 + local.minute - (dailyDigestHour * 60 + dailyDigestMinute);
+  return elapsed >= 0 && elapsed < DIGEST_GRACE_MINUTES;
+}
+
+// ¿Sigue vigente la alerta? Una tarea que ya se completó, se desbloqueó, se corrigió o arrancó
+// deja de ser noticia para cuando sale el resumen.
+function groupAlertStillValid(type: string, status: TaskStatus | undefined) {
+  if (!status || status === "COMPLETED") return false;
+  if (type === "BLOCKED") return status === "BLOCKED";
+  if (type === "RETURNED") return status === "RETURNED";
+  if (type === "LATE_START_CRITICAL") return status === "NOT_STARTED";
+  return true;
+}
+
+type GroupAlertEntry = { message: string; taskId: string | null; projectId: string; type: string; userIds: Set<string> };
+
+// Sangría con espacios "em" (U+2003): WhatsApp recorta los espacios normales al inicio de la línea y no
+// dibuja tabuladores, pero respeta estos.
+const IND = "\u2003\u2003";
+
+const MONTHS_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+// "18/9/2026" (así las escribe toLocaleDateString("es-CO") en los avisos) → "18 sep": en el mensaje de
+// grupo solo importan día y mes, con el mes en letras.
+export const shortDates = (text: string) =>
+  text.replace(/\b(\d{1,2})\/(\d{1,2})\/\d{4}\b/g, (m, d, mo) => (+mo >= 1 && +mo <= 12 ? `${+d} ${MONTHS_ES[+mo - 1]}` : m));
+
+// El nombre de la tarea (va entre comillas al inicio del aviso) en negrita de WhatsApp.
+const boldTitle = (text: string) => text.replace(/^"([^"]+)"/, "*$1*");
+
+// Arma el texto del mensaje único: por tipo de alerta (de más a menos grave), cada tipo con UN solo link
+// al Panorama general filtrado por ese tipo (ej. vencidas). Las personas a mencionar van juntas, sin
+// repetir, al final de cada grupo de alertas. Con alertas de varios proyectos, cada alerta lleva además
+// el nombre de su proyecto.
+// Función pura (sin base ni WhatsApp) para poder verificarla en scripts/verify-group-alert-digest.ts.
+export function buildGroupAlertText(
+  byProject: Map<string, Map<string, GroupAlertEntry>>,
+  projectName: Map<string, string>,
+  phoneOf: Map<string, string>
+) {
+  const all = [...byProject.values()].flatMap((entries) => [...entries.values()]);
+  const projectIds = [...byProject.keys()];
+  const single = projectIds.length === 1;
+  const lines = [`🔔 *ALERTAS PENDIENTES* (${all.length})`];
+  if (single) lines.push(`📁 *${projectName.get(projectIds[0]) ?? "Proyecto"}*`);
+  const mentioned = new Set<string>();
+  for (const { type, title, query } of GROUP_SECTIONS) {
+    const ofType = all.filter((e) => e.type === type);
+    if (ofType.length === 0) continue;
+    lines.push("", `${title} (${ofType.length})`, `${IND}🔗 ${absoluteUrl(`/projects?${query}`)}`);
+    const people = new Set<string>();
+    for (const e of ofType) {
+      e.userIds.forEach((id) => phoneOf.has(id) && people.add(id));
+      lines.push(`${IND}• ${single ? "" : `_${projectName.get(e.projectId) ?? "Proyecto"}_ · `}${boldTitle(shortDates(e.message))}`);
+    }
+    people.forEach((id) => mentioned.add(id));
+    if (people.size) lines.push(`${IND}👤 ${[...people].map((id) => `@${phoneOf.get(id)}`).join(" ")}`);
+  }
+  return { text: lines.join("\n"), mentionedIds: [...mentioned] };
+}
+
+let groupDigestRunning = false;
+
+// Un solo mensaje por grupo de WhatsApp con todas las alertas graves acumuladas, ordenadas por
+// proyecto y por tipo, mencionando a las personas de cada una. Llamado desde el poller
+// (scheduler.ts); lo que no se pueda enviar (WhatsApp caído) se reintenta cada minuto dentro de
+// la ventana. Cada alerta repetida (mismo tipo y tarea) se junta en una sola línea.
+export async function dispatchGroupAlertDigest() {
+  if (groupDigestRunning) return;
+  groupDigestRunning = true;
+  try {
+    if (!(await inDigestWindow(new Date()))) return;
+    const items = await prisma.groupAlertItem.findMany({ where: { sentAt: null }, orderBy: { createdAt: "asc" } });
+    if (items.length === 0) return;
+
+    const [tasks, projects] = await Promise.all([
+      prisma.task.findMany({ where: { id: { in: items.flatMap((i) => (i.taskId ? [i.taskId] : [])) } }, select: { id: true, status: true } }),
+      prisma.project.findMany({ where: { id: { in: items.map((i) => i.projectId) } }, select: { id: true, name: true } }),
+    ]);
+    const statusOf = new Map(tasks.map((t) => [t.id, t.status]));
+    const projectName = new Map(projects.map((p) => [p.id, p.name]));
+    const live = items.filter((i) => !i.taskId || groupAlertStillValid(i.type, statusOf.get(i.taskId)));
+    const liveIds = new Set(live.map((i) => i.id));
+    const obsoleteIds = items.filter((i) => !liveIds.has(i.id)).map((i) => i.id);
+    if (obsoleteIds.length) await prisma.groupAlertItem.updateMany({ where: { id: { in: obsoleteIds } }, data: { sentAt: new Date() } });
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: live.flatMap((i) => i.mentionUserIds.split(",").filter(Boolean)) }, phone: { not: null } },
+      select: { id: true, phone: true },
+    });
+    const phoneOf = new Map(users.map((u) => [u.id, u.phone!]));
+
+    const byGroup = new Map<string, typeof live>();
+    for (const item of live) byGroup.set(item.groupJid, [...(byGroup.get(item.groupJid) ?? []), item]);
+
+    for (const [groupJid, groupItems] of byGroup) {
+      const byProject = new Map<string, Map<string, GroupAlertEntry>>();
+      for (const item of groupItems) {
+        const entries = byProject.get(item.projectId) ?? new Map();
+        const key = `${item.type}|${item.taskId ?? item.message}`;
+        const entry = entries.get(key) ?? { message: item.message, taskId: item.taskId, projectId: item.projectId, type: item.type, userIds: new Set<string>() };
+        for (const id of item.mentionUserIds.split(",").filter(Boolean)) entry.userIds.add(id);
+        entries.set(key, entry);
+        byProject.set(item.projectId, entries);
+      }
+
+      const { text, mentionedIds } = buildGroupAlertText(byProject, projectName, phoneOf);
+      const sent = await sendGroupAlert(groupJid, text, mentionedIds, undefined, true);
+      if (sent) await prisma.groupAlertItem.updateMany({ where: { id: { in: groupItems.map((i) => i.id) } }, data: { sentAt: new Date() } });
+    }
+  } finally {
+    groupDigestRunning = false;
+  }
 }
 
 // Llamado desde el poller de scheduler.ts (cada 60s). Cada horario se entrega
