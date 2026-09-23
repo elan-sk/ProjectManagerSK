@@ -58,7 +58,7 @@ import {
   deleteTask,
 } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 import type { TaskStatus } from "@prisma/client";
-import { sendDirectAlert, sendGroupAlert } from "@/lib/whatsapp";
+import { sendDirectAlert, sendGroupAlert, sendWelcomeMessage } from "@/lib/whatsapp";
 import { getWhatsAppSettings } from "@/lib/appSettings";
 import { notify } from "@/lib/notifications";
 
@@ -531,6 +531,12 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: { userId: { type: "string", description: "Opcional — si falta, va a todos." } } },
   },
   {
+    name: "send_welcome_message",
+    description:
+      "Envía por WhatsApp (mensaje directo) el mensaje de bienvenida del bot, CON su foto de perfil, a una persona (userId), aunque ya lo haya recibido antes. Solo un administrador. Es el único mensaje que lleva la foto.",
+    input_schema: { type: "object", properties: { userId: { type: "string" } }, required: ["userId"] },
+  },
+  {
     name: "create_task",
     description: "Crea una tarea nueva en un proyecto. Requiere al menos un asignado (assigneeIds). La fase se indica por phaseId (los ids de las fases vienen en get_project_status) o, más simple, por su nombre en phaseName; si el proyecto tiene una sola fase, se puede omitir.",
     input_schema: {
@@ -616,7 +622,7 @@ export function isDestructiveTool(name: string, input: unknown) {
   if (name === "manage_share_link" && action === "revoke") return true;
   return name.startsWith("manage_") && action === "delete";
 }
-const ADMIN_ONLY_TOOLS = new Set(["archive_project", "send_daily_digest"]);
+const ADMIN_ONLY_TOOLS = new Set(["archive_project", "send_daily_digest", "send_welcome_message"]);
 const ADVANCED_TOOL_NAMES = new Set(ADVANCED_WRITE_TOOLS.map((t) => t.name));
 
 // Doble candado: aunque una acción quede pendiente y el rol cambie (o llegue
@@ -1110,6 +1116,8 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return "Cambiar las fechas o la duración de la tarea";
     case "set_task_reviewers":
       return "Agregar o quitar un revisor";
+    case "send_welcome_message":
+      return "Enviar el mensaje de bienvenida con la foto del bot";
     case "send_daily_digest":
       return "Enviar ahora el resumen diario por WhatsApp";
     case "delete_task":
@@ -1763,6 +1771,18 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         for (const id of ids) fd.append("reviewerIds", id);
         const r = await setTaskReviewers(taskId, fd);
         return { ok: r.ok, message: r.ok ? "Listo, se actualizaron los revisores." : (r.error ?? "No se pudo actualizar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "send_welcome_message": {
+      try {
+        const { userId } = z.object({ userId: z.string() }).parse(input);
+        const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { name: true, phone: true } });
+        if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
+        const sent = await sendWelcomeMessage(userId);
+        return { ok: sent, message: sent ? `Listo, se envió la bienvenida a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar la bienvenida." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

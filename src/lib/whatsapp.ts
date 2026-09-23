@@ -218,11 +218,7 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
   if (!state.sock || blockedByTestMode(groupJid)) return false;
 
   try {
-    const [botName, avatar, intro] = await Promise.all([
-      getBotName(),
-      getBotAvatarBuffer(),
-      prisma.whatsAppGroupIntro.findUnique({ where: { groupJid } }),
-    ]);
+    const botName = await getBotName();
     const mentioned = userIds.length
       ? await prisma.user.findMany({
           where: { id: { in: userIds }, phone: { not: null } },
@@ -234,16 +230,9 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
     const linkLine = link ? `\n\n🔗 ${link}` : "";
     const text = `🤖 *${botName}*\n${body}${mentionLine}${linkLine}`;
 
-    // Punto 5: la foto de perfil del bot va junto al texto (como caption)
-    // solo la primera vez que se le escribe a este grupo — WhatsApp la
-    // cachea con esa primera aparición y no la vuelve a mostrar aunque se
-    // reenvíe, así que mandarla de nuevo en cada alerta es puro desperdicio.
-    if (avatar && !intro) {
-      await state.sock.sendMessage(groupJid, { image: avatar, caption: text, mentions });
-      await prisma.whatsAppGroupIntro.create({ data: { groupJid } });
-    } else {
-      await state.sock.sendMessage(groupJid, { text, mentions });
-    }
+    // Los mensajes de grupo NUNCA llevan la foto de perfil del bot (decisión del
+    // administrador): solo texto con el ícono 🤖 + nombre.
+    await state.sock.sendMessage(groupJid, { text, mentions });
     return true;
   } catch (err) {
     console.error("[whatsapp] no se pudo enviar la alerta", err);
@@ -268,6 +257,36 @@ async function loadImageBuffers(urls: string[]) {
   return bufs.filter((b) => b !== null);
 }
 
+// Mensaje de bienvenida por DM: es el ÚNICO mensaje de WhatsApp que lleva la foto de perfil del
+// bot. Resuelve de una vez el dato que la persona necesita para entrar. Nunca incluye ni solicita
+// contraseña: esa recuperación sigue exclusivamente por el flujo seguro de restablecimiento.
+async function sendIntroMessage(jid: string, user: { id: string; username: string }) {
+  const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
+  const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}\n\nTu usuario para entrar es: *${user.username}*. Si olvidaste la contraseña, usá “¿Olvidaste tu contraseña?” en la pantalla de ingreso.`;
+  if (avatar) {
+    await state.sock!.sendMessage(jid, { image: avatar, caption: introText });
+  } else {
+    await state.sock!.sendMessage(jid, { text: introText });
+  }
+  await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
+}
+
+// Reenvío a pedido (desde el chat, solo administrador): la misma bienvenida con foto, aunque la
+// persona ya la haya recibido antes.
+export async function sendWelcomeMessage(userId: string) {
+  const user = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { id: true, username: true, phone: true } });
+  if (!user?.phone) return false;
+  const jid = `${user.phone}@s.whatsapp.net`;
+  if (!state.sock || blockedByTestMode(jid)) return false;
+  try {
+    await sendIntroMessage(jid, user);
+    return true;
+  } catch (err) {
+    console.error("[whatsapp] no se pudo enviar la bienvenida", err);
+    return false;
+  }
+}
+
 export async function sendRawMessage(jid: string, text: string, imageUrls?: string[]) {
   if (blockedByTestMode(jid)) return false;
   if (!state.sock) {
@@ -275,13 +294,16 @@ export async function sendRawMessage(jid: string, text: string, imageUrls?: stri
     return false;
   }
   try {
-    const [botName, avatar, images] = await Promise.all([
+    const [botName, images] = await Promise.all([
       getBotName(),
-      getBotAvatarBuffer(),
       imageUrls?.length ? loadImageBuffers(imageUrls) : Promise.resolve([]),
     ]);
     const fullText = `🤖 *${botName}*\n${text}`;
     const isDirect = jid.endsWith("@s.whatsapp.net");
+    // Los mensajes de grupo que salen de la cola de horario laboral traen las menciones como
+    // "@número" en el texto; sin el arreglo `mentions` WhatsApp las muestra como número pelado
+    // en vez del nombre del contacto.
+    const mentions = isDirect ? [] : [...text.matchAll(/@(\d{8,15})\b/g)].map((m) => `${m[1]}@s.whatsapp.net`);
     const user = isDirect
       ? await prisma.user.findFirst({
           where: { phone: jid.split("@")[0] },
@@ -293,33 +315,21 @@ export async function sendRawMessage(jid: string, text: string, imageUrls?: stri
     // el resto (si hay más de una) como fotos sueltas a continuación.
     const sendFullText = async () => {
       if (images.length) {
-        await state.sock!.sendMessage(jid, { image: images[0], caption: fullText });
+        await state.sock!.sendMessage(jid, { image: images[0], caption: fullText, mentions });
         for (const img of images.slice(1)) await state.sock!.sendMessage(jid, { image: img });
       } else {
-        await state.sock!.sendMessage(jid, { text: fullText });
+        await state.sock!.sendMessage(jid, { text: fullText, mentions });
       }
     };
 
     if (user && !user.whatsappIntroducedAt) {
-      // La presentación resuelve de una vez el dato que la persona necesita
-      // para entrar. Nunca incluye ni solicita contraseña: esa recuperación
-      // sigue exclusivamente por el flujo seguro de restablecimiento.
-      const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}\n\nTu usuario para entrar es: *${user.username}*. Si olvidaste la contraseña, usá “¿Olvidaste tu contraseña?” en la pantalla de ingreso.`;
-      if (avatar) {
-        await state.sock.sendMessage(jid, { image: avatar, caption: introText });
-      } else {
-        await state.sock.sendMessage(jid, { text: introText });
-      }
-      await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
+      await sendIntroMessage(jid, user);
       await sendFullText();
       return true;
     }
 
-    if (isDirect || !avatar) {
-      await sendFullText();
-    } else {
-      await state.sock.sendMessage(jid, { image: avatar, caption: fullText });
-    }
+    // Grupos: nunca la foto del bot, solo texto (ver sendGroupAlert).
+    await sendFullText();
     return true;
   } catch (err) {
     console.error(`[whatsapp] no se pudo enviar a ${jid.replace(/^(\d{4})\d+/, "$1***")} (estado ${state.status}, pid ${process.pid})`, err);
