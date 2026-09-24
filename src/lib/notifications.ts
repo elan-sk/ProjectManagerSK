@@ -393,6 +393,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
     user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId),
   ]);
   const firstName = name.split(" ")[0];
+  // Nada pendiente propio ni proyectos que administrar: no se manda un resumen lleno de ceros.
+  if (managedProjects.length === 0 && Object.values(counts).every((n) => n === 0)) return null;
 
   // Mismo orden de importancia que en /agenda y /projects: inicio retrasado
   // (todavía se puede evitar el daño) → por vencer → final retrasado (ya es
@@ -617,6 +619,11 @@ export async function dispatchDailyDigests() {
       continue;
     }
     const text = await buildDailyDigestText(user.id, user.name);
+    if (!text) {
+      // Se marca como atendido para no recalcularlo cada minuto de la ventana.
+      await prisma.user.update({ where: { id: user.id }, data: { lastDigestScheduleKey: scheduleKey } });
+      continue;
+    }
     const sent = await sendDirectAlert(user.phone, text);
     if (sent) digestsSent++;
     if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now, lastDigestScheduleKey: scheduleKey } });
@@ -646,7 +653,12 @@ export async function sendDailyDigestNow(userId?: string) {
       failures.push({ name: user.name, reason: "no tiene teléfono de WhatsApp registrado" });
       continue;
     }
-    if (await sendDirectAlert(user.phone, await buildDailyDigestText(user.id, user.name))) sent++;
+    const text = await buildDailyDigestText(user.id, user.name);
+    if (!text) {
+      failures.push({ name: user.name, reason: "no tiene nada pendiente hoy" });
+      continue;
+    }
+    if (await sendDirectAlert(user.phone, text)) sent++;
     else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío" : "WhatsApp está desconectado" });
   }
   return { sent, failures };

@@ -24,6 +24,10 @@ async function main() {
   if (!user) throw new Error(username ? `No existe el usuario "${username}".` : "No hay ningún administrador activo.");
 
   const text = await buildDailyDigestText(user.id, user.name);
+  if (!text) {
+    console.log(`\n${user.name} no tiene nada pendiente: no se le manda resumen.`);
+    return;
+  }
   console.log(`\n--- Resumen diario de ${user.name} (${user.username}) ---\n`);
   console.log(text);
   console.log("\n--- fin ---");
