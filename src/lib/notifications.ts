@@ -351,8 +351,8 @@ export async function checkDeadlineAlerts(userId: string) {
       if (!alreadyNotified) {
         const message =
           type === "OVERDUE"
-            ? `"${task.title}" está vencida (debía terminar el ${plannedEnd.toLocaleDateString("es-CO")}).`
-            : `"${task.title}" vence el ${plannedEnd.toLocaleDateString("es-CO")}.`;
+            ? `"${task.title}" está vencida (debía terminar el ${plannedEnd.toLocaleDateString("es-CO", { timeZone: "UTC" })}).`
+            : `"${task.title}" vence el ${plannedEnd.toLocaleDateString("es-CO", { timeZone: "UTC" })}.`;
 
         if (type === "OVERDUE") {
           const involvedIds = Array.from(new Set([userId, task.project.pmId, ...task.assignees.map((a) => a.userId)]));
@@ -376,8 +376,8 @@ export async function checkDeadlineAlerts(userId: string) {
       if (!alreadyNotifiedLate) {
         const lateMessage =
           lateType === "LATE_START_CRITICAL"
-            ? `"${task.title}" debía iniciar el ${plannedStart.toLocaleDateString("es-CO")} y sigue sin arrancar.`
-            : `"${task.title}" debía iniciar el ${plannedStart.toLocaleDateString("es-CO")} y todavía no arranca.`;
+            ? `"${task.title}" debía iniciar el ${plannedStart.toLocaleDateString("es-CO", { timeZone: "UTC" })} y sigue sin arrancar.`
+            : `"${task.title}" debía iniciar el ${plannedStart.toLocaleDateString("es-CO", { timeZone: "UTC" })} y todavía no arranca.`;
 
         if (lateType === "LATE_START_CRITICAL") {
           const involvedIds = Array.from(new Set([userId, task.project.pmId, ...task.assignees.map((a) => a.userId)]));

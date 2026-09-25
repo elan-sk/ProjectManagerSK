@@ -148,7 +148,7 @@ export default async function TaskDetailPage({
       authorId: m.authorId,
       authorName: m.author.name,
       authorAvatarUrl: m.author.avatarUrl,
-      createdLabel: m.createdAt.toLocaleString("es-CO"),
+      createdLabel: m.createdAt.toLocaleString("es-CO", { timeZone: "America/Bogota" }),
       createdAtMs: m.createdAt.getTime(),
       body: m.body,
       edited: Boolean(m.editedAt),

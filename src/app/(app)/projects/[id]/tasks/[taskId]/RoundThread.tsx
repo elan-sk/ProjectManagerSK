@@ -85,7 +85,7 @@ export function RoundThread({ roundId, messages, userId, canComment, canVote, ca
             {!m.poll && <span className="font-medium text-slate-700">{m.authorName}:</span>}{" "}
             {m.poll ? (
               <div className="mt-1.5">
-                <PollFrame author={{ name: m.authorName, role: "Equipo", date: new Date(m.createdAt).toLocaleString("es-CO") }}>
+                <PollFrame author={{ name: m.authorName, role: "Equipo", date: new Date(m.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" }) }}>
                   <p className="whitespace-pre-wrap text-[20px] font-semibold leading-snug text-slate-900"><Linkify text={m.body} /></p>
                   <TeamPollCard key={`${m.poll.id}-${m.poll.myVoteIds.join(",")}`} poll={m.poll} canVote={canVote} canClose={canClose} />
                 </PollFrame>
