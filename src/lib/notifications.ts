@@ -503,11 +503,11 @@ const MONTHS_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep"
 export const shortDates = (text: string) =>
   text.replace(/\b(\d{1,2})\/(\d{1,2})\/\d{4}\b/g, (m, d, mo) => (+mo >= 1 && +mo <= 12 ? `${+d} ${MONTHS_ES[+mo - 1]}` : m));
 
-// Solo el nombre de la tarea (va entre comillas al inicio del aviso), en negrita de WhatsApp; si el aviso
+// Solo el nombre de la tarea (va entre comillas al inicio del aviso), en texto normal; si el aviso
 // no trae nombre entre comillas, el aviso completo.
 const taskTitle = (text: string) => {
   const m = text.match(/^"([^"]+)"/);
-  return m ? `*${m[1]}*` : shortDates(text);
+  return m ? m[1] : shortDates(text);
 };
 
 // Arma el texto del mensaje único, corto: por proyecto (con UN link al proyecto), dentro de cada uno sus
@@ -524,7 +524,7 @@ export function buildGroupAlertText(
   const mentioned = new Set<string>();
   for (const [projectId, entries] of byProject) {
     const all = [...entries.values()];
-    lines.push("", `📁 *${projectName.get(projectId) ?? "Proyecto"}*`, `🔗 ${absoluteUrl(`/projects/${projectId}`)}`);
+    lines.push("", `📁 *${(projectName.get(projectId) ?? "Proyecto").toLocaleUpperCase("es-CO")}*`, `🔗 ${absoluteUrl(`/projects/${projectId}`)}`);
     const people = new Set<string>();
     for (const { type, title } of GROUP_SECTIONS) {
       const ofType = all.filter((e) => e.type === type);
