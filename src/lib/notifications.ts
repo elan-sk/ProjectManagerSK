@@ -189,14 +189,22 @@ async function dispatchDirect(userId: string, text: string, immediate = false, i
     console.warn(`[notificaciones] no se pudo avisar a ${userId} por WhatsApp: sin teléfono cargado o usuario inactivo.`);
     return;
   }
-  if (immediate || (await isCurrentlyWorkingHour())) {
-    void sendDirectAlert(user.phone, text, imageUrls);
-  } else {
-    // ponytail: fuera de horario la cola solo guarda texto (WhatsAppQueueItem no tiene
-    // columna de imagen), así que la foto queda como link en vez de foto real. Sumar esa
-    // columna si hace falta que también llegue como foto al vaciarse la cola.
+  // ponytail: la cola solo guarda texto (WhatsAppQueueItem no tiene columna de imagen),
+  // así que la foto queda como link en vez de foto real. Sumar esa columna si hace falta
+  // que también llegue como foto al vaciarse la cola.
+  const phone = user.phone;
+  const enqueue = () => {
     const imageLinks = (imageUrls ?? []).map((u) => `\n📷 ${absoluteUrl(u)}`).join("");
-    await prisma.whatsAppQueueItem.create({ data: { target: `${user.phone}@s.whatsapp.net`, message: `${text}${imageLinks}` } });
+    return prisma.whatsAppQueueItem.create({ data: { target: `${phone}@s.whatsapp.net`, message: `${text}${imageLinks}` } });
+  };
+  if (immediate || (await isCurrentlyWorkingHour())) {
+    // Si el envío falla (ej. WhatsApp justo reconectando), el aviso no se pierde: pasa a la
+    // cola, que el scheduler reintenta cada minuto hasta que sale.
+    void sendDirectAlert(phone, text, imageUrls)
+      .then((sent) => (sent ? undefined : enqueue()))
+      .catch((err) => console.error("[notificaciones] no se pudo encolar el aviso de WhatsApp que falló", err));
+  } else {
+    await enqueue();
   }
 }
 
