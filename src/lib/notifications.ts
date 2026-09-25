@@ -20,13 +20,12 @@ import type { NotificationType, TaskStatus } from "@prisma/client";
 // in-app y el push de todos modos, eso no cambió.
 const GROUP_ALERT_TYPES: NotificationType[] = ["OVERDUE", "BLOCKED", "RETURNED", "LATE_START_CRITICAL"];
 
-// Secciones del mensaje único de alertas de grupo, en orden de importancia. `query` = filtro de la página
-// del proyecto que muestra justo esas tareas (el link de cada sección lleva al proyecto ya filtrado).
-const GROUP_SECTIONS: { type: NotificationType; title: string; query: string }[] = [
-  { type: "OVERDUE", title: "🔴 *VENCIDAS*", query: "risk=overdue" },
-  { type: "LATE_START_CRITICAL", title: "🟡 *INICIO RETRASADO HACE DÍAS*", query: "risk=lateStart" },
-  { type: "BLOCKED", title: "🔒 *BLOQUEADAS*", query: "status=BLOCKED" },
-  { type: "RETURNED", title: "🟠 *DEVUELTAS*", query: "status=RETURNED" },
+// Secciones de cada proyecto en el mensaje único de alertas de grupo, en orden de importancia.
+const GROUP_SECTIONS: { type: NotificationType; title: string }[] = [
+  { type: "OVERDUE", title: "🔴 *VENCIDAS*" },
+  { type: "LATE_START_CRITICAL", title: "🟡 *INICIO RETRASADO HACE DÍAS*" },
+  { type: "BLOCKED", title: "🔒 *BLOQUEADAS*" },
+  { type: "RETURNED", title: "🟠 *DEVUELTAS*" },
 ];
 
 // El link va SIEMPRE al final (después de las menciones, ver sendGroupAlert)
@@ -504,36 +503,40 @@ const MONTHS_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep"
 export const shortDates = (text: string) =>
   text.replace(/\b(\d{1,2})\/(\d{1,2})\/\d{4}\b/g, (m, d, mo) => (+mo >= 1 && +mo <= 12 ? `${+d} ${MONTHS_ES[+mo - 1]}` : m));
 
-// El nombre de la tarea (va entre comillas al inicio del aviso) en negrita de WhatsApp.
-const boldTitle = (text: string) => text.replace(/^"([^"]+)"/, "*$1*");
+// Solo el nombre de la tarea (va entre comillas al inicio del aviso), en negrita de WhatsApp; si el aviso
+// no trae nombre entre comillas, el aviso completo.
+const taskTitle = (text: string) => {
+  const m = text.match(/^"([^"]+)"/);
+  return m ? `*${m[1]}*` : shortDates(text);
+};
 
-// Arma el texto del mensaje único: por tipo de alerta (de más a menos grave), cada tipo con UN solo link
-// al Panorama general filtrado por ese tipo (ej. vencidas). Las personas a mencionar van juntas, sin
-// repetir, al final de cada grupo de alertas. Con alertas de varios proyectos, cada alerta lleva además
-// el nombre de su proyecto.
+// Arma el texto del mensaje único, corto: por proyecto (con UN link al proyecto), dentro de cada uno sus
+// alertas por tipo (de más a menos grave) con solo el nombre de cada tarea, y al final del proyecto las
+// personas a mencionar, sin repetir — así cada quien ve solo lo suyo.
 // Función pura (sin base ni WhatsApp) para poder verificarla en scripts/verify-group-alert-digest.ts.
 export function buildGroupAlertText(
   byProject: Map<string, Map<string, GroupAlertEntry>>,
   projectName: Map<string, string>,
   phoneOf: Map<string, string>
 ) {
-  const all = [...byProject.values()].flatMap((entries) => [...entries.values()]);
-  const projectIds = [...byProject.keys()];
-  const single = projectIds.length === 1;
-  const lines = [`🔔 *ALERTAS PENDIENTES* (${all.length})`];
-  if (single) lines.push(`📁 *${projectName.get(projectIds[0]) ?? "Proyecto"}*`);
+  const total = [...byProject.values()].reduce((n, entries) => n + entries.size, 0);
+  const lines = [`🔔 *ALERTAS PENDIENTES* (${total})`];
   const mentioned = new Set<string>();
-  for (const { type, title, query } of GROUP_SECTIONS) {
-    const ofType = all.filter((e) => e.type === type);
-    if (ofType.length === 0) continue;
-    lines.push("", `${title} (${ofType.length})`, `${IND}🔗 ${absoluteUrl(`/projects?${query}`)}`);
+  for (const [projectId, entries] of byProject) {
+    const all = [...entries.values()];
+    lines.push("", `📁 *${projectName.get(projectId) ?? "Proyecto"}*`, `🔗 ${absoluteUrl(`/projects/${projectId}`)}`);
     const people = new Set<string>();
-    for (const e of ofType) {
-      e.userIds.forEach((id) => phoneOf.has(id) && people.add(id));
-      lines.push(`${IND}• ${single ? "" : `_${projectName.get(e.projectId) ?? "Proyecto"}_ · `}${boldTitle(shortDates(e.message))}`);
+    for (const { type, title } of GROUP_SECTIONS) {
+      const ofType = all.filter((e) => e.type === type);
+      if (ofType.length === 0) continue;
+      lines.push(`${title} (${ofType.length})`);
+      for (const e of ofType) {
+        e.userIds.forEach((id) => phoneOf.has(id) && people.add(id));
+        lines.push(`${IND}• ${taskTitle(e.message)}`);
+      }
     }
     people.forEach((id) => mentioned.add(id));
-    if (people.size) lines.push(`${IND}👤 ${[...people].map((id) => `@${phoneOf.get(id)}`).join(" ")}`);
+    if (people.size) lines.push(`👤 ${[...people].map((id) => `@${phoneOf.get(id)}`).join(" ")}`);
   }
   return { text: lines.join("\n"), mentionedIds: [...mentioned] };
 }
