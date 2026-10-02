@@ -1,7 +1,7 @@
 "use client";
 
 import { usePasteImage } from "@/lib/usePasteImage";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
@@ -37,6 +37,18 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
       setHtml(editor.getHTML());
     },
   });
+
+  // Extensiones del navegador (LanguageTool) le ponen spellcheck="false" al editor después de
+  // creado y el corrector nativo deja de subrayar. Si alguien lo apaga, se vuelve a encender.
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const observer = new MutationObserver(() => {
+      if (dom.getAttribute("spellcheck") !== "true") dom.setAttribute("spellcheck", "true");
+    });
+    observer.observe(dom, { attributes: true, attributeFilter: ["spellcheck"] });
+    return () => observer.disconnect();
+  }, [editor]);
 
   async function handleImageUpload() {
     const file = fileInputRef.current?.files?.[0];
