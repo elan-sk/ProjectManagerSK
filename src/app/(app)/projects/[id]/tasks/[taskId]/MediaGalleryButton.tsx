@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
-import { attachmentFileType } from "@/lib/attachments";
+import { attachmentFileType, documentStyle } from "@/lib/attachments";
 import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, LinkIcon } from "@/components/icons";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
@@ -66,15 +66,22 @@ export function MediaGalleryButton(props: Props) {
           <ul className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
             {shown.map((item) => {
               const type = attachmentFileType(item.mimeType);
+              const doc = documentStyle(item.mimeType, item.name);
               return (
                 <li key={item.url} className="relative">
                   <button type="button" title={item.name} disabled={busy !== null} onClick={() => pick(item)} className="flex h-full w-full cursor-pointer flex-col gap-1 rounded-lg border border-slate-200 p-2 text-left hover:border-[#0a6b78] hover:bg-slate-50 disabled:opacity-50">
                     {type === "image" ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.url} alt="" className="h-20 w-full rounded object-cover" />
-                    ) : (
+                    ) : type === "link" ? (
                       <span className="flex h-20 w-full items-center justify-center rounded bg-slate-100 text-slate-400">
-                        {type === "link" ? <LinkIcon className="h-7 w-7" /> : <DocumentIcon className="h-7 w-7" />}
+                        <LinkIcon className="h-7 w-7" />
+                      </span>
+                    ) : (
+                      // Mismo color y etiqueta por tipo que la grilla de adjuntos (PDF rojo, Word azul…).
+                      <span className={`flex h-20 w-full flex-col items-center justify-center gap-0.5 rounded ${doc.bg} ${doc.text}`}>
+                        <DocumentIcon className="h-7 w-7" />
+                        <span className="rounded bg-current/10 px-1 text-[10px] leading-4 font-bold tracking-wide">{item.name.includes(".") ? item.name.split(".").pop()!.toUpperCase() : doc.label}</span>
                       </span>
                     )}
                     <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
