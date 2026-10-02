@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* El editor (TipTap) guarda cada viñeta como <li><p>…</p></li>; `prose` lo trata
+   como lista "separada" y suma márgenes grandes a ese <p>. Viñetas siempre juntas,
+   en el editor y donde se muestra el HTML guardado. */
+.prose li > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 /* La app todavía es solo modo claro (el modo oscuro real queda para una
    pasada aparte que toque cada componente). Sin esto, cuando el sistema
    operativo está en oscuro, el navegador le mete estilos oscuros a los
