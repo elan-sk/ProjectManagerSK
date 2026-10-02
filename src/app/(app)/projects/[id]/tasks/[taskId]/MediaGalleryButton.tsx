@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
-import { attachmentFileType, documentStyle } from "@/lib/attachments";
+import { attachmentFileType, documentStyle, youtubeVideoId } from "@/lib/attachments";
 import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, LinkIcon } from "@/components/icons";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
+import { YouTubeModal } from "@/components/YouTubeModal";
 import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, type MediaItem } from "./mediaGallery";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
@@ -67,12 +68,24 @@ export function MediaGalleryButton(props: Props) {
             {shown.map((item) => {
               const type = attachmentFileType(item.mimeType);
               const doc = documentStyle(item.mimeType, item.name);
+              const videoId = type === "link" ? youtubeVideoId(item.url) : null;
               return (
                 <li key={item.url} className="relative">
                   <button type="button" title={item.name} disabled={busy !== null} onClick={() => pick(item)} className="flex h-full w-full cursor-pointer flex-col gap-1 rounded-lg border border-slate-200 p-2 text-left hover:border-[#0a6b78] hover:bg-slate-50 disabled:opacity-50">
                     {type === "image" ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.url} alt="" className="h-20 w-full rounded object-cover" />
+                    ) : videoId ? (
+                      // Video de YouTube: miniatura con play, igual que la grilla de adjuntos.
+                      <span className="relative h-20 w-full overflow-hidden rounded">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow">
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4"><path d="M8 5v14l11-7z" /></svg>
+                          </span>
+                        </span>
+                      </span>
                     ) : type === "link" ? (
                       <span className="flex h-20 w-full items-center justify-center rounded bg-slate-100 text-slate-400">
                         <LinkIcon className="h-7 w-7" />
@@ -86,11 +99,11 @@ export function MediaGalleryButton(props: Props) {
                     )}
                     <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
                   </button>
-                  {type === "link" ? (
+                  {type === "link" && !videoId ? (
                     <a href={item.url} target="_blank" rel="noopener noreferrer" title="Abrir enlace en otra pestaña" aria-label={`Abrir ${item.name}`} className={actionClass}>
                       <ExternalLinkIcon className="h-4 w-4" />
                     </a>
-                  ) : type === "image" || isPreviewable(item.mimeType) ? (
+                  ) : videoId || type === "image" || isPreviewable(item.mimeType) ? (
                     <button type="button" onClick={() => setViewing(item)} title="Ver archivo" aria-label={`Ver ${item.name}`} className={actionClass}>
                       <EyeIcon className="h-4 w-4" />
                     </button>
@@ -109,7 +122,10 @@ export function MediaGalleryButton(props: Props) {
       {viewing && attachmentFileType(viewing.mimeType) === "image" && (
         <AttachmentLightbox images={images} openId={viewing.url} onClose={() => setViewing(null)} onNavigate={(url) => setViewing({ ...viewing, url })} canDelete={false} />
       )}
-      {viewing && attachmentFileType(viewing.mimeType) !== "image" && (
+      {viewing && youtubeVideoId(viewing.url) && (
+        <YouTubeModal videoId={youtubeVideoId(viewing.url)!} title={viewing.name} onClose={() => setViewing(null)} />
+      )}
+      {viewing && attachmentFileType(viewing.mimeType) === "document" && (
         <AttachmentPreviewModal file={{ id: viewing.url, url: viewing.url, name: viewing.name, mimeType: viewing.mimeType }} onClose={() => setViewing(null)} />
       )}
     </>
