@@ -4,7 +4,7 @@ import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRef, useState } from "react";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md";
 
 // Widget de subida compartido entre el "Archivos" del proyecto y los
 // insumos de una tarea en la vista compartida por link (puntos 15/16) —

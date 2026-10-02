@@ -19,9 +19,61 @@ const WORD_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 const EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const PDF_MIME = "application/pdf";
 const HTML_MIME = "text/html";
+const TEXT_MIME = "text/plain";
+const CSV_MIME = "text/csv";
+const MARKDOWN_MIME = "text/markdown";
 
 export function isPreviewable(mimeType: string) {
-  return mimeType === PDF_MIME || mimeType === HTML_MIME || mimeType === WORD_MIME || mimeType === EXCEL_MIME;
+  return [PDF_MIME, HTML_MIME, WORD_MIME, EXCEL_MIME, TEXT_MIME, CSV_MIME, MARKDOWN_MIME].includes(mimeType);
+}
+
+// Documento para el <iframe srcDoc> del Markdown. El .md puede traer HTML
+// crudo: por eso se muestra en un iframe con sandbox SIN allow-scripts ni
+// allow-same-origin (no ejecuta nada ni toca la app), en vez de sanitizar.
+// Los links abren en pestaña nueva (base target + allow-popups).
+function markdownDocument(html: string) {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><base target="_blank"><style>
+body{font:15px/1.6 system-ui,sans-serif;color:#1e293b;max-width:860px;margin:0 auto;padding:8px 20px 40px}
+h1,h2,h3,h4{line-height:1.25;margin:1.4em 0 .5em}h1{font-size:1.7em}h2{font-size:1.35em;border-bottom:1px solid #e2e8f0;padding-bottom:.25em}h3{font-size:1.1em}
+a{color:#2563eb}code{background:#f1f5f9;border-radius:4px;padding:.1em .35em;font-size:.9em}
+pre{background:#f1f5f9;border-radius:8px;padding:12px;overflow:auto}pre code{background:none;padding:0}
+table{border-collapse:collapse;margin:1em 0;font-size:.92em}th,td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left;vertical-align:top}th{background:#f8fafc}
+blockquote{margin:1em 0;padding:.2em 1em;border-left:4px solid #cbd5e1;color:#475569}img{max-width:100%}hr{border:0;border-top:1px solid #e2e8f0}
+</style></head><body>${html}</body></html>`;
+}
+
+// CSV a filas: comillas dobles (con "" escapado y saltos de línea adentro) y
+// separador "," o ";" (el que más aparezca en la primera línea — Excel en
+// español exporta con ";").
+export function parseCsv(text: string): string[][] {
+  const firstLine = text.split("\n", 1)[0];
+  const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === sep) {
+      row.push(cell);
+      cell = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += c;
+  }
+  if (cell || row.length) rows.push([...row, cell]);
+  return rows;
 }
 
 function tabClass(active: boolean) {
@@ -32,7 +84,8 @@ function tabClass(active: boolean) {
  * Visor simple para PDF (renderer nativo del navegador vía <iframe>), Word
  * (docx-preview) y Excel (exceljs, armamos una tabla HTML nosotros) — las
  * tres carga cliente-only con dynamic import, sin depender de ningún
- * servicio externo. Word/Excel legacy (.doc/.xls binarios) y PowerPoint
+ * servicio externo. Texto (.txt) se muestra tal cual, CSV como la misma
+ * tabla de Excel y Markdown (.md) con formato (marked, en iframe sin scripts). Word/Excel legacy (.doc/.xls binarios) y PowerPoint
  * quedan fuera (sin una librería cliente simple y confiable) — siguen
  * descargándose como antes.
  *
@@ -60,6 +113,8 @@ export function AttachmentPreviewModal({
   const [loading, setLoading] = useState(!isFrame);
   const [error, setError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<{ name: string; rows: string[][] }[] | null>(null);
+  const [text, setText] = useState<string | null>(null);
+  const [markdownDoc, setMarkdownDoc] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
 
   useEffect(() => {
@@ -70,8 +125,25 @@ export function AttachmentPreviewModal({
       setLoading(true);
       setError(null);
       setSheets(null);
+      setText(null);
+      setMarkdownDoc(null);
       try {
-        if (file.mimeType === WORD_MIME) {
+        if (file.mimeType === MARKDOWN_MIME) {
+          const [{ marked }, res] = await Promise.all([import("marked"), fetch(file.url)]);
+          if (res.status === 404) throw new Error("NOT_FOUND");
+          if (!res.ok) throw new Error("FETCH_FAILED");
+          const html = await marked.parse(await res.text());
+          if (cancelled) return;
+          setMarkdownDoc(markdownDocument(html));
+        } else if (file.mimeType === TEXT_MIME || file.mimeType === CSV_MIME) {
+          const res = await fetch(file.url);
+          if (res.status === 404) throw new Error("NOT_FOUND");
+          if (!res.ok) throw new Error("FETCH_FAILED");
+          const body = await res.text();
+          if (cancelled) return;
+          if (file.mimeType === CSV_MIME) setSheets([{ name: file.name, rows: parseCsv(body) }]);
+          else setText(body);
+        } else if (file.mimeType === WORD_MIME) {
           const [{ renderAsync }, res] = await Promise.all([import("docx-preview"), fetch(file.url)]);
           // Sin este chequeo, un 404 (archivo borrado/perdido del servidor)
           // se intentaba igual renderizar como si fuera el .docx real —
@@ -124,7 +196,7 @@ export function AttachmentPreviewModal({
     return () => {
       cancelled = true;
     };
-  }, [file.mimeType, file.url, isFrame]);
+  }, [file.mimeType, file.url, file.name, isFrame]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -234,6 +306,19 @@ export function AttachmentPreviewModal({
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {markdownDoc !== null && (
+              <iframe
+                srcDoc={markdownDoc}
+                title={file.name}
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
+                className="min-h-0 w-full flex-1 border-0"
+              />
+            )}
+
+            {text !== null && (
+              <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-xs leading-relaxed text-slate-700">{text}</pre>
             )}
 
             {file.mimeType === WORD_MIME && <div className="min-h-0 flex-1 overflow-auto" ref={containerRef} />}

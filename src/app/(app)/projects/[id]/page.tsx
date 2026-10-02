@@ -15,7 +15,9 @@ import { threadInclude, toThread } from "@/lib/threadView";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
-import { EyeOffIcon, ShareIcon } from "@/components/icons";
+import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
+import { getActiveClaudeLink } from "@/lib/apiAuth";
+import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
@@ -150,7 +152,7 @@ export default async function ProjectPage({
     return `/projects/${id}?${p.toString()}`;
   };
 
-  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink, testTemplates, taskShareLinks, tagCategories, projectTags] = await Promise.all([
+  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink, testTemplates, taskShareLinks, tagCategories, projectTags, activeClaudeLink] = await Promise.all([
     prisma.project.findUnique({
       where: { id },
       include: {
@@ -194,6 +196,7 @@ export default async function ProjectPage({
     }),
     prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
     prisma.tag.findMany({ where: { projectId: id }, select: { id: true, categoryId: true, name: true } }),
+    myUserId ? getActiveClaudeLink(myUserId, { projectId: id }) : Promise.resolve(null),
   ]);
 
   if (!project) notFound();
@@ -596,9 +599,14 @@ export default async function ProjectPage({
             total={summaryTotal}
             completed={summaryCompleted}
           />
-          <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
-            Rendimiento
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
+              Rendimiento
+            </Link>
+            <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+              <ClaudeLinkPanel projectId={project.id} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+            </ModalTrigger>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">

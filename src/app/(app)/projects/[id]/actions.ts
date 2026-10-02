@@ -511,6 +511,8 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
     updatedAt = updated.updatedAt.toISOString();
     if (status === "COMPLETED") {
       await propagateToSuccessors(tx, project.countryCode, taskId);
+      // Los links "Conectar IA" de la tarea mueren con su cierre, aunque se reabra.
+      await tx.claudeLink.updateMany({ where: { taskId, revokedAt: null }, data: { revokedAt: new Date() } });
     }
   });
 

@@ -183,6 +183,7 @@ model User {
   mentionedIn           InternalMessageMention[]  @relation("MentionedUser")
   activityDays          UserActivityDay[]
   sharePollVotes        SharePollVote[]
+  claudeLinks           ClaudeLink[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -254,6 +255,7 @@ model Project {
   links            ProjectLink[]
   attachments      ProjectAttachment[]
   shareLinks       ShareLink[]
+  claudeLinks      ClaudeLink[]
   tags             Tag[]
   // Punto 4 (link compartido): comentarios generales de la pestaña
   // Definición — a diferencia de ShareComment.taskId, estos no cuelgan de
@@ -406,6 +408,7 @@ model Task {
   blocks    TaskDependency[] @relation("PredecessorTask")
 
   shareLinks       ShareLink[]
+  claudeLinks      ClaudeLink[]
   internalMessages InternalMessage[]
 }
 
@@ -734,6 +737,29 @@ model ShareLink {
   createdBy   User            @relation(fields: [createdById], references: [id])
   createdAt   DateTime        @default(now())
   revokedAt   DateTime?
+}
+
+// Link "Conectar IA" (botón en proyecto/tarea) para pegar en un chat de
+// Claude: el token ES la credencial de la API, con los permisos de quien lo
+// generó (se guarda solo el HASH). Uno activo por usuario y destino —
+// generar otro para la misma tarea/proyecto revoca el anterior. Deja de
+// servir al completarse la tarea, tras 7 días sin uso o al desactivarlo
+// (ver resolveClaudeLink en apiAuth.ts).
+model ClaudeLink {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId     String?
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId, taskId])
+  @@index([userId, projectId])
 }
 
 // Configuración global de la app — una sola fila fija (id="app"). Hoy solo

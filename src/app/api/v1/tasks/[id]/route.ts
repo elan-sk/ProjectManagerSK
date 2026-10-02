@@ -19,7 +19,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     where: { id },
     include: {
       project: true,
-      phase: true,
+      // Cascada tarea < fase < requerimientos < objetivos: la usa la skill
+      // sdd-pmsk para armar la spec con el "para qué" de la tarea.
+      phase: {
+        include: {
+          requirements: {
+            orderBy: { order: "asc" },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              objectives: { orderBy: { order: "asc" }, select: { id: true, title: true, description: true } },
+            },
+          },
+        },
+      },
       assignees: { include: { user: { select: PUBLIC_USER_SELECT } } },
       steps: true,
       attachments: true,

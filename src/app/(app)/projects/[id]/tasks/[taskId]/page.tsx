@@ -30,7 +30,7 @@ import { UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
-import { ShareIcon } from "@/components/icons";
+import { ShareIcon, SparklesIcon } from "@/components/icons";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -39,6 +39,8 @@ import { getActiveShareLink } from "@/lib/shareLinks";
 import { getKnownCategories } from "@/lib/reviewCategories";
 import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
+import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
+import { getActiveClaudeLink } from "@/lib/apiAuth";
 import { TaskTagsEditor } from "./TaskTagsEditor";
 import { InternalConversation } from "@/components/InternalConversation";
 
@@ -158,7 +160,7 @@ export default async function TaskDetailPage({
   // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
   if (!session?.user || !canSeeProject(task.project, session.user)) notFound();
 
-  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags, knownCategories] = await Promise.all([
+  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags, knownCategories, activeClaudeLink] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
@@ -177,6 +179,7 @@ export default async function TaskDetailPage({
     prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
     prisma.tag.findMany({ where: { projectId }, select: { id: true, categoryId: true, name: true } }),
     task.type === "ACCEPTANCE" ? getKnownCategories() : Promise.resolve([]),
+    getActiveClaudeLink(session.user.id, { taskId }),
   ]);
 
   // Mismo mapa que en projects/[id]/page.tsx: nombres ya usados en este
@@ -433,6 +436,9 @@ export default async function TaskDetailPage({
           <div className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto">
             <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
             <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
+            <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+              <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+            </ModalTrigger>
           </div>
         )}
 

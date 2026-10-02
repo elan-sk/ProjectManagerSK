@@ -25,6 +25,7 @@ const EXTENSION_MIME: Record<string, string> = {
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".txt": "text/plain",
   ".csv": "text/csv",
+  ".md": "text/markdown",
 };
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 

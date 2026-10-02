@@ -71,7 +71,7 @@ const RESULT_COLOR: Record<CheckResult, string> = {
   FAILED: "bg-red-600 text-white",
   NOT_APPLICABLE: "bg-slate-400 text-white",
 };
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
 
 function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const isLink = file.mimeType === LINK_MIME_TYPE;

@@ -292,7 +292,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   );
 }
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.html";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
 
 function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canEdit, canDelete }: {
   label: string;

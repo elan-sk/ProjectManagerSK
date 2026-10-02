@@ -38,6 +38,16 @@ Esta skill se comparte entre todo el equipo, así que **no hay ninguna credencia
 4. El token dura 8 horas y representa a ESA persona con SU rol real — la API aplica exactamente los mismos permisos que la app web (ver más abajo, "Permisos"). Un login nuevo invalida cualquier sesión anterior de esa misma persona.
 5. **Nunca** escribas el usuario, la contraseña, ni el token en un archivo de esta skill, config, o cualquier lugar persistente — solo mantenelos en memoria mientras dure la conversación. Si la conversación termina y hace falta la API de nuevo, volvé a pedir el login.
 
+### Alternativa: link de "Conectar IA" (tiene prioridad sobre pedir credenciales)
+
+Si la persona pega un link `<BASE_URL>/api/v1/claude-link/<token>`, generado con el botón **"Conectar IA"** de la app, usalo en vez de pedir usuario/contraseña:
+
+1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y la tarea o proyecto en JSON como contexto (con la cascada fase → requerimientos → objetivos).
+2. El token del link **es** la credencial: usalo en `Authorization: Bearer`, con los permisos de la persona. Solo en memoria.
+3. Es reutilizable: reabrirlo trae el contexto actualizado. Vale hasta que la tarea se completa, pasan 7 días sin uso (cada uso reinicia el plazo), se desactiva desde la app o se genera otro para la misma tarea/proyecto. `410`/`401` → pedí uno nuevo.
+4. La tarea/proyecto del link es solo contexto: el token puede todo lo que la persona puede en la app.
+5. Un link activo por persona y tarea/proyecto; no se pisan entre sí ni con la sesión de login.
+
 ## Permisos (importante para no ofrecer una acción que va a fallar)
 
 La API no tiene un modo "todo permitido" — cada operación exige lo mismo que exige la app web para esa misma persona:
@@ -87,7 +97,8 @@ Todas requieren PM/admin.
 
 Dos pasos — primero subir el archivo, después adjuntarlo:
 
-1. `POST /api/upload` — `multipart/form-data` con campo `file` (mismo `Authorization: Bearer <token>`, sin `Content-Type` manual — dejá que curl/fetch lo arme con el boundary). Imagen, PDF, Word, Excel, PowerPoint o texto/CSV; máximo 20MB. Devuelve `{ url, name, mimeType }`.
+1. `POST /api/upload` — `multipart/form-data` con campo `file` (mismo `Authorization: Bearer <token>`, sin `Content-Type` manual — dejá que curl/fetch lo arme con el boundary). Imagen, PDF, Word, Excel, PowerPoint o texto/CSV/Markdown; máximo 20MB. Devuelve `{ url, name, mimeType }`.
+   **Documentos de texto siempre en `.md`** (regla del usuario, 2026-10-01): todo documento que Claude redacte y suba a PMSK (specs, informes, actas, guías, notas, instructivos) va como `.md` — nunca `.txt` ni `.docx` generado. El visor de la app muestra `.md` con formato (títulos, listas, tablas). Los archivos que aporta la persona se suben tal como vienen, sin convertirlos.
    ```bash
    curl -s "$BASE_URL/api/upload" -H "Authorization: Bearer $TOKEN" -F "file=@/ruta/al/archivo.pdf"
    ```
@@ -193,7 +204,7 @@ En los textos que se suben a la app, los **títulos y rótulos** de cada bloque 
 
 La idea: la persona diseña en la conversación (los cambios pedidos, las pruebas, las características a aceptar) y Claude lo sube. **Confirmá la lista completa con la persona antes de subirla.**
 
-**Archivos e imágenes.** Todo campo «archivo» es `{ "url", "name", "mimeType"? }`: la `url` es la que devuelve `POST /api/upload` (multipart, campo `file`, mismo `Authorization: Bearer`; imágenes PNG/JPG/WEBP/GIF, PDF, Word, Excel, PowerPoint, TXT/CSV, hasta 20 MB; sin SVG ni video; HTML solo si quien inició sesión es administrador o PM de algún proyecto, y se ve aislado en un visor con sandbox) o un link `https://…`. Cualquier otra ruta se rechaza (400). Solo se puede subir un archivo que Claude pueda leer desde donde corre (Claude Code en la computadora de la persona: `curl -F "file=@/ruta/imagen.png"`); si no, usar un link.
+**Archivos e imágenes.** Todo campo «archivo» es `{ "url", "name", "mimeType"? }`: la `url` es la que devuelve `POST /api/upload` (multipart, campo `file`, mismo `Authorization: Bearer`; imágenes PNG/JPG/WEBP/GIF, PDF, Word, Excel, PowerPoint, TXT/CSV/MD, hasta 20 MB; sin SVG ni video; HTML solo si quien inició sesión es administrador o PM de algún proyecto, y se ve aislado en un visor con sandbox) o un link `https://…`. Cualquier otra ruta se rechaza (400). Solo se puede subir un archivo que Claude pueda leer desde donde corre (Claude Code en la computadora de la persona: `curl -F "file=@/ruta/imagen.png"`); si no, usar un link.
 
 - `GET /api/v1/tasks/:id/design` — estructura completa de una tarea Ajuste/Prueba/Aceptación: cambios (con antes/después y calificación del cliente) o rondas con sus pruebas/características, resultados, evidencias y quién calificó. Trae los ids que piden los demás endpoints. Cualquier usuario con sesión.
 - `POST /api/v1/tasks/:id/design` — **el diseño completo en un llamado**, según el tipo de la tarea:

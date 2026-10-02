@@ -28,6 +28,7 @@ const MIME: Record<string, string> = {
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".txt": "text/plain",
   ".csv": "text/csv",
+  ".md": "text/markdown",
 };
 
 const notFound = () => new Response("No encontrado", { status: 404 });

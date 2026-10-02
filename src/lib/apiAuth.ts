@@ -42,6 +42,59 @@ export async function loginWithPassword(identifier: string, password: string) {
   };
 }
 
+// Botón "Conectar IA": link para pegar en un chat de Claude. El token del
+// link ES la credencial (la contraseña nunca viaja) y vale hasta que la
+// tarea se completa (updateTaskStatus lo revoca), pasan 7 días sin uso, o
+// se desactiva. Uno activo por usuario y destino: generar otro para la
+// misma tarea/proyecto revoca el anterior, los de otras tareas siguen.
+const CLAUDE_LINK_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type ClaudeLinkTarget = { taskId: string } | { projectId: string };
+
+function claudeLinkWhere(userId: string, target: ClaudeLinkTarget) {
+  return { userId, revokedAt: null, ...("taskId" in target ? { taskId: target.taskId } : { projectId: target.projectId }) };
+}
+
+export async function createClaudeLinkToken(userId: string, target: ClaudeLinkTarget) {
+  const rawToken = crypto.randomBytes(32).toString("base64url");
+  await prisma.$transaction([
+    prisma.claudeLink.updateMany({ where: claudeLinkWhere(userId, target), data: { revokedAt: new Date() } }),
+    prisma.claudeLink.create({ data: { tokenHash: hashToken(rawToken), userId, ...target } }),
+  ]);
+  return rawToken;
+}
+
+export async function revokeClaudeLink(userId: string, target: ClaudeLinkTarget) {
+  await prisma.claudeLink.updateMany({ where: claudeLinkWhere(userId, target), data: { revokedAt: new Date() } });
+}
+
+// Link vigente del usuario para ese destino (para mostrar "activo" en el panel).
+export async function getActiveClaudeLink(userId: string, target: ClaudeLinkTarget) {
+  return prisma.claudeLink.findFirst({
+    where: { ...claudeLinkWhere(userId, target), lastUsedAt: { gt: new Date(Date.now() - CLAUDE_LINK_IDLE_MS) } },
+    select: { createdAt: true, lastUsedAt: true },
+  });
+}
+
+// Valida el token de un link y renueva su "último uso" (reinicia los 7 días).
+export async function resolveClaudeLink(rawToken: string) {
+  const link = await prisma.claudeLink.findUnique({
+    where: { tokenHash: hashToken(rawToken) },
+    include: { user: true, task: { select: { status: true } } },
+  });
+  if (
+    !link ||
+    link.revokedAt ||
+    !link.user.active ||
+    link.lastUsedAt.getTime() < Date.now() - CLAUDE_LINK_IDLE_MS ||
+    link.task?.status === "COMPLETED"
+  ) {
+    return null;
+  }
+  await prisma.claudeLink.update({ where: { id: link.id }, data: { lastUsedAt: new Date() } });
+  return link;
+}
+
 // Resuelve el actor real a partir del `Authorization: Bearer <token de
 // login>` — reemplaza a la vieja API key compartida. Cada endpoint aplica
 // después el mismo permiso que ya exige su equivalente en la app web
@@ -55,6 +108,8 @@ export async function requireApiUser(request: Request): Promise<{ error: NextRes
 
   const user = await prisma.user.findUnique({ where: { apiSessionTokenHash: hashToken(rawToken) } });
   if (!user || !user.apiSessionExpiresAt || user.apiSessionExpiresAt < new Date()) {
+    const link = await resolveClaudeLink(rawToken);
+    if (link) return { actor: { id: link.user.id, role: link.user.role } };
     return { error: NextResponse.json({ error: "Sesión inválida o vencida — hacé login de nuevo." }, { status: 401 }) };
   }
 
