@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { createShareLink, getActiveShareLink, revokeShareLink } from "@/lib/shareLinks";
 import { submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
@@ -417,6 +418,27 @@ export async function addTaskAttachments(taskId: string, actor: Actor, kind: "IN
   }
   touch(task);
   return { ok: true as const, added: files.length };
+}
+
+// Reemplazar (file) o quitar (null) un archivo de la tarea. Solo quien lo subió: así la IA puede
+// actualizar su propia Especificación sin poder tocar lo que aportó la persona o el cliente.
+export async function updateTaskAttachment(taskId: string, attachmentId: string, actor: Actor, file: FileRef | null) {
+  const task = await loadTask(taskId);
+  if (!task) return fail(404, "La tarea no existe.");
+  if (!(await canEditTask(taskId, actor))) return fail(403, NO_EDIT);
+  const attachment = await prisma.attachment.findFirst({ where: { id: attachmentId, taskId } });
+  if (!attachment) return fail(404, "El archivo no existe en esta tarea.");
+  if (attachment.uploadedById !== actor.id) return fail(403, "Solo quien subió el archivo puede reemplazarlo o quitarlo.");
+  if (task.status === "COMPLETED") return fail(409, "La tarea ya está completada — sus archivos no se pueden cambiar.");
+  if (file) {
+    const f = toFile(file);
+    await prisma.attachment.update({ where: { id: attachmentId }, data: { fileUrl: f.url, fileName: f.name, mimeType: f.mimeType } });
+  } else {
+    await prisma.attachment.delete({ where: { id: attachmentId } });
+  }
+  if (attachment.fileUrl !== file?.url) await deleteFileIfUnused(attachment.fileUrl);
+  touch(task);
+  return { ok: true as const, ...(file ? { replaced: attachmentId } : { removed: attachmentId }) };
 }
 
 // ---------- Links compartidos ----------

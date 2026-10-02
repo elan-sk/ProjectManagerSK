@@ -147,7 +147,7 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 - `PATCH /api/v1/tasks/:id/assignees` — `{ "assigneeIds": ["userId"] }`. Reemplaza la lista completa.
 - `PATCH /api/v1/tasks/:id/reviewers` — `{ "reviewerIds": ["userId"] }`. Solo tiene efecto real en tareas tipo Prueba/QA.
 - `GET/POST /api/v1/tasks/:id/steps` — `{ "description": "string" }`.
-- `PATCH /api/v1/tasks/:id/steps/:stepId` — `{ "done": true }`.
+- `PATCH /api/v1/tasks/:id/steps/:stepId` — `{ "done"?: true, "description"?: "string" }` (al menos uno: marca el paso y/o cambia su texto). `DELETE` quita el paso.
 - `GET /api/v1/tags` — lista las categorías de etiqueta disponibles (id, name, colorHex, emoji).
 - `GET/POST /api/v1/tasks/:id/tags` — `{ "categoryId": "string", "name": "string" }`. Una etiqueta por categoría en cada tarea (reemplaza si ya había una de esa categoría); si el nombre no existe todavía en el proyecto bajo esa categoría, se crea solo.
 - `DELETE /api/v1/tasks/:id/tags/:taskTagId` — quita la etiqueta.
@@ -213,7 +213,7 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
 - Ajustes, en detalle: `PATCH|DELETE /api/v1/adjustment-items/:itemId` (descripción/nota), `POST /api/v1/adjustment-items/:itemId/attachments` (`{ "kind": "BEFORE|AFTER", "files": […] }`), `POST /api/v1/adjustment-items/:itemId/reopen-review` (deja que el cliente califique de nuevo ese cambio), `DELETE /api/v1/adjustment-attachments/:id` (solo PM/admin).
 - Pruebas y Aceptación, en detalle: `POST /api/v1/rounds/:roundId/checks` (`{ "checks": […] }`, solo la primera ronda abierta), `PATCH /api/v1/checks/:checkId` (`{ title?, criteria?, category? }`, reescribe el texto sin perder capturas ni comentarios; sin resultado y ronda abierta), `DELETE /api/v1/checks/:checkId` (sin resultado), `POST /api/v1/checks/:checkId/evidence` (`{ "files": […] }`), `POST /api/v1/rounds/:roundId/deliverables`, `POST /api/v1/rounds/:roundId/apply-template` (`{ "templateId" }`, solo Prueba).
 - Aceptación: `POST /api/v1/tasks/:id/acceptance/rounds` (envía o reenvía la entrega al cliente: `{ "deliverables": […] }`), `POST /api/v1/tasks/:id/acceptance/complete` (cuando el cliente aceptó la última ronda). **El cliente califica desde su link**: la API nunca acepta ni devuelve por él.
-- Adjuntos de la tarea: `GET|POST /api/v1/tasks/:id/attachments` (`{ "kind": "INSUMO|RESULTADO", "files": […] }`).
+- Adjuntos de la tarea: `GET|POST /api/v1/tasks/:id/attachments` (`{ "kind": "INSUMO|RESULTADO", "files": […] }`). `PUT /api/v1/tasks/:id/attachments/:attachmentId` (`{ url, name, mimeType? }` de `/api/upload`) reemplaza el archivo en su mismo lugar; `DELETE` lo quita. Solo quien subió ese archivo, y no en una tarea completada (409).
 - Link para el cliente: `GET|POST|DELETE /api/v1/tasks/:id/share-link` y `/api/v1/projects/:id/share-link`. Devuelven `path` (`/share/<token>`); anteponer la URL del servidor. El cliente, sin cuenta, comenta (con imágenes), responde preguntas, califica ajustes con «Enviar mi revisión» y acepta o devuelve características.
 
 ## Comentarios, menciones, imágenes y preguntas
