@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Actor } from "@/lib/permissions";
+import { trustedActor, type Actor } from "@/lib/permissions";
+import { clearAttempts, isBlocked, LOGIN_BLOCKED_MESSAGE, LOGIN_MAX, LOGIN_WINDOW_MS, loginKey, recordAttempt } from "@/lib/rateLimit";
 
 // La API pública (skills, ej. project-manager-sk) NO usa una clave
 // compartida: cada quien hace login con SU usuario/contraseña (mismas
@@ -21,12 +22,16 @@ function hashToken(rawToken: string) {
 export async function loginWithPassword(identifier: string, password: string) {
   const trimmed = identifier.trim();
   if (!trimmed || !password) return { ok: false as const, error: "Faltan usuario/correo o contraseña." };
+  const key = loginKey(trimmed);
+  if (isBlocked(key, LOGIN_MAX, LOGIN_WINDOW_MS)) return { ok: false as const, error: LOGIN_BLOCKED_MESSAGE };
 
-  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] } });
-  if (!user || !user.active) return { ok: false as const, error: "Credenciales inválidas." };
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return { ok: false as const, error: "Credenciales inválidas." };
+  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] }, omit: { passwordHash: false } });
+  const valid = Boolean(user?.active) && (await bcrypt.compare(password, user!.passwordHash));
+  if (!user || !valid) {
+    recordAttempt(key, LOGIN_WINDOW_MS);
+    return { ok: false as const, error: "Credenciales inválidas." };
+  }
+  clearAttempts(key);
 
   const rawToken = crypto.randomBytes(32).toString("hex");
   await prisma.user.update({
@@ -107,13 +112,13 @@ export async function requireApiUser(request: Request): Promise<{ error: NextRes
   }
 
   const user = await prisma.user.findUnique({ where: { apiSessionTokenHash: hashToken(rawToken) } });
-  if (!user || !user.apiSessionExpiresAt || user.apiSessionExpiresAt < new Date()) {
+  if (!user || !user.active || !user.apiSessionExpiresAt || user.apiSessionExpiresAt < new Date()) {
     const link = await resolveClaudeLink(rawToken);
-    if (link) return { actor: { id: link.user.id, role: link.user.role } };
+    if (link) return { actor: trustedActor({ id: link.user.id, role: link.user.role }) };
     return { error: NextResponse.json({ error: "Sesión inválida o vencida — hacé login de nuevo." }, { status: 401 }) };
   }
 
-  return { actor: { id: user.id, role: user.role } };
+  return { actor: trustedActor({ id: user.id, role: user.role }) };
 }
 
 // Igual que requireApiUser, pero también acepta la sesión normal del
@@ -129,7 +134,7 @@ export async function requireAnyUser(request: Request): Promise<{ error: NextRes
   if (!session?.user) {
     return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   }
-  return { actor: { id: session.user.id, role: session.user.role } };
+  return { actor: trustedActor({ id: session.user.id, role: session.user.role }) };
 }
 
 // Evita que un body no-JSON (o vacío) tire un 500 crudo en vez de un 400 limpio.

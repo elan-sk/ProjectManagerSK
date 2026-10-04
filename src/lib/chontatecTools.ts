@@ -13,7 +13,7 @@ import { updateProjectDescription, updatePhase, deletePhase, addObjective, updat
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
-import { requireProjectAdmin, visibleProjectWhere, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -659,7 +659,7 @@ export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]>
 async function currentActor(): Promise<Actor> {
   const id = await currentUserId();
   const user = await prisma.user.findUniqueOrThrow({ where: { id }, select: { role: true } });
-  return { id, role: user.role };
+  return trustedActor({ id, role: user.role });
 }
 
 async function currentUserId(): Promise<string> {
@@ -680,7 +680,7 @@ async function currentUserId(): Promise<string> {
 async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
-  if (user.role === "ADMIN") return (await prisma.project.findMany({ where: visibleProjectWhere(user), select: { id: true } })).map((p) => p.id);
+  if (user.role === "ADMIN") return (await prisma.project.findMany({ where: visibleProjectWhere(user, { includeArchived: true }), select: { id: true } })).map((p) => p.id);
 
   const [pmProjects, assigned, reviewed] = await Promise.all([
     prisma.project.findMany({ where: { pmId: userId }, select: { id: true } }),
@@ -711,7 +711,7 @@ function hasAccess(accessibleIds: string[] | null, projectId: string) {
 async function getFileAccessibleTaskIds(userId: string): Promise<Set<string> | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   if (user.role === "ADMIN") {
-    const tasks = await prisma.task.findMany({ where: { project: visibleProjectWhere(user) }, select: { id: true } });
+    const tasks = await prisma.task.findMany({ where: { project: visibleProjectWhere(user, { includeArchived: true }) }, select: { id: true } });
     return new Set(tasks.map((t) => t.id));
   }
 
@@ -749,7 +749,7 @@ function computePhase(tasks: { status: string }[]) {
 async function myTasksWhere(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   if (user.role === "ADMIN") return { project: visibleProjectWhere(user) };
-  const pmProjects = await prisma.project.findMany({ where: { pmId: userId }, select: { id: true } });
+  const pmProjects = await prisma.project.findMany({ where: { pmId: userId, ...LIVE_PROJECT_WHERE }, select: { id: true } });
   if (pmProjects.length > 0) return { projectId: { in: pmProjects.map((p) => p.id) } };
   return { assignees: { some: { userId } } };
 }
@@ -786,7 +786,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
     case "list_projects": {
       const accessibleIds = await getAccessibleProjectIds(userId);
       const projects = await prisma.project.findMany({
-        where: accessibleIds ? { id: { in: accessibleIds } } : undefined,
+        where: { ...(accessibleIds ? { id: { in: accessibleIds } } : {}), ...LIVE_PROJECT_WHERE },
         select: { id: true, name: true, clientName: true, iconUrl: true, tasks: { select: { status: true } } },
         orderBy: { name: "asc" },
       });
@@ -896,7 +896,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!task) return JSON.stringify({ error: "No existe esa tarea." });
       const accessibleIds = await getAccessibleProjectIds(userId);
       if (!hasAccess(accessibleIds, task.projectId)) return JSON.stringify(NO_ACCESS);
-      const actor: Actor = { id: userId, role: (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role };
+      const actor: Actor = trustedActor({ id: userId, role: (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role });
       return JSON.stringify(name === "get_task_design" ? await getTaskDesign(taskId, actor) : await listTaskThreads(taskId, actor));
     }
 

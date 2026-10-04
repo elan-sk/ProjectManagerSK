@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { unlink } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { getProjectAdmin, canEditTask, canReviewTask, type Actor } from "@/lib/permissions";
+import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import type { CheckResult } from "@prisma/client";
 
@@ -26,7 +25,7 @@ async function revalidateTask(taskId: string) {
 // pasarle la posta a otro revisor).
 export async function setTaskReviewers(taskId: string, formData: FormData, actor?: Actor) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { reviewers: true, assignees: true } });
-  const session = actor ?? (await auth())?.user;
+  const session = await resolveActor(actor);
   if (!session) return { ok: false as const, error: "Sesión inválida." };
 
   // Una vez completada, el revisor queda fijo — nadie (ni PM ni admin) puede
@@ -96,7 +95,7 @@ export async function submitReviewRound(
   if (!(await canEditTask(taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
-  const session = actor ?? (await auth())?.user;
+  const session = await resolveActor(actor);
   if (!session) return { ok: false as const, error: "Sesión inválida." };
 
   const parsed = z.array(deliverableInputSchema).min(1).safeParse(deliverables);
@@ -214,9 +213,8 @@ export async function removeReviewDeliverable(deliverableId: string) {
     return { ok: false as const, error: "La ronda ya está cerrada, por lo que no se pueden quitar sus adjuntos." };
   }
   await prisma.reviewDeliverable.delete({ where: { id: deliverableId } });
-  if (deliverable.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", deliverable.fileUrl)).catch(() => {});
-  }
+  // Ruta validada y sin borrar archivos que otra parte aún usa (ver fileCleanup.ts).
+  await deleteFileIfUnused(deliverable.fileUrl);
   await revalidateTask(deliverable.reviewRound.taskId);
   return { ok: true as const };
 }
@@ -363,7 +361,7 @@ export async function setReviewCheckResult(checkId: string, result: CheckResult,
   if ((result === "FAILED" || result === "FLAGGED") && check.evidence.length === 0) {
     return { ok: false as const, error: "Para calificar con error o con hallazgo, primero subí evidencia." };
   }
-  const reviewedById = actor?.id ?? (await auth())?.user?.id;
+  const reviewedById = (await resolveActor(actor))?.id;
   await prisma.reviewCheck.update({
     where: { id: checkId },
     data: { result, note: note.trim() || null, reviewedById },
@@ -457,9 +455,8 @@ export async function removeReviewCheckEvidence(evidenceId: string) {
     throw new Error("No tenés permiso para quitar esta evidencia.");
   }
   await prisma.reviewCheckEvidence.delete({ where: { id: evidenceId } });
-  if (evidence.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", evidence.fileUrl)).catch(() => {});
-  }
+  // Ruta validada y sin borrar archivos que otra parte aún usa (ver fileCleanup.ts).
+  await deleteFileIfUnused(evidence.fileUrl);
   await revalidateTask(taskId);
 }
 

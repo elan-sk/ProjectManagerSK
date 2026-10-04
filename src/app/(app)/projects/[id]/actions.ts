@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
-import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
@@ -17,9 +16,9 @@ import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 // la app en el hosting compartido. Archivar es un solo UPDATE — instantáneo,
 // sin cascade — y el proyecto queda invisible en /projects y en cualquier
 // selector, exactamente como un borrado desde la perspectiva de uso normal.
-export async function archiveProject(projectId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+export async function archiveProject(projectId: string, actor?: Actor) {
+  const role = (await resolveActor(actor))?.role;
+  if (role !== "ADMIN") {
     return { ok: false, error: "Solo un administrador puede eliminar un proyecto." };
   }
 
@@ -517,7 +516,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   });
 
   if (status === "BLOCKED" && task.status !== "BLOCKED" && pmId) {
-    const actingUserId = actor?.id ?? (await auth())?.user?.id;
+    const actingUserId = (await resolveActor(actor))?.id;
     if (pmId !== actingUserId) {
       await notifyBlocked(taskId, pmId);
     }

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { projectVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireApiUser, safeJson } from "@/lib/apiAuth";
+import { requireApiUser } from "@/lib/apiAuth";
+import { revalidatePath } from "next/cache";
+import { runAction, withAuth, withBody } from "@/lib/apiResult";
+import { archiveProject } from "@/app/(app)/projects/[id]/actions";
+import { setProjectArchived, setProjectHidden } from "@/app/(app)/projects/[id]/taskOps";
+import { updateProjectWhatsAppGroup } from "@/app/(app)/projects/[id]/definitionActions";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getProjectAdmin } from "@/lib/permissions";
@@ -36,32 +41,51 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 // Punto 3.1 (skill dev-project-definer): completar la descripción/fechas del
 // proyecto una vez creado — la info que no encaje en objetivos/requerimientos/
 // fases va acá, nunca se descarta solo por no tener un campo propio.
+// Además, todo lo que la persona edita en la app: nombre, ícono, fechas, cliente,
+// repo, grupo de WhatsApp, ocultar (solo el admin que es PM) y archivar (PM o admin).
+// `null` vacía un campo opcional.
 const updateProjectSchema = z.object({
+  name: z.string().trim().min(1).optional(),
   description: z.string().optional(),
-  targetEndDate: z.coerce.date().optional(),
-  clientName: z.string().optional(),
-  repoUrl: z.string().url().optional(),
-  color: z.string().optional(),
+  startDate: z.coerce.date().optional(),
+  targetEndDate: z.coerce.date().nullable().optional(),
+  clientName: z.string().trim().nullable().optional(),
+  repoUrl: z.string().url().nullable().optional(),
+  color: z.string().nullable().optional(),
+  iconUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "iconUrl debe ser la url que devolvió /api/upload.").nullable().optional(),
+  whatsappGroupJid: z.string().nullable().optional(),
+  hidden: z.boolean().optional(),
+  archived: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireApiUser(request);
-  if ("error" in auth) return auth.error;
-
   const { id } = await params;
-  if (!(await getProjectAdmin(id, auth.actor))) {
-    return NextResponse.json({ error: "Solo el PM de este proyecto o un administrador pueden editarlo." }, { status: 403 });
-  }
+  return withBody(request, updateProjectSchema, async (actor, data) => {
+    if (!(await getProjectAdmin(id, actor))) return { ok: false, status: 403, error: "Solo el PM de este proyecto o un administrador pueden editarlo." };
+    const { hidden, archived, whatsappGroupJid, ...fields } = data;
+    if (hidden !== undefined) {
+      const r = await setProjectHidden(id, hidden, actor);
+      if (!r.ok) return r;
+    }
+    if (archived !== undefined) {
+      const r = await setProjectArchived(id, archived, actor);
+      if (!r.ok) return r;
+    }
+    if (whatsappGroupJid !== undefined) {
+      const r = await updateProjectWhatsAppGroup(id, whatsappGroupJid ?? "", actor);
+      if (!r.ok) return r;
+    }
+    if (fields.clientName === "") fields.clientName = null;
+    const project = Object.keys(fields).length > 0 ? await prisma.project.update({ where: { id }, data: fields }) : await prisma.project.findUniqueOrThrow({ where: { id } });
+    revalidatePath(`/projects/${id}`);
+    revalidatePath("/projects");
+    return { ok: true, ...project };
+  });
+}
 
-  const parsedBody = await safeJson(request);
-  if ("error" in parsedBody) return parsedBody.error;
-
-  const parsed = updateProjectSchema.safeParse(parsedBody.data);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const project = await prisma.project.update({ where: { id }, data: parsed.data }).catch(() => null);
-  if (!project) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
-  return NextResponse.json(project);
+// Eliminar el proyecto (solo administrador). Por dentro es el mismo borrado suave de la app
+// (status ARCHIVED, desaparece para todos); para mandarlo al historial usar PATCH { archived: true }.
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return withAuth(request, (actor) => runAction(() => archiveProject(id, actor)));
 }

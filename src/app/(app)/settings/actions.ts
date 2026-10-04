@@ -1,5 +1,6 @@
 "use server";
 
+import { forgetUserStatus } from "@/lib/userStatus";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -93,6 +94,7 @@ export async function updateUserRole(userId: string, role: "ADMIN" | "MEMBER") {
     return { ok: false, error: (err as Error).message };
   }
   await prisma.user.update({ where: { id: userId }, data: { role } });
+  forgetUserStatus(userId);
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -176,6 +178,7 @@ export async function deactivateUser(userId: string) {
   }
 
   await prisma.user.update({ where: { id: userId }, data: { active: false } });
+  forgetUserStatus(userId);
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -188,6 +191,7 @@ export async function reactivateUser(userId: string) {
   }
 
   await prisma.user.update({ where: { id: userId }, data: { active: true } });
+  forgetUserStatus(userId);
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -263,7 +267,7 @@ export async function changeOwnPassword(formData: FormData) {
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id }, omit: { passwordHash: false } });
   const valid = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
   if (!valid) return { ok: false, error: "La contraseña actual no es correcta." };
 

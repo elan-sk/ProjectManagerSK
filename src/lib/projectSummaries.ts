@@ -19,8 +19,11 @@ const projectInclude = {
   links: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.ProjectInclude;
 
+// Tipo derivado de la consulta real (respeta el omit global de credenciales de lib/prisma.ts).
+const findProjects = (where: Prisma.ProjectWhereInput) => prisma.project.findMany({ where, include: projectInclude, orderBy: { createdAt: "desc" } });
+
 export type ProjectSummaryRow = {
-  project: Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
+  project: Awaited<ReturnType<typeof findProjects>>[number];
   summary: {
     overdueCount: number;
     warningCount: number;
@@ -52,7 +55,7 @@ export async function getProjectSummaryRows(
   canSeeCollisions: boolean,
   precomputedCollisionsById?: Map<string, CollisionInfo[]>
 ): Promise<ProjectSummaryRow[]> {
-  const projects = await prisma.project.findMany({ where, include: projectInclude, orderBy: { createdAt: "desc" } });
+  const projects = await findProjects(where);
   if (projects.length === 0) return [];
 
   const collisionsById =

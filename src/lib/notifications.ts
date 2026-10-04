@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { progressBar } from "@/lib/progressBar";
 import { commentMentionIds, splitCommentBody } from "@/lib/commentBody";
 import { prisma } from "@/lib/prisma";
+import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
@@ -322,6 +323,7 @@ export async function checkDeadlineAlerts(userId: string) {
     where: {
       status: { not: "COMPLETED" },
       assignees: { some: { userId } },
+      project: LIVE_PROJECT_WHERE,
     },
     include: { project: { select: { pmId: true } }, assignees: true },
   });

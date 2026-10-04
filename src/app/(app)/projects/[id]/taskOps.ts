@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getProjectAdmin, requireProjectAdmin, type Actor } from "@/lib/permissions";
+import { getProjectAdmin, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { notifyAssignment, notifyUrgentTask } from "@/lib/notifications";
 
 // Acciones de Fase 2 sobre tareas y proyectos: urgente, archivar, duplicar,
@@ -201,23 +200,39 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
 }
 
 // ─── Proyecto oculto (solo admin) ───────────────────────────────────────
-export async function setProjectHidden(projectId: string, hidden: boolean): Promise<Result> {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") return { ok: false, error: "Solo un administrador puede ocultar o mostrar un proyecto." };
+export async function setProjectHidden(projectId: string, hidden: boolean, actor?: Actor): Promise<Result> {
+  const user = await resolveActor(actor);
+  if (user?.role !== "ADMIN") return { ok: false, error: "Solo un administrador puede ocultar o mostrar un proyecto." };
   // Un proyecto oculto lo ve únicamente su responsable (PM), así que solo él, siendo administrador, lo gestiona.
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true } });
-  if (!project || project.pmId !== session.user.id) return { ok: false, error: "Solo el administrador que es responsable (PM) de este proyecto puede ocultarlo o mostrarlo." };
+  if (!project || project.pmId !== user.id) return { ok: false, error: "Solo el administrador que es responsable (PM) de este proyecto puede ocultarlo o mostrarlo." };
   await prisma.project.update({ where: { id: projectId }, data: { hidden } });
   refresh(projectId);
   return { ok: true, id: projectId };
 }
 
+// ─── Archivar proyecto (historial) ──────────────────────────────────────
+// Admin o PM. Sale del flujo normal (lista, buscador, agenda, reportes,
+// alertas) pero sigue abriéndose y editándose desde «Archivados».
+// Distinto de archiveProject (actions.ts), que es el «Eliminar».
+export async function setProjectArchived(projectId: string, archived: boolean, actor?: Actor): Promise<Result> {
+  try {
+    await requireProjectAdmin(projectId, actor);
+    await prisma.project.update({ where: { id: projectId }, data: { archivedAt: archived ? new Date() : null } });
+    refresh(projectId);
+    revalidatePath("/projects/archived");
+    return { ok: true, id: projectId };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 // ─── Repositorios múltiples ─────────────────────────────────────────────
 const repoUrlSchema = z.string().trim().url("La URL no es válida.").max(190, "La URL es demasiado larga.");
 
-export async function addProjectRepo(projectId: string, url: string): Promise<Result> {
+export async function addProjectRepo(projectId: string, url: string, actor?: Actor): Promise<Result> {
   try {
-    if (!(await getProjectAdmin(projectId))) return { ok: false, error: "Solo el PM de este proyecto o un administrador pueden hacer esto." };
+    if (!(await getProjectAdmin(projectId, actor))) return { ok: false, error: "Solo el PM de este proyecto o un administrador pueden hacer esto." };
     const parsed = repoUrlSchema.safeParse(url);
     if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "La URL no es válida." };
     const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { repoUrl: true, repos: { select: { url: true } } } });
@@ -232,9 +247,9 @@ export async function addProjectRepo(projectId: string, url: string): Promise<Re
   }
 }
 
-export async function removeProjectRepo(projectId: string, url: string): Promise<Result> {
+export async function removeProjectRepo(projectId: string, url: string, actor?: Actor): Promise<Result> {
   try {
-    if (!(await getProjectAdmin(projectId))) return { ok: false, error: "Solo el PM de este proyecto o un administrador pueden hacer esto." };
+    if (!(await getProjectAdmin(projectId, actor))) return { ok: false, error: "Solo el PM de este proyecto o un administrador pueden hacer esto." };
     const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { repoUrl: true, repos: { orderBy: { createdAt: "asc" } } } });
     if (project.repoUrl === url) {
       // Si se quita el principal, el siguiente ocupa su lugar.

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendGroupAlert, sendRawMessage } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, meetingReminderTargetTime } from "@/lib/workingHours";
@@ -41,7 +42,7 @@ const MEETING_TIME_FORMAT = new Intl.DateTimeFormat("es-CO", {
 async function dispatchMeetingReminders() {
   const now = new Date();
   const upcoming = await prisma.task.findMany({
-    where: { meetingAt: { gt: now }, meetingReminderSentAt: null, meetingUrl: { not: null }, project: { hidden: false } },
+    where: { meetingAt: { gt: now }, meetingReminderSentAt: null, meetingUrl: { not: null }, project: { hidden: false, ...LIVE_PROJECT_WHERE } },
     include: { project: { select: { pmId: true, whatsappGroupJid: true } }, assignees: true },
   });
   if (upcoming.length === 0) return;

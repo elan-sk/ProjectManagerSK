@@ -316,6 +316,34 @@ export async function addRoundDeliverables(roundId: string, actor: Actor, files:
   return { ok: true as const, added: files.length };
 }
 
+// Quitar un entregable de una ronda abierta (Prueba o Aceptación): mismas reglas que la app.
+export async function removeRoundDeliverable(deliverableId: string, actor: Actor) {
+  const d = await prisma.reviewDeliverable.findUnique({ where: { id: deliverableId }, select: { fileUrl: true, reviewRound: { select: { outcome: true, task: { select: { id: true, projectId: true } } } } } });
+  if (!d) return fail(404, "Ese entregable no existe.");
+  const task = d.reviewRound.task;
+  if (!(await canEditTask(task.id, actor))) return fail(403, NO_EDIT);
+  if (d.reviewRound.outcome !== null) return fail(409, "La ronda ya está cerrada, por lo que no se pueden quitar sus entregables.");
+  await prisma.reviewDeliverable.delete({ where: { id: deliverableId } });
+  await deleteFileIfUnused(d.fileUrl);
+  touch(task);
+  return { ok: true as const };
+}
+
+// Quitar evidencia de una prueba o característica. Prueba: revisor, o el asignado si quedó «Con errores».
+// Aceptación: el equipo (asignado, PM o administrador).
+export async function removeCheckEvidence(evidenceId: string, actor: Actor) {
+  const ev = await prisma.reviewCheckEvidence.findUnique({ where: { id: evidenceId }, select: { fileUrl: true, reviewCheck: { select: { result: true, reviewRound: { select: { task: { select: { id: true, projectId: true, type: true } } } } } } } });
+  if (!ev) return fail(404, "Esa evidencia no existe.");
+  const task = ev.reviewCheck.reviewRound.task;
+  const [canReview, canEdit] = await Promise.all([canReviewTask(task.id, actor), canEditTask(task.id, actor)]);
+  const allowed = task.type === "QA" ? canReview || (canEdit && ev.reviewCheck.result === "FAILED") : canEdit;
+  if (!allowed) return fail(403, "No se cuenta con permiso para quitar esta evidencia.");
+  await prisma.reviewCheckEvidence.delete({ where: { id: evidenceId } });
+  await deleteFileIfUnused(ev.fileUrl);
+  touch(task);
+  return { ok: true as const };
+}
+
 // Copia los ítems de una plantilla de pruebas como checks de la ronda (idempotente:
 // reaplicar la misma plantilla no duplica lo que ya está).
 export async function applyTemplateToRound(roundId: string, actor: Actor, templateId: string) {

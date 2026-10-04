@@ -68,13 +68,21 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
 
 ### Proyectos
 
-- `GET /api/v1/projects` — lista todos los proyectos (con PM y fases).
+- `GET /api/v1/projects` — lista los proyectos del flujo normal (con PM y fases). `GET /api/v1/projects?archived=1` — el historial de **archivados** (proyectos entregados/terminados; no aparecen en la lista normal, buscador, agenda, reportes ni alertas).
 - `POST /api/v1/projects` — crea un proyecto.
   ```json
   { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string" }
   ```
 - `GET /api/v1/projects/:id` — detalle completo: fases, tareas con asignados, más `bottlenecks` (cuellos de botella) y `delays` (atrasos por tarea, ver regla abajo).
-- `PATCH /api/v1/projects/:id` — descripción, fecha objetivo, cliente, repo, color. Requiere PM/admin.
+- `PATCH /api/v1/projects/:id` — todo lo que se edita en la app. Requiere PM/admin. Campos (todos opcionales; `null` vacía uno opcional):
+  `name`, `description` (HTML), `startDate`, `targetEndDate`, `clientName`, `repoUrl`, `color`, `iconUrl` (url de `/api/upload`), `whatsappGroupJid`,
+  `archived: true|false` (archivar/desarchivar: lo manda al historial o lo devuelve; PM o admin),
+  `hidden: true|false` (ocultar/mostrar: solo el administrador que además es PM del proyecto).
+- `DELETE /api/v1/projects/:id` — **elimina** el proyecto (solo administrador; desaparece para todos). Para un proyecto terminado usar `archived: true`, no esto.
+- `DELETE /api/v1/projects/:id/links/:linkId` — quita un link de la Definición.
+- `POST /api/v1/projects/:id/repos` — `{ "url" }` agrega un repositorio (el primero queda como principal). `DELETE /api/v1/projects/:id/repos?url=…` lo quita.
+- `POST /api/v1/projects/:id/phases/reorder` — `{ "phaseIds": [...] }` con TODAS las fases en el orden nuevo.
+- `POST /api/v1/projects/:id/tasks/merge` — `{ "taskIds": [2 o más], "title" }` combina tareas en una (no aplica a Prueba/Ajuste/Aceptación). Devuelve `{ id }`.
 - `POST /api/v1/projects/:id/reassign-pm` — `{ "pmId": "string" }`. Requiere PM/admin.
 - `POST /api/v1/projects/:id/move-group` — mueve varias tareas el mismo delta de días hábiles: `{ "taskIds": ["..."], "deltaDays": 2 }`. Requiere PM/admin.
 
@@ -126,7 +134,9 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
   ```
   `plannedEnd` se calcula solo en días hábiles (festivos del país del proyecto vía Nager.Date). `reviewerIds`/`defaultTestTemplateId` solo aplican con `type: "QA"` — y ningún id puede repetirse entre `assigneeIds` y `reviewerIds` (409 si se repite).
 - `GET /api/v1/tasks/:id` — detalle de una tarea, incluye `delayDays` si está completada.
-- `PATCH /api/v1/tasks/:id` — estado, título, descripción, fase, link de reunión, riesgo. Requiere ser asignado/PM/admin.
+- `PATCH /api/v1/tasks/:id` — estado, título, descripción, fase (`phaseId` del mismo proyecto), link de reunión, riesgo. Requiere ser asignado/PM/admin.
+  Solo PM/admin: `type` (SIMPLE|MILESTONE|QA|ADJUSTMENT|ACCEPTANCE), `isUrgent: true|false` (marcarla urgente avisa por WhatsApp al instante), `archived: true|false` (archivar solo aplica a tareas completadas).
+- `POST /api/v1/tasks/:id/duplicate` — duplica la tarea (datos, asignados, revisores, checklist sin marcar, etiquetas, insumos). PM/admin. Devuelve `{ id }`.
   ```json
   { "status": "NOT_STARTED | IN_PROGRESS | BLOCKED | COMPLETED | RETURNED" }
   ```
@@ -148,9 +158,14 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 - `PATCH /api/v1/tasks/:id/reviewers` — `{ "reviewerIds": ["userId"] }`. Solo tiene efecto real en tareas tipo Prueba/QA.
 - `GET/POST /api/v1/tasks/:id/steps` — `{ "description": "string" }`.
 - `PATCH /api/v1/tasks/:id/steps/:stepId` — `{ "done"?: true, "description"?: "string" }` (al menos uno: marca el paso y/o cambia su texto). `DELETE` quita el paso.
+- `POST /api/v1/tasks/:id/steps/reorder` — `{ "stepIds": [...] }` con todos los pasos en el orden nuevo.
+- `POST /api/v1/tasks/:id/steps/:stepId/poll` — `{ "multiple": false, "options": ["A","B"] }` convierte el paso en pregunta (el enunciado es el texto del paso). El `GET` de pasos trae `poll.id`; se vota/cierra con `/api/v1/polls/:id` y se quita con `DELETE /api/v1/polls/:id`.
 - `GET /api/v1/tags` — lista las categorías de etiqueta disponibles (id, name, colorHex, emoji).
+- `POST /api/v1/tags/categories` — `{ "name", "colorHex", "emoji"? }` crea una categoría (PM de algún proyecto o admin). `colorHex` tiene que ser de la paleta de la app (si no, el 400 lista los válidos). `PATCH /api/v1/tags/categories/:id` (mismo cuerpo) la edita; `DELETE` la borra con sus etiquetas (solo admin).
 - `GET/POST /api/v1/tasks/:id/tags` — `{ "categoryId": "string", "name": "string" }`. Una etiqueta por categoría en cada tarea (reemplaza si ya había una de esa categoría); si el nombre no existe todavía en el proyecto bajo esa categoría, se crea solo.
 - `DELETE /api/v1/tasks/:id/tags/:taskTagId` — quita la etiqueta.
+
+- `DELETE /api/v1/deliverables/:id` — quita un entregable de una ronda abierta (Prueba o Aceptación). `DELETE /api/v1/evidence/:id` — quita una evidencia de una prueba/característica. Los ids salen de `GET /api/v1/tasks/:id/design`.
 
 ### Revisión / QA (solo tareas `type: "QA"`)
 
@@ -222,6 +237,7 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
   `scope`: `task` (comentario general, lo ve el cliente; los archivos quedan como Insumos) · `adjustment_item` (targetId = id del cambio) · `acceptance_check` (targetId = id de la característica) · `qa_check` (hilo interno de una prueba; targetId = id de la prueba; admite menciones) · `round` (hilo interno de la ronda; targetId = id de la ronda) · `conversation` (conversación interna de la tarea; menciones e imágenes).
 - `POST /api/v1/projects/:id/comments` — mismo cuerpo, `scope`: `project_conversation` (conversación interna del proyecto) · `project_definition` (hilo de la Definición que ve el cliente; sin adjuntos).
 - **Pregunta**: con `poll`, el comentario pasa a ser una pregunta de selección única (`multiple: false`, radio) o múltiple (`true`, casillas) de 2 a 10 opciones, y `body` es el enunciado. Solo el equipo las publica; el cliente las responde desde su link.
+- `PATCH /api/v1/messages/:id` — `{ "body" }` edita un mensaje propio de la conversación interna (`conversation`, `qa_check`, `project_conversation`) dentro de la ventana de edición; `DELETE` lo borra (el autor en esa ventana, o PM/admin siempre). El id sale de `GET …/threads` (campo `text`).
 - `GET /api/v1/tasks/:id/threads` — todos los hilos de la tarea agrupados por lugar (`general`, `adjustmentItems`, `acceptanceChecks`, `qaChecks`, `rounds`, `conversation`), con las preguntas y su estadística.
 - `GET /api/v1/polls/:id` — la pregunta con cuántas personas eligieron cada opción y quién. `POST /api/v1/polls/:id/vote` (`{ "optionIds": […] }`, con la persona que inició sesión). `PATCH /api/v1/polls/:id` (`{ "closed": true|false }`).
 - Los porcentajes son sobre las **personas que respondieron**: en selección múltiple pueden sumar más de 100 %.
@@ -230,7 +246,9 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
 ## No cubierto todavía por la API
 
 Estas acciones solo se pueden hacer desde la app web por ahora — decíselo a la persona si las pide:
-- Editar o borrar un comentario ya publicado (la app lo permite 5 minutos) y borrar adjuntos de tarea.
+- Editar o borrar comentarios de los hilos que ve el cliente (`task`, `adjustment_item`, `acceptance_check`) y de las rondas.
+- Gestionar usuarios (crear, rol, contraseña, desactivar): decisión 2026-10-03, queda solo en la app.
+- Sincronizar con Google Calendar (usa el login personal de Google en el navegador).
 - Calificar una característica de Aceptación: la hace el cliente desde su link.
 - Aplicar o quitar plantillas de Configuración, y plantillas y categorías de respuesta de Pruebas (Configuración).
 - Reenviar una ronda de Prueba con la respuesta a cada error (`responseCategory`): usar la app.

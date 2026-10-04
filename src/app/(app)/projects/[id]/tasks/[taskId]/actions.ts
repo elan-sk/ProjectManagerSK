@@ -96,6 +96,8 @@ export async function addAttachmentRecord(
   if (!(await canEditTask(taskId))) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
+  // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
+  uploadedById = (await getActingUser())?.id ?? uploadedById;
   await assertCanAddAttachment(taskId, kind);
   await prisma.attachment.create({
     data: {
@@ -220,6 +222,8 @@ export async function addLinkAttachment(
   if (!(await canEditTask(taskId))) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
+  // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
+  uploadedById = (await getActingUser())?.id ?? uploadedById;
   await assertCanAddAttachment(taskId, kind);
   const parsedUrlResult = z.string().trim().url().safeParse(url);
   if (!parsedUrlResult.success) {
@@ -372,10 +376,10 @@ export async function moveStepsToDescription(taskId: string) {
 
 // Punto 2.3: cambiar el tipo de tarea es solo del PM/admin — a diferencia
 // del resto de los campos, no lo puede tocar un asignado (canEditTask).
-export async function updateTaskType(taskId: string, type: string) {
+export async function updateTaskType(taskId: string, type: string, actor?: Actor) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   try {
-    await requireProjectAdmin(task.projectId);
+    await requireProjectAdmin(task.projectId, actor);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -515,6 +519,8 @@ export async function addAdjustmentAttachment(
   if (!(await canEditTask(item.taskId))) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
+  // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
+  uploadedById = (await getActingUser())?.id ?? uploadedById;
   await prisma.adjustmentAttachment.create({
     data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById },
   });
@@ -532,6 +538,8 @@ export async function addAdjustmentLinkAttachment(
   if (!(await canEditTask(item.taskId))) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
+  // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
+  uploadedById = (await getActingUser())?.id ?? uploadedById;
   const parsedUrl = z.string().trim().url().safeParse(url);
   if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
   const parsedName = z.string().trim().min(1).safeParse(name);

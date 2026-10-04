@@ -51,8 +51,8 @@ export async function projectWhatsAppGroups(projectId: string) {
   return listGroups();
 }
 
-export async function updateProjectWhatsAppGroup(projectId: string, groupJid: string) {
-  const denied = await guard(projectId);
+export async function updateProjectWhatsAppGroup(projectId: string, groupJid: string, actor?: Actor) {
+  const denied = await guard(projectId, actor);
   if (denied) return denied;
 
   await prisma.project.update({ where: { id: projectId }, data: { whatsappGroupJid: groupJid || null } });
@@ -260,9 +260,10 @@ export async function addProjectLink(projectId: string, formData: FormData) {
   return { ok: true as const };
 }
 
-export async function removeProjectLink(linkId: string) {
-  const link = await prisma.projectLink.findUniqueOrThrow({ where: { id: linkId } });
-  const denied = await guard(link.projectId);
+export async function removeProjectLink(linkId: string, actor?: Actor) {
+  const link = await prisma.projectLink.findUnique({ where: { id: linkId } });
+  if (!link) return { ok: false as const, error: "Ese link ya no existe." };
+  const denied = await guard(link.projectId, actor);
   if (denied) return denied;
 
   await prisma.projectLink.delete({ where: { id: linkId } });

@@ -1,14 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
+// Solo las notificaciones propias: el id/userId llegan del navegador.
 export async function markNotificationRead(id: string) {
-  await prisma.notification.update({ where: { id }, data: { read: true } });
+  const session = await auth();
+  if (!session?.user) return;
+  await prisma.notification.updateMany({ where: { id, userId: session.user.id }, data: { read: true } });
   revalidatePath("/", "layout");
 }
 
-export async function markAllNotificationsRead(userId: string) {
-  await prisma.notification.updateMany({ where: { userId, read: false }, data: { read: true } });
+export async function markAllNotificationsRead() {
+  const session = await auth();
+  if (!session?.user) return;
+  await prisma.notification.updateMany({ where: { userId: session.user.id, read: false }, data: { read: true } });
   revalidatePath("/", "layout");
 }

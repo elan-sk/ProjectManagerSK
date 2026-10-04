@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { archiveCompletedTasks, setTaskUrgent, unarchiveTask } from "@/app/(app)/projects/[id]/taskOps";
 import { taskVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +8,7 @@ import { getTaskDelayDays } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { canEditTask } from "@/lib/permissions";
 import { updateTaskStatus } from "@/app/(app)/projects/[id]/actions";
-import { deleteTask } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
+import { deleteTask, updateTaskType } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
@@ -55,6 +56,10 @@ const updateTaskSchema = z.object({
   phaseId: z.string().min(1).optional(),
   meetingUrl: z.string().url().nullable().optional(),
   riskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  // Solo PM del proyecto o administrador (mismas reglas que la app):
+  type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]).optional(),
+  isUrgent: z.boolean().optional(),
+  archived: z.boolean().optional(), // archivar solo aplica a tareas completadas
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,7 +84,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { status, ...rest } = parsed.data;
+  const { status, type, isUrgent, archived, ...rest } = parsed.data;
+
+  if (rest.phaseId) {
+    const phase = await prisma.phase.findUnique({ where: { id: rest.phaseId }, select: { projectId: true } });
+    if (phase?.projectId !== task.projectId) return NextResponse.json({ error: "Esa fase no es de este proyecto." }, { status: 400 });
+  }
+  const pmOnly = [
+    type !== undefined && (() => updateTaskType(id, type, auth.actor)),
+    isUrgent !== undefined && (() => setTaskUrgent(id, isUrgent, auth.actor)),
+    archived === true && (async () => {
+      const r = await archiveCompletedTasks([id], auth.actor);
+      return r.ok && r.count === 0 ? { ok: false, error: "Solo se puede archivar una tarea completada (o ya estaba archivada)." } : r;
+    }),
+    archived === false && (() => unarchiveTask(id, auth.actor)),
+  ];
+  for (const run of pmOnly) {
+    if (!run) continue;
+    const r = await run();
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: /permiso|solo el pm/i.test(r.error ?? "") ? 403 : 409 });
+  }
 
   // El estado tiene reglas propias bastante más finas (checklist, evidencia,
   // ronda de revisión aprobada, "Devuelta" bloqueada, reabrir una completada

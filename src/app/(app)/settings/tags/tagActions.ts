@@ -3,18 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
-import { isPmOrAdminAnywhere, canEditTask, type Actor } from "@/lib/permissions";
+import { isPmOrAdminAnywhere, canEditTask, resolveActor, type Actor } from "@/lib/permissions";
 import { DEFAULT_COLORS } from "@/components/ProjectIcon";
 import { upsertTag } from "@/lib/tags";
 
-async function requireAdmin() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") throw new Error("Solo un administrador puede hacer esto.");
+async function requireAdmin(actor?: Actor) {
+  const role = (await resolveActor(actor))?.role;
+  if (role !== "ADMIN") throw new Error("Solo un administrador puede hacer esto.");
 }
 
-async function requirePmOrAdmin() {
-  if (!(await isPmOrAdminAnywhere())) {
+async function requirePmOrAdmin(actor?: Actor) {
+  if (!(await isPmOrAdminAnywhere(actor))) {
     throw new Error("Solo un PM o un administrador pueden crear o editar una categoría de etiqueta.");
   }
 }
@@ -26,9 +25,9 @@ function revalidate() {
 // Punto 17: la categoría (contenedor global — nombre, color, emoji) requiere
 // permiso de PM/admin para crearse, igual que una plantilla de pruebas
 // nueva. Solo un administrador la borra definitivamente.
-export async function createTagCategory(formData: FormData) {
+export async function createTagCategory(formData: FormData, actor?: Actor) {
   try {
-    await requirePmOrAdmin();
+    await requirePmOrAdmin(actor);
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -46,9 +45,9 @@ export async function createTagCategory(formData: FormData) {
   return { ok: true as const };
 }
 
-export async function updateTagCategory(categoryId: string, formData: FormData) {
+export async function updateTagCategory(categoryId: string, formData: FormData, actor?: Actor) {
   try {
-    await requirePmOrAdmin();
+    await requirePmOrAdmin(actor);
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -66,9 +65,9 @@ export async function updateTagCategory(categoryId: string, formData: FormData) 
   return { ok: true as const };
 }
 
-export async function deleteTagCategory(categoryId: string) {
+export async function deleteTagCategory(categoryId: string, actor?: Actor) {
   try {
-    await requireAdmin();
+    await requireAdmin(actor);
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }

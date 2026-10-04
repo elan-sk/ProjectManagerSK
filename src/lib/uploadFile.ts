@@ -63,7 +63,10 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
     return { ok: false, status: 413, error: "El archivo supera los 20MB." };
   }
 
-  const fileName = `${randomUUID()}${isHtml ? ".html" : ext}`;
+  // Seguridad: la extensión guardada sale SIEMPRE de la lista blanca. Antes un "x.svg" declarado
+  // como image/png pasaba (el tipo lo manda el navegador) y quedaba servido como SVG ejecutable.
+  const safeExt = isHtml ? ".html" : EXTENSION_MIME[ext] ? ext : Object.keys(EXTENSION_MIME).find((e) => EXTENSION_MIME[e] === file.type)!;
+  const fileName = `${randomUUID()}${safeExt}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   const uploadsDir = path.join(process.cwd(), "public/uploads");
   await mkdir(uploadsDir, { recursive: true });

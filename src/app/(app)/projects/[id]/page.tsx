@@ -40,6 +40,7 @@ import { NavLinkWithMemory } from "../../NavLinkWithMemory";
 import { RememberViewState } from "../../RememberViewState";
 import { createProjectShareLink, revokeProjectShareLink } from "../../shareActions";
 import { ArchiveProjectButton } from "./ArchiveProjectButton";
+import { ArchiveToggleButton } from "./ArchiveToggleButton";
 import { CriticalPathButton } from "./CriticalPathButton";
 import { DefinitionTab } from "./DefinitionTab";
 import { EditReposForm } from "./EditReposForm";
@@ -524,6 +525,12 @@ export default async function ProjectPage({
       <NavLinkWithMemory href="/projects" storageKey="projectsBoard" className="text-sm text-slate-500 hover:underline">
         ← Todos los proyectos
       </NavLinkWithMemory>
+      {project.archivedAt && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>Proyecto archivado el {project.archivedAt.toLocaleDateString("es-CO", DATE_FMT)}. No aparece en el flujo normal.</span>
+          {canManage && <ArchiveToggleButton projectId={project.id} archived openTaskCount={0} />}
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <ProjectIcon name={project.name} iconUrl={project.iconUrl} size="h-12 w-12 text-base" projectId={project.id} />
@@ -567,12 +574,21 @@ export default async function ProjectPage({
                 <ModalTrigger label="Repositorios" title="Repositorios del proyecto" variant="secondary" small>
                   <EditReposForm projectId={project.id} urls={repoUrls} />
                 </ModalTrigger>
-                {isGlobalAdmin && project.pmId === myUserId && (
-                  <div className="ml-1.5 flex items-center gap-2 border-l border-slate-200 pl-2.5">
-                    <HideProjectButton projectId={project.id} hidden={project.hidden} />
-                    <ArchiveProjectButton projectId={project.id} projectName={project.name} />
-                  </div>
-                )}
+                <div className="ml-1.5 flex items-center gap-2 border-l border-slate-200 pl-2.5">
+                  {!project.archivedAt && (
+                    <ArchiveToggleButton
+                      projectId={project.id}
+                      archived={false}
+                      openTaskCount={project.tasks.filter((t) => t.status !== "COMPLETED").length}
+                    />
+                  )}
+                  {isGlobalAdmin && project.pmId === myUserId && (
+                    <>
+                      <HideProjectButton projectId={project.id} hidden={project.hidden} />
+                      <ArchiveProjectButton projectId={project.id} projectName={project.name} />
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>

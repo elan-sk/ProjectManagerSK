@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { visibleProjectWhere } from "@/lib/permissions";
 import { ComboFilter } from "@/components/ComboFilter";
-import { OverlapIcon } from "@/components/icons";
+import { ArchiveIcon, OverlapIcon } from "@/components/icons";
 import { SearchBox } from "@/components/SearchBox";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
@@ -130,7 +130,7 @@ export default async function ProjectsPage({
     // alimenta la vista Archivos del panorama general y el selector "Buscar".
     prisma.project.findMany({
       // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
-      where: { status: { not: "ARCHIVED" }, ...visibleProjectWhere(session.user) },
+      where: visibleProjectWhere(session.user),
       include: {
         // Insumos del proyecto cargados en Definición (repositorio de
         // archivos + links de referencia) — se mezclan más abajo con los
@@ -208,7 +208,6 @@ export default async function ProjectsPage({
   // ProjectSummaryGrid; acá solo se acota QUÉ proyectos entran.
   const projectRows = await getProjectSummaryRows(
     {
-      status: { not: "ARCHIVED" },
       ...visibleProjectWhere(session.user),
       ...(myAssignedProjectIds ? { id: { in: [...myAssignedProjectIds] } } : {}),
     },
@@ -520,6 +519,10 @@ export default async function ProjectsPage({
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
+          <Link href="/projects/archived" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
+            <ArchiveIcon className="h-4 w-4" />
+            Archivados
+          </Link>
         </div>
 
         <ProjectSummaryGrid

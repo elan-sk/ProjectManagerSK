@@ -11,7 +11,10 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const projects = await prisma.project.findMany({
-    where: visibleProjectWhere(auth.actor),
+    // ?archived=1 → el historial (proyectos archivados); por defecto, solo los del flujo normal.
+    where: new URL(request.url).searchParams.get("archived") === "1"
+      ? { ...visibleProjectWhere(auth.actor, { includeArchived: true }), archivedAt: { not: null } }
+      : visibleProjectWhere(auth.actor),
     include: {
       pm: { select: PUBLIC_USER_SELECT },
       phases: true,

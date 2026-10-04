@@ -15,7 +15,7 @@ export type NotificationItem = {
   projectId: string | null;
 };
 
-export function NotificationBell({ items, userId }: { items: NotificationItem[]; userId: string }) {
+export function NotificationBell({ items }: { items: NotificationItem[] }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +52,7 @@ export function NotificationBell({ items, userId }: { items: NotificationItem[];
           )}
           {items.length > 0 && (
             <button
-              onClick={() => markAllNotificationsRead(userId)}
+              onClick={() => markAllNotificationsRead()}
               className="mb-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
             >
               Marcar todas como leídas

@@ -50,3 +50,14 @@ export async function withBody<S extends z.ZodTypeAny>(
   }
   return respond(await fn(auth.actor, parsed.data), okStatus);
 }
+
+/** Corre una acción de la app (devuelve { ok, error } o lanza) y la deja lista para respond(). */
+export async function runAction(fn: () => Promise<{ ok: boolean; error?: string } | void>): Promise<ApiResult> {
+  try {
+    const r = await fn();
+    if (!r || r.ok) return { ...(r ?? {}), ok: true };
+    return { ok: false, error: r.error ?? "No se pudo completar la acción." };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}

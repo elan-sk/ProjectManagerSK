@@ -13,7 +13,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   if (!(await taskVisibleTo(id, auth.actor))) return NextResponse.json({ error: "No existe." }, { status: 404 });
-  const steps = await prisma.taskStep.findMany({ where: { taskId: id }, orderBy: { order: "asc" } });
+  // `poll` (si el paso es una pregunta): su id sirve para votar, cerrar o quitarla en /api/v1/polls/:id.
+  const steps = await prisma.taskStep.findMany({ where: { taskId: id }, orderBy: { order: "asc" }, include: { poll: { select: { id: true, multiple: true } } } });
   return NextResponse.json(steps);
 }
 

@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendDirectAlert } from "@/lib/whatsapp";
+import { isBlocked, recordAttempt } from "@/lib/rateLimit";
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
@@ -29,8 +30,12 @@ function hashToken(rawToken: string) {
 export async function getPasswordResetHint(identifier: string) {
   const trimmed = identifier.trim();
   if (!trimmed) return { ok: false as const, error: "Escribí tu correo o usuario." };
+  // Frena la enumeración de cuentas: 10 consultas cada 15 minutos por correo/usuario.
+  const hintKey = `reset-hint:${trimmed.toLowerCase()}`;
+  if (isBlocked(hintKey, 10, 15 * 60 * 1000)) return { ok: false as const, error: "Demasiados intentos. Se puede volver a intentar en 15 minutos." };
+  recordAttempt(hintKey, 15 * 60 * 1000);
 
-  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] } });
+  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] }, omit: { phone: false } });
   if (!user?.phone) {
     return { ok: false as const, error: "No encontramos una cuenta con teléfono registrado para ese correo/usuario — pedile a un administrador que te ayude." };
   }
@@ -49,8 +54,12 @@ export async function requestPasswordReset(identifier: string, phone: string) {
   const trimmedId = identifier.trim();
   const normalizedPhone = normalizePhone(phone);
   if (!trimmedId || !normalizedPhone) return genericResult;
+  // Evita llenar de mensajes el WhatsApp de alguien: 3 pedidos por hora por correo/usuario.
+  const resetKey = `reset:${trimmedId.toLowerCase()}`;
+  if (isBlocked(resetKey, 3, 60 * 60 * 1000)) return genericResult;
+  recordAttempt(resetKey, 60 * 60 * 1000);
 
-  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmedId }, { username: trimmedId }] } });
+  const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmedId }, { username: trimmedId }] }, omit: { phone: false } });
   if (!user?.phone || user.phone !== normalizedPhone) return genericResult;
 
   const rawToken = crypto.randomBytes(32).toString("hex");

@@ -245,6 +245,10 @@ model Project {
   // Solo un admin lo puede activar: el proyecto deja de verse para los demás
   // miembros del equipo.
   hidden Boolean       @default(false)
+  // Archivado como historial (proyecto entregado/terminado): sale de la lista,
+  // el buscador, la agenda, los reportes y las alertas, pero se puede abrir y
+  // desarchivar desde «Archivados». Distinto de status ARCHIVED (= eliminado).
+  archivedAt DateTime?
   // Repositorios adicionales (repoUrl queda como el principal).
   repos  ProjectRepo[]
 

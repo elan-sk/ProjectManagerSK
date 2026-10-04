@@ -7,8 +7,20 @@ import { prisma } from "@/lib/prisma";
 // sin duplicar lógica.
 export type Actor = { id: string; role: string };
 
-async function resolveActor(actor?: Actor): Promise<Actor | null> {
-  if (actor) return actor;
+// Seguridad: las server actions ("use server") las puede invocar el navegador con
+// cualquier argumento, así que un `actor` que llega por parámetro NO se cree por
+// sí solo — un miembro podría mandar { role: "ADMIN" }. Solo vale el actor que el
+// propio servidor creó y marcó con trustedActor() (token de la API, link
+// "Conectar IA", chat); cualquier otro se ignora y manda la sesión real.
+const trustedActors = new WeakSet<object>();
+
+export function trustedActor(actor: Actor): Actor {
+  trustedActors.add(actor);
+  return actor;
+}
+
+export async function resolveActor(actor?: Actor): Promise<Actor | null> {
+  if (actor && typeof actor === "object" && trustedActors.has(actor)) return actor;
   const session = await auth();
   return session?.user ? { id: session.user.id, role: session.user.role } : null;
 }
@@ -22,9 +34,16 @@ export function canSeeProject(project: { hidden: boolean; pmId: string }, user: 
   return !project.hidden || (user.role === "ADMIN" && project.pmId === user.id);
 }
 
-/** Filtro de Prisma para consultas de proyectos: deja fuera los ocultos que esa persona no puede ver. */
-export function visibleProjectWhere(user: Actor) {
-  return user.role === "ADMIN" ? { NOT: { hidden: true, pmId: { not: user.id } } } : { hidden: false };
+/** Proyectos del flujo normal: ni eliminados (status ARCHIVED) ni archivados como historial (archivedAt). */
+export const LIVE_PROJECT_WHERE = { status: { not: "ARCHIVED" as const }, archivedAt: null };
+
+/**
+ * Filtro de Prisma para consultas de proyectos: deja fuera los ocultos que esa persona no puede ver,
+ * los eliminados y, salvo `includeArchived`, los archivados (historial).
+ */
+export function visibleProjectWhere(user: Actor, { includeArchived = false } = {}) {
+  const live = includeArchived ? { status: LIVE_PROJECT_WHERE.status } : LIVE_PROJECT_WHERE;
+  return user.role === "ADMIN" ? { NOT: { hidden: true, pmId: { not: user.id } }, ...live } : { hidden: false, ...live };
 }
 
 /**
@@ -113,12 +132,12 @@ export async function isReviewerAnywhere() {
  * isReviewerAnywhere para plantillas de pruebas, pero sin el caso de
  * revisor (acá no tiene que ver con revisiones).
  */
-export async function isPmOrAdminAnywhere() {
-  const session = await auth();
-  if (!session?.user) return false;
-  if (session.user.role === "ADMIN") return true;
+export async function isPmOrAdminAnywhere(actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return false;
+  if (user.role === "ADMIN") return true;
 
-  const pmOf = await prisma.project.findFirst({ where: { pmId: session.user.id } });
+  const pmOf = await prisma.project.findFirst({ where: { pmId: user.id } });
   return Boolean(pmOf);
 }
 
@@ -144,7 +163,6 @@ export async function canParticipateInProject(projectId: string, taskId?: string
 
 /** Quién actúa, con nombre para firmar lo que escriba: la sesión del navegador o el usuario de la API. */
 export async function getActingUser(actor?: Actor) {
-  if (actor) return prisma.user.findUnique({ where: { id: actor.id }, select: { id: true, name: true, role: true } });
-  const session = await auth();
-  return session?.user ? { id: session.user.id, name: session.user.name ?? null, role: session.user.role } : null;
+  const user = await resolveActor(actor);
+  return user ? prisma.user.findUnique({ where: { id: user.id }, select: { id: true, name: true, role: true } }) : null;
 }

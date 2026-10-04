@@ -138,7 +138,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               returned={returnedTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
               pendingReviews={pendingReviewTasks.map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, plannedEnd: t.plannedEnd.toISOString() }))}
             />
-            <NotificationBell items={bellItems} userId={session.user.id} />
+            <NotificationBell items={bellItems} />
             <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name, mentioned: m.mentions.length > 0 }))} />
             <Link href="/settings" className="flex items-center gap-2">
               <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />

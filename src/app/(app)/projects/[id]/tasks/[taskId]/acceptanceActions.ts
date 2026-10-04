@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { unlink } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { canEditTask, type Actor } from "@/lib/permissions";
+import { canEditTask, resolveActor, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned } from "@/lib/notifications";
 
 // Tarea tipo ACCEPTANCE: mismo motor de rondas que Prueba (QA) — ReviewRound/
@@ -44,7 +43,7 @@ export async function submitAcceptanceRound(
   if (!(await canEditTask(taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
-  const session = actor ?? (await auth())?.user;
+  const session = await resolveActor(actor);
   if (!session) return { ok: false as const, error: "Sesión inválida." };
 
   // Sin mínimo: los archivos/links son opcionales, lo que se acepta son las
@@ -160,9 +159,8 @@ export async function removeAcceptanceDeliverable(deliverableId: string) {
     return { ok: false as const, error: "La ronda ya está cerrada, por lo que no se pueden quitar sus adjuntos." };
   }
   await prisma.reviewDeliverable.delete({ where: { id: deliverableId } });
-  if (deliverable.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", deliverable.fileUrl)).catch(() => {});
-  }
+  // Ruta validada y sin borrar archivos que otra parte aún usa (ver fileCleanup.ts).
+  await deleteFileIfUnused(deliverable.fileUrl);
   await revalidateTask(deliverable.reviewRound.taskId);
   return { ok: true as const };
 }
@@ -262,9 +260,8 @@ export async function removeAcceptanceItemEvidence(evidenceId: string) {
   const taskId = evidence.reviewCheck.reviewRound.taskId;
   if (!(await canEditTask(taskId))) throw new Error("No tenés permiso para editar esta tarea.");
   await prisma.reviewCheckEvidence.delete({ where: { id: evidenceId } });
-  if (evidence.mimeType !== LINK_MIME_TYPE) {
-    await unlink(path.join(process.cwd(), "public", evidence.fileUrl)).catch(() => {});
-  }
+  // Ruta validada y sin borrar archivos que otra parte aún usa (ver fileCleanup.ts).
+  await deleteFileIfUnused(evidence.fileUrl);
   await revalidateTask(taskId);
 }
 

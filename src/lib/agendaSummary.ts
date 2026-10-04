@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { visibleProjectWhere, type Actor } from "@/lib/permissions";
+import { visibleProjectWhere, LIVE_PROJECT_WHERE, type Actor } from "@/lib/permissions";
 import { getTaskAlert } from "@/lib/delays";
 import { projectHealth } from "@/lib/projectHealth";
 import { isStartingSoon } from "@/lib/statusColors";
@@ -63,7 +63,7 @@ export type PmProjectSummary = {
 // (viewer); para cualquier otra persona quedan fuera.
 export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise<PmProjectSummary[]> {
   const projects = await prisma.project.findMany({
-    where: { ...(pmId ? { pmId } : {}), status: { not: "ARCHIVED" }, ...(viewer ? visibleProjectWhere(viewer) : { hidden: false }) },
+    where: { ...(pmId ? { pmId } : {}), ...(viewer ? visibleProjectWhere(viewer) : { hidden: false, ...LIVE_PROJECT_WHERE }) },
     select: {
       id: true,
       name: true,

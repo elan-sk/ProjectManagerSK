@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const projectIds = rawIds.length > 0 && searchParams.get("scope") !== "all" ? rawIds : undefined;
 
   const projects = await prisma.project.findMany({
-    where: { ...(projectIds ? { id: { in: projectIds } } : {}), ...visibleProjectWhere(session.user) },
+    where: { ...(projectIds ? { id: { in: projectIds } } : {}), ...visibleProjectWhere(session.user, { includeArchived: true }) },
     orderBy: { name: "asc" },
     include: {
       pm: { select: { username: true } },

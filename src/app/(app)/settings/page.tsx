@@ -44,7 +44,7 @@ export default async function SettingsPage({
           select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true, active: true },
         })
       : Promise.resolve(null),
-    isAdmin ? prisma.project.findMany({ where: visibleProjectWhere(session.user), orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
+    isAdmin ? prisma.project.findMany({ where: visibleProjectWhere(session.user, { includeArchived: true }), orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve(null),
     isAdmin ? getAppCountryCode() : Promise.resolve(null),
     isAdmin ? getAvailableCountries() : Promise.resolve(null),
     isAdmin ? getWhatsAppSettings() : Promise.resolve(null),

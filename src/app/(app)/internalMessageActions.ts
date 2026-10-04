@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { getActingUser, getProjectAdmin, type Actor } from "@/lib/permissions";
+import { getActingUser, getProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { COMMENT_MAX_LENGTH, commentEditError, commentAttachments, commentMentionIds } from "@/lib/commentBody";
@@ -103,20 +103,20 @@ export async function postInternalMessage(
 // Editar/eliminar: solo el autor y solo durante los primeros 5 minutos
 // (commentEditError) — se valida acá, en el servidor, no solo escondiendo los
 // botones en la interfaz.
-async function ownMessageInWindow(messageId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Tu sesión venció. Volvé a entrar." } as const;
+async function ownMessageInWindow(messageId: string, actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return { error: "Tu sesión venció. Volvé a entrar." } as const;
   const message = await prisma.internalMessage.findUnique({ where: { id: messageId }, select: { authorId: true, createdAt: true, projectId: true, taskId: true, mentions: { select: { userId: true } } } });
   if (!message) return { error: "Ese comentario ya no existe." } as const;
-  const blocked = commentEditError(message.authorId, session.user.id, message.createdAt, Date.now());
+  const blocked = commentEditError(message.authorId, user.id, message.createdAt, Date.now());
   if (blocked) return { error: blocked } as const;
   return { message } as const;
 }
 
 const messagePath = (m: { projectId: string; taskId: string | null }) => (m.taskId ? `/projects/${m.projectId}/tasks/${m.taskId}` : `/projects/${m.projectId}`);
 
-export async function editInternalMessage(messageId: string, body: string) {
-  const found = await ownMessageInWindow(messageId);
+export async function editInternalMessage(messageId: string, body: string, actor?: Actor) {
+  const found = await ownMessageInWindow(messageId, actor);
   if ("error" in found) return { ok: false as const, error: found.error };
   const text = body.trim();
   if (!text || text.length > COMMENT_MAX_LENGTH) return { ok: false as const, error: `El comentario debe tener entre 1 y ${COMMENT_MAX_LENGTH} caracteres.` };
@@ -135,12 +135,12 @@ export async function editInternalMessage(messageId: string, body: string) {
   return { ok: true as const };
 }
 
-export async function deleteInternalMessage(messageId: string) {
+export async function deleteInternalMessage(messageId: string, actor?: Actor) {
   // El autor elimina dentro de la ventana; el administrador o el PM del proyecto, siempre.
   const message = await prisma.internalMessage.findUnique({ where: { id: messageId }, select: { projectId: true, taskId: true } });
   if (!message) return { ok: false as const, error: "Ese comentario ya no existe." };
-  if (!(await getProjectAdmin(message.projectId))) {
-    const found = await ownMessageInWindow(messageId);
+  if (!(await getProjectAdmin(message.projectId, actor))) {
+    const found = await ownMessageInWindow(messageId, actor);
     if ("error" in found) return { ok: false as const, error: found.error };
   }
   await prisma.internalMessage.delete({ where: { id: messageId } });
