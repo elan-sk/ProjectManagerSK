@@ -12,13 +12,14 @@ import { uploadSearchDirs } from "@/lib/persistentUploads";
 // Next directamente; esta ruta atiende el resto.
 export const dynamic = "force-dynamic";
 
-// Mismos tipos que acepta la subida (uploadFile.ts) — nada ejecutable ni SVG.
+// Mismos tipos que acepta la subida (uploadFile.ts) — nada ejecutable; el SVG va con CSP sandbox.
 const MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".gif": "image/gif",
+  ".svg": "image/svg+xml",
   ".pdf": "application/pdf",
   ".doc": "application/msword",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -30,6 +31,8 @@ const MIME: Record<string, string> = {
   ".csv": "text/csv",
   ".md": "text/markdown",
 };
+
+const SVG_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 
 const notFound = () => new Response("No encontrado", { status: 404 });
 
@@ -49,6 +52,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ nam
         "Content-Length": String(info.size),
         "Cache-Control": "public, max-age=0, must-revalidate",
         "X-Content-Type-Options": "nosniff",
+        // Abierto directo, un SVG es un documento: sin scripts ni cargas externas aunque algo se colara.
+        ...(type === "image/svg+xml" && { "Content-Security-Policy": SVG_CSP }),
       },
     });
   }

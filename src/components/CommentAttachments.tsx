@@ -6,7 +6,7 @@ import { usePasteImage } from "@/lib/usePasteImage";
 
 export type PendingFile = { url: string; name: string; mimeType: string };
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf";
 
 // Adjuntar imágenes/PDF a un comentario (vista externa e interna): sube cada
 // archivo apenas se elige o pega (Ctrl+V) y deja la lista en `files` para que

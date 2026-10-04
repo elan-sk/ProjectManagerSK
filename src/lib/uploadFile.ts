@@ -7,15 +7,16 @@ import { randomUUID } from "node:crypto";
 // llega como "application/wps-office.xlsx" en vez del tipo real de Excel.
 // La extensión es más confiable que file.type entre sistemas, así que es la
 // fuente de verdad; file.type queda como respaldo para archivos sin
-// extensión reconocida. Whitelist deliberada: nada ejecutable ni SVG (el SVG
-// puede llevar <script> y se serviría desde /public sin sandboxing — vector
-// de XSS almacenado).
+// extensión reconocida. Whitelist deliberada: nada ejecutable. El SVG entra
+// solo si pasa unsafeSvgReason() y se sirve con CSP sandbox (next.config.ts y
+// /uploads/[name]), porque puede llevar <script> — vector de XSS almacenado.
 const EXTENSION_MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".gif": "image/gif",
+  ".svg": "image/svg+xml",
   ".pdf": "application/pdf",
   ".doc": "application/msword",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -34,6 +35,28 @@ const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 // next.config.ts y /uploads/[name]) y se muestra en un iframe con sandbox.
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — evidencias/capturas, no video
+
+// Rechaza (no "limpia": limpiar con regex se puede burlar) todo SVG con algo
+// capaz de ejecutar código o cargar contenido externo. Un SVG de decoración
+// exportado de Figma/Illustrator no usa nada de esto.
+const SVG_FORBIDDEN: [RegExp, string][] = [
+  [/<\s*script/i, "scripts"],
+  [/<\s*(foreignObject|iframe|embed|object|handler|listener)\b/i, "contenido incrustado"],
+  [/\son[a-z]+\s*=/i, "eventos"],
+  [/(javascript|vbscript)\s*:|data\s*:\s*text\/html/i, "enlaces con código"],
+  [/<!ENTITY/i, "entidades XML"],
+  // Solo enlaces internos (#id) o imágenes rasterizadas incrustadas; un "&#..." al inicio también cae acá.
+  [/\bhref\s*=\s*["']\s*(?!#|data:image\/(?:png|jpe?g|gif|webp);)/i, "enlaces externos"],
+  [/attributeName\s*=\s*["']\s*(?:xlink:)?href/i, "enlaces animados"],
+];
+
+/** Motivo por el que un SVG no es seguro, o null si se puede guardar. */
+export function unsafeSvgReason(buffer: Buffer): string | null {
+  if (buffer.includes(0)) return "codificación no soportada"; // UTF-16 esquivaría las reglas
+  const text = buffer.toString("utf8");
+  if (!/<svg[\s>]/i.test(text)) return "no es un SVG válido";
+  return SVG_FORBIDDEN.find(([re]) => re.test(text))?.[1] ?? null;
+}
 
 /** Tipo MIME a partir de la extensión del nombre (mismo criterio que la subida). */
 export function mimeFromFileName(name: string) {
@@ -68,6 +91,10 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
   const safeExt = isHtml ? ".html" : EXTENSION_MIME[ext] ? ext : Object.keys(EXTENSION_MIME).find((e) => EXTENSION_MIME[e] === file.type)!;
   const fileName = `${randomUUID()}${safeExt}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (safeExt === ".svg") {
+    const reason = unsafeSvgReason(buffer);
+    if (reason) return { ok: false, status: 415, error: `El SVG no se puede subir porque contiene ${reason}. Se admite solo como imagen (formas, colores, degradados).` };
+  }
   const uploadsDir = path.join(process.cwd(), "public/uploads");
   await mkdir(uploadsDir, { recursive: true });
   await writeFile(path.join(uploadsDir, fileName), buffer);

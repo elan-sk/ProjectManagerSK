@@ -28,6 +28,7 @@
     "verify:paste-image": "tsx scripts/verify-paste-image.ts",
     "verify:comments": "tsx scripts/verify-comments.ts",
     "verify:persistent-uploads": "tsx scripts/verify-persistent-uploads.ts",
+    "verify:svg-upload": "tsx scripts/verify-svg-upload.ts",
     "example:digest": "tsx scripts/example-daily-digest.mts",
     "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh"

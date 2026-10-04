@@ -18,7 +18,7 @@ import { PollFields, type TeamPoll } from "./TeamShareThread";
 import { PollFrame, TeamPollCard } from "./TeamPollCard";
 import { MediaGalleryButton } from "./MediaGalleryButton";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
 
 // Contador informativo "X/Y casillas": si el HTML subido incluye un script que cuenta sus
 // `<input type="checkbox">` y avisa con window.top.postMessage, se muestra acá al lado de su nombre.

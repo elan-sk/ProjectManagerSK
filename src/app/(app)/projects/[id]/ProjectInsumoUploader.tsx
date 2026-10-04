@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { addProjectAttachment, addProjectLink } from "./definitionActions";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
 
 // Botón de la pestaña Archivos: abre un popup para subir archivos o links
 // directo al proyecto (ProjectAttachment/ProjectLink), que ya cuentan como
