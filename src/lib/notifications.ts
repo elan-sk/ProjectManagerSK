@@ -559,11 +559,12 @@ export async function dispatchGroupAlertDigest() {
 
     const [tasks, projects] = await Promise.all([
       prisma.task.findMany({ where: { id: { in: items.flatMap((i) => (i.taskId ? [i.taskId] : [])) } }, select: { id: true, status: true } }),
-      prisma.project.findMany({ where: { id: { in: items.map((i) => i.projectId) } }, select: { id: true, name: true } }),
+      // Solo proyectos del flujo normal: lo que quedó en cola de un proyecto que después se archivó o eliminó se descarta.
+      prisma.project.findMany({ where: { id: { in: items.map((i) => i.projectId) }, ...LIVE_PROJECT_WHERE }, select: { id: true, name: true } }),
     ]);
     const statusOf = new Map(tasks.map((t) => [t.id, t.status]));
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
-    const live = items.filter((i) => !i.taskId || groupAlertStillValid(i.type, statusOf.get(i.taskId)));
+    const live = items.filter((i) => projectName.has(i.projectId) && (!i.taskId || groupAlertStillValid(i.type, statusOf.get(i.taskId))));
     const liveIds = new Set(live.map((i) => i.id));
     const obsoleteIds = items.filter((i) => !liveIds.has(i.id)).map((i) => i.id);
     if (obsoleteIds.length) await prisma.groupAlertItem.updateMany({ where: { id: { in: obsoleteIds } }, data: { sentAt: new Date() } });
