@@ -11,7 +11,7 @@ import type { TeamPoll } from "./TeamShareThread";
 
 type Step = { id: string; description: string; done: boolean; attachments: { id: string; url: string; name: string; mimeType: string }[]; poll: TeamPoll | null };
 
-function SortableStep({ step, canEdit, canAddFiles }: { step: Step; canEdit: boolean; canAddFiles: boolean }) {
+function SortableStep({ taskId, step, canEdit, canAddFiles }: { taskId: string; step: Step; canEdit: boolean; canAddFiles: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id, disabled: !canEdit });
   return (
     <div
@@ -20,6 +20,7 @@ function SortableStep({ step, canEdit, canAddFiles }: { step: Step; canEdit: boo
       className={isDragging ? "relative z-10 rounded-lg bg-white shadow-md" : undefined}
     >
       <StepCheckbox
+        taskId={taskId}
         stepId={step.id}
         description={step.description}
         done={step.done}
@@ -84,7 +85,7 @@ export function StepList({ taskId, steps, canEdit, canAddFiles }: { taskId: stri
       <DndContext id={`steps-${taskId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {items.map((s) => (
-            <SortableStep key={s.id} step={s} canEdit={canEdit} canAddFiles={canAddFiles} />
+            <SortableStep key={s.id} taskId={taskId} step={s} canEdit={canEdit} canAddFiles={canAddFiles} />
           ))}
         </SortableContext>
       </DndContext>

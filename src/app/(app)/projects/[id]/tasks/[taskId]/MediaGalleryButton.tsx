@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
 import { attachmentFileType, documentStyle, youtubeVideoId } from "@/lib/attachments";
@@ -8,20 +8,27 @@ import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, LinkIcon } from 
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { YouTubeModal } from "@/components/YouTubeModal";
-import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, type MediaItem } from "./mediaGallery";
+import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, reuseMediaForStep, type MediaItem } from "./mediaGallery";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
 // «Galería»: elegir un archivo o link ya subido en el proyecto en vez de subirlo otra vez.
 // Con `adjustmentItemId`, el elemento elegido se adjunta a ese ajuste (ej.
-// Insumos) en vez de a la tarea directamente.
-type Props =
-  | { taskId: string; userId: string; kind: AttachmentKind; adjustmentItemId?: undefined }
-  | { taskId: string; userId: string; kind: AdjustmentAttachmentKind; adjustmentItemId: string };
+// Insumos) en vez de a la tarea directamente; con `stepId`, a ese paso del checklist.
+// Con `open`/`onClose` se abre desde afuera (ej. el menú del clip de un paso) y no
+// pinta su propio botón.
+type Target =
+  | { userId: string; kind: AttachmentKind; adjustmentItemId?: undefined; stepId?: undefined }
+  | { userId: string; kind: AdjustmentAttachmentKind; adjustmentItemId: string; stepId?: undefined }
+  | { stepId: string; userId?: undefined; kind?: undefined; adjustmentItemId?: undefined };
+type Props = Target & { taskId: string; open?: boolean; onClose?: () => void };
 
 export function MediaGalleryButton(props: Props) {
-  const { taskId, userId } = props;
+  const { taskId } = props;
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = props.open !== undefined;
+  const open = controlled ? props.open! : ownOpen;
+  const setOpen = (v: boolean) => (controlled ? !v && props.onClose?.() : setOwnOpen(v));
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -29,20 +36,23 @@ export function MediaGalleryButton(props: Props) {
   // Ver antes de elegir: imagen en el lightbox, documento en el visor de la app.
   const [viewing, setViewing] = useState<MediaItem | null>(null);
 
-  async function openGallery() {
-    setOpen(true);
-    setError(null);
-    const result = await listReusableMedia(taskId);
-    if (result.ok) setItems(result.items);
-    else setError(result.error);
-  }
+  // Se recarga cada vez que se abre (puede haber archivos nuevos desde la última vez).
+  useEffect(() => {
+    if (!open) return;
+    listReusableMedia(taskId).then((result) => {
+      setError(result.ok ? null : result.error);
+      if (result.ok) setItems(result.items);
+    });
+  }, [open, taskId]);
 
   async function pick(item: MediaItem) {
     setBusy(item.url);
     setError(null);
-    const result = props.adjustmentItemId !== undefined
-      ? await reuseMediaForAdjustment(props.adjustmentItemId, props.kind, item.url, userId)
-      : await reuseMedia(taskId, props.kind, item.url, userId);
+    const result = props.stepId !== undefined
+      ? await reuseMediaForStep(props.stepId, item.url)
+      : props.adjustmentItemId !== undefined
+        ? await reuseMediaForAdjustment(props.adjustmentItemId, props.kind, item.url, props.userId)
+        : await reuseMedia(taskId, props.kind, item.url, props.userId);
     setBusy(null);
     if (!result.ok) return setError(result.error);
     setOpen(false);
@@ -55,9 +65,11 @@ export function MediaGalleryButton(props: Props) {
 
   return (
     <>
-      <button type="button" onClick={openGallery} className="flex-shrink-0 cursor-pointer rounded-lg border border-dashed border-slate-300 px-3 text-xs text-slate-500 hover:border-slate-400">
-        Galería
-      </button>
+      {!controlled && (
+        <button type="button" onClick={() => setOpen(true)} className="flex-shrink-0 cursor-pointer rounded-lg border border-dashed border-slate-300 px-3 text-xs text-slate-500 hover:border-slate-400">
+          Galería
+        </button>
+      )}
       <ModalShell open={open} onClose={() => setOpen(false)} title="Galería del proyecto">
         <div className="space-y-3">
           <p className="text-sm text-slate-500">Elegí un archivo o enlace que ya está en el proyecto: no se sube de nuevo.</p>

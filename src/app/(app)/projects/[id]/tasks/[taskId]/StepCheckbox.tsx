@@ -15,9 +15,9 @@ import type { TeamPoll } from "./TeamShareThread";
 /**
  * Un solo botón "adjuntar" al final del paso (junto a Editar/Eliminar) en vez de los dos botones
  * + Archivo / + Link permanentes de antes, que ensuciaban visualmente cada paso — despliega las
- * mismas dos opciones en un menú chico. Mismo patrón de click-afuera-cierra que InternalMessageBell.
+ * opciones en un menú chico. Mismo patrón de click-afuera-cierra que InternalMessageBell.
  */
-function StepAttachMenu({ onFile, onLink, onPoll, disabled }: { onFile: () => void; onLink: () => void; onPoll?: () => void; disabled?: boolean }) {
+function StepAttachMenu({ onFile, onPaste, onGallery, onLink, onPoll, disabled }: { onFile: () => void; onPaste: () => void; onGallery: () => void; onLink: () => void; onPoll?: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +53,12 @@ function StepAttachMenu({ onFile, onLink, onPoll, disabled }: { onFile: () => vo
           <button type="button" onClick={() => { onFile(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
             Archivo
           </button>
+          <button type="button" onClick={() => { onPaste(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
+            Pegar imagen
+          </button>
+          <button type="button" onClick={() => { onGallery(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
+            Galería
+          </button>
           <button type="button" onClick={() => { onLink(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
             Link
           </button>
@@ -68,6 +74,7 @@ function StepAttachMenu({ onFile, onLink, onPoll, disabled }: { onFile: () => vo
 }
 
 export function StepCheckbox({
+  taskId,
   stepId,
   description,
   done,
@@ -77,6 +84,7 @@ export function StepCheckbox({
   poll,
   dragHandle,
 }: {
+  taskId: string;
   stepId: string;
   description: string;
   done: boolean;
@@ -175,6 +183,8 @@ export function StepCheckbox({
                 <StepAttachMenu
                   disabled={busy}
                   onFile={() => attachRef.current?.openFilePicker()}
+                  onPaste={() => attachRef.current?.pasteFromClipboard()}
+                  onGallery={() => attachRef.current?.openGallery()}
                   onLink={() => attachRef.current?.openLinkForm()}
                   onPoll={poll ? undefined : () => attachRef.current?.openPollForm()}
                 />
@@ -189,6 +199,7 @@ export function StepCheckbox({
       </div>
       <StepAttachments
         ref={attachRef}
+        taskId={taskId}
         stepId={stepId}
         attachments={attachments}
         canEdit={canEdit}

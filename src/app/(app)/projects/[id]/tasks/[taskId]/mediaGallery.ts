@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { canEditTask } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment } from "./actions";
+import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
 export type MediaItem = { url: string; name: string; mimeType: string };
@@ -56,6 +56,23 @@ export async function reuseMediaForAdjustment(itemId: string, kind: AdjustmentAt
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
     if (item.mimeType === LINK_MIME_TYPE) await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId);
     else await addAdjustmentAttachment(itemId, kind, item, userId);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
+}
+
+// Igual que reuseMedia, pero adjunta el elemento de la galería a un paso del
+// checklist (queda como INSUMO de la tarea con su stepId, ver addStepAttachment).
+export async function reuseMediaForStep(stepId: string, url: string) {
+  try {
+    const { taskId } = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId }, select: { taskId: true } });
+    const gallery = await listReusableMedia(taskId);
+    if (!gallery.ok) return gallery;
+    const item = gallery.items.find((i) => i.url === url);
+    if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
+    if (item.mimeType === LINK_MIME_TYPE) await addStepLinkAttachment(stepId, item.url, item.name);
+    else await addStepAttachment(stepId, item);
     return { ok: true as const };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };

@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { useRouter } from "next/navigation";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { usePasteImage } from "@/lib/usePasteImage";
+import { pastedImageName, pickPastedImage } from "@/lib/pasteImage";
 import { useConfirm } from "@/components/Confirm";
 import { AttachmentPreviewModal } from "@/components/AttachmentPreviewModal";
 import { ToolbarButton } from "@/components/ToolbarButton";
@@ -15,6 +16,7 @@ import { addStepPoll, removeStepPoll } from "./shareThreadActions";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
 import { PollFields, type TeamPoll } from "./TeamShareThread";
 import { PollFrame, TeamPollCard } from "./TeamPollCard";
+import { MediaGalleryButton } from "./MediaGalleryButton";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
 
@@ -108,11 +110,18 @@ function HtmlEmbed({ file, canDelete, onDeleted }: { file: AttachmentGridItem; c
  * clicables y todo queda también como INSUMO de la tarea (ver addStepAttachment).
  */
 /** Métodos que dispara el menú "+" de StepCheckbox (al final del paso) — ver StepAttachMenu. */
-export type StepAttachmentsHandle = { openFilePicker: () => void; openLinkForm: () => void; openPollForm: () => void };
+export type StepAttachmentsHandle = {
+  openFilePicker: () => void;
+  openLinkForm: () => void;
+  openPollForm: () => void;
+  pasteFromClipboard: () => void;
+  openGallery: () => void;
+};
 
 export const StepAttachments = forwardRef<
   StepAttachmentsHandle,
   {
+    taskId: string;
     stepId: string;
     attachments: AttachmentGridItem[];
     canEdit: boolean;
@@ -122,7 +131,7 @@ export const StepAttachments = forwardRef<
     /** Corre justo al responder con éxito — StepCheckbox marca el paso solo. */
     onPollAnswered?: () => Promise<void>;
   }
->(function StepAttachments({ stepId, attachments, canEdit, canAdd, poll, onPollAnswered }, ref) {
+>(function StepAttachments({ taskId, stepId, attachments, canEdit, canAdd, poll, onPollAnswered }, ref) {
   const router = useRouter();
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +146,25 @@ export const StepAttachments = forwardRef<
   const [addingPoll, setAddingPoll] = useState(false);
   const [pollMultiple, setPollMultiple] = useState(false);
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // «Pegar imagen» del menú del clip: lee la imagen copiada sin tener que hacer Ctrl+V
+  // (que también funciona, con el mouse sobre el paso — ver usePasteImage).
+  async function pasteFromClipboard() {
+    setError(null);
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = pickPastedImage(item.types.map((t) => ({ type: t })))?.type;
+        if (!type) continue;
+        const blob = await item.getType(type);
+        return uploadFiles([new File([blob], pastedImageName(type), { type })]);
+      }
+      setError("No hay ninguna imagen copiada para pegar.");
+    } catch {
+      setError("El navegador no permitió leer la imagen copiada. También se puede pegar con Ctrl+V con el mouse sobre el paso.");
+    }
+  }
 
   async function uploadFiles(files: File[]) {
     setUploading(true);
@@ -211,6 +238,8 @@ export const StepAttachments = forwardRef<
     openFilePicker: () => inputRef.current?.click(),
     openLinkForm: () => setAddingLink(true),
     openPollForm: () => setAddingPoll(true),
+    pasteFromClipboard,
+    openGallery: () => setGalleryOpen(true),
   }));
 
   if (attachments.length === 0 && !canAdd && !poll) return null;
@@ -271,6 +300,7 @@ export const StepAttachments = forwardRef<
           }}
         />
       )}
+      {canAdd && <MediaGalleryButton taskId={taskId} stepId={stepId} open={galleryOpen} onClose={() => setGalleryOpen(false)} />}
       {canAdd && addingLink && (
         <div className="flex flex-wrap items-center gap-1.5">
           <input
