@@ -1,5 +1,5 @@
 import { unlink } from "node:fs/promises";
-import path from "node:path";
+import { findUploadPath } from "@/lib/persistentUploads";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -32,5 +32,6 @@ async function deleteIfUnreferenced(fileUrl: string) {
     prisma.reviewMessageAttachment.count({ where: { fileUrl } }),
   ]);
   if (a + pa + aa + dl + ev + msg + rma > 0) return;
-  await unlink(path.join(process.cwd(), "public", fileUrl)).catch(() => {});
+  const file = await findUploadPath(fileUrl);
+  if (file) await unlink(file).catch(() => {});
 }

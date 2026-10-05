@@ -1,5 +1,5 @@
 import { constants as fsConstants } from "node:fs";
-import { copyFile, lstat, mkdir, readdir, realpath, rename, rm, symlink } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readdir, realpath, rename, rm, stat, symlink } from "node:fs/promises";
 import path from "node:path";
 
 // Punto confirmado con el usuario (reportado con capturas: el ícono del
@@ -106,6 +106,21 @@ export async function uploadSearchDirs(cwd: string = process.cwd()): Promise<str
  */
 // Carpeta permanente fijada al arrancar (ensurePersistentUploads), para todo el proceso.
 let fixedTarget: string | null = null;
+
+/**
+ * Ruta en disco de un archivo `/uploads/<nombre>`, buscándolo igual que la ruta que los sirve
+ * (carpeta permanente primero). Nunca depende del enlace `public/uploads` de la versión, que
+ * puede faltar en pleno deploy. null si la URL no es válida o el archivo no está.
+ */
+export async function findUploadPath(fileUrl: string): Promise<string | null> {
+  const name = /^\/uploads\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(fileUrl)?.[1];
+  if (!name || name.includes("..")) return null;
+  for (const dir of await uploadSearchDirs()) {
+    const file = path.join(dir, name);
+    if ((await stat(file).catch(() => null))?.isFile()) return file;
+  }
+  return null;
+}
 
 export async function uploadWriteDir(cwd?: string): Promise<string> {
   // No depende de process.cwd(), que tira ENOENT si Hostinger ya borró la carpeta de la versión de este proceso.

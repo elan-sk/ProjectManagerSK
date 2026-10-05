@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { findUploadPath } from "@/lib/persistentUploads";
 import { prisma } from "@/lib/prisma";
 import { APP_SETTING_ID } from "@/lib/appSettings";
 
@@ -94,7 +94,8 @@ export async function getBotAvatarBuffer(): Promise<Buffer | null> {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
   if (!s?.botAvatarUrl) return null;
   try {
-    return await readFile(path.join(process.cwd(), "public", s.botAvatarUrl));
+    const file = await findUploadPath(s.botAvatarUrl);
+    return file ? await readFile(file) : null;
   } catch {
     return null;
   }

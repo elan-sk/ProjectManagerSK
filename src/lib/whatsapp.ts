@@ -1,4 +1,5 @@
 import type { WASocket } from "@whiskeysockets/baileys";
+import { findUploadPath } from "@/lib/persistentUploads";
 import { rm, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -253,7 +254,10 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
 // uploadFile.ts) → buffers listos para mandar como foto real de WhatsApp.
 async function loadImageBuffers(urls: string[]) {
   const bufs = await Promise.all(
-    urls.map((url) => readFile(path.join(process.cwd(), "public", url)).catch(() => null))
+    urls.map(async (url) => {
+      const file = await findUploadPath(url);
+      return file ? readFile(file).catch(() => null) : null;
+    })
   );
   return bufs.filter((b) => b !== null);
 }

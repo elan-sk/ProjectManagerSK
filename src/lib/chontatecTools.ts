@@ -39,8 +39,8 @@ import { addBusinessDays } from "@/lib/holidays";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { sendDailyDigestNow } from "@/lib/notifications";
 import { readFile, stat } from "node:fs/promises";
-import path from "node:path";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { findUploadPath } from "@/lib/persistentUploads";
 import { prepareFileForBot } from "@/lib/botFilePrep";
 import {
   addStep,
@@ -763,9 +763,9 @@ const MAX_READ_BYTES = 5 * 1024 * 1024;
 async function readAttachmentContent({ fileUrl, fileName, mimeType }: { fileUrl: string; fileName: string; mimeType: string }): Promise<ToolResultContent> {
   if (mimeType === LINK_MIME_TYPE) return JSON.stringify({ tipo: "enlace", nombre: fileName, url: fileUrl, nota: "Es un enlace externo; no se puede leer su contenido desde acá." });
   if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(fileUrl)) return JSON.stringify({ error: "Ruta de archivo inválida." });
-  const filePath = path.join(process.cwd(), "public", fileUrl);
-  const info = await stat(filePath).catch(() => null);
-  if (!info) return JSON.stringify({ error: "El archivo ya no existe en el servidor." });
+  const filePath = await findUploadPath(fileUrl);
+  const info = filePath ? await stat(filePath).catch(() => null) : null;
+  if (!filePath || !info) return JSON.stringify({ error: "El archivo ya no existe en el servidor." });
   if (info.size > MAX_READ_BYTES) return JSON.stringify({ error: "El archivo pesa más de 5 MB; no lo puedo leer completo." });
   // El archivo original queda intacto; solo lo que viaja al modelo se convierte/comprime.
   return prepareFileForBot(await readFile(filePath), fileName, mimeType);
@@ -1552,7 +1552,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           .object({ taskId: z.string(), kind: z.enum(["INSUMO", "RESULTADO"]).optional(), files: z.array(fileRefSchema).min(1).max(20) })
           .parse(input);
         for (const f of files) {
-          if (f.url.startsWith("/uploads/") && !(await stat(path.join(process.cwd(), "public", f.url)).catch(() => null))) {
+          if (f.url.startsWith("/uploads/") && !(await findUploadPath(f.url))) {
             return { ok: false, message: `El archivo "${f.name}" no existe en el servidor.` };
           }
         }
@@ -1567,7 +1567,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const { taskId, fileUrl, fileName, kind } = z
           .object({ taskId: z.string(), fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ruta de archivo inválida."), fileName: z.string().min(1), kind: z.enum(["INSUMO", "RESULTADO"]).optional() })
           .parse(input);
-        if (!(await stat(path.join(process.cwd(), "public", fileUrl)).catch(() => null))) return { ok: false, message: "Ese archivo no existe en el servidor." };
+        if (!(await findUploadPath(fileUrl))) return { ok: false, message: "Ese archivo no existe en el servidor." };
         await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName) }, await currentUserId());
         return { ok: true, message: "Listo, se adjuntó el archivo." };
       } catch (err) {
