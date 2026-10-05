@@ -113,14 +113,14 @@ export async function canReviewTask(taskId: string, actor?: Actor) {
  * ítem DENTRO de una plantilla/categoría ya existente sigue abierto a
  * cualquiera (no pasa por acá).
  */
-export async function isReviewerAnywhere() {
-  const session = await auth();
-  if (!session?.user) return false;
-  if (session.user.role === "ADMIN") return true;
+export async function isReviewerAnywhere(actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return false;
+  if (user.role === "ADMIN") return true;
 
   const [pmOf, reviewerOf] = await Promise.all([
-    prisma.project.findFirst({ where: { pmId: session.user.id } }),
-    prisma.taskReviewer.findFirst({ where: { userId: session.user.id } }),
+    prisma.project.findFirst({ where: { pmId: user.id } }),
+    prisma.taskReviewer.findFirst({ where: { userId: user.id } }),
   ]);
   return Boolean(pmOf || reviewerOf);
 }

@@ -367,6 +367,20 @@ export async function applyTemplateToRound(roundId: string, actor: Actor, templa
   return { ok: true as const, added: missing.length };
 }
 
+// Plantilla por defecto de una Prueba: se copia sola a la ronda 1 cuando el ejecutor
+// entrega (ver submitReviewRound). null la quita. Mismo permiso que diseñar pruebas.
+export async function setDefaultTestTemplate(taskId: string, actor: Actor, templateId: string | null) {
+  const task = await loadTask(taskId);
+  if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
+  if (task.type !== "QA") return fail(409, "Las plantillas de pruebas solo aplican a tareas de tipo Prueba.");
+  if (!(await canReviewTask(task.id, actor))) return fail(403, NO_REVIEW);
+  if (task.status === "COMPLETED") return fail(409, "La tarea ya está completada.");
+  if (templateId && !(await prisma.testTemplate.findUnique({ where: { id: templateId }, select: { id: true } }))) return fail(404, "Plantilla no encontrada.");
+  await prisma.task.update({ where: { id: task.id }, data: { defaultTestTemplateId: templateId } });
+  touch(task);
+  return { ok: true as const };
+}
+
 // Diseño completo de una Prueba o una Aceptación en un solo llamado: crea la
 // primera ronda si no existe (con sus entregables) y le carga las pruebas o
 // características. Si la ronda 1 ya existe y sigue abierta, solo agrega.

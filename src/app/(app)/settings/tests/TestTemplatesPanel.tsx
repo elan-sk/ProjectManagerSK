@@ -50,7 +50,7 @@ export function TestTemplatesPanel({ templates, isAdmin, canCreate, knownCategor
       </datalist>
       <div className="space-y-4">
         {templates.map((template) => (
-          <TemplateCard key={template.id} template={template} isAdmin={isAdmin} />
+          <TemplateCard key={template.id} template={template} isAdmin={isAdmin} canEdit={canCreate} />
         ))}
         {templates.length === 0 && <p className="text-sm text-slate-400">Sin plantillas todavía.</p>}
       </div>
@@ -80,7 +80,7 @@ export function TestTemplatesPanel({ templates, isAdmin, canCreate, knownCategor
   );
 }
 
-function TemplateCard({ template, isAdmin }: { template: Template; isAdmin: boolean }) {
+function TemplateCard({ template, isAdmin, canEdit }: { template: Template; isAdmin: boolean; canEdit: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [renaming, setRenaming] = useState(false);
@@ -131,10 +131,12 @@ function TemplateCard({ template, isAdmin }: { template: Template; isAdmin: bool
               Guardar
             </button>
           </div>
-        ) : (
+        ) : canEdit ? (
           <button type="button" onClick={() => setRenaming(true)} className="text-sm font-medium text-slate-800 hover:underline">
             {template.name}
           </button>
+        ) : (
+          <p className="text-sm font-medium text-slate-800">{template.name}</p>
         )}
         {isAdmin && (
           <button type="button" onClick={handleDeleteTemplate} className="text-xs text-slate-400 hover:text-red-600">
@@ -149,7 +151,7 @@ function TemplateCard({ template, isAdmin }: { template: Template; isAdmin: bool
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{category}</p>
             <div className="space-y-1.5">
               {items.map((item) => (
-                <ItemCard key={item.id} templateId={template.id} item={item} isAdmin={isAdmin} />
+                <ItemCard key={item.id} templateId={template.id} item={item} isAdmin={isAdmin} canEdit={canEdit} />
               ))}
             </div>
           </div>
@@ -157,18 +159,19 @@ function TemplateCard({ template, isAdmin }: { template: Template; isAdmin: bool
         {template.items.length === 0 && <p className="text-xs text-slate-400">Sin pruebas todavía.</p>}
       </div>
 
-      {adding ? (
-        <AddItemForm templateId={template.id} onDone={() => setAdding(false)} />
-      ) : (
-        <button type="button" onClick={() => setAdding(true)} className="text-xs text-slate-500 hover:text-slate-800 hover:underline">
-          + Agregar prueba
-        </button>
-      )}
+      {canEdit &&
+        (adding ? (
+          <AddItemForm templateId={template.id} onDone={() => setAdding(false)} />
+        ) : (
+          <button type="button" onClick={() => setAdding(true)} className="text-xs text-slate-500 hover:text-slate-800 hover:underline">
+            + Agregar prueba
+          </button>
+        ))}
     </div>
   );
 }
 
-function ItemCard({ templateId, item, isAdmin }: { templateId: string; item: Item; isAdmin: boolean }) {
+function ItemCard({ templateId, item, isAdmin, canEdit }: { templateId: string; item: Item; isAdmin: boolean; canEdit: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -192,9 +195,11 @@ function ItemCard({ templateId, item, isAdmin }: { templateId: string; item: Ite
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-slate-800">{item.title}</p>
         <div className="flex flex-shrink-0 items-center gap-2 opacity-0 group-hover:opacity-100">
-          <button type="button" onClick={() => setEditing(true)} className="text-xs text-slate-400 hover:text-slate-700">
-            Editar
-          </button>
+          {canEdit && (
+            <button type="button" onClick={() => setEditing(true)} className="text-xs text-slate-400 hover:text-slate-700">
+              Editar
+            </button>
+          )}
           {isAdmin && (
             <button type="button" onClick={handleDelete} className="text-xs text-slate-400 hover:text-red-600">
               Eliminar

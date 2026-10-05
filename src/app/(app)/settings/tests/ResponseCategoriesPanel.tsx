@@ -42,7 +42,7 @@ export function ResponseCategoriesPanel({ categories, isAdmin, canCreate }: { ca
       <h2 className="font-medium text-slate-900">Categorías y respuestas para quien corrige</h2>
       <div className="space-y-3">
         {categories.map((category) => (
-          <CategoryCard key={category.id} category={category} isAdmin={isAdmin} />
+          <CategoryCard key={category.id} category={category} isAdmin={isAdmin} canEdit={canCreate} />
         ))}
         {categories.length === 0 && <p className="text-sm text-slate-400">Sin categorías todavía.</p>}
       </div>
@@ -72,7 +72,7 @@ export function ResponseCategoriesPanel({ categories, isAdmin, canCreate }: { ca
   );
 }
 
-function CategoryCard({ category, isAdmin }: { category: Category; isAdmin: boolean }) {
+function CategoryCard({ category, isAdmin, canEdit }: { category: Category; isAdmin: boolean; canEdit: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [text, setText] = useState("");
@@ -139,10 +139,12 @@ function CategoryCard({ category, isAdmin }: { category: Category; isAdmin: bool
               Guardar
             </button>
           </div>
-        ) : (
+        ) : canEdit ? (
           <button type="button" onClick={() => setRenaming(true)} className="text-sm font-medium text-slate-800 hover:underline">
             {category.name}
           </button>
+        ) : (
+          <p className="text-sm font-medium text-slate-800">{category.name}</p>
         )}
         {isAdmin && (
           <button type="button" onClick={handleDeleteCategory} className="text-xs text-slate-400 hover:text-red-600">
@@ -152,27 +154,29 @@ function CategoryCard({ category, isAdmin }: { category: Category; isAdmin: bool
       </div>
       <ul className="space-y-1">
         {category.responses.map((response) => (
-          <ResponseRow key={response.id} response={response} isAdmin={isAdmin} onDelete={handleDeleteResponse} />
+          <ResponseRow key={response.id} response={response} isAdmin={isAdmin} canEdit={canEdit} onDelete={handleDeleteResponse} />
         ))}
         {category.responses.length === 0 && <p className="text-xs text-slate-400">Sin respuestas todavía.</p>}
       </ul>
-      <div className="flex gap-1.5">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddResponse()}
-          placeholder="Nueva respuesta predefinida…"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs"
-        />
-        <button
-          type="button"
-          disabled={isPending || !text.trim()}
-          onClick={handleAddResponse}
-          className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          Agregar
-        </button>
-      </div>
+      {canEdit && (
+        <div className="flex gap-1.5">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddResponse()}
+            placeholder="Nueva respuesta predefinida…"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs"
+          />
+          <button
+            type="button"
+            disabled={isPending || !text.trim()}
+            onClick={handleAddResponse}
+            className="flex-shrink-0 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            Agregar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -180,10 +184,12 @@ function CategoryCard({ category, isAdmin }: { category: Category; isAdmin: bool
 function ResponseRow({
   response,
   isAdmin,
+  canEdit,
   onDelete,
 }: {
   response: Response;
   isAdmin: boolean;
+  canEdit: boolean;
   onDelete: (id: string, text: string) => void;
 }) {
   const router = useRouter();
@@ -221,9 +227,11 @@ function ResponseRow({
     <li className="group flex items-start justify-between gap-2 text-sm text-slate-600">
       <span className="min-w-0 whitespace-pre-wrap">{response.text}</span>
       <span className="flex flex-shrink-0 items-center gap-2 opacity-0 group-hover:opacity-100">
-        <button type="button" onClick={() => setEditing(true)} className="text-xs text-slate-400 hover:text-slate-700">
-          Editar
-        </button>
+        {canEdit && (
+          <button type="button" onClick={() => setEditing(true)} className="text-xs text-slate-400 hover:text-slate-700">
+            Editar
+          </button>
+        )}
         {isAdmin && (
           <button type="button" onClick={() => onDelete(response.id, response.text)} className="text-xs text-slate-400 hover:text-red-600">
             Eliminar

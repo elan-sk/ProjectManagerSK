@@ -33,9 +33,8 @@ export default async function TestsSettingsPage() {
       <h1 className="text-2xl font-semibold text-slate-900">Pruebas</h1>
       <p className="text-sm text-slate-500">
         Plantillas de pruebas para agilizar las revisiones, y categorías de respuesta para
-        quien corrige. Cualquiera puede agregar o editar pruebas y respuestas; crear una
-        plantilla o categoría nueva es de revisores, PM o administrador; eliminar
-        definitivamente es solo del administrador.
+        quien corrige. Crearlas y editarlas es de revisores, PM o administrador;
+        eliminar definitivamente es solo del administrador.
       </p>
 
       <TestTemplatesPanel templates={templates} isAdmin={isAdmin} canCreate={canCreate} knownCategories={knownCategories} />
