@@ -12,7 +12,7 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
-import { getAgendaCounts, getPmProjectsSummary } from "@/lib/agendaSummary";
+import { getPmProjectsSummary, tallyAgendaCounts, type AgendaCounts } from "@/lib/agendaSummary";
 import { getTaskAlert, getUserPerformance, matchesRiskFilter, type TaskAlert } from "@/lib/delays";
 import { prisma } from "@/lib/prisma";
 import { getReviewPerformance } from "@/lib/reviewPerformance";
@@ -61,7 +61,7 @@ type AgendaCard = {
 // ámbar=por vencer, rojo=final retrasado, rosa=bloqueada (ALERT_STYLE.blocked),
 // azul=tareas nuevas (misma familia que ASSIGNED).
 const TILES: {
-  key: keyof Awaited<ReturnType<typeof getAgendaCounts>>;
+  key: keyof AgendaCounts;
   label: string;
   dot: string;
   text: string;
@@ -181,7 +181,7 @@ export default async function AgendaPage({
         : pmProjectIds!
       : null;
 
-  const [tasksRaw, projects, users, counts, pmSummary, myPerformance, myReviewPerf] = await Promise.all([
+  const [tasksRaw, projects, users, pmSummary, myPerformance, myReviewPerf] = await Promise.all([
     prisma.task.findMany({
       where: {
         assignees: { some: { userId: effectiveUserId } },
@@ -203,10 +203,6 @@ export default async function AgendaPage({
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    // Los tiles del dashboard siempre resumen el TOTAL de la persona, sin
-    // importar los filtros activos de la lista de abajo (mismo criterio que
-    // el resumen de salud de /projects/[id]).
-    getAgendaCounts(effectiveUserId),
     // "Mis proyectos"/"Mi rendimiento" — solo tienen sentido en tu propia
     // agenda, nunca mirando la de otra persona.
     viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user),
@@ -247,6 +243,12 @@ export default async function AgendaPage({
     })
     .filter((t) => matchesDateRange(t, from, to))
     .filter((t) => matchesTaskSearch(t, q));
+
+  // Los tiles reflejan la lista filtrada de abajo (misma regla de conteo que
+  // el resumen diario de WhatsApp, ver tallyAgendaCounts).
+  const counts = tallyAgendaCounts(
+    tasks.map((t) => ({ status: t.status, alert: t.alert, viewedAt: t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt }))
+  );
 
   const cards: AgendaCard[] = tasks.map((t) => ({
     id: t.id,

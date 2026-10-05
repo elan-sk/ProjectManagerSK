@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { visibleProjectWhere, LIVE_PROJECT_WHERE, type Actor } from "@/lib/permissions";
-import { getTaskAlert } from "@/lib/delays";
+import { getTaskAlert, type TaskAlert } from "@/lib/delays";
+import type { TaskStatus } from "@prisma/client";
 import { projectHealth } from "@/lib/projectHealth";
 import { isStartingSoon } from "@/lib/statusColors";
 
@@ -28,14 +29,25 @@ export async function getAgendaCounts(userId: string): Promise<AgendaCounts> {
     },
   });
 
+  const items = await Promise.all(
+    tasks.map(async (t) => ({ status: t.status, alert: await getTaskAlert(t.project.countryCode, t), viewedAt: t.assignees[0]?.viewedAt }))
+  );
+  return tallyAgendaCounts(items);
+}
+
+// La regla de conteo en sí, sin consulta: la Agenda la aplica sobre la lista
+// ya filtrada para que los tiles reflejen los filtros activos. Las completadas
+// nunca cuentan. viewedAt === null = asignada y nunca abierta (undefined = no
+// asignada a esa persona).
+export function tallyAgendaCounts(items: { status: TaskStatus; alert: TaskAlert; viewedAt: Date | null | undefined }[]): AgendaCounts {
   const counts: AgendaCounts = { lateStart: 0, overdue: 0, warning: 0, blocked: 0, unopened: 0 };
-  for (const t of tasks) {
-    const alert = await getTaskAlert(t.project.countryCode, t);
-    if (alert.level === "lateStart") counts.lateStart++;
-    if (alert.level === "overdue") counts.overdue++;
-    if (alert.level === "warning") counts.warning++;
+  for (const t of items) {
+    if (t.status === "COMPLETED") continue;
+    if (t.alert.level === "lateStart") counts.lateStart++;
+    if (t.alert.level === "overdue") counts.overdue++;
+    if (t.alert.level === "warning") counts.warning++;
     if (t.status === "BLOCKED") counts.blocked++;
-    if (t.assignees[0]?.viewedAt === null) counts.unopened++;
+    if (t.viewedAt === null) counts.unopened++;
   }
   return counts;
 }
