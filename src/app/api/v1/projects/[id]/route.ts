@@ -12,6 +12,9 @@ import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getProjectAdmin } from "@/lib/permissions";
 
+const FILE_SELECT = { id: true, fileUrl: true, fileName: true, mimeType: true } as const;
+const FILE_SELECT_WITH_KIND = { ...FILE_SELECT, kind: true } as const;
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
   if ("error" in auth) return auth.error;
@@ -23,8 +26,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     include: {
       pm: { select: PUBLIC_USER_SELECT },
       phases: { orderBy: { order: "asc" } },
+      // Definición completa: lo que la app muestra en la pestaña Definición.
+      objectives: { orderBy: { order: "asc" } },
+      requirements: { orderBy: { order: "asc" }, include: { objectives: { select: { id: true, title: true } } } },
+      attachments: { include: { uploadedBy: { select: { name: true } } }, orderBy: { uploadedAt: "asc" } },
+      links: { orderBy: { createdAt: "asc" } },
+      repos: { orderBy: { createdAt: "asc" } },
       tasks: {
-        include: { assignees: { include: { user: { select: PUBLIC_USER_SELECT } } } },
+        include: {
+          assignees: { include: { user: { select: PUBLIC_USER_SELECT } } },
+          // Todos los archivos de cada tarea (versión liviana): el detalle va en GET /tasks/:id, /design y /threads.
+          attachments: { select: FILE_SELECT_WITH_KIND },
+          adjustmentItems: { orderBy: { order: "asc" }, select: { id: true, description: true, attachments: { select: FILE_SELECT_WITH_KIND } } },
+          reviewRounds: {
+            orderBy: { roundNumber: "asc" },
+            select: { id: true, roundNumber: true, deliverables: { select: FILE_SELECT }, checks: { select: { id: true, title: true, evidence: { select: FILE_SELECT } } } },
+          },
+        },
       },
     },
   });

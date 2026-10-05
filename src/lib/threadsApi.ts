@@ -181,6 +181,43 @@ const shareOut = (c: ShareRow, userId: string) => ({
   poll: pollOut(c.poll, userId),
 });
 
+const INTERNAL_INCLUDE = { author: { select: { name: true } }, poll: POLL_INCLUDE, mentions: { include: { user: { select: { name: true } } } } };
+type ShareWithReplies = ShareRow & { replies: ShareRow[] };
+type InternalRow = { id: string; body: string; createdAt: Date; author: { name: string }; poll: unknown; mentions: { userId: string; user: { name: string } }[] };
+
+const shareThreadOut = (c: unknown, actor: Actor) => {
+  const row = c as ShareWithReplies;
+  return { ...shareOut(row, actor.id), replies: row.replies.map((r) => shareOut(r, actor.id)) };
+};
+const internalOut = (m: InternalRow, actor: Actor) => ({
+  id: m.id,
+  author: m.author.name,
+  text: commentPlainText(m.body),
+  // Original con las marcas [[img:url]] / [[file:url|nombre]] / [[link:…]]: `text` pierde las URLs.
+  body: m.body,
+  mentions: m.mentions.map((x) => ({ userId: x.userId, name: x.user.name })),
+  createdAt: m.createdAt.toISOString(),
+  poll: pollOut(m.poll as PollRow | null, actor.id),
+});
+
+/** Hilos de un proyecto: conversación interna y comentarios de la Definición (los ve también el cliente). */
+export async function listProjectThreads(projectId: string, actor: Actor) {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { hidden: true, pmId: true } });
+  if (!project || !canSeeProject(project, actor)) return fail(404, "El proyecto no existe.");
+  const [shared, internal] = await Promise.all([
+    prisma.shareComment.findMany({ where: { projectId, taskId: null, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),
+    prisma.internalMessage.findMany({ where: { projectId, taskId: null }, include: INTERNAL_INCLUDE, orderBy: { createdAt: "asc" } }),
+  ]);
+  return {
+    ok: true as const,
+    projectId,
+    /** Hilo de la Definición (pestaña del link compartido con el cliente). */
+    definition: shared.map((c) => shareThreadOut(c, actor)),
+    /** Conversación interna del proyecto. */
+    conversation: internal.map((m) => internalOut(m as unknown as InternalRow, actor)),
+  };
+}
+
 export async function listTaskThreads(taskId: string, actor: Actor) {
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, project: { select: { hidden: true, pmId: true } } } });
   if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
@@ -189,7 +226,7 @@ export async function listTaskThreads(taskId: string, actor: Actor) {
     prisma.shareComment.findMany({ where: { taskId, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),
     prisma.internalMessage.findMany({
       where: { taskId },
-      include: { author: { select: { name: true } }, poll: POLL_INCLUDE, mentions: { include: { user: { select: { name: true } } } } },
+      include: INTERNAL_INCLUDE,
       orderBy: { createdAt: "asc" },
     }),
     prisma.reviewMessage.findMany({
@@ -207,17 +244,8 @@ export async function listTaskThreads(taskId: string, actor: Actor) {
     }
     return out;
   };
-  const share = (c: (typeof shared)[number]) => ({ ...shareOut(c as unknown as ShareRow, actor.id), replies: c.replies.map((r) => shareOut(r as unknown as ShareRow, actor.id)) });
-  const internalOut = (m: (typeof internal)[number]) => ({
-    id: m.id,
-    author: m.author.name,
-    text: commentPlainText(m.body),
-    // Original con las marcas [[img:url]] / [[file:url|nombre]] / [[link:…]]: `text` pierde las URLs.
-    body: m.body,
-    mentions: m.mentions.map((x) => ({ userId: x.userId, name: x.user.name })),
-    createdAt: m.createdAt.toISOString(),
-    poll: pollOut(m.poll as unknown as PollRow | null, actor.id),
-  });
+  const share = (c: (typeof shared)[number]) => shareThreadOut(c, actor);
+  const internalTaskOut = (m: (typeof internal)[number]) => internalOut(m as unknown as InternalRow, actor);
   const byMap = <T, U>(g: Record<string, T[]>, f: (t: T) => U) => Object.fromEntries(Object.entries(g).map(([k, v]) => [k, v.map(f)]));
 
   return {
@@ -230,9 +258,9 @@ export async function listTaskThreads(taskId: string, actor: Actor) {
     /** Hilo de cada característica de una Aceptación (por id de la característica). */
     acceptanceChecks: byMap(group(shared, (c) => c.reviewCheckId), share),
     /** Hilo interno de cada prueba de una Prueba/QA (por id de la prueba). */
-    qaChecks: byMap(group(internal, (m) => m.reviewCheckId), internalOut),
+    qaChecks: byMap(group(internal, (m) => m.reviewCheckId), internalTaskOut),
     /** Conversación interna de la tarea. */
-    conversation: internal.filter((m) => !m.reviewCheckId).map(internalOut),
+    conversation: internal.filter((m) => !m.reviewCheckId).map(internalTaskOut),
     /** Hilo interno de cada ronda (por id de la ronda). */
     rounds: byMap(group(roundMsgs, (m) => m.reviewRoundId), (m) => ({
       id: m.id,

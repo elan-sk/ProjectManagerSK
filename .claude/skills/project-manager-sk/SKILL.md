@@ -42,7 +42,7 @@ Esta skill se comparte entre todo el equipo, así que **no hay ninguna credencia
 
 Si la persona pega un link `<BASE_URL>/api/v1/claude-link/<token>`, generado con el botón **"Conectar IA"** de la app, usalo en vez de pedir usuario/contraseña:
 
-1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y el contexto en JSON. Link de **tarea**: tres bloques, la tarea (`GET /tasks/:id`, con la cascada fase → requerimientos → objetivos), el diseño (`/design`: cambios con antes/después/**insumos** o rondas) y todos los hilos (`/threads`). Link de proyecto: `GET /projects/:id`. Las rutas `/uploads/…` vienen con el dominio completo y se abren sin sesión (también dentro de textos y marcas `[[img:…]]`).
+1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y el contexto en JSON. Link de **tarea**: tres bloques, la tarea (`GET /tasks/:id`, con la cascada fase → requerimientos → objetivos), el diseño (`/design`: cambios con antes/después/**insumos** o rondas) y todos los hilos (`/threads`). Link de proyecto: `GET /projects/:id` (con definición, adjuntos, links y los archivos de cada tarea) y sus hilos (`/projects/:id/threads`). Las rutas `/uploads/…` vienen con el dominio completo y se abren sin sesión (también dentro de textos y marcas `[[img:…]]`).
 2. El token del link **es** la credencial: usalo en `Authorization: Bearer`, con los permisos de la persona. Solo en memoria.
 3. Es reutilizable: reabrirlo trae el contexto actualizado. Vale hasta que la tarea se completa, pasan 7 días sin uso (cada uso reinicia el plazo), se desactiva desde la app o se genera otro para la misma tarea/proyecto. `410`/`401` → pedí uno nuevo.
 4. La tarea/proyecto del link es solo contexto: el token puede todo lo que la persona puede en la app.
@@ -74,7 +74,7 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
   ```json
   { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string" }
   ```
-- `GET /api/v1/projects/:id` — detalle completo: fases, tareas con asignados, más `bottlenecks` (cuellos de botella) y `delays` (atrasos por tarea, ver regla abajo).
+- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/evidencias, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella) y `delays` (atrasos por tarea, ver regla abajo).
 - `PATCH /api/v1/projects/:id` — todo lo que se edita en la app. Requiere PM/admin. Campos (todos opcionales; `null` vacía uno opcional):
   `name`, `description` (HTML), `startDate`, `targetEndDate`, `clientName`, `repoUrl`, `color`, `iconUrl` (url de `/api/upload`), `whatsappGroupJid`,
   `archived: true|false` (archivar/desarchivar: lo manda al historial o lo devuelve; PM o admin),
@@ -222,7 +222,7 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
 
 **Archivos e imágenes.** Todo campo «archivo» es `{ "url", "name", "mimeType"? }`: la `url` es la que devuelve `POST /api/upload` (multipart, campo `file`, mismo `Authorization: Bearer`; imágenes PNG/JPG/WEBP/GIF, PDF, Word, Excel, PowerPoint, TXT/CSV/MD, hasta 20 MB; sin SVG ni video; HTML solo si quien inició sesión es administrador o PM de algún proyecto, y se ve aislado en un visor con sandbox) o un link `https://…`. Cualquier otra ruta se rechaza (400). Solo se puede subir un archivo que Claude pueda leer desde donde corre (Claude Code en la computadora de la persona: `curl -F "file=@/ruta/imagen.png"`); si no, usar un link.
 
-- `GET /api/v1/tasks/:id/design` — estructura completa de una tarea Ajuste/Prueba/Aceptación: cambios (con `before`/`after`, `insumos` internos —el cliente no los ve— y calificación del cliente) o rondas (quién la envió, entregables) con sus pruebas/características, resultados, `responseCategory`, evidencias y quién calificó. Trae los ids que piden los demás endpoints. Cualquier usuario con sesión.
+- `GET /api/v1/tasks/:id/design` — estructura completa de una tarea Ajuste/Prueba/Aceptación (devuelve `items` y/o `rounds` siempre que existan, aunque a la tarea le hayan cambiado el tipo): cambios (con `before`/`after`, `insumos` internos —el cliente no los ve— y calificación del cliente) o rondas (quién la envió, entregables) con sus pruebas/características, resultados, `responseCategory`, evidencias y quién calificó. Trae los ids que piden los demás endpoints. Cualquier usuario con sesión.
 - `POST /api/v1/tasks/:id/design` — **el diseño completo en un llamado**, según el tipo de la tarea:
   - **Ajuste**: `{ "items": [{ "description": "…", "note": "?", "before": [archivo], "after": [archivo] }] }` (agrega al final).
   - **Prueba y Aceptación**: `{ "deliverables": [archivo], "templateId": "?", "checks": [{ "title": "…", "criteria": "un punto por línea", "category": "?", "evidence": [archivo] }] }`. Si la tarea no tiene ronda, la crea (con lo entregado: exige al menos un `deliverable`); si la ronda 1 sigue abierta, solo agrega. `templateId` solo en Prueba. Devuelve `roundId` y los ids de los checks.
@@ -240,6 +240,7 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
 - `POST /api/v1/projects/:id/comments` — mismo cuerpo, `scope`: `project_conversation` (conversación interna del proyecto) · `project_definition` (hilo de la Definición que ve el cliente; sin adjuntos).
 - **Pregunta**: con `poll`, el comentario pasa a ser una pregunta de selección única (`multiple: false`, radio) o múltiple (`true`, casillas) de 2 a 10 opciones, y `body` es el enunciado. Solo el equipo las publica; el cliente las responde desde su link.
 - `PATCH /api/v1/messages/:id` — `{ "body" }` edita un mensaje propio de la conversación interna (`conversation`, `qa_check`, `project_conversation`) dentro de la ventana de edición; `DELETE` lo borra (el autor en esa ventana, o PM/admin siempre). El id sale de `GET …/threads` (campo `text`).
+- `GET /api/v1/projects/:id/threads` — hilos del proyecto: `definition` (comentarios de la Definición, los ve el cliente) y `conversation` (interna; `body` con las marcas de imágenes/archivos).
 - `GET /api/v1/tasks/:id/threads` — todos los hilos de la tarea agrupados por lugar (`general`, `adjustmentItems`, `acceptanceChecks`, `qaChecks`, `rounds`, `conversation`), con las preguntas y su estadística. En `conversation` y `qaChecks`, `text` es texto plano sin URLs; las imágenes/archivos/links están en `body` como marcas `[[img:url]]`, `[[file:url|nombre]]`, `[[link:url|título]]`.
 - `GET /api/v1/polls/:id` — la pregunta con cuántas personas eligieron cada opción y quién. `POST /api/v1/polls/:id/vote` (`{ "optionIds": […] }`, con la persona que inició sesión). `PATCH /api/v1/polls/:id` (`{ "closed": true|false }`).
 - Los porcentajes son sobre las **personas que respondieron**: en selección múltiple pueden sumar más de 100 %.

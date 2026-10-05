@@ -1,5 +1,6 @@
 import { resolveClaudeLink } from "@/lib/apiAuth";
 import { GET as getProject } from "@/app/api/v1/projects/[id]/route";
+import { GET as getProjectThreads } from "@/app/api/v1/projects/[id]/threads/route";
 import { GET as getTask } from "@/app/api/v1/tasks/[id]/route";
 import { GET as getTaskDesign } from "@/app/api/v1/tasks/[id]/design/route";
 import { GET as getTaskThreads } from "@/app/api/v1/tasks/[id]/threads/route";
@@ -43,8 +44,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
       ])
     ).join("\n\n");
   } else if (link.projectId) {
-    const res = await getProject(authed, { params: Promise.resolve({ id: link.projectId }) });
-    context = await section(`Proyecto de contexto (GET /api/v1/projects/${link.projectId})`, res);
+    // Proyecto con su definición, adjuntos y links, y sus hilos. Los archivos de
+    // cada tarea se leen con GET /tasks/:id, /design y /threads de esa tarea.
+    const p = { params: Promise.resolve({ id: link.projectId }) };
+    context = (
+      await Promise.all([
+        section(`Proyecto de contexto (GET /api/v1/projects/${link.projectId})`, await getProject(authed, p)),
+        section(`Hilos y comentarios del proyecto (GET /api/v1/projects/${link.projectId}/threads)`, await getProjectThreads(authed, p)),
+      ])
+    ).join("\n\n");
   }
 
   const lifetime = link.taskId

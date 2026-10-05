@@ -57,16 +57,33 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
   const task = await loadTask(taskId);
   if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
 
-  if (task.type === "ADJUSTMENT") {
-    const items = await prisma.adjustmentItem.findMany({
+  // Cambios y rondas se devuelven siempre que existan, no solo según el tipo actual:
+  // si a la tarea le cambiaron el tipo, lo cargado antes (y sus archivos) sigue a la vista.
+  const [items, rounds] = await Promise.all([
+    prisma.adjustmentItem.findMany({
       where: { taskId },
       orderBy: { order: "asc" },
       include: { attachments: true, _count: { select: { shareComments: true } } },
-    });
-    return {
-      ok: true as const,
-      taskId,
-      type: task.type,
+    }),
+    prisma.reviewRound.findMany({
+      where: { taskId },
+      orderBy: { roundNumber: "asc" },
+      include: {
+        deliverables: true,
+        checks: {
+          orderBy: { order: "asc" },
+          include: { evidence: true, reviewedBy: { select: { name: true } }, _count: { select: { shareComments: true, internalMessages: true } } },
+        },
+        submittedBy: { select: { name: true } },
+        _count: { select: { messages: true } },
+      },
+    }),
+  ]);
+  return {
+    ok: true as const,
+    taskId,
+    type: task.type,
+    ...((task.type === "ADJUSTMENT" || items.length > 0) && {
       items: items.map((i) => ({
         id: i.id,
         order: i.order,
@@ -80,27 +97,8 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
         client: { approval: i.clientApproval, by: i.clientApprovalBy, at: i.clientApprovalAt?.toISOString() ?? null, reviewOpen: i.clientReviewOpen },
         commentsCount: i._count.shareComments,
       })),
-    };
-  }
-
-  if (task.type === "QA" || task.type === "ACCEPTANCE") {
-    const rounds = await prisma.reviewRound.findMany({
-      where: { taskId },
-      orderBy: { roundNumber: "asc" },
-      include: {
-        deliverables: true,
-        checks: {
-          orderBy: { order: "asc" },
-          include: { evidence: true, reviewedBy: { select: { name: true } }, _count: { select: { shareComments: true, internalMessages: true } } },
-        },
-        submittedBy: { select: { name: true } },
-        _count: { select: { messages: true } },
-      },
-    });
-    return {
-      ok: true as const,
-      taskId,
-      type: task.type,
+    }),
+    ...((task.type === "QA" || task.type === "ACCEPTANCE" || rounds.length > 0) && {
       rounds: rounds.map((r) => ({
         id: r.id,
         roundNumber: r.roundNumber,
@@ -126,9 +124,8 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           commentsCount: c._count.shareComments + c._count.internalMessages,
         })),
       })),
-    };
-  }
-  return { ok: true as const, taskId, type: task.type };
+    }),
+  };
 }
 
 // ---------- Ajustes ----------
