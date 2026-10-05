@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { uploadWriteDir } from "@/lib/persistentUploads";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -95,7 +96,7 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
     const reason = unsafeSvgReason(buffer);
     if (reason) return { ok: false, status: 415, error: `El SVG no se puede subir porque contiene ${reason}. Se admite solo como imagen (formas, colores, degradados).` };
   }
-  const uploadsDir = path.join(process.cwd(), "public/uploads");
+  const uploadsDir = await uploadWriteDir();
   await mkdir(uploadsDir, { recursive: true });
   await writeFile(path.join(uploadsDir, fileName), buffer);
 

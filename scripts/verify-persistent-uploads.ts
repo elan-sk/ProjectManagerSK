@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { ensurePersistentUploads } from "../src/lib/persistentUploads";
+import { ensurePersistentUploads, uploadWriteDir } from "../src/lib/persistentUploads";
 
 // Simula el servidor de Hostinger en una carpeta temporal: <sitio>/hbuilds/versions/<uuid>
 // (una carpeta por deploy) y comprueba que las imágenes de versiones anteriores
@@ -87,6 +87,13 @@ async function main() {
     await ensurePersistentUploads(hv2);
     assert.equal(await read(path.join(s2, "persistent-uploads", "viejo.png")), "V", "sobrevive al deploy");
     assert.equal(await realpath(path.join(hv2, "public/uploads")), await realpath(path.join(s2, "persistent-uploads")));
+
+    // Proceso viejo en pleno deploy: su carpeta de versión ya fue borrada y aun así guarda en la permanente
+    assert.equal(await uploadWriteDir(hv), path.join(s2, "persistent-uploads"), "guarda directo en persistent-uploads aunque la versión ya no exista");
+    // Fijada al arrancar: sin cwd (p. ej. process.cwd() ya no existe) usa la carpeta del último arranque
+    assert.equal(await uploadWriteDir(), path.join(s2, "persistent-uploads"), "no depende de process.cwd()");
+    // Dev local (sin hbuilds ni variable): sigue usando public/uploads
+    assert.equal(await uploadWriteDir("/tmp/proyecto-local"), path.join("/tmp/proyecto-local", "public", "uploads"));
     await rm(s2, { recursive: true, force: true });
 
     console.log("verify-persistent-uploads: OK");

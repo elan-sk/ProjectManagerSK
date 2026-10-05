@@ -97,6 +97,24 @@ export async function uploadSearchDirs(cwd: string = process.cwd()): Promise<str
   return dirs;
 }
 
+/**
+ * Dónde GUARDAR un archivo subido: la carpeta permanente si la hay, si no public/uploads.
+ * Directo, sin pasar por el enlace public/uploads de la versión: durante un deploy el proceso
+ * viejo sigue atendiendo pedidos mientras Hostinger borra su carpeta de versión (y con ella el
+ * enlace); escribir ahí recreaba public/uploads como carpeta común dentro de una versión que se
+ * borra después, y el archivo se perdía (2026-10-04: una captura pegada en pleno deploy).
+ */
+// Carpeta permanente fijada al arrancar (ensurePersistentUploads), para todo el proceso.
+let fixedTarget: string | null = null;
+
+export async function uploadWriteDir(cwd?: string): Promise<string> {
+  // No depende de process.cwd(), que tira ENOENT si Hostinger ya borró la carpeta de la versión de este proceso.
+  if (!cwd && fixedTarget) return fixedTarget;
+  const dir = cwd ?? process.cwd();
+  const { target } = await locate(dir);
+  return target ?? path.join(dir, "public", "uploads");
+}
+
 export async function ensurePersistentUploads(cwd: string = process.cwd()) {
   const { realCwd, siteRoot, target } = await locate(cwd);
   if (!target) {
@@ -115,6 +133,8 @@ export async function ensurePersistentUploads(cwd: string = process.cwd()) {
 
   try {
     await mkdir(target, { recursive: true });
+    // Queda fija para todo el proceso: uploadWriteDir guarda ahí aunque después se borre la carpeta de versión.
+    fixedTarget = target;
 
     const stat = await lstat(uploadsPath).catch(() => null);
     if (!stat?.isSymbolicLink()) {
