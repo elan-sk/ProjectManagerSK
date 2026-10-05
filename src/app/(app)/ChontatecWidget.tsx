@@ -139,6 +139,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [attached, setAttached] = useState<{ name: string; url: string }[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -194,6 +195,42 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     }
   }
 
+  // Varios archivos a la vez (botón, arrastrar y soltar, pegar): uno detrás de otro.
+  async function handleFiles(files: File[]) {
+    for (const file of files) await handleFile(file);
+  }
+
+  // Arrastrar y soltar o pegar (Ctrl+V) archivos en el panel: mismo camino que el botón 📎.
+  // Con una acción por confirmar no se adjunta nada (el campo de texto tampoco está).
+  const canAttach = !lastPending && !isPending;
+  const hasFiles = (types: readonly string[]) => types.includes("Files");
+  function handleDragOver(e: React.DragEvent) {
+    if (!canAttach || !hasFiles(e.dataTransfer.types)) return;
+    e.preventDefault();
+    setDragOver(true);
+  }
+  function handleDragLeave(e: React.DragEvent) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+  }
+  function handleDrop(e: React.DragEvent) {
+    if (!hasFiles(e.dataTransfer.types)) return;
+    e.preventDefault();
+    setDragOver(false);
+    if (canAttach) void handleFiles(Array.from(e.dataTransfer.files));
+  }
+  function handlePaste(e: React.ClipboardEvent) {
+    const files = Array.from(e.clipboardData.files);
+    if (!canAttach || files.length === 0) return;
+    // preventDefault también le avisa a usePasteImage (áreas de subida de la página) que ya se atendió.
+    e.preventDefault();
+    void handleFiles(files);
+  }
+
+  // Una falla del servidor se muestra en el propio chat: nunca debe tumbar la página.
+  function showSendError() {
+    setMessages((prev) => [...prev, { id: `error-${Date.now()}`, role: "system", text: "No se pudo procesar el mensaje. Intentarlo de nuevo en un momento." }]);
+  }
+
   function handleSend() {
     const typed = text.trim();
     if ((!typed && attached.length === 0) || isPending) return;
@@ -208,6 +245,9 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       try {
         const updated = await sendChontatecMessage(value, pathname);
         setMessages(updated);
+      } catch (err) {
+        console.error("[chat] no se pudo enviar el mensaje", err);
+        showSendError();
       } finally {
         setOptimisticMessage(null);
       }
@@ -216,8 +256,13 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
 
   function handleConfirm(toolUseId: string, decision: "confirm" | "decline") {
     startTransition(async () => {
-      const updated = await confirmChontatecAction(toolUseId, decision);
-      setMessages(updated);
+      try {
+        const updated = await confirmChontatecAction(toolUseId, decision);
+        setMessages(updated);
+      } catch (err) {
+        console.error("[chat] no se pudo confirmar la acción", err);
+        showSendError();
+      }
     });
   }
 
@@ -267,7 +312,18 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       </div>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-40 flex h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)]">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onPaste={handlePaste}
+          className="fixed bottom-24 right-6 z-40 flex h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)]"
+        >
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-[#0a6b78] bg-white/90 text-sm font-medium text-[#0a6b78]">
+              Soltar aquí para adjuntar
+            </div>
+          )}
           <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-2">
               <Avatar name={botName} avatarUrl={botAvatarUrl} size="h-7 w-7 text-[11px]" />
@@ -400,7 +456,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
                   📎
                 </button>
-                <input ref={fileInputRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }} />
+                <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}

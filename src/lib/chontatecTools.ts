@@ -985,7 +985,10 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
     case "read_uploaded_file": {
       const { fileUrl, fileName } = z.object({ fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/), fileName: z.string() }).parse(input);
       // Solo archivos que ESTA persona subió desde su chat (la ruta está en sus propios mensajes).
-      const mine = await prisma.botMessage.findFirst({ where: { userId, role: "user", content: { contains: fileUrl } }, select: { id: true } });
+      // Se filtra en memoria y no con `contains`: ese LIKE falla en producción por mezcla de collations.
+      // ponytail: últimos 300 mensajes propios; un archivo subido antes de eso ya no se puede leer desde el chat.
+      const ownMessages = await prisma.botMessage.findMany({ where: { userId, role: "user" }, orderBy: { createdAt: "desc" }, take: 300, select: { content: true } });
+      const mine = ownMessages.some((m) => m.content.includes(fileUrl));
       if (!mine) return JSON.stringify({ error: "Ese archivo no fue subido desde tu chat." });
       const { mimeFromFileName } = await import("@/lib/uploadFile");
       return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName) });

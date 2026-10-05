@@ -198,7 +198,8 @@ export async function removeAttachment(attachmentId: string) {
   const projectAttachment = await prisma.projectAttachment.findUnique({ where: { id: attachmentId } });
   if (!projectAttachment) {
     // Enlace del proyecto (pestaña Definición / Archivos): no tiene archivo físico.
-    const link = await prisma.projectLink.findUniqueOrThrow({ where: { id: attachmentId } });
+    const link = await prisma.projectLink.findUnique({ where: { id: attachmentId } });
+    if (!link) return; // ya se había quitado (doble clic u otra pestaña): no es un error
     await requireProjectAdmin(link.projectId);
     await prisma.projectLink.delete({ where: { id: attachmentId } });
     revalidatePath(`/projects/${link.projectId}`);
@@ -559,10 +560,11 @@ export async function addAdjustmentLinkAttachment(
 }
 
 export async function removeAdjustmentAttachment(attachmentId: string) {
-  const attachment = await prisma.adjustmentAttachment.findUniqueOrThrow({
+  const attachment = await prisma.adjustmentAttachment.findUnique({
     where: { id: attachmentId },
     include: { adjustmentItem: { include: { task: true } } },
   });
+  if (!attachment) return; // ya se había quitado (doble clic u otra pestaña): no es un error
   await requireProjectAdmin(attachment.adjustmentItem.task.projectId);
   await prisma.adjustmentAttachment.delete({ where: { id: attachmentId } });
   if (attachment.mimeType !== LINK_MIME_TYPE) {

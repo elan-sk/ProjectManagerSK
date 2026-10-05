@@ -15,13 +15,17 @@ export async function listReusableMedia(taskId: string): Promise<{ ok: true; ite
   if (!(await canEditTask(taskId))) return { ok: false, error: "No tenés permiso para editar esta tarea." };
   const { projectId } = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   const [attachments, projectAttachments, links] = await Promise.all([
-    prisma.attachment.findMany({ where: { task: { projectId } }, select: { fileUrl: true, fileName: true, mimeType: true }, orderBy: { uploadedAt: "desc" } }),
-    prisma.projectAttachment.findMany({ where: { projectId }, select: { fileUrl: true, fileName: true, mimeType: true }, orderBy: { uploadedAt: "desc" } }),
-    prisma.projectLink.findMany({ where: { projectId }, select: { url: true, title: true } }),
+    prisma.attachment.findMany({ where: { task: { projectId } }, select: { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } }),
+    prisma.projectAttachment.findMany({ where: { projectId }, select: { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } }),
+    prisma.projectLink.findMany({ where: { projectId }, select: { url: true, title: true, createdAt: true } }),
   ]);
+  // Siempre de lo más reciente a lo más antiguo, mezclando archivos y links; un archivo
+  // usado en varios lugares aparece una vez, en la posición de su uso más reciente.
+  const all = [...attachments, ...projectAttachments, ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt }))]
+    .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
   const seen = new Set<string>();
   const items: MediaItem[] = [];
-  for (const a of [...attachments, ...projectAttachments, ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE }))]) {
+  for (const a of all) {
     if (seen.has(a.fileUrl)) continue;
     seen.add(a.fileUrl);
     items.push({ url: a.fileUrl, name: a.fileName, mimeType: a.mimeType });

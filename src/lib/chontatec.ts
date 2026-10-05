@@ -202,6 +202,17 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
 // momento y sigue el loop en memoria (esos pasos no se persisten), y se
 // detiene apenas aparece texto final, un refusal, o una tool de ESCRITURA
 // (que se persiste tal cual para que el usuario la confirme desde la UI).
+// Una herramienta de lectura que falla (base de datos, archivo, dato mal armado) se le
+// informa al modelo como resultado con error: nunca tumba la petición ni el chat.
+async function safeReadTool(name: string, input: unknown) {
+  try {
+    return await runReadTool(name, input);
+  } catch (err) {
+    console.error(`[chontatec] falló la herramienta ${name}:`, err);
+    return JSON.stringify({ error: "No se pudo completar esta consulta por un error interno. Avisar a la persona y no reintentar igual." });
+  }
+}
+
 async function runConversationLoop(userId: string, pathname: string): Promise<void> {
   const apiKey = await getBotApiKey();
   if (!apiKey) return; // no debería llamarse sin key configurada, defensa en profundidad
@@ -248,7 +259,7 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
     }
 
     const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await runReadTool(t.name, t.input) });
+    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await safeReadTool(t.name, t.input) });
     messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: results }];
   }
 
@@ -310,7 +321,7 @@ export async function confirmChontatecAction(
       const result = await runWriteTool(item.name, item.input);
       resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: result.message, is_error: !result.ok });
     } else {
-      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await runReadTool(item.name, item.input) });
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await safeReadTool(item.name, item.input) });
     }
   }
   await persistRow(userId, "user", resultBlocks);
