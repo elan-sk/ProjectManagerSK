@@ -74,6 +74,8 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
         note: i.note,
         before: i.attachments.filter((a) => a.kind === "BEFORE").map(fileOut),
         after: i.attachments.filter((a) => a.kind === "AFTER").map(fileOut),
+        // Insumos internos del cambio (el cliente no los ve; el equipo y la API sí).
+        insumos: i.attachments.filter((a) => a.kind === "INSUMO").map(fileOut),
         // Calificación del cliente desde el link: solo se lee, nunca la cambia la API.
         client: { approval: i.clientApproval, by: i.clientApprovalBy, at: i.clientApprovalAt?.toISOString() ?? null, reviewOpen: i.clientReviewOpen },
         commentsCount: i._count.shareComments,
@@ -91,6 +93,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           orderBy: { order: "asc" },
           include: { evidence: true, reviewedBy: { select: { name: true } }, _count: { select: { shareComments: true, internalMessages: true } } },
         },
+        submittedBy: { select: { name: true } },
         _count: { select: { messages: true } },
       },
     });
@@ -102,6 +105,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
         id: r.id,
         roundNumber: r.roundNumber,
         outcome: r.outcome,
+        submittedBy: r.submittedBy.name,
         submittedAt: r.submittedAt.toISOString(),
         closedAt: r.closedAt?.toISOString() ?? null,
         deliverables: r.deliverables.map(fileOut),
@@ -114,6 +118,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           category: c.category,
           result: c.result,
           note: c.note,
+          responseCategory: c.responseCategory,
           evidence: c.evidence.map(fileOut),
           reviewedBy: c.reviewedBy?.name ?? null,
           // Aceptación: quién calificó desde el link (cliente sin cuenta).

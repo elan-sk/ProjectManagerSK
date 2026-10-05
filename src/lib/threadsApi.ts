@@ -212,6 +212,8 @@ export async function listTaskThreads(taskId: string, actor: Actor) {
     id: m.id,
     author: m.author.name,
     text: commentPlainText(m.body),
+    // Original con las marcas [[img:url]] / [[file:url|nombre]] / [[link:…]]: `text` pierde las URLs.
+    body: m.body,
     mentions: m.mentions.map((x) => ({ userId: x.userId, name: x.user.name })),
     createdAt: m.createdAt.toISOString(),
     poll: pollOut(m.poll as unknown as PollRow | null, actor.id),

@@ -1,6 +1,8 @@
 import { resolveClaudeLink } from "@/lib/apiAuth";
 import { GET as getProject } from "@/app/api/v1/projects/[id]/route";
 import { GET as getTask } from "@/app/api/v1/tasks/[id]/route";
+import { GET as getTaskDesign } from "@/app/api/v1/tasks/[id]/design/route";
+import { GET as getTaskThreads } from "@/app/api/v1/tasks/[id]/threads/route";
 
 // Link del botón "Conectar IA" (ver createClaudeLinkToken). Responde texto
 // para que lo lea el propio Claude: sirve tanto a un chat de claude.ai (que
@@ -24,13 +26,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   // Mismo GET de la API con este token — mismos permisos de visibilidad
   // (proyectos ocultos, etc.) que cualquier otro llamado.
   const authed = new Request(request.url, { headers: { authorization: `Bearer ${token}` } });
+  // Rutas /uploads/… absolutas: un chat web solo puede abrir links completos
+  // (los archivos se sirven sin sesión, ver app/uploads/[name]/route.ts).
+  const section = async (title: string, res: Response) =>
+    `## ${title}\n\n\`\`\`json\n${JSON.stringify(await res.json(), null, 2).replace(/(?<![\w/.-])\/uploads\//g, `${base}/uploads/`)}\n\`\`\``;
   let context = "";
   if (link.taskId) {
-    const res = await getTask(authed, { params: Promise.resolve({ id: link.taskId }) });
-    context = `## Tarea de contexto (GET /api/v1/tasks/${link.taskId})\n\n\`\`\`json\n${JSON.stringify(await res.json(), null, 2)}\n\`\`\``;
+    // Toda la tarea: datos base + insumos/evidencias, el diseño (cambios de un
+    // Ajuste con antes/después/insumos, rondas de Prueba/Aceptación) y los hilos.
+    const p = { params: Promise.resolve({ id: link.taskId }) };
+    context = (
+      await Promise.all([
+        section(`Tarea de contexto (GET /api/v1/tasks/${link.taskId})`, await getTask(authed, p)),
+        section(`Cambios, rondas y adjuntos (GET /api/v1/tasks/${link.taskId}/design)`, await getTaskDesign(authed, p)),
+        section(`Hilos y comentarios (GET /api/v1/tasks/${link.taskId}/threads)`, await getTaskThreads(authed, p)),
+      ])
+    ).join("\n\n");
   } else if (link.projectId) {
     const res = await getProject(authed, { params: Promise.resolve({ id: link.projectId }) });
-    context = `## Proyecto de contexto (GET /api/v1/projects/${link.projectId})\n\n\`\`\`json\n${JSON.stringify(await res.json(), null, 2)}\n\`\`\``;
+    context = await section(`Proyecto de contexto (GET /api/v1/projects/${link.projectId})`, res);
   }
 
   const lifetime = link.taskId

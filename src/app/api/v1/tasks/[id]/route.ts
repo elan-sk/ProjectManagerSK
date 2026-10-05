@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { getTaskDelayDays } from "@/lib/delays";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { POLL_INCLUDE } from "@/lib/threadView";
 import { canEditTask } from "@/lib/permissions";
 import { updateTaskStatus } from "@/app/(app)/projects/[id]/actions";
 import { deleteTask, updateTaskType } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
@@ -36,9 +37,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         },
       },
       assignees: { include: { user: { select: PUBLIC_USER_SELECT } } },
-      steps: true,
-      attachments: true,
+      reviewers: { include: { user: { select: PUBLIC_USER_SELECT } } },
+      steps: { orderBy: { order: "asc" }, include: { poll: POLL_INCLUDE } },
+      attachments: { include: { uploadedBy: { select: { name: true } } }, orderBy: { uploadedAt: "asc" } },
       dependsOn: { include: { predecessor: true } },
+      blocks: { include: { successor: { select: { id: true, title: true, status: true } } } },
+      taskTags: { include: { tag: { include: { category: true } } } },
     },
   });
   if (!task) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
