@@ -309,6 +309,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
@@ -366,7 +367,25 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
   }
 
   return (
-    <div data-paste-zone className="space-y-1.5 rounded-lg p-2">
+    // Todo el bloque (Antes/Después/Insumos) recibe archivos arrastrados, igual que AttachmentUploader.
+    <div
+      data-paste-zone
+      onDragOver={(e) => {
+        if (!canEdit || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+      }}
+      onDrop={async (e) => {
+        if (!canEdit) return;
+        e.preventDefault();
+        setDragOver(false);
+        for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file);
+      }}
+      className={`space-y-1.5 rounded-lg p-2 ${dragOver ? "bg-slate-50 ring-1 ring-slate-400" : ""}`}
+    >
       <p className="text-[18px] font-semibold text-slate-600">{label}</p>
       <div className="grid grid-cols-2 gap-1.5">
         {attachments.map((a) => {
@@ -432,7 +451,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
         ) : (
           <div className="flex gap-1">
             <label className="flex-1 cursor-pointer rounded-lg border border-dashed border-slate-300 py-1 text-center text-[15px] text-slate-500 hover:border-slate-400">
-              {uploading ? "…" : "+ Archivo"}
+              {uploading ? "…" : dragOver ? "Soltar el archivo aquí" : "+ Archivo"}
               <input
                 ref={inputRef}
                 type="file"

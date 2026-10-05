@@ -105,6 +105,8 @@ export function StepCheckbox({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(description);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const canDropFiles = canEdit && canAddFiles && !editing;
   const [error, setError] = useState<string | null>(null);
   // Con pregunta y todavía sin nadie que responda: el paso no se puede marcar a mano — se marca
   // solo apenas alguien vota (ver onPollAnswered), como pidió el usuario.
@@ -155,7 +157,27 @@ export function StepCheckbox({
   return (
     // data-paste-zone en TODO el paso (no solo en el bloque de archivos): Ctrl+V con una captura
     // funciona con el mouse en cualquier parte del paso, no solo sobre los botones + Archivo/+ Link.
-    <div data-paste-zone className="space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5" style={{ borderLeftColor: accentColor }}>
+    // Lo mismo para arrastrar un archivo: se suelta en cualquier parte del paso (igual que en Ajustes).
+    <div
+      data-paste-zone
+      onDragOver={(e) => {
+        if (!canDropFiles || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (!canDropFiles) return;
+        e.preventDefault();
+        setDragOver(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) attachRef.current?.uploadFiles(files);
+      }}
+      className={`space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5 ${dragOver ? "bg-slate-50 ring-1 ring-slate-400" : ""}`}
+      style={{ borderLeftColor: accentColor }}
+    >
       <div className={`flex items-center gap-2 text-sm text-slate-700 ${canEdit ? "" : "cursor-default"}`}>
         {dragHandle}
         <input

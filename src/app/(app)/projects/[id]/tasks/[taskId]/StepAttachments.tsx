@@ -116,6 +116,7 @@ export type StepAttachmentsHandle = {
   openPollForm: () => void;
   pasteFromClipboard: () => void;
   openGallery: () => void;
+  uploadFiles: (files: File[]) => void;
 };
 
 export const StepAttachments = forwardRef<
@@ -240,6 +241,7 @@ export const StepAttachments = forwardRef<
     openPollForm: () => setAddingPoll(true),
     pasteFromClipboard,
     openGallery: () => setGalleryOpen(true),
+    uploadFiles,
   }));
 
   if (attachments.length === 0 && !canAdd && !poll) return null;
