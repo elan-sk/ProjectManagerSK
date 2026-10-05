@@ -754,8 +754,8 @@ export default async function ProjectPage({
                 label: TASK_STATUS_LABEL[s],
                 dotColorClass: TASK_STATUS_COLOR[s].dot,
               })),
-              // Solo Admin/PM de este proyecto: ver las tareas completadas que se archivaron.
-              ...(canManage ? [{ id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500" }] : []),
+              // Ver las tareas archivadas es para todos; desarchivar sigue siendo solo de Admin/PM.
+              { id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500" },
             ]}
             paramKey="status"
             basePath={`/projects/${project.id}`}
@@ -850,6 +850,19 @@ export default async function ProjectPage({
           </div>
         )}
       </MobileFiltersToggle>
+      )}
+
+      {/* Las archivadas no salen en Tablero/Gantt/Calendario: sin este aviso, un proyecto con
+          todas sus tareas archivadas se ve vacío como si no tuviera ninguna. */}
+      {!archivedView && archivedCount > 0 && (!view || view === "kanban" || view === "gantt" || view === "calendar") && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>
+            {archivedCount === 1 ? "Hay 1 tarea archivada" : `Hay ${archivedCount} tareas archivadas`} en este proyecto.
+          </span>
+          <Link href={filterHref({ status: "ARCHIVED", archived: undefined })} className="font-medium underline underline-offset-2 hover:text-amber-950">
+            Ver archivadas
+          </Link>
+        </div>
       )}
 
       {view === "calendar" && (
