@@ -7,7 +7,7 @@ import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createCalendarEvent } from "@/lib/googleCalendar";
-import { requireProjectAdmin, canEditTask, getActingUser, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, getActingUser, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { fetchPageTitle } from "@/lib/pageTitle";
@@ -294,7 +294,8 @@ export async function setTaskAssignees(taskId: string, formData: FormData, actor
   // Un asignado no puede ser también revisor de la misma tarea (Prueba) —
   // mismo criterio que setTaskReviewers, del otro lado.
   const reviewerIds = task.reviewers.map((r) => r.userId);
-  if (assigneeIds.some((id) => reviewerIds.includes(id))) {
+  // Excepción: proyecto de una sola persona (ver allowsSelfReview).
+  if (assigneeIds.some((id) => reviewerIds.includes(id)) && !(await allowsSelfReview(task.projectId, [...assigneeIds, ...reviewerIds]))) {
     return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
   }
   const currentIds = task.assignees.map((a) => a.userId);

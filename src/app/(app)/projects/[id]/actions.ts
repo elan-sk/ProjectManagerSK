@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
-import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
@@ -166,7 +166,12 @@ export async function addTask(projectId: string, formData: FormData) {
 
   // Un asignado no puede ser también revisor de la misma tarea (Prueba) —
   // se pierde el sentido de la revisión si alguien se corrige a sí mismo.
-  if (data.type === "QA" && data.reviewerIds.some((id) => data.assigneeIds.includes(id))) {
+  // Excepción: proyecto de una sola persona (ver allowsSelfReview).
+  if (
+    data.type === "QA" &&
+    data.reviewerIds.some((id) => data.assigneeIds.includes(id)) &&
+    !(await allowsSelfReview(projectId, [...data.assigneeIds, ...data.reviewerIds]))
+  ) {
     return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
   }
 

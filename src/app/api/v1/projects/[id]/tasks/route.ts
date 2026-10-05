@@ -6,7 +6,7 @@ import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { addBusinessDays } from "@/lib/holidays";
 import { notifyAssignment } from "@/lib/notifications";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { getProjectAdmin } from "@/lib/permissions";
+import { allowsSelfReview, getProjectAdmin } from "@/lib/permissions";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
@@ -66,8 +66,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const data = parsed.data;
 
   // Un asignado no puede ser también revisor de la misma tarea (mismo
-  // criterio que la app web — ver addTask).
-  if (data.type === "QA" && data.reviewerIds.some((id) => data.assigneeIds.includes(id))) {
+  // criterio que la app web — ver addTask, incluida la excepción de allowsSelfReview).
+  if (
+    data.type === "QA" &&
+    data.reviewerIds.some((id) => data.assigneeIds.includes(id)) &&
+    !(await allowsSelfReview(projectId, [...data.assigneeIds, ...data.reviewerIds]))
+  ) {
     return NextResponse.json({ error: "Un asignado a la tarea no puede ser también su revisor." }, { status: 409 });
   }
 

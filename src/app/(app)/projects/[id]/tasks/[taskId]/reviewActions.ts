@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, type Actor } from "@/lib/permissions";
+import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
@@ -43,7 +43,8 @@ export async function setTaskReviewers(taskId: string, formData: FormData, actor
   // tarea no puede ser también su revisor — se pierde el sentido de la
   // revisión si alguien se corrige a sí mismo.
   const assigneeIds = task.assignees.map((a) => a.userId);
-  if (reviewerIds.some((id) => assigneeIds.includes(id))) {
+  // Excepción: proyecto de una sola persona (ver allowsSelfReview).
+  if (reviewerIds.some((id) => assigneeIds.includes(id)) && !(await allowsSelfReview(task.projectId, [...assigneeIds, ...reviewerIds]))) {
     return { ok: false as const, error: "Un asignado a la tarea no puede ser también su revisor." };
   }
 

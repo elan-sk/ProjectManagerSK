@@ -161,6 +161,27 @@ export async function canParticipateInProject(projectId: string, taskId?: string
   return Boolean(member);
 }
 
+/**
+ * Excepción a "un asignado no puede ser su propio revisor": en un proyecto con
+ * una sola persona con acceso no hay nadie más que revise. Vale si el proyecto
+ * es oculto (solo lo ve su PM) o si su PM es la única persona en él: ninguna
+ * tarea tiene otro asignado/revisor y `userIds` (la asignación nueva) tampoco.
+ */
+export async function allowsSelfReview(projectId: string, userIds: string[]) {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { hidden: true, pmId: true } });
+  if (!project) return false;
+  if (project.hidden) return true;
+  if (userIds.some((id) => id !== project.pmId)) return false;
+  const other = await prisma.task.findFirst({
+    where: {
+      projectId,
+      OR: [{ assignees: { some: { userId: { not: project.pmId } } } }, { reviewers: { some: { userId: { not: project.pmId } } } }],
+    },
+    select: { id: true },
+  });
+  return !other;
+}
+
 /** Quién actúa, con nombre para firmar lo que escriba: la sesión del navegador o el usuario de la API. */
 export async function getActingUser(actor?: Actor) {
   const user = await resolveActor(actor);
