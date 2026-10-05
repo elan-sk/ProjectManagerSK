@@ -296,31 +296,20 @@ export default async function AgendaPage({
     return `/agenda?${p.toString()}`;
   }
 
-  // Los indicadores superiores son accesos directos, no filtros que se
-  // acumulen: al elegir uno se empieza desde una Agenda limpia y queda una
-  // única condición activa. Si se pulsa el que ya estaba activo, se vuelve a
-  // la Agenda sin filtros.
-  function tileHref(tile: (typeof TILES)[number], active: boolean) {
-    if (active) return "/agenda";
-    const p = new URLSearchParams();
-    for (const [key, value] of Object.entries(tile.overrides(false))) {
-      if (value) p.set(key, value);
-    }
-    return `/agenda?${p.toString()}`;
-  }
-
   return (
     <div className="space-y-4">
       <RememberViewState storageKey="lastAgendaView" />
       <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {/* Cada indicador solo activa/quita su propia condición y respeta los
+            demás filtros activos (proyecto, persona, fechas, búsqueda…). */}
         {TILES.map((tile) => {
           const active = tile.isActive({ status, risk, type });
           return (
             <Link
               key={tile.key}
-              href={tileHref(tile, active)}
+              href={agendaHref(tile.overrides(active))}
               className={`flex flex-col gap-1 rounded-xl border-2 px-3 py-2.5 transition hover:shadow-sm ${tile.border} ${
                 active ? tile.activeBg : "bg-white"
               }`}
