@@ -66,7 +66,7 @@ Todas las personas que suben archivos o links: equipo (miembros, revisores, PM, 
 
 ## Fuera de alcance
 - Detectar archivos «parecidos» (la misma imagen redimensionada, el mismo documento en otro formato).
-- Normalizar links más allá de quitar espacios (por ejemplo, `http` vs `https`, barra final, parámetros).
+- ~~Normalizar links más allá de quitar espacios (por ejemplo, `http` vs `https`, barra final, parámetros).~~ (pasó a alcance el 2026-10-06, ver «Cambios»)
 - Cambiar quién puede ver, subir o quitar archivos.
 - Una pantalla para revisar o deshacer la unificación (se revierte con el respaldo de la base y la carpeta de respaldo).
 
@@ -90,6 +90,10 @@ Todas las personas que suben archivos o links: equipo (miembros, revisores, PM, 
 - Unificación en producción → una sola vez durante el deploy (sin vista previa); por eso se hace repetible, sin borrar copias, y se pide respaldo de la base antes del deploy.
 - Nombre cuando difiere → el de la primera carga, y el propio en cada «usado en» (asumido, se puede cambiar).
 - Error de borrado en producción → se arregla dentro de este cambio porque protege a los archivos compartidos.
+
+## Cambios
+- 2026-10-06 — Links: dos links son el mismo si su dirección es la misma ignorando espacios, http/https, «www.», mayúsculas del dominio, barra final y #ancla; un video de YouTube es el mismo en cualquiera de sus formatos. Los parámetros (?a=1) sí distinguen. Aplica a la vista Archivos, la galería, el aviso «ya está cargado aquí» y la API (pedido del usuario: «si la URL es la misma es un mismo link independientemente del nombre»).
+- 2026-10-06 — Vista Archivos en masonry de dos columnas (izquierda: links compartidos + imágenes; derecha: links + documentos), sin huecos entre bloques.
 
 ## Dudas abiertas
 Ninguna.

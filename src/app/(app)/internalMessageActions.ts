@@ -1,5 +1,6 @@
 "use server";
 
+import { inSection } from "@/lib/attachmentDedup";
 import { auth } from "@/auth";
 import { getActingUser, getProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -25,19 +26,16 @@ async function allowed(projectId: string, taskId?: string | null, actor?: Actor)
 // Los archivos, imágenes y enlaces de un comentario también quedan como
 // Insumos de la tarea (o como archivos/enlaces del proyecto, si el comentario
 // es del proyecto) — así aparecen en la pestaña de archivos y en su filtro.
-// Sin duplicar: si esa ruta ya está registrada, no se vuelve a crear.
+// Sin duplicar: si ya está en esa sección (mismo archivo o mismo link, ver linkKey), no se vuelve a crear.
 async function syncCommentAttachments(projectId: string, taskId: string | null, uploadedById: string, body: string) {
   for (const a of commentAttachments(body)) {
     const mimeType = a.kind === "link" ? LINK_MIME_TYPE : mimeFromFileName(a.name || a.url);
     if (taskId) {
-      const exists = await prisma.attachment.findFirst({ where: { taskId, fileUrl: a.url }, select: { id: true } });
-      if (!exists) await prisma.attachment.create({ data: { taskId, kind: "INSUMO", fileUrl: a.url, fileName: a.name, mimeType, uploadedById } });
+      if (!(await inSection({ taskId, kind: "INSUMO" }, a.url))) await prisma.attachment.create({ data: { taskId, kind: "INSUMO", fileUrl: a.url, fileName: a.name, mimeType, uploadedById } });
     } else if (a.kind === "link") {
-      const exists = await prisma.projectLink.findFirst({ where: { projectId, url: a.url }, select: { id: true } });
-      if (!exists) await prisma.projectLink.create({ data: { projectId, title: a.name, url: a.url } });
+      if (!(await inSection({ projectId, links: true }, a.url))) await prisma.projectLink.create({ data: { projectId, title: a.name, url: a.url } });
     } else {
-      const exists = await prisma.projectAttachment.findFirst({ where: { projectId, fileUrl: a.url }, select: { id: true } });
-      if (!exists) await prisma.projectAttachment.create({ data: { projectId, fileUrl: a.url, fileName: a.name, mimeType, uploadedById } });
+      if (!(await inSection({ projectId }, a.url))) await prisma.projectAttachment.create({ data: { projectId, fileUrl: a.url, fileName: a.name, mimeType, uploadedById } });
     }
   }
 }

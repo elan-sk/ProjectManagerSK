@@ -33,6 +33,28 @@ export function youtubeVideoId(url: string): string | null {
   }
 }
 
+/**
+ * Spec 001: clave para saber si dos links son el mismo, sin importar el nombre
+ * que les puso cada persona. Ignora espacios, http/https, «www.», mayúsculas
+ * del dominio, la barra final y el #ancla; un video de YouTube es el mismo con
+ * cualquiera de sus formatos (youtu.be, watch?v=, shorts…). Un archivo subido
+ * (/uploads/…) ya es único por contenido: se compara tal cual.
+ */
+export function linkKey(url: string): string {
+  const raw = url.trim();
+  if (raw.startsWith("/uploads/")) return raw;
+  const video = youtubeVideoId(raw);
+  if (video) return `youtube:${video}`;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    const path = u.pathname.replace(/\/+$/, "");
+    return `${host}${path}${u.search}`;
+  } catch {
+    return raw;
+  }
+}
+
 export function linkHostname(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");

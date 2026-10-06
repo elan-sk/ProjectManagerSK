@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
-import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import { setDefaultTestTemplate } from "@/lib/taskDesign";
@@ -157,8 +157,8 @@ export async function submitReviewRound(
     // es un ítem realmente nuevo.
     const seenUrls = new Set<string>();
     for (const d of parsed.data) {
-      if (seenUrls.has(d.url.trim())) continue; // el mismo archivo dos veces en un envío va una sola vez
-      seenUrls.add(d.url.trim());
+      if (seenUrls.has(linkKey(d.url))) continue; // el mismo archivo dos veces en un envío va una sola vez
+      seenUrls.add(linkKey(d.url));
       if (d.id && reusableDeliverableIds.has(d.id)) {
         await tx.reviewDeliverable.update({
           where: { id: d.id },

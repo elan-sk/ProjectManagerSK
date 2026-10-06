@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { canEditTask } from "@/lib/permissions";
-import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
@@ -32,8 +32,8 @@ export async function listReusableMedia(taskId: string): Promise<{ ok: true; ite
   const seen = new Set<string>();
   const items: MediaItem[] = [];
   for (const a of all) {
-    if (seen.has(a.fileUrl)) continue;
-    seen.add(a.fileUrl);
+    if (seen.has(linkKey(a.fileUrl))) continue;
+    seen.add(linkKey(a.fileUrl));
     items.push({ url: a.fileUrl, name: a.fileName, mimeType: a.mimeType });
   }
   return { ok: true, items };

@@ -1,4 +1,4 @@
-import { attachmentFileType, type AttachmentFileType } from "@/lib/attachments";
+import { attachmentFileType, linkKey, type AttachmentFileType } from "@/lib/attachments";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
 import { SharedLinkTiles, type SharedLinkItem } from "@/components/SharedLinkTiles";
 
@@ -10,11 +10,11 @@ const SECTIONS: { type: AttachmentFileType; title: string }[] = [
   { type: "document", title: "Documentos" },
 ];
 
-// Pantalla grande, en dos filas (pedido del usuario):
-//  1. Links: los compartidos a la izquierda y los externos a la derecha.
-//  2. Archivos: Imágenes a la izquierda y Documentos a la derecha.
-// En cada fila, si hay solo uno de los dos, ocupa la fila entera. En pantallas
-// chicas, todo apilado.
+// Pantalla grande, masonry de dos columnas (pedido del usuario: sin huecos):
+// cada columna se apila sola, sin esperar a la otra.
+//  - Izquierda: los links compartidos y debajo las Imágenes.
+//  - Derecha: los links externos y debajo los Documentos.
+// Si una columna queda vacía, la otra ocupa todo el ancho. En pantallas chicas, apilado.
 const HALF_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-3";
 
 export function AttachmentSections({
@@ -49,23 +49,36 @@ export function AttachmentSections({
   const links = groupOf("link");
   const images = groupOf("image");
   const documents = groupOf("document");
-  const linksHalf = sharedLinks.length > 0 && links !== null;
-  const filesHalf = images !== null && documents !== null;
+  const hasShared = sharedLinks.length > 0;
+  const leftHas = hasShared || images !== null;
+  const rightHas = links !== null || documents !== null;
+  const split = leftHas && rightHas;
 
+  const left = (
+    <>
+      {hasShared && <SharedLinkTiles links={sharedLinks} singleColumn={split} />}
+      {images && renderSection(images, split)}
+    </>
+  );
+  const right = (
+    <>
+      {links && renderSection(links, split)}
+      {documents && renderSection(documents, split)}
+    </>
+  );
+
+  if (!split) {
+    return (
+      <div className="space-y-6">
+        {left}
+        {right}
+      </div>
+    );
+  }
   return (
-    <div className="space-y-6">
-      {(sharedLinks.length > 0 || links) && (
-        <div className={`grid grid-cols-1 gap-6 ${linksHalf ? "lg:grid-cols-2" : ""}`}>
-          {sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} singleColumn={linksHalf} />}
-          {links && renderSection(links, linksHalf)}
-        </div>
-      )}
-      {(images || documents) && (
-        <div className={`grid grid-cols-1 gap-6 ${filesHalf ? "lg:grid-cols-2" : ""}`}>
-          {images && renderSection(images, filesHalf)}
-          {documents && renderSection(documents, filesHalf)}
-        </div>
-      )}
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+      <div className="space-y-6">{left}</div>
+      <div className="space-y-6">{right}</div>
     </div>
   );
 }
@@ -73,7 +86,7 @@ export function AttachmentSections({
 function groupByUrl(items: AttachmentGridItem[]): AttachmentGridItem[] {
   const byUrl = new Map<string, AttachmentGridItem & { usedIn: { href: string; title: string }[] }>();
   for (const item of items) {
-    const key = item.url.trim();
+    const key = linkKey(item.url); // mismo link aunque cambie el nombre o un detalle de la dirección
     const existing = byUrl.get(key);
     if (!existing) {
       byUrl.set(key, { ...item, usedIn: item.taskLink ? [item.taskLink] : [] });

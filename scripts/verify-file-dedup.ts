@@ -4,6 +4,7 @@ import { contentFileName, isContentFileName, normalizeExt } from "../src/lib/upl
 import { inSection, splitNew } from "../src/lib/attachmentDedup";
 import { EXACT_REFS, TEXT_REFS, countFileReferences, table } from "../src/lib/fileReferences";
 import { alreadyLoadedMessage } from "../src/lib/duplicateNotice";
+import { linkKey } from "../src/lib/attachments";
 
 // Spec 001 — archivos sin duplicados. Parte pura + datos temporales en la base local
 // (los crea y los borra).
@@ -16,6 +17,12 @@ async function main() {
   assert.equal(normalizeExt(".htm"), ".html");
   assert.ok(isContentFileName(contentFileName(a, ".pdf")));
   assert.ok(!isContentFileName("3f2a1b9c-1111-2222-3333-444455556666.pdf"), "un nombre viejo (uuid) no es por contenido");
+
+  // Links: el mismo link aunque cambie el nombre o un detalle de la dirección.
+  assert.equal(linkKey("https://www.youtube.com/watch?v=3CcEbFkmSKQ"), linkKey("https://youtu.be/3CcEbFkmSKQ"), "YouTube en sus dos formatos");
+  assert.equal(linkKey("http://Example.com/a/"), linkKey(" https://www.example.com/a#seccion "), "http/https, www, mayúsculas, barra final, ancla y espacios");
+  assert.notEqual(linkKey("https://example.com/a?b=1"), linkKey("https://example.com/a?b=2"), "otra consulta es otro link");
+  assert.notEqual(linkKey("https://example.com/a"), linkKey("https://example.com/b"), "otra página es otro link");
 
   // RF-3: textos del aviso.
   assert.equal(alreadyLoadedMessage(["a.pdf"]), "Este archivo ya está cargado aquí.");
@@ -49,6 +56,10 @@ async function main() {
     ]);
     assert.deepEqual(split.fresh.map((f) => f.name), ["nuevo.png"]);
     assert.deepEqual(split.skipped, ["a.png", "nuevo-otra-vez.png"], "lo de la sección y lo repetido en la misma carga");
+
+    // El mismo link con otra forma ya está en la sección.
+    await prisma.attachment.create({ data: { taskId: task.id, kind: "INSUMO", fileUrl: "https://www.example.com/doc/", fileName: "Doc", mimeType: "text/uri-list" } });
+    assert.equal(await inSection({ taskId: task.id, kind: "INSUMO" }, "http://example.com/doc"), true, "link igual con otra forma");
 
     // RF-9: cuentan el adjunto, el ícono del proyecto y la imagen dentro de una descripción.
     await prisma.project.update({ where: { id: project.id }, data: { iconUrl: urlIcon } });

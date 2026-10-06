@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { linkKey } from "@/lib/attachments";
 import { projectVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -43,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   // Spec 001: el mismo link ya está en el proyecto → no se repite (se devuelve el existente).
-  const existing = await prisma.projectLink.findFirst({ where: { projectId, url: parsed.data.url.trim() } });
+  const existing = (await prisma.projectLink.findMany({ where: { projectId } })).find((l) => linkKey(l.url) === linkKey(parsed.data.url));
   if (existing) return NextResponse.json({ ...existing, skipped: true }, { status: 200 });
   const link = await prisma.projectLink.create({ data: { projectId, title: parsed.data.title, url: parsed.data.url } });
   return NextResponse.json(link, { status: 201 });

@@ -7,6 +7,7 @@ import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { createShareLink, getActiveShareLink, revokeShareLink } from "@/lib/shareLinks";
 import { splitNew } from "@/lib/attachmentDedup";
+import { linkKey } from "@/lib/attachments";
 import { submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
 import { submitAcceptanceRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/acceptanceActions";
 
@@ -158,8 +159,8 @@ export async function addAdjustmentItems(taskId: string, actor: Actor, items: Ad
       const seen = new Set<string>();
       for (const { kind, f } of files) {
         const file = toFile(f);
-        if (seen.has(`${kind}|${file.url.trim()}`)) continue; // mismo archivo dos veces en el mismo lado: una sola
-        seen.add(`${kind}|${file.url.trim()}`);
+        if (seen.has(`${kind}|${linkKey(file.url)}`)) continue; // mismo archivo dos veces en el mismo lado: una sola
+        seen.add(`${kind}|${linkKey(file.url)}`);
         await tx.adjustmentAttachment.create({
           data: { adjustmentItemId: row.id, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id },
         });
@@ -526,5 +527,5 @@ export async function revokeShare(target: { taskId?: string; projectId?: string 
 // Spec 001: el mismo archivo dos veces en una misma carga va una sola vez.
 function uniqueByUrl<T extends { url: string }>(files: T[]): T[] {
   const seen = new Set<string>();
-  return files.filter((f) => !seen.has(f.url.trim()) && seen.add(f.url.trim()));
+  return files.filter((f) => !seen.has(linkKey(f.url)) && seen.add(linkKey(f.url)));
 }
