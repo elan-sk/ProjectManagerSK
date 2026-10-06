@@ -23,8 +23,10 @@ export function ResetFiltersButton({ href, count, aligned = true }: { href: stri
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h18l-7 8.5V20l-4-2v-4.5L3 5z" />
-          {/* X sobre el embudo, más gruesa para que se lea «quitar». */}
-          <path strokeLinecap="round" strokeWidth={2.6} d="M16.5 2.5l5 5M21.5 2.5l-5 5" />
+          {/* X roja sobre el embudo (pedido del usuario), con un borde blanco por
+              detrás para que no se pierda contra el fondo baya. */}
+          <path stroke="#ffffff" strokeLinecap="round" strokeWidth={4.6} d="M16.5 2.5l5 5M21.5 2.5l-5 5" />
+          <path stroke="#ef4444" strokeLinecap="round" strokeWidth={2.6} d="M16.5 2.5l5 5M21.5 2.5l-5 5" />
         </svg>
         {/* Cantidad de filtros aplicados, como contador de notificación. */}
         <span
