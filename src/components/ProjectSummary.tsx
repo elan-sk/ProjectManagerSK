@@ -2,7 +2,7 @@ import { ProjectAlertLink } from "@/app/(app)/ProjectAlertLink";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL, HEALTH_STYLE } from "@/lib/projectHealth";
 import type { getBottlenecks } from "@/lib/delays";
-import { scheduleVarianceExact, scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
+import { projectStatus, scheduleVarianceExact, scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
 
 // Mismo resumen que la tarjeta de /projects (salud, progreso, cuellos de
 // botella) — separado en dos piezas para poder acomodarlas en distintos
@@ -52,15 +52,15 @@ export function ProjectHealthBadges({
           badge propio, independiente de los conteos de abajo: da el "cómo
           voy" de un vistazo sin tener que abrir Rendimiento ni sumar los
           conteos de alertas a mano. */}
-      {/* Salud + cronograma en un solo badge (pedido del usuario): «Muy retrasado · 1 semana
-          de retraso». Rojo si el cronograma va con retraso, aunque la salud diga «Bien».
-          Sin fecha de cierre queda la salud sola, con la holgura CPM de siempre. */}
+      {/* Un solo badge de estado (pedido del usuario): con fecha de cierre manda el
+          cronograma («Retrasado 1 semana», «A tiempo», «Holgura de 2 meses»); las tareas
+          vencidas siguen en su propio badge. Sin fecha de cierre, la salud de siempre. */}
       {scheduleVarianceDays !== null ? (
         <span
           title={scheduleVarianceExact(scheduleVarianceDays)}
-          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${scheduleVarianceDays < 0 ? HEALTH_STYLE.bad : HEALTH_STYLE[health]}`}
+          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE[projectStatus(health, scheduleVarianceDays).tone]}`}
         >
-          {HEALTH_LABEL[health]} · {scheduleVarianceText(scheduleVarianceDays)}
+          {projectStatus(health, scheduleVarianceDays).label}
         </span>
       ) : (
         <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE[health]}`}>

@@ -14,7 +14,7 @@ import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { CreateProjectForm } from "./CreateProjectForm";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
-import { matchesScheduleFilter } from "@/lib/scheduleVarianceLabel";
+import { projectStatus } from "@/lib/scheduleVarianceLabel";
 
 // La "vista resumen" de /projects (card de proyecto con salud/progreso/
 // alertas + el filtro Buscar/Alerta + el orden "recientes") — extraída para
@@ -27,7 +27,6 @@ export async function ProjectSummaryGrid({
   basePath,
   pid,
   health,
-  schedule,
   currentParams,
   users,
   projectShareTokenById = new Map(),
@@ -37,7 +36,6 @@ export async function ProjectSummaryGrid({
   basePath: string;
   pid?: string;
   health?: "ok" | "warn" | "bad";
-  schedule?: string;
   currentParams: Record<string, string | undefined>;
   users: { id: string; name: string }[];
   projectShareTokenById?: Map<string, string>;
@@ -45,7 +43,7 @@ export async function ProjectSummaryGrid({
 }) {
   function href(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { ...currentParams, pid, health, schedule, ...overrides };
+    const merged: Record<string, string | undefined> = { ...currentParams, pid, health, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
     }
@@ -54,8 +52,8 @@ export async function ProjectSummaryGrid({
   }
 
   const visibleRows = rows
-    .filter(({ summary }) => !health || summary.health === health)
-    .filter(({ summary }) => matchesScheduleFilter(summary.scheduleVarianceDays, schedule))
+    // Filtra por lo que dice el badge: con fecha de cierre, el cronograma; sin ella, la salud.
+    .filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health)
     .filter(({ project }) => !pid || pid === "all" || project.id === pid);
 
   return (
@@ -71,7 +69,7 @@ export async function ProjectSummaryGrid({
               options={rows.map(({ project: p }) => ({ id: p.id, label: p.name }))}
               paramKey="pid"
               basePath={basePath}
-              currentParams={{ ...currentParams, health, schedule }}
+              currentParams={{ ...currentParams, health }}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -82,33 +80,17 @@ export async function ProjectSummaryGrid({
               options={[
                 { id: "ok", label: HEALTH_LABEL.ok, dotColorClass: "bg-emerald-500" },
                 { id: "warn", label: HEALTH_LABEL.warn, dotColorClass: "bg-amber-500" },
-                { id: "bad", label: HEALTH_LABEL.bad, dotColorClass: "bg-red-500" },
+                { id: "bad", label: "Retrasado", dotColorClass: "bg-red-500" },
               ]}
               paramKey="health"
               basePath={basePath}
-              currentParams={{ ...currentParams, pid, schedule }}
+              currentParams={{ ...currentParams, pid }}
               triggerColorClass={
                 health === "bad" ? "bg-red-600 text-white" : health === "warn" ? "bg-amber-500 text-white" : health === "ok" ? "bg-emerald-600 text-white" : undefined
               }
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400">Cronograma</span>
-            <ComboFilter
-              allLabel="Todo el cronograma"
-              value={schedule}
-              options={[
-                { id: "late", label: "Retrasados", dotColorClass: "bg-red-500" },
-                { id: "ahead", label: "Con holgura", dotColorClass: "bg-emerald-500" },
-                { id: "ontime", label: "A tiempo", dotColorClass: "bg-slate-400" },
-              ]}
-              paramKey="schedule"
-              basePath={basePath}
-              currentParams={{ ...currentParams, pid, health }}
-              triggerColorClass={schedule === "late" ? "bg-red-600 text-white" : schedule === "ahead" ? "bg-emerald-600 text-white" : schedule === "ontime" ? "bg-slate-600 text-white" : undefined}
-            />
-          </div>
-          <ResetFiltersButton count={[pid, health, schedule].filter(Boolean).length} href={href({ pid: undefined, health: undefined, schedule: undefined })} />
+          <ResetFiltersButton count={[pid, health].filter(Boolean).length} href={href({ pid: undefined, health: undefined })} />
           {/* Acceso directo al final de la fila (además de la opción dentro del filtro): texto subrayado, no botón. */}
           {pid !== "all" && (
             <div className="flex flex-col gap-1">
@@ -129,11 +111,11 @@ export async function ProjectSummaryGrid({
       <div className="grid max-h-110 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
         {visibleRows.length === 0 && (
           <p className="text-sm text-slate-500 sm:col-span-2">
-            {pid ? "Ningún proyecto coincide con la búsqueda." : health || schedule ? "Ningún proyecto coincide con este filtro." : "Todavía no tenés proyectos."}
+            {pid ? "Ningún proyecto coincide con la búsqueda." : health ? "Ningún proyecto coincide con este filtro." : "Todavía no tenés proyectos."}
           </p>
         )}
         <ProjectCardsOrder
-          limit={pid || health || schedule ? undefined : 2}
+          limit={pid || health ? undefined : 2}
           items={visibleRows.map(({ project: p, summary }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return {

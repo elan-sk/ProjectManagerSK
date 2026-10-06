@@ -9,17 +9,18 @@ const SECTIONS: { type: AttachmentFileType; title: string }[] = [
   { type: "document", title: "Documentos" },
 ];
 
-// Pantalla grande (spec 003): Imágenes a la izquierda, Documentos y Links a la
-// derecha, con la grilla a media columna. Si un lado queda vacío, va a todo el
-// ancho como siempre. En pantallas chicas, todo apilado.
+// Pantalla grande (spec 003): con dos o más tipos, dos columnas con la grilla a
+// media columna — Imágenes a la izquierda (o, sin imágenes, el primer tipo) y el
+// resto a la derecha. Un solo tipo va a todo el ancho. En pantallas chicas, apilado.
 const HALF_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-3";
 
 export function AttachmentSections({ items, canDelete, className }: { items: AttachmentGridItem[]; canDelete: boolean; className?: string }) {
   const groups = SECTIONS.map(({ type, title }) => ({ type, title, group: items.filter((i) => attachmentFileType(i.mimeType) === type) })).filter(
     (g) => g.group.length > 0
   );
-  const left = groups.filter((g) => g.type === "image");
-  const right = groups.filter((g) => g.type !== "image");
+  const leftType = groups.some((g) => g.type === "image") ? "image" : groups[0]?.type;
+  const left = groups.filter((g) => g.type === leftType);
+  const right = groups.filter((g) => g.type !== leftType);
   const split = left.length > 0 && right.length > 0;
 
   const renderSection = ({ type, title, group }: (typeof groups)[number]) => (

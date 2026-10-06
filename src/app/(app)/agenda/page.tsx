@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { getReviewPerformance } from "@/lib/reviewPerformance";
 import { matchesTaskSearch } from "@/lib/search";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
-import { scheduleVarianceExact, scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
+import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabel";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskStatus } from "@prisma/client";
 import Link from "next/link";
@@ -392,18 +392,16 @@ export default async function AgendaPage({
                         explícito) — mismo orden de importancia que los tiles
                         de arriba: inicio retrasado → por vencer → final
                         retrasado → bloqueada. */}
-                    {/* Salud + cronograma en un solo indicador (mismo criterio que la tarjeta del proyecto). */}
+                    {/* Mismo estado único que la tarjeta del proyecto (projectStatus). */}
                     {(() => {
-                      const late = p.scheduleVarianceDays !== null && p.scheduleVarianceDays < 0;
-                      const tone = late ? "bad" : p.health;
+                      const { label, tone } = projectStatus(p.health, p.scheduleVarianceDays);
                       return (
                         <span
                           title={p.scheduleVarianceDays !== null ? scheduleVarianceExact(p.scheduleVarianceDays) : undefined}
                           className={`flex flex-shrink-0 items-center gap-1 text-xs font-medium ${HEALTH_TEXT[tone]}`}
                         >
                           <span className={`h-2 w-2 rounded-full ${HEALTH_DOT[tone]}`} />
-                          {HEALTH_LABEL[p.health]}
-                          {p.scheduleVarianceDays !== null && ` · ${scheduleVarianceText(p.scheduleVarianceDays)}`}
+                          {label}
                         </span>
                       );
                     })()}

@@ -9,10 +9,10 @@ import { ProjectSummaryGrid } from "../ProjectSummaryGrid";
 // Historial: proyectos archivados (entregados/terminados). Fuera del flujo
 // normal; se abren desde acá y se desarchivan desde su propia página.
 // Mismo criterio de quién ve qué que la lista de /projects.
-export default async function ArchivedProjectsPage({ searchParams }: { searchParams: Promise<{ pid?: string; health?: "ok" | "warn" | "bad"; schedule?: string }> }) {
+export default async function ArchivedProjectsPage({ searchParams }: { searchParams: Promise<{ pid?: string; health?: "ok" | "warn" | "bad" }> }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const { pid, health, schedule } = await searchParams;
+  const { pid, health } = await searchParams;
 
   const isAdmin = session.user.role === "ADMIN";
   const isPM = !isAdmin && (await prisma.project.count({ where: { pmId: session.user.id } })) > 0;
@@ -50,7 +50,7 @@ export default async function ArchivedProjectsPage({ searchParams }: { searchPar
       {rows.length === 0 ? (
         <p className="text-sm text-slate-500">No hay proyectos archivados.</p>
       ) : (
-        <ProjectSummaryGrid rows={rows} basePath="/projects/archived" pid={pid} health={health} schedule={schedule} currentParams={{}} users={users} showCreateButton={false} />
+        <ProjectSummaryGrid rows={rows} basePath="/projects/archived" pid={pid} health={health} currentParams={{}} users={users} showCreateButton={false} />
       )}
     </div>
   );

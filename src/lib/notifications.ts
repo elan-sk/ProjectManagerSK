@@ -9,12 +9,13 @@ import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
 import { getProjectForecast } from "@/lib/scheduleForecast";
-import { scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
+import { projectStatus } from "@/lib/scheduleVarianceLabel";
 
-// Retraso u holgura proyectados para WhatsApp (spec 003); null sin fecha de cierre.
-function scheduleWaText(days: number | null) {
-  if (days === null) return null;
-  return `${days < 0 ? "🔴" : days > 0 ? "🟢" : "✅"} ${scheduleVarianceText(days)}`;
+// Estado único del proyecto para WhatsApp (mismo texto que el badge de la app).
+// Caras (no círculos): los círculos 🟢🟡🔴 se confundían con los cuadrados 🟩🟨🟥 de la barra.
+function statusWaText(health: keyof typeof HEALTH_LABEL, days: number | null) {
+  const { label, tone } = projectStatus(health, days);
+  return `${tone === "ok" ? "😀" : tone === "warn" ? "😐" : "😡"} ${label}`;
 }
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import type { NotificationType, TaskStatus } from "@prisma/client";
@@ -440,16 +441,14 @@ export async function buildDailyDigestText(userId: string, name: string) {
         p.blockedCount > 0 ? `🔒 ${p.blockedCount} bloqueada(s)` : null,
       ].filter((f): f is string => f !== null);
       const progress = p.total === 0 ? 0 : Math.round((p.completed / p.total) * 100);
-      // Caras (no círculos): los círculos 🟢🟡🔴 se confundían con los cuadrados 🟩🟨🟥 de la barra.
-      const healthIcon = p.health === "ok" ? "😀" : p.health === "warn" ? "😐" : "😡";
       lines.push(
         "",
         `• *${p.name}*`,
+        // Estado único primero (mismo badge que en la app): con fecha de cierre, el cronograma.
+        `  ↳ _Estado_ · ${statusWaText(p.health, p.scheduleVarianceDays)}`,
         `  ↳ _Avance_`,
         `      ${progressBar(progress)} ${progress}%`,
         `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
-        // Salud y cronograma en una sola línea (mismo badge que en la app).
-        `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}${scheduleWaText(p.scheduleVarianceDays) ? ` · ${scheduleWaText(p.scheduleVarianceDays)}` : ""}`,
         // Sin alertas: una sola línea. Con alertas: el título solo y cada
         // alerta en su propia fila debajo (se lee de un vistazo, en vez de una
         // lista larga separada por comas que se parte mal en el celular).
@@ -537,8 +536,8 @@ export function buildGroupAlertText(
   for (const [projectId, entries] of byProject) {
     const all = [...entries.values()];
     lines.push("", `📁 *${(projectName.get(projectId) ?? "Proyecto").toLocaleUpperCase("es-CO")}*`, `🔗 ${absoluteUrl(`/projects/${projectId}`)}`);
-    const schedule = scheduleWaText(scheduleOf.get(projectId) ?? null);
-    if (schedule) lines.push(`⏳ Cronograma · ${schedule}`);
+    const days = scheduleOf.get(projectId) ?? null;
+    if (days !== null) lines.push(`⏳ Estado · ${statusWaText("ok", days)}`);
     const people = new Set<string>();
     for (const { type, title } of GROUP_SECTIONS) {
       const ofType = all.filter((e) => e.type === type);

@@ -1,3 +1,5 @@
+import { HEALTH_LABEL } from "@/lib/projectHealth";
+
 // Texto del indicador de cronograma (spec 003). Sin prisma ni "use client":
 // lo comparten las vistas de servidor, los componentes de cliente y WhatsApp.
 // `days` en días hábiles: positivo = holgura, negativo = retraso, 0 = a tiempo.
@@ -25,10 +27,15 @@ export function scheduleVarianceExact(days: number) {
   return days === 0 ? "Termina justo en la fecha de cierre" : `${n} día${n === 1 ? "" : "s"} hábil${n === 1 ? "" : "es"} de ${days > 0 ? "holgura" : "retraso"}`;
 }
 
-export type ScheduleFilter = "late" | "ahead" | "ontime";
-
-export function matchesScheduleFilter(days: number | null, filter?: string) {
-  if (!filter) return true;
-  if (days === null) return false;
-  return filter === "late" ? days < 0 : filter === "ahead" ? days > 0 : filter === "ontime" ? days === 0 : true;
+/**
+ * Estado único del proyecto (badge, filtro de salud y WhatsApp): con fecha de
+ * cierre manda el cronograma — «Retrasado 1 semana», «A tiempo», «Holgura de
+ * 2 meses» —; sin fecha de cierre, la salud de siempre (% de tareas vencidas).
+ * `tone` es la misma escala que la salud (ok / warn / bad) para colores y filtro.
+ */
+export function projectStatus(health: keyof typeof HEALTH_LABEL, days: number | null): { label: string; tone: keyof typeof HEALTH_LABEL } {
+  if (days === null) return { label: HEALTH_LABEL[health], tone: health };
+  if (days < 0) return { label: `Retrasado ${amount(-days)}`, tone: "bad" };
+  if (days > 0) return { label: `Holgura de ${amount(days)}`, tone: "ok" };
+  return { label: "A tiempo", tone: "ok" };
 }

@@ -36,7 +36,7 @@ Saber, si el proyecto sigue al ritmo actual, cuándo terminaría de verdad y cu�
 - RF-2: SI el proyecto no tiene fecha de cierre comprometida, ENTONCES EL SISTEMA no muestra el indicador de proyecto (en ninguna vista, ni en WhatsApp ni en el bot).
 - RF-3: EL SISTEMA muestra el indicador redondeado («2 semanas de retraso», «3 días de holgura», «A tiempo») en la tarjeta resumen de cada proyecto (Proyectos y Archivados) y en el resumen dentro del proyecto, con el número exacto en el tooltip. Reemplaza al indicador viejo «Nd retraso / +Nd holgura».
 - RF-4: En Definición, cada Fase, Objetivo y Requerimiento muestra su retraso proyectado con el mismo método: fin proyectado de sus tareas contra su fin planeado. Como su fin planeado ya incluye lo que se ganó o perdió al completar tareas, a ese nivel solo puede salir retraso (o nada); la holgura se ve a nivel proyecto. Reemplaza al indicador viejo de esos niveles.
-- RF-5: En la lista de proyectos, un filtro «Cronograma» con opciones Todos · Retrasados · Con holgura · A tiempo, que se combina con los filtros existentes; los proyectos sin fecha de cierre solo aparecen en «Todos».
+- ~~RF-5: En la lista de proyectos, un filtro «Cronograma» con opciones Todos · Retrasados · Con holgura · A tiempo, que se combina con los filtros existentes; los proyectos sin fecha de cierre solo aparecen en «Todos».~~ (retirado 2026-10-06: lo cubre el filtro de salud)
 - RF-6: En la Agenda, en la sección de proyectos, cada proyecto muestra el indicador.
 - RF-7: El bot (consulta de estado de proyecto) devuelve el fin proyectado, el retraso/holgura en días hábiles y su texto redondeado, y la(s) tarea(s) que más empujan el fin, para responder preguntas.
 - RF-8: El resumen diario de WhatsApp de PM y administradores agrega en cada proyecto una línea «Cronograma · …» (PM: sus proyectos; admin: todos los visibles). Sin fecha de cierre, la línea no va.
@@ -74,6 +74,8 @@ Saber, si el proyecto sigue al ritmo actual, cuándo terminaría de verdad y cu�
 
 ## Cambios
 - 2026-10-06 — La salud y el cronograma van en un solo badge («Muy retrasado · 1 semana de retraso», rojo si hay retraso) en tarjetas, proyecto y Agenda; en el resumen diario de WhatsApp, una sola línea «Salud · 😡 Muy retrasado · 🔴 1 semana de retraso». Las alertas al grupo siguen con su línea «Cronograma» (pedido del usuario).
+- 2026-10-06 — Reemplaza el cambio anterior: «Muy retrasado · A tiempo» confundía (salud = % de tareas vencidas; cronograma = llegada al cierre). Ahora un solo estado: con fecha de cierre manda el cronograma («Retrasado 1 semana», «A tiempo», «Holgura de 2 meses»); sin ella, la salud. Se quita el filtro «Cronograma» (RF-5 retirado) y el filtro de salud filtra por ese estado (Bien / Normal / Retrasado). WhatsApp: «Estado · 😡 Retrasado 1 semana» en el resumen y «⏳ Cierre · …» en las alertas al grupo (pedido del usuario).
+- 2026-10-06 — WhatsApp: «Estado» va primero en cada proyecto del resumen y las alertas al grupo dicen «⏳ Estado · …» (misma palabra). Archivos: con dos o más tipos siempre en dos columnas (sin imágenes, el primer tipo a la izquierda) — Racafé/Editec, con links y documentos, quedaban apilados.
 
 ## Dudas abiertas
 (ninguna)
