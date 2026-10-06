@@ -28,8 +28,11 @@ export function AttachmentSections({
   className?: string;
   sharedLinks?: SharedLinkItem[];
 }) {
+  // Un mismo archivo (misma dirección) usado en varias tareas se muestra una sola vez,
+  // con la lista de dónde se usa (spec 001, RF-7/RF-8: nombre de la primera ficha).
+  const unique = groupByUrl(items);
   const groupOf = (type: AttachmentFileType) => {
-    const group = items.filter((i) => attachmentFileType(i.mimeType) === type);
+    const group = unique.filter((i) => attachmentFileType(i.mimeType) === type);
     return group.length > 0 ? { type, title: SECTIONS.find((s) => s.type === type)!.title, group } : null;
   };
 
@@ -65,4 +68,20 @@ export function AttachmentSections({
       )}
     </div>
   );
+}
+
+function groupByUrl(items: AttachmentGridItem[]): AttachmentGridItem[] {
+  const byUrl = new Map<string, AttachmentGridItem & { usedIn: { href: string; title: string }[] }>();
+  for (const item of items) {
+    const key = item.url.trim();
+    const existing = byUrl.get(key);
+    if (!existing) {
+      byUrl.set(key, { ...item, usedIn: item.taskLink ? [item.taskLink] : [] });
+      continue;
+    }
+    if (item.taskLink && !existing.usedIn.some((u) => u.href === item.taskLink!.href)) existing.usedIn.push(item.taskLink);
+    // Usado en varios lugares: se borra desde cada tarea, no desde la ficha agrupada.
+    existing.canDelete = false;
+  }
+  return [...byUrl.values()];
 }

@@ -6,3 +6,4 @@
 - 2026-10-05 — Spec 001 escrita (borrador). Pendiente: aprobación 1 y constitución del repo (no existía `docs/constitution.md`).
 - 2026-10-05 — Adelantado fuera de la spec por un error en producción (chat del bot se caía al subir archivos): `deleteFileIfUnused` ya no usa `contains` (falla de collation) y nunca borra ante un error (base de RF-10). La spec sigue en borrador esperando aprobación; RF-9 (contar íconos, fotos, descripciones, comentarios) sigue pendiente.
 - 2026-10-05 — Aprobación 1: spec 001 y constitución (`docs/constitution.md`) aprobadas por el usuario ("aprobado").
+- 2026-10-06 — Primera parte (pedido del usuario: «primero la vista»): la vista Archivos agrupa por dirección (mismo archivo) con «Usado en N lugares» y sin borrar desde una ficha agrupada. Pendiente: plan (aprobación 2) del resto — contenido idéntico al subir (SHA-256), aviso «ya está cargado aquí», ajustes y rondas en la vista, borrado seguro ampliado y unificación de lo ya subido.

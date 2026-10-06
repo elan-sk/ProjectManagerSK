@@ -21,6 +21,7 @@ export function AttachmentPreview({
   mimeType,
   canDelete,
   taskLink,
+  usedIn,
   caption,
   onOpenImage,
   onOpenPreview,
@@ -33,6 +34,8 @@ export function AttachmentPreview({
   canDelete: boolean;
   /** Solo en la vista "Archivos" del proyecto, que junta adjuntos de varias tareas — lleva de vuelta a la tarea dueña. */
   taskLink?: { href: string; title: string };
+  /** Vista "Archivos": todas las tareas que usan este mismo archivo (si son varias, se listan). */
+  usedIn?: { href: string; title: string }[];
   /** Texto corto bajo la ficha (sin enlace). */
   caption?: string;
   onOpenImage?: () => void;
@@ -105,14 +108,7 @@ export function AttachmentPreview({
           </a>
         )}
         {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
-        {taskLink && (
-          <Link
-            href={taskLink.href}
-            className="mt-0.5 block truncate text-center text-[11px] text-slate-400 hover:text-slate-700 hover:underline"
-          >
-            → {taskLink.title}
-          </Link>
-        )}
+        <UsedIn taskLink={taskLink} usedIn={usedIn} />
         {canDelete && (
           <button
             type="button"
@@ -158,14 +154,7 @@ export function AttachmentPreview({
           </a>
         )}
         {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
-        {taskLink && (
-          <Link
-            href={taskLink.href}
-            className="mt-0.5 block truncate text-center text-[11px] text-slate-400 hover:text-slate-700 hover:underline"
-          >
-            → {taskLink.title}
-          </Link>
-        )}
+        <UsedIn taskLink={taskLink} usedIn={usedIn} />
         {canDelete && (
           <button
             type="button"
@@ -188,14 +177,7 @@ export function AttachmentPreview({
         <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover transition-colors duration-150 hover:border-[#0a6b78]" />
       </button>
       {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
-        {taskLink && (
-        <Link
-          href={taskLink.href}
-          className="mt-0.5 block truncate text-center text-[11px] text-slate-400 hover:text-slate-700 hover:underline"
-        >
-          → {taskLink.title}
-        </Link>
-      )}
+      <UsedIn taskLink={taskLink} usedIn={usedIn} />
       {canDelete && (
         <button
           type="button"
@@ -216,5 +198,25 @@ function TrashIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14M4 6h16M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
+  );
+}
+
+// Bajo la ficha de la vista "Archivos": la tarea dueña, o la lista de tareas
+// que usan el mismo archivo (hasta 3 y «+N más», con el resto en el tooltip).
+function UsedIn({ taskLink, usedIn }: { taskLink?: { href: string; title: string }; usedIn?: { href: string; title: string }[] }) {
+  const links = usedIn && usedIn.length > 1 ? usedIn : taskLink ? [taskLink] : [];
+  if (links.length === 0) return null;
+  const shown = links.slice(0, 3);
+  const rest = links.slice(3);
+  return (
+    <div className="mt-0.5 text-center text-[11px] text-slate-400">
+      {links.length > 1 && <p className="font-medium text-slate-500">Usado en {links.length} lugares</p>}
+      {shown.map((l) => (
+        <Link key={l.href + l.title} href={l.href} className="block truncate hover:text-slate-700 hover:underline">
+          → {l.title}
+        </Link>
+      ))}
+      {rest.length > 0 && <p title={rest.map((l) => l.title).join("\n")}>+{rest.length} más</p>}
+    </div>
   );
 }

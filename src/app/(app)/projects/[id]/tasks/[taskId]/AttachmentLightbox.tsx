@@ -13,6 +13,8 @@ export type LightboxImage = {
   url: string;
   name: string;
   taskLink?: { href: string; title: string };
+  /** false = sin botón Eliminar para esta imagen (archivo usado en varios lugares). */
+  canDelete?: boolean;
   /** Etiqueta del tramo del carrusel (ej. Antes / Después); el contador se cuenta dentro de cada tramo. */
   group?: string;
 };
@@ -168,7 +170,7 @@ export function AttachmentLightbox({
               <TaskIcon className="h-4 w-4" />
             </Link>
           )}
-          {canDelete && <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />}
+          {canDelete && current.canDelete !== false && <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />}
           <ToolbarButton icon={<XIcon className="h-4 w-4" />} label="Cerrar" onClick={onClose} />
         </div>
       </div>

@@ -15,6 +15,10 @@ export type AttachmentGridItem = {
   name: string;
   mimeType: string;
   taskLink?: { href: string; title: string };
+  /** Vista "Archivos": todos los lugares que usan este mismo archivo. */
+  usedIn?: { href: string; title: string }[];
+  /** false = no se ofrece borrar esta ficha aunque el grupo permita borrar (archivo usado en varios lugares). */
+  canDelete?: boolean;
   /** Texto corto bajo la ficha (ej. «del paso: …» en los Insumos que salieron de un paso del checklist). */
   caption?: string;
 };
@@ -49,8 +53,9 @@ export function AttachmentGrid({
             url={a.url}
             name={a.name}
             mimeType={a.mimeType}
-            canDelete={canDelete}
+            canDelete={canDelete && a.canDelete !== false}
             taskLink={a.taskLink}
+            usedIn={a.usedIn}
             caption={a.caption}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
@@ -71,7 +76,7 @@ export function AttachmentGrid({
           file={openPreview}
           onClose={() => setOpenPreview(null)}
           onDelete={
-            canDelete
+            canDelete && openPreview.canDelete !== false
               ? async () => {
                   await removeAttachment(openPreview.id);
                   router.refresh();
