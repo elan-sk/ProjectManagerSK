@@ -17,6 +17,7 @@ import { toDonutData } from "@/lib/chartPalette";
 import { ComboFilter } from "@/components/ComboFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ProjectIcon } from "@/components/ProjectIcon";
+import { getUserActivityStats, type ActivityStats } from "@/lib/activity";
 
 const STATUS_HEX: Record<string, string> = {
   NOT_STARTED: "#94a3b8",
@@ -434,6 +435,67 @@ export default async function PerformancePage({
         responseCategories={acceptanceResponseCategories}
         trendByUser={acceptanceTrendByUser}
       />
+
+      {isAdmin && <AppUsageSection />}
     </div>
+  );
+}
+
+const lastUseLabel = (days: number | null) =>
+  days === null ? "Sin actividad" : days === 0 ? "Hoy" : `Hace ${days} día${days !== 1 ? "s" : ""}`;
+
+// Uso de la app de todo el equipo (mismas métricas que la página individual,
+// solo administradores). Primero quien lleva más tiempo sin usarla.
+async function AppUsageSection() {
+  const users = await prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const rows: { id: string; name: string; stats: ActivityStats }[] = await Promise.all(
+    users.map(async (u) => ({ ...u, stats: await getUserActivityStats(u.id) }))
+  );
+  rows.sort((a, b) => (b.stats.daysSinceLast ?? Infinity) - (a.stats.daysSinceLast ?? Infinity) || a.stats.activeDays - b.stats.activeDays);
+  const periodDays = rows[0]?.stats.periodDays ?? 30;
+  const activeToday = rows.filter((r) => r.stats.daysSinceLast === 0).length;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-900">Uso de la app</h2>
+      <p className="text-sm text-slate-500">
+        Últimos {periodDays} días. Cada interacción es un minuto en el que la persona hizo algo en la app (clic, tecla, desplazamiento) — no cuenta solo iniciar sesión. Hoy la usaron {activeToday} de {rows.length} personas.
+      </p>
+      <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-slate-500">
+            <tr>
+              <th className="px-4 py-2 font-medium">Persona</th>
+              <th className="px-4 py-2 font-medium">Días con uso</th>
+              <th className="px-4 py-2 font-medium">Interacciones</th>
+              <th className="px-4 py-2 font-medium">Por día activo</th>
+              <th className="px-4 py-2 font-medium">Promedio diario</th>
+              <th className="px-4 py-2 font-medium">Último uso</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map(({ id, name, stats }) => {
+              const warn = stats.daysSinceLast === null || stats.daysSinceLast >= 3;
+              return (
+                <tr key={id}>
+                  <td className="px-4 py-2 font-medium text-slate-900">
+                    <Link href={`/performance/${id}`} className="hover:underline">
+                      {name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2 text-slate-600">
+                    {stats.activeDays}/{stats.periodDays}
+                  </td>
+                  <td className="px-4 py-2 text-slate-600">{stats.totalInteractions}</td>
+                  <td className="px-4 py-2 text-slate-600">{stats.avgPerActiveDay}</td>
+                  <td className="px-4 py-2 text-slate-600">{stats.avgPerDay}</td>
+                  <td className={`px-4 py-2 font-medium ${warn ? "text-red-600" : "text-slate-600"}`}>{lastUseLabel(stats.daysSinceLast)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
