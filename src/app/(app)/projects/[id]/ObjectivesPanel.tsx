@@ -106,7 +106,7 @@ export function ObjectivesPanel({
                         </span>
                       )
                     )}
-                    <ScheduleVarianceBadge days={o.scheduleVarianceDays} />
+                    <ScheduleVarianceBadge days={o.scheduleVarianceDays} hideOnTime />
                   </div>
                 </div>
                 {canManage && (

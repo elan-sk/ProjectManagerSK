@@ -12,6 +12,7 @@ import { PublicAcceptancePanel } from "./PublicAcceptancePanel";
 import { addPublicTaskInsumo, addPublicTaskInsumoLink, submitPublicAdjustmentReview } from "./shareActions";
 import { useShareIdentity } from "./shareIdentity";
 import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicAcceptanceRound, PublicCommentWithReplies } from "@/lib/publicView";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
 
@@ -85,11 +86,10 @@ export function PublicTaskDetail({
     const formData = new FormData();
     formData.append("file", file);
     formData.append("token", token);
-    const res = await fetch("/api/upload/public", { method: "POST", body: formData });
-    const body = await res.json();
-    if (!res.ok) return body.error ?? "No se pudo subir el archivo.";
+    const { ok, body } = await uploadWithProgress("/api/upload/public", formData);
+    if (!ok) return body.error ?? "No se pudo subir el archivo.";
     const result = await addPublicTaskInsumo(token, body);
-    if (!result.ok) return "error" in result ? result.error : "No se pudo guardar el insumo.";
+    if (!result.ok) return "No se pudo guardar el insumo.";
   }
 
   async function addInsumoLink(url: string, name: string) {

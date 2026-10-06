@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/Confirm";
 import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon } from "@/components/icons";
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 type ChatUiMessage = {
   id: string;
@@ -186,9 +187,8 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
+      const { ok, body } = await uploadWithProgress("/api/upload", form);
+      if (!ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
       setAttached((prev) => [...prev, { name: body.name, url: body.url }]);
     } catch (err) {
       setUploadError((err as Error).message);

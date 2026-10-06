@@ -34,6 +34,7 @@ import {
   updateAdjustmentItem,
 } from "@/lib/taskDesign";
 import { canManageTemplates } from "@/lib/testTemplateApi";
+import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { commentInputSchema, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
 import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { mentionMarker } from "@/lib/commentBody";
@@ -126,7 +127,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_project_status",
-    description: "Trae el estado general de un proyecto: fases, PM, y resumen de atrasos/avance.",
+    description: "Trae el estado general de un proyecto: fases, PM, resumen de atrasos/avance y `schedule`: cuándo terminaría si sigue al ritmo actual, retraso (negativo) u holgura (positivo) en días hábiles contra la fecha de cierre, su texto (`label`) y las tareas atrasadas que empujan el fin (`delayingTasks`).",
     input_schema: {
       type: "object",
       properties: { projectId: { type: "string" } },
@@ -878,8 +879,9 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       });
       if (!project) return JSON.stringify({ error: "No existe ese proyecto." });
       const { tasks, ...projectRest } = project;
-      const delaySummary = await getProjectDelaySummary(projectId);
-      return JSON.stringify({ project: { ...projectRest, ...computePhase(tasks) }, delaySummary });
+      const [delaySummary, forecast] = await Promise.all([getProjectDelaySummary(projectId), getProjectForecast(projectId)]);
+      // schedule (spec 003): retraso (−) u holgura (+) en días hábiles si sigue al ritmo actual, y las tareas que empujan el fin.
+      return JSON.stringify({ project: { ...projectRest, ...computePhase(tasks) }, delaySummary, schedule: scheduleForApi(forecast) });
     }
 
     case "get_task_details": {

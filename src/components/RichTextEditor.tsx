@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { useToast } from "@/components/Toast";
 
 /**
  * WYSIWYG mínimo (títulos, negrita, listas, imágenes) sobre Tiptap. Guarda
@@ -13,6 +15,7 @@ import Image from "@tiptap/extension-image";
  * controlado aparte.
  */
 export function RichTextEditor({ name, defaultValue }: { name: string; defaultValue: string | null }) {
+  const showToast = useToast();
   // Estado (no escribir en el input por DOM): cada re-render del editor devolvía el input oculto a su
   // defaultValue y la descripción escrita no llegaba al enviar el formulario.
   const [html, setHtml] = useState(defaultValue ?? "");
@@ -55,10 +58,11 @@ export function RichTextEditor({ name, defaultValue }: { name: string; defaultVa
     if (!file || !editor) return;
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const body = await res.json();
-    if (res.ok && body.mimeType?.startsWith("image/")) {
+    const { ok, body } = await uploadWithProgress("/api/upload", formData);
+    if (ok && body.mimeType?.startsWith("image/")) {
       editor.chain().focus().setImage({ src: body.url }).run();
+    } else if (!ok) {
+      showToast(body.error ?? "No se pudo subir la imagen.");
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   }

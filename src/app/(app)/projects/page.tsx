@@ -48,6 +48,7 @@ export default async function ProjectsPage({
     collision?: string;
     pid?: string;
     health?: "ok" | "warn" | "bad";
+    schedule?: string;
     fileKind?: string;
     fileType?: string;
     fileProject?: string;
@@ -57,7 +58,7 @@ export default async function ProjectsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, type, userId, q, tag, from: fromParam, to: toParam, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, type, userId, q, tag, from: fromParam, to: toParam, collision, pid, health, schedule, fileKind, fileType, fileProject, fileQ } = await searchParams;
   const from = parseDayKey(fromParam);
   const to = parseDayKey(toParam);
 
@@ -515,7 +516,7 @@ export default async function ProjectsPage({
 
   return (
     <div className="space-y-8">
-      <RememberViewState storageKey="projectsBoard" excludeParams={["pid", "health"]} />
+      <RememberViewState storageKey="projectsBoard" excludeParams={["pid", "health", "schedule"]} />
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Proyectos</h1>
@@ -530,6 +531,7 @@ export default async function ProjectsPage({
           basePath="/projects"
           pid={pid}
           health={health}
+          schedule={schedule}
           currentParams={{}}
           users={users}
           projectShareTokenById={projectShareTokenById}

@@ -5,6 +5,7 @@ import { PublicUploadWidget } from "./PublicUploadWidget";
 import { addPublicProjectAttachment, addPublicProjectLink } from "./shareActions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import type { PublicFile } from "@/lib/publicView";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 // Archivos y links del proyecto (punto 15 confirmado con el usuario): ver y
 // descargar todo (con el mismo visor de PDF/Word/Excel de adentro de la
@@ -23,11 +24,10 @@ export function PublicFilesView({
     const formData = new FormData();
     formData.append("file", file);
     formData.append("token", token);
-    const res = await fetch("/api/upload/public", { method: "POST", body: formData });
-    const body = await res.json();
-    if (!res.ok) return body.error ?? "No se pudo subir el archivo.";
+    const { ok, body } = await uploadWithProgress("/api/upload/public", formData);
+    if (!ok) return body.error ?? "No se pudo subir el archivo.";
     const result = await addPublicProjectAttachment(token, body);
-    if (!result.ok) return "error" in result ? result.error : "No se pudo guardar el archivo.";
+    if (!result.ok) return "No se pudo guardar el archivo.";
   }
 
   async function addLink(url: string, name: string) {

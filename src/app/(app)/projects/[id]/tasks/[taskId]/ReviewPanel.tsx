@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
+import { useToast } from "@/components/Toast";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
@@ -36,6 +37,7 @@ import {
   setDefaultTestTemplateAction,
 } from "./reviewActions";
 import type { CheckResult, TaskStatus } from "@prisma/client";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -355,9 +357,8 @@ function SubmitRoundForm({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir el archivo.");
         return;
       }
@@ -625,6 +626,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
   responseCategories: { name: string; responses: string[] }[];
 }) {
   const router = useRouter();
+  const showToast = useToast();
   const confirm = useConfirm();
   const [note, setNote] = useState(check.note ?? "");
   const [isPending, startTransition] = useTransition();
@@ -715,12 +717,11 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (ok) {
         await addReviewCheckEvidence(check.id, body);
         router.refresh();
-      }
+      } else showToast(body.error ?? "No se pudo subir el archivo.");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -896,6 +897,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
 function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
+  const showToast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
   const [open, setOpen] = useState(false);
@@ -918,12 +920,11 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
     startTransition(async () => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (ok) {
         await addReviewDeliverable(reviewRoundId, body);
         router.refresh();
-      }
+      } else showToast(body.error ?? "No se pudo subir el archivo.");
       if (inputRef.current) inputRef.current.value = "";
     });
   }

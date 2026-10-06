@@ -6,6 +6,7 @@ import { updateUserProfile, updateUserAvatar } from "./actions";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 import { ImageCropModal } from "@/components/ImageCropModal";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 export function EditUserForm({
   userId,
@@ -44,9 +45,8 @@ export function EditUserForm({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir la imagen");
         return;
       }

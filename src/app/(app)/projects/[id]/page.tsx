@@ -10,8 +10,6 @@ import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { InternalConversation } from "@/components/InternalConversation";
-import { TeamShareThread } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
-import { threadInclude, toThread } from "@/lib/threadView";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
@@ -21,9 +19,10 @@ import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
 import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
-import { getBottlenecks, getTaskAlert, matchesRiskFilter, getProjectCompletionVariance } from "@/lib/delays";
+import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
+import { getProjectForecast } from "@/lib/scheduleForecast";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
-import { canParticipateInProject, getProjectAdmin } from "@/lib/permissions";
+import { getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { projectHealth } from "@/lib/projectHealth";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
@@ -209,14 +208,6 @@ export default async function ProjectPage({
   const definitionEmpty = !project.description?.trim() && cascadeProgress.objectives.length === 0 && cascadeProgress.requirements.length === 0;
   const view = viewParam ?? (definitionEmpty ? "definition" : undefined);
 
-  // Pestaña Definición: comentarios y preguntas que llegan por el link compartido del proyecto.
-  const [definitionShareComments, canParticipate] =
-    view === "definition"
-      ? await Promise.all([
-          prisma.shareComment.findMany({ where: { projectId: id, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),
-          canParticipateInProject(id),
-        ])
-      : [[], false];
   const taskShareTokenById = new Map(taskShareLinks.map((l) => [l.taskId!, l.token]));
 
   // Punto 17: nombres ya usados en ESTE proyecto, agrupados por categoría —
@@ -273,17 +264,8 @@ export default async function ProjectPage({
   const summaryHealth = projectHealth(summaryOverdueTasks.length, summaryTotal);
   const phaseSlackValues = cascadeProgress.phases.map((p) => p.openSlackDays).filter((v): v is number => v !== null);
   const summaryOpenSlackDays = phaseSlackValues.length > 0 ? Math.min(...phaseSlackValues) : null;
-  // Punto confirmado con el usuario: el badge general del proyecto compara
-  // el cierre comprometido (targetEndDate) contra cuándo terminaría de
-  // verdad el proyecto completo (la tarea de cierre más tardía, real o
-  // planeada) — no la suma de cuánto se atrasaron las tareas YA completadas
-  // (esa suma ignoraba todo lo que falta y confundía al compararla con el
-  // Gantt). Ver getProjectCompletionVariance en delays.ts.
-  const summaryScheduleVarianceDays = await getProjectCompletionVariance(
-    project.countryCode,
-    project.targetEndDate,
-    project.tasks
-  );
+  // Retraso u holgura si sigue al ritmo actual (spec 003, scheduleForecast.ts).
+  const summaryScheduleVarianceDays = (await getProjectForecast(project.id)).varianceDays;
 
   const matchesRisk = (taskId: string) => matchesRiskFilter(alertByTaskId.get(taskId)!, risk);
   // "Devueltas"/"Revisión" del filtro Tipo (punto 11 confirmado): no son un
@@ -910,7 +892,6 @@ export default async function ProjectPage({
           filesHref={filesHref}
         />
       ) : view === "definition" ? (
-        <>
         <DefinitionTab
           projectId={project.id}
           name={project.name}
@@ -924,19 +905,6 @@ export default async function ProjectPage({
           attachments={project.attachments}
           whatsappGroupJid={project.whatsappGroupJid}
         />
-        {(definitionShareComments.length > 0 || (canParticipate && activeShareLink)) && (
-          <section className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-[21px] font-semibold text-slate-900">Comentarios del link compartido</h2>
-            <TeamShareThread
-              projectId={project.id}
-              comments={definitionShareComments.map((c) => toThread(c, myUserId))}
-              canReply={canParticipate}
-              canVote={canParticipate}
-              canAttach={false}
-            />
-          </section>
-        )}
-        </>
       ) : view === "gantt" ? (
         <div className="sticky-view-panel-gantt sticky top-[57px] h-[calc(100vh-150px)]">
           <GanttView

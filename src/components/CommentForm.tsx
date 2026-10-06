@@ -9,6 +9,7 @@ import { pastedImageName, pickPastedImage } from "@/lib/pasteImage";
 import { normalizeSearchText } from "@/lib/search";
 import { LinkIcon, PaperclipIcon } from "@/components/icons";
 import { PollFields } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 export type MentionPerson = { id: string; name: string };
 
@@ -67,9 +68,8 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
+      const { ok, body } = await uploadWithProgress("/api/upload", form);
+      if (!ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
       insert(body.mimeType?.startsWith("image/") ? imageMarker(body.url) : fileMarker(body.url, body.name), start, end);
     } catch (err) {
       setError((err as Error).message || "No se pudo subir el archivo.");

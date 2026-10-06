@@ -26,6 +26,8 @@ import {
   completeAcceptanceTask,
 } from "./acceptanceActions";
 import type { TaskStatus } from "@prisma/client";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { useToast } from "@/components/Toast";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Item = {
@@ -247,9 +249,8 @@ function SubmitRoundForm({ taskId, nextRoundNumber, initialItems = [] }: {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir el archivo.");
         return;
       }
@@ -379,6 +380,7 @@ function ItemList({ taskId, items, canEdit = false, canVote = false, readOnly = 
 
 function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: number; total: number; taskId: string; item: Item; canEdit: boolean; canVote: boolean }) {
   const router = useRouter();
+  const showToast = useToast();
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
@@ -438,12 +440,11 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (ok) {
         await addAcceptanceItemEvidence(item.id, body);
         router.refresh();
-      }
+      } else showToast(body.error ?? "No se pudo subir el archivo.");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -554,6 +555,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
 
 function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   const router = useRouter();
+  const showToast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
   const [open, setOpen] = useState(false);
@@ -576,12 +578,11 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
     startTransition(async () => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (ok) {
         await addAcceptanceDeliverable(reviewRoundId, body);
         router.refresh();
-      }
+      } else showToast(body.error ?? "No se pudo subir el archivo.");
       if (inputRef.current) inputRef.current.value = "";
     });
   }

@@ -9,6 +9,7 @@ import { archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { setProjectArchived, setProjectHidden } from "@/app/(app)/projects/[id]/taskOps";
 import { updateProjectWhatsAppGroup } from "@/app/(app)/projects/[id]/definitionActions";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
+import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getProjectAdmin } from "@/lib/permissions";
 
@@ -48,12 +49,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
   if (!project) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  const [bottlenecks, delays] = await Promise.all([
+  const [bottlenecks, delays, forecast] = await Promise.all([
     getBottlenecks(id),
     getProjectDelaySummary(id),
+    getProjectForecast(id),
   ]);
 
-  return NextResponse.json({ ...project, bottlenecks, delays });
+  // schedule: retraso u holgura si sigue al ritmo actual (spec 003).
+  return NextResponse.json({ ...project, bottlenecks, delays, schedule: scheduleForApi(forecast) });
 }
 
 // Punto 3.1 (skill dev-project-definer): completar la descripción/fechas del

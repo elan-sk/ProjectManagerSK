@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { todayUTC, businessDaysBetween } from "@/lib/holidays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
-import { getTaskScheduleVariance } from "@/lib/delays";
+import { getProjectForecast, groupDelayDays, type ProjectForecast } from "@/lib/scheduleForecast";
 
 /**
  * Avance en cascada de la pestaña "Definición" (punto confirmado con el
@@ -81,27 +81,10 @@ function minOrNull(values: (number | null)[]): number | null {
   return valid.length > 0 ? Math.min(...valid) : null;
 }
 
-// A diferencia de openSlackDays (se queda con la restricción más ajustada,
-// un mínimo), la holgura/retraso real ACUMULA a lo largo de la cadena de
-// tareas ya cerradas — por eso sumOrNull en vez de minOrNull. null = todavía
-// ninguna tarea completada en ese alcance (no "0 días").
-function sumOrNull(values: (number | null)[]): number | null {
-  const valid = values.filter((v): v is number => v !== null);
-  return valid.length > 0 ? valid.reduce((sum, v) => sum + v, 0) : null;
-}
-
-// Holgura/retraso acumulado de una fase: suma de getTaskScheduleVariance
-// (plannedEnd − actualEnd) de sus tareas ya COMPLETED. null si ninguna tarea
-// de la fase se completó todavía.
-async function phaseScheduleVariance(
-  tasks: { status: string; plannedEnd: Date; actualEnd: Date | null }[],
-  countryCode: string
-): Promise<number | null> {
-  const completed = tasks.filter((t) => t.status === "COMPLETED" && t.actualEnd);
-  if (completed.length === 0) return null;
-  const variances = await Promise.all(completed.map((t) => getTaskScheduleVariance(countryCode, t)));
-  return variances.reduce((sum: number, v) => sum + (v ?? 0), 0);
-}
+// Retraso proyectado de requerimientos y objetivos (spec 003): el peor de
+// sus fases (el más negativo), no la suma — dos fases atrasadas 3 días en
+// paralelo no hacen 6 días de retraso.
+const worstOrNull = minOrNull;
 
 export type PhaseSummary = {
   id: string;
@@ -174,6 +157,7 @@ export async function getProjectCascadeProgress(projectId: string) {
   // página que llama a esto hace su propio notFound() con el resultado;
   // acá solo evitamos que reviente antes de llegar a ese chequeo.
   const countryCode = project?.countryCode ?? "CO";
+  const forecast: ProjectForecast | null = project ? await getProjectForecast(projectId) : null;
 
   // Holgura de una fase = la más ajustada (mínima) entre sus tareas abiertas
   // (COMPLETED ya no aporta margen relevante); null si no tiene ninguna.
@@ -198,7 +182,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       overdueTasks: counts.overdueTasks,
       requirementIds: p.requirements.map((r) => r.id),
       openSlackDays: phaseOpenSlack(p.tasks),
-      scheduleVarianceDays: await phaseScheduleVariance(p.tasks, countryCode),
+      scheduleVarianceDays: forecast ? await groupDelayDays(forecast, p.tasks) : null,
     };
   };
   const phaseIndex = new Map(
@@ -219,7 +203,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         objectiveTitles: r.objectives.map((o) => o.title),
         objectiveIds: r.objectives.map((o) => o.id),
         openSlackDays: minOrNull(phases.map((p) => p.openSlackDays)),
-        scheduleVarianceDays: sumOrNull(phases.map((p) => p.scheduleVarianceDays)),
+        scheduleVarianceDays: worstOrNull(phases.map((p) => p.scheduleVarianceDays)),
       };
     })
   );
@@ -239,7 +223,7 @@ export async function getProjectCascadeProgress(projectId: string) {
     requirementTitles: o.requirements.map((r) => r.title),
     requirementIds: o.requirements.map((r) => r.id),
     openSlackDays: minOrNull(o.requirements.map((r) => requirementSlackById.get(r.id) ?? null)),
-    scheduleVarianceDays: sumOrNull(o.requirements.map((r) => requirementVarianceById.get(r.id) ?? null)),
+    scheduleVarianceDays: worstOrNull(o.requirements.map((r) => requirementVarianceById.get(r.id) ?? null)),
   }));
 
   const phases = await Promise.all(
@@ -255,7 +239,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         requirementTitles: p.requirements.map((r) => r.title),
         requirementIds: p.requirements.map((r) => r.id),
         openSlackDays: phaseOpenSlack(p.tasks),
-        scheduleVarianceDays: await phaseScheduleVariance(p.tasks, countryCode),
+        scheduleVarianceDays: forecast ? await groupDelayDays(forecast, p.tasks) : null,
         tasks: p.tasks.map((t) => ({
           id: t.id,
           title: t.title,

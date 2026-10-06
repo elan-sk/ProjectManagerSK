@@ -115,7 +115,7 @@ export function PhasesPanel({
                         />
                       )
                     )}
-                    <ScheduleVarianceBadge days={p.scheduleVarianceDays} />
+                    <ScheduleVarianceBadge days={p.scheduleVarianceDays} hideOnTime />
                   </div>
                 </div>
                 {canManage && (

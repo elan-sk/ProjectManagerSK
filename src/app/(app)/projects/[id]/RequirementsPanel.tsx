@@ -108,7 +108,7 @@ export function RequirementsPanel({
                         </span>
                       )
                     )}
-                    <ScheduleVarianceBadge days={r.scheduleVarianceDays} />
+                    <ScheduleVarianceBadge days={r.scheduleVarianceDays} hideOnTime />
                   </div>
                 </div>
                 {canManage && (

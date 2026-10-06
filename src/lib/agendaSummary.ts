@@ -4,6 +4,7 @@ import { getTaskAlert, type TaskAlert } from "@/lib/delays";
 import type { TaskStatus } from "@prisma/client";
 import { projectHealth } from "@/lib/projectHealth";
 import { isStartingSoon } from "@/lib/statusColors";
+import { getProjectForecast } from "@/lib/scheduleForecast";
 
 export type AgendaCounts = {
   lateStart: number;
@@ -66,6 +67,8 @@ export type PmProjectSummary = {
   // Preventivo (solo tiene sentido para quien administra el proyecto): no es
   // un TaskAlertLevel, se cuenta aparte con isStartingSoon.
   startingSoonCount: number;
+  /** Retraso (−) u holgura (+) proyectados en días hábiles; null sin fecha de cierre (spec 003). */
+  scheduleVarianceDays: number | null;
 };
 
 // Resumen liviano por proyecto — mira TODAS las tareas del proyecto (no solo
@@ -106,6 +109,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise
       overdueCount,
       warningCount,
       startingSoonCount,
+      scheduleVarianceDays: (await getProjectForecast(p.id)).varianceDays,
     });
   }
   return summaries;

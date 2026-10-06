@@ -12,6 +12,7 @@ import {
   updateBotIntroMessage,
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 export function BotSettingsForm({
   name,
@@ -52,9 +53,8 @@ export function BotSettingsForm({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir la imagen");
         return;
       }

@@ -31,4 +31,8 @@ assert.ok(p1.includes("👤 @573001 @573002 @573003"), "menciones del proyecto j
 assert.ok(a.text.endsWith("📁 *PAGÜER*\n🔗 https://sitio.test/projects/p2\n🔴 *VENCIDAS* (1)\n  • Manual\n👤 @573002"), "cada proyecto con sus propias menciones");
 assert.ok(!a.text.includes("u9") && !a.text.includes("@undefined") && !a.text.includes("/tasks/"), "sin ids sueltos ni links por tarea");
 assert.deepEqual([...a.mentionedIds].sort(), ["u1", "u2", "u3"], "menciones reales sin repetidos");
+// Spec 003: una línea de cronograma por proyecto, solo si tiene fecha de cierre.
+const withSchedule = buildGroupAlertText(byProject, names, phones, new Map([["p1", -7], ["p2", null]])).text;
+assert.ok(withSchedule.includes("🔗 https://sitio.test/projects/p1\n⏳ Cronograma · 🔴 1 semana de retraso\n🔴 *VENCIDAS*"), "cronograma bajo el link del proyecto");
+assert.equal(withSchedule.match(/Cronograma/g)?.length, 1, "sin fecha de cierre no va la línea");
 console.log("verify-group-alert-digest: OK");

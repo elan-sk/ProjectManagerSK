@@ -8,6 +8,14 @@ import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsa
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
+import { getProjectForecast } from "@/lib/scheduleForecast";
+import { scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
+
+// Retraso u holgura proyectados para WhatsApp (spec 003); null sin fecha de cierre.
+function scheduleWaText(days: number | null) {
+  if (days === null) return null;
+  return `${days < 0 ? "🔴" : days > 0 ? "🟢" : "✅"} ${scheduleVarianceText(days)}`;
+}
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import type { NotificationType, TaskStatus } from "@prisma/client";
 
@@ -440,7 +448,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
         `  ↳ _Avance_`,
         `      ${progressBar(progress)} ${progress}%`,
         `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
-        `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}`,
+        // Salud y cronograma en una sola línea (mismo badge que en la app).
+        `  ↳ _Salud_ · ${healthIcon} ${HEALTH_LABEL[p.health]}${scheduleWaText(p.scheduleVarianceDays) ? ` · ${scheduleWaText(p.scheduleVarianceDays)}` : ""}`,
         // Sin alertas: una sola línea. Con alertas: el título solo y cada
         // alerta en su propia fila debajo (se lee de un vistazo, en vez de una
         // lista larga separada por comas que se parte mal en el celular).
@@ -519,7 +528,8 @@ const taskTitle = (text: string) => {
 export function buildGroupAlertText(
   byProject: Map<string, Map<string, GroupAlertEntry>>,
   projectName: Map<string, string>,
-  phoneOf: Map<string, string>
+  phoneOf: Map<string, string>,
+  scheduleOf: Map<string, number | null> = new Map()
 ) {
   const total = [...byProject.values()].reduce((n, entries) => n + entries.size, 0);
   const lines = [`🔔 *ALERTAS PENDIENTES* (${total})`];
@@ -527,6 +537,8 @@ export function buildGroupAlertText(
   for (const [projectId, entries] of byProject) {
     const all = [...entries.values()];
     lines.push("", `📁 *${(projectName.get(projectId) ?? "Proyecto").toLocaleUpperCase("es-CO")}*`, `🔗 ${absoluteUrl(`/projects/${projectId}`)}`);
+    const schedule = scheduleWaText(scheduleOf.get(projectId) ?? null);
+    if (schedule) lines.push(`⏳ Cronograma · ${schedule}`);
     const people = new Set<string>();
     for (const { type, title } of GROUP_SECTIONS) {
       const ofType = all.filter((e) => e.type === type);
@@ -589,7 +601,10 @@ export async function dispatchGroupAlertDigest() {
         byProject.set(item.projectId, entries);
       }
 
-      const { text, mentionedIds } = buildGroupAlertText(byProject, projectName, phoneOf);
+      const scheduleOf = new Map(
+        await Promise.all([...byProject.keys()].map(async (id) => [id, (await getProjectForecast(id)).varianceDays] as const))
+      );
+      const { text, mentionedIds } = buildGroupAlertText(byProject, projectName, phoneOf, scheduleOf);
       const sent = await sendGroupAlert(groupJid, text, mentionedIds, undefined, true);
       if (sent) await prisma.groupAlertItem.updateMany({ where: { id: { in: groupItems.map((i) => i.id) } }, data: { sentAt: new Date() } });
     }

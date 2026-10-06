@@ -2,30 +2,23 @@ import { ProjectAlertLink } from "@/app/(app)/ProjectAlertLink";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL, HEALTH_STYLE } from "@/lib/projectHealth";
 import type { getBottlenecks } from "@/lib/delays";
+import { scheduleVarianceExact, scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
 
 // Mismo resumen que la tarjeta de /projects (salud, progreso, cuellos de
 // botella) — separado en dos piezas para poder acomodarlas en distintos
 // layouts (la card las mezcla con el badge de fase y el avatar del PM en una
 // misma fila; /projects/[id] las apila aparte) sin duplicar el JSX.
 
-// Punto confirmado con el usuario: compara targetEndDate (cierre
-// comprometido del proyecto) contra cuándo terminaría de verdad el
-// proyecto completo — la fecha de cierre más tardía entre todas sus
-// tareas, real para las ya completadas y planeada (ya corrida en cascada
-// por sus predecesoras reales) para el resto — ver
-// getProjectCompletionVariance en delays.ts. Distinto de openSlackDays de
-// al lado (margen estructural CPM de las tareas todavía abiertas).
-// Positivo = terminaría antes del deadline (holgura), negativo = después
-// (retraso), null = sin targetEndDate o sin tareas en ese alcance.
-export function ScheduleVarianceBadge({ days }: { days: number | null }) {
-  if (days === null || days === 0) return null;
+// Retraso u holgura proyectados (spec 003, ver scheduleForecast.ts): si el
+// proyecto sigue al ritmo actual, cuánto se aleja del cierre comprometido.
+// Positivo = holgura, negativo = retraso, null = sin fecha de cierre. En
+// Fase/Objetivo/Requerimiento solo llega retraso o 0 (`hideOnTime` oculta el 0).
+export function ScheduleVarianceBadge({ days, hideOnTime = false }: { days: number | null; hideOnTime?: boolean }) {
+  if (days === null || (days === 0 && hideOnTime)) return null;
+  const tone = days > 0 ? "bg-emerald-50 text-emerald-700" : days < 0 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600";
   return (
-    <span
-      className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
-        days > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-      }`}
-    >
-      {days > 0 ? `+${days}d holgura` : `${Math.abs(days)}d retraso`}
+    <span title={scheduleVarianceExact(days)} className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${tone}`}>
+      {scheduleVarianceText(days)}
     </span>
   );
 }
@@ -59,10 +52,22 @@ export function ProjectHealthBadges({
           badge propio, independiente de los conteos de abajo: da el "cómo
           voy" de un vistazo sin tener que abrir Rendimiento ni sumar los
           conteos de alertas a mano. */}
-      <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE[health]}`}>
-        {HEALTH_LABEL[health]}
-        {health === "ok" && openSlackDays !== null && openSlackDays !== 0 && ` · ${openSlackDays}d de holgura`}
-      </span>
+      {/* Salud + cronograma en un solo badge (pedido del usuario): «Muy retrasado · 1 semana
+          de retraso». Rojo si el cronograma va con retraso, aunque la salud diga «Bien».
+          Sin fecha de cierre queda la salud sola, con la holgura CPM de siempre. */}
+      {scheduleVarianceDays !== null ? (
+        <span
+          title={scheduleVarianceExact(scheduleVarianceDays)}
+          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${scheduleVarianceDays < 0 ? HEALTH_STYLE.bad : HEALTH_STYLE[health]}`}
+        >
+          {HEALTH_LABEL[health]} · {scheduleVarianceText(scheduleVarianceDays)}
+        </span>
+      ) : (
+        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${HEALTH_STYLE[health]}`}>
+          {HEALTH_LABEL[health]}
+          {health === "ok" && openSlackDays !== null && openSlackDays !== 0 && ` · ${openSlackDays}d de holgura`}
+        </span>
+      )}
       {lateStartCount > 0 && (
         <ProjectAlertLink
           projectId={projectId}
@@ -93,7 +98,6 @@ export function ProjectHealthBadges({
           {overdueCount} final retrasado
         </ProjectAlertLink>
       )}
-      <ScheduleVarianceBadge days={scheduleVarianceDays} />
     </>
   );
 }

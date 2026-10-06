@@ -74,7 +74,7 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
   ```json
   { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string" }
   ```
-- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/evidencias, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella) y `delays` (atrasos por tarea, ver regla abajo).
+- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/evidencias, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella), `delays` (atrasos por tarea, ver regla abajo) y `schedule`: `{ projectedEnd, targetEndDate, varianceBusinessDays (+ holgura / − retraso, null sin fecha de cierre), label, delayingTasks }` — cuándo terminaría el proyecto si sigue al ritmo actual (tarea en curso vencida = hoy + su duración; sin iniciar con inicio pasado = arranca hoy; se corren sus sucesoras).
 - `PATCH /api/v1/projects/:id` — todo lo que se edita en la app. Requiere PM/admin. Campos (todos opcionales; `null` vacía uno opcional):
   `name`, `description` (HTML), `startDate`, `targetEndDate`, `clientName`, `repoUrl`, `color`, `iconUrl` (url de `/api/upload`), `whatsappGroupJid`,
   `archived: true|false` (archivar/desarchivar: lo manda al historial o lo devuelve; PM o admin),

@@ -23,6 +23,7 @@ import {
 import { TeamShareThread, type TeamThreadComment } from "./TeamShareThread";
 import { reopenAdjustmentReview } from "./shareThreadActions";
 import type { AdjustmentAttachmentKind } from "@prisma/client";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 type AdjustmentAttachment = { id: string; url: string; name: string; mimeType: string };
 type AdjustmentItemData = {
@@ -326,9 +327,8 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress("/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir el archivo");
         return;
       }

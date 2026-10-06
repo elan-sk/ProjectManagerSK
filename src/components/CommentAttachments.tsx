@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { PaperclipIcon } from "@/components/icons";
 import { usePasteImage } from "@/lib/usePasteImage";
+import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 export type PendingFile = { url: string; name: string; mimeType: string };
 
@@ -36,9 +37,8 @@ export function CommentAttachments({
       const formData = new FormData();
       formData.append("file", file);
       if (token) formData.append("token", token);
-      const res = await fetch(token ? "/api/upload/public" : "/api/upload", { method: "POST", body: formData });
-      const body = await res.json();
-      if (!res.ok) {
+      const { ok, body } = await uploadWithProgress(token ? "/api/upload/public" : "/api/upload", formData);
+      if (!ok) {
         setError(body.error ?? "No se pudo subir el archivo.");
         return;
       }

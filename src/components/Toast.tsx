@@ -15,7 +15,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showToast = useCallback((message: string, variant: ToastVariant = "error") => {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, message, variant }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+    // Mensajes largos (ej. la sugerencia de dejar un enlace) duran más, para alcanzar a leerlos.
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), Math.max(4000, message.length * 60));
   }, []);
 
   return (

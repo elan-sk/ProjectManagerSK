@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { uploadWriteDir } from "@/lib/persistentUploads";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
 
 // El navegador a veces reporta un mimetype no estándar según cómo el sistema
 // operativo asocie la extensión — ej. con WPS Office instalado, un .xlsx
@@ -35,7 +36,6 @@ const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 // tipo con código propio; por eso se sirve siempre aislado (CSP sandbox, ver
 // next.config.ts y /uploads/[name]) y se muestra en un iframe con sandbox.
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — evidencias/capturas, no video
 
 // Rechaza (no "limpia": limpiar con regex se puede burlar) todo SVG con algo
 // capaz de ejecutar código o cargar contenido externo. Un SVG de decoración
@@ -83,8 +83,8 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
   if (!isHtml && !EXTENSION_MIME[ext] && !ALLOWED_MIME_TYPES.has(file.type)) {
     return { ok: false, status: 415, error: "Tipo de archivo no permitido. Usá imagen, PDF, Word, Excel, PowerPoint o texto/CSV." };
   }
-  if (file.size > MAX_FILE_SIZE) {
-    return { ok: false, status: 413, error: "El archivo supera los 20MB." };
+  if (isTooLarge(file)) {
+    return { ok: false, status: 413, error: TOO_LARGE_MESSAGE };
   }
 
   // Seguridad: la extensión guardada sale SIEMPRE de la lista blanca. Antes un "x.svg" declarado
