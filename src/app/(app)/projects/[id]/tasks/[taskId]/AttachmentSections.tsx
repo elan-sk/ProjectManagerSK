@@ -1,5 +1,6 @@
 import { attachmentFileType, type AttachmentFileType } from "@/lib/attachments";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
+import { SharedLinkTiles, type SharedLinkItem } from "@/components/SharedLinkTiles";
 
 // Vista «Archivos»: la lista se separa por tipo — links, imágenes y documentos —, cada uno con su título
 // y su propia grilla (y su propio visor de imágenes). Un tipo sin archivos no muestra sección.
@@ -9,19 +10,31 @@ const SECTIONS: { type: AttachmentFileType; title: string }[] = [
   { type: "document", title: "Documentos" },
 ];
 
-// Pantalla grande (spec 003): con dos o más tipos, dos columnas con la grilla a
-// media columna — Imágenes a la izquierda (o, sin imágenes, el primer tipo) y el
-// resto a la derecha. Un solo tipo va a todo el ancho. En pantallas chicas, apilado.
+// Pantalla grande (spec 003): con dos o más bloques, dos columnas con la grilla a
+// media columna. Izquierda: los links compartidos (en una sola columna) y las
+// Imágenes (o, sin imágenes, los Links); derecha: el resto, arriba de todo. Un solo
+// bloque va a todo el ancho. En pantallas chicas, apilado.
 const HALF_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-3";
 
-export function AttachmentSections({ items, canDelete, className }: { items: AttachmentGridItem[]; canDelete: boolean; className?: string }) {
+export function AttachmentSections({
+  items,
+  canDelete,
+  className,
+  sharedLinks = [],
+}: {
+  items: AttachmentGridItem[];
+  canDelete: boolean;
+  className?: string;
+  sharedLinks?: SharedLinkItem[];
+}) {
   const groups = SECTIONS.map(({ type, title }) => ({ type, title, group: items.filter((i) => attachmentFileType(i.mimeType) === type) })).filter(
     (g) => g.group.length > 0
   );
-  const leftType = groups.some((g) => g.type === "image") ? "image" : groups[0]?.type;
-  const left = groups.filter((g) => g.type === leftType);
-  const right = groups.filter((g) => g.type !== leftType);
-  const split = left.length > 0 && right.length > 0;
+  const hasShared = sharedLinks.length > 0;
+  // A la izquierda va un tipo solo si quedan otros para la derecha.
+  const left = groups.length > 1 ? [groups.find((g) => g.type === "image") ?? groups[0]] : [];
+  const right = groups.filter((g) => !left.includes(g));
+  const split = (hasShared || left.length > 0) && right.length > 0;
 
   const renderSection = ({ type, title, group }: (typeof groups)[number]) => (
     <section key={type} className="space-y-2.5">
@@ -33,10 +46,20 @@ export function AttachmentSections({ items, canDelete, className }: { items: Att
     </section>
   );
 
-  if (!split) return <div className="space-y-6">{groups.map(renderSection)}</div>;
+  if (!split) {
+    return (
+      <div className="space-y-6">
+        {hasShared && <SharedLinkTiles links={sharedLinks} />}
+        {groups.map(renderSection)}
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <div className="space-y-6">{left.map(renderSection)}</div>
+      <div className="space-y-6">
+        {hasShared && <SharedLinkTiles links={sharedLinks} singleColumn />}
+        {left.map(renderSection)}
+      </div>
       <div className="space-y-6">{right.map(renderSection)}</div>
     </div>
   );

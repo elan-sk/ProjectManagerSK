@@ -11,7 +11,7 @@ export type SharedLinkItem = { id: string; label: string; token: string; href: s
  * grilla, igual que los archivos, con franja de color sólida para distinguirse. Un clic en la
  * tarjeta COPIA el link público; el icono pequeño de la esquina abre la tarea o el proyecto.
  */
-export function SharedLinkTiles({ links }: { links: SharedLinkItem[] }) {
+export function SharedLinkTiles({ links, singleColumn = false }: { links: SharedLinkItem[]; singleColumn?: boolean }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   function copy(l: SharedLinkItem) {
@@ -28,7 +28,7 @@ export function SharedLinkTiles({ links }: { links: SharedLinkItem[] }) {
         Links compartidos
         <span className="rounded-full bg-[#0a6b78]/15 px-2 py-0.5 text-xs font-medium">{links.length}</span>
       </h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-3 ${singleColumn ? "" : "sm:grid-cols-2"}`}>
         {links.map((l) => {
           // La etiqueta viene como «Tarea — nombre» o «Proyecto — nombre».
           const [kind, ...rest] = l.label.split(" — ");

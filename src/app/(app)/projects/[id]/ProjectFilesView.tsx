@@ -3,7 +3,6 @@ import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
-import { SharedLinkTiles } from "@/components/SharedLinkTiles";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
@@ -105,12 +104,11 @@ export function ProjectFilesView({
         />
       </div>
 
-      {showSharedLinks && sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} />}
-
-      {files.length === 0 ? (
-        (!showSharedLinks || sharedLinks.length === 0) && <p className="text-sm text-slate-400">Sin archivos.</p>
+      {files.length === 0 && (!showSharedLinks || sharedLinks.length === 0) ? (
+        <p className="text-sm text-slate-400">Sin archivos.</p>
       ) : (
         <AttachmentSections
+          sharedLinks={showSharedLinks ? sharedLinks : []}
           className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"
           canDelete={canDelete}
           items={files.map((f) => ({
