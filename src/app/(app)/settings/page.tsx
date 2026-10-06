@@ -250,6 +250,23 @@ export default async function SettingsPage({
           </a>
         )}
       </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático de marca, no aplica optimización de next/image */}
+        <img src="/brand/logo-elan-sk-soft.svg" alt="Elan SK Soft" className="mx-auto h-24" />
+        <h2 className="font-medium text-slate-900">Sobre ProjectManagerSK</h2>
+        <p className="mx-auto max-w-xl text-sm text-slate-600">
+          ProjectManagerSK es un producto de Elan SK Soft, elaborado por ELAN-SK, pensado para organizar proyectos, tareas y
+          tiempos del equipo en un solo lugar.
+        </p>
+        <p className="text-sm text-slate-600">
+          Contacto:{" "}
+          <a href="mailto:elan-sk@hotmail.com" className="text-slate-900 underline hover:text-slate-700">
+            elan-sk@hotmail.com
+          </a>
+        </p>
+        <p className="text-xs text-slate-400">Elaborado por ELAN-SK · Elan SK Soft · 2026</p>
+      </section>
     </div>
   );
 }
