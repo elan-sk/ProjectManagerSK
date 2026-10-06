@@ -9,3 +9,4 @@
 - 2026-10-06 — Cambio: estado único (cronograma manda con fecha de cierre), filtro Cronograma retirado, filtro de salud por estado; WA «Estado»/«Cierre». tsc, lint, verify OK.
 - 2026-10-06 — WA: Estado primero y palabra unificada; Archivos: dos columnas con cualquier par de tipos. verify OK.
 - 2026-10-06 — Archivos: links compartidos en una columna a la izquierda y el resto de secciones arriba a la derecha (pedido del usuario).
+- 2026-10-06 — Archivos en dos filas: links (compartidos | externos) y archivos (imágenes | documentos); uno solo ocupa la fila entera (pedido del usuario).
