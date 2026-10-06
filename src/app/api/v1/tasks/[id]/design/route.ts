@@ -22,7 +22,7 @@ const reviewBody = z.object({
 // POST: sube el diseño completo en un solo llamado, según el tipo de la tarea.
 //  - Ajuste:            { items: [{ description, note?, before?: [archivo], after?: [archivo] }] }
 //  - Prueba/Aceptación: { deliverables?: [archivo], templateId?, checks: [{ title, criteria?, category?, evidence?: [archivo] }] }
-//    (crea la primera ronda si no existe —y entonces exige al menos un entregable— y le carga los checks).
+//    (crea la primera ronda si no existe —el entregable es opcional— y le carga los checks).
 // archivo = { url, name, mimeType? } con la url que devolvió POST /api/upload, o un link https://.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);

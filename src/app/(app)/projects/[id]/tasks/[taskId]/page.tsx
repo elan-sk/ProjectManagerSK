@@ -596,6 +596,7 @@ export default async function TaskDetailPage({
             users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
             currentReviewerIds={task.reviewers.map((r) => r.userId)}
             templates={testTemplates.map((t) => ({ id: t.id, name: t.name }))}
+            defaultTestTemplateId={task.defaultTestTemplateId}
             responseCategories={responseCategories.map((c) => ({ name: c.name, responses: c.responses.map((r) => r.text) }))}
             rounds={task.reviewRounds.map((round) => ({
               id: round.id,

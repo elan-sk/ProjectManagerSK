@@ -8,6 +8,7 @@ import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, allowsSelfRe
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
+import { setDefaultTestTemplate } from "@/lib/taskDesign";
 import type { CheckResult } from "@prisma/client";
 
 const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
@@ -99,9 +100,11 @@ export async function submitReviewRound(
   const session = await resolveActor(actor);
   if (!session) return { ok: false as const, error: "Sesión inválida." };
 
-  const parsed = z.array(deliverableInputSchema).min(1).safeParse(deliverables);
+  // Spec 002: el link/archivo es opcional — el revisor muchas veces ya sabe
+  // dónde está lo que revisa (repo, documento). Lo de cada prueba no cambia.
+  const parsed = z.array(deliverableInputSchema).safeParse(deliverables);
   if (!parsed.success) {
-    return { ok: false as const, error: "Agregá al menos un link o archivo a entregar." };
+    return { ok: false as const, error: "Algún link o archivo adjunto no es válido." };
   }
   for (const d of parsed.data) {
     if (d.mimeType === LINK_MIME_TYPE && !z.string().trim().url().safeParse(d.url).success) {
@@ -546,4 +549,13 @@ export async function editReviewMessage(messageId: string, body: string) {
   await prisma.reviewMessage.update({ where: { id: messageId }, data: { body: parsed.data, editedAt: new Date() } });
   await revalidateTask(message.reviewRound.taskId);
   return { ok: true as const };
+}
+
+// Spec 002: cambiar o quitar la plantilla de una Prueba desde su página, antes
+// de la ronda 1. Misma regla que la API (revisor, PM o admin).
+export async function setDefaultTestTemplateAction(taskId: string, templateId: string | null) {
+  const actor = await resolveActor();
+  if (!actor) return { ok: false as const, error: "Sesión inválida." };
+  const result = await setDefaultTestTemplate(taskId, actor, templateId);
+  return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }

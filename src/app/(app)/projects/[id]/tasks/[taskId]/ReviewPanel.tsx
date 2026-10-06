@@ -33,6 +33,7 @@ import {
   removeReviewCheckEvidence,
   closeReviewRound,
   completeReviewTask,
+  setDefaultTestTemplateAction,
 } from "./reviewActions";
 import type { CheckResult, TaskStatus } from "@prisma/client";
 
@@ -153,6 +154,7 @@ export function ReviewPanel({
   users,
   currentReviewerIds,
   templates,
+  defaultTestTemplateId,
   responseCategories,
   rounds,
   taskStatus,
@@ -165,6 +167,7 @@ export function ReviewPanel({
   users: { id: string; name: string; avatarUrl: string | null }[];
   currentReviewerIds: string[];
   templates: { id: string; name: string }[];
+  defaultTestTemplateId: string | null;
   responseCategories: { name: string; responses: string[] }[];
   rounds: Round[];
   // Punto 16: una vez COMPLETED, no se puede reenviar ni completar de
@@ -201,6 +204,10 @@ export function ReviewPanel({
           )}
         </div>
       </div>
+
+      {rounds.length === 0 && !isDone && (
+        <DefaultTemplatePicker taskId={taskId} canReview={canReview} templates={templates} currentId={defaultTestTemplateId} />
+      )}
 
       {activeRound ? (
         <ActiveRound
@@ -374,7 +381,6 @@ function SubmitRoundForm({
   }
 
   function handleSubmit() {
-    if (items.length === 0) return;
     setError(null);
     startTransition(async () => {
       const result = await submitReviewRound(taskId, items);
@@ -425,7 +431,7 @@ function SubmitRoundForm({
           </button>
           <button
             type="button"
-            disabled={isPending || items.length === 0}
+            disabled={isPending}
             onClick={handleSubmit}
             className="ml-auto flex-shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-[18px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
@@ -433,6 +439,56 @@ function SubmitRoundForm({
           </button>
         </div>
       )}
+      <p className="text-[17px] text-slate-400">Adjuntar un link o archivo es opcional.</p>
+      {error && <p className="text-[17px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// Spec 002: plantilla que se copia sola a la ronda 1 al enviar. Se puede
+// cambiar mientras no exista la ronda (revisor, PM o admin); el resto la ve.
+function DefaultTemplatePicker({ taskId, canReview, templates, currentId }: {
+  taskId: string;
+  canReview: boolean;
+  templates: { id: string; name: string }[];
+  currentId: string | null;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const currentName = templates.find((t) => t.id === currentId)?.name ?? null;
+
+  if (!canReview) {
+    return currentName ? <p className="text-[17px] text-slate-500">Plantilla de pruebas: {currentName}</p> : null;
+  }
+
+  function handleChange(value: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await setDefaultTestTemplateAction(taskId, value || null);
+      if (result.ok) router.refresh();
+      else setError(result.error ?? "No se pudo cambiar la plantilla.");
+    });
+  }
+
+  return (
+    <div className="space-y-1">
+      <label className="flex flex-wrap items-center gap-2 text-[17px] text-slate-500">
+        Plantilla de pruebas
+        <select
+          value={currentId ?? ""}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={isPending}
+          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px] text-slate-600"
+        >
+          <option value="">Ninguna por ahora</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {error && <p className="text-[17px] text-red-600">{error}</p>}
     </div>
   );

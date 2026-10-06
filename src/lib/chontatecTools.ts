@@ -30,8 +30,10 @@ import {
   getTaskDesign,
   removeCheck,
   revokeShare,
+  setDefaultTestTemplate,
   updateAdjustmentItem,
 } from "@/lib/taskDesign";
+import { canManageTemplates } from "@/lib/testTemplateApi";
 import { commentInputSchema, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
 import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { mentionMarker } from "@/lib/commentBody";
@@ -192,6 +194,11 @@ export const READ_TOOLS: Anthropic.Tool[] = [
       "Devuelve TODOS los hilos de una tarea: comentarios generales (los que ve el cliente por su link), el hilo de cada cambio de un Ajuste, de cada característica de una Aceptación, de cada prueba y de cada ronda, y la conversación interna. Incluye las preguntas de selección con su estadística (cuántas personas eligieron cada opción y quién).",
     input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
   },
+  {
+    name: "list_test_templates",
+    description: "Lista las plantillas de pruebas (id, nombre y cantidad de pruebas) para elegir la de una tarea de tipo Prueba. Solo para revisores, PM o administradores.",
+    input_schema: { type: "object", properties: {} },
+  },
 ];
 
 // Tools de ESCRITURA — acotadas a bajo riesgo, TODAS llaman a server
@@ -199,6 +206,15 @@ export const READ_TOOLS: Anthropic.Tool[] = [
 // ejecutan directo: el loop en chontatec.ts las pausa para que el usuario
 // confirme explícitamente antes de correr runWriteTool.
 export const WRITE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "set_test_template",
+    description: "Elige, cambia o quita (templateId null) la plantilla de pruebas de una tarea de tipo Prueba, antes de que se envíe a revisión: se copia sola a la ronda 1 al enviarla. Los ids salen de list_test_templates. Revisor, PM o administrador.",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, templateId: { type: ["string", "null"], description: "null para quitarla." } },
+      required: ["taskId", "templateId"],
+    },
+  },
   {
     name: "add_task_comment",
     description:
@@ -320,7 +336,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "design_task",
     description:
-      "Sube el DISEÑO de una tarea en un solo paso. Ajuste: `items` = cambios pedidos [{ description, note?, before?, after? }] (before/after son archivos o links). Prueba (QA) y Aceptación: crea la primera ronda si no existe (exige `deliverables`, al menos un archivo o link) y le carga `checks` = pruebas o características [{ title, criteria? (un punto por línea), category?, evidence? }]; en Prueba también admite `templateId`. Cada acción exige el rol correspondiente (asignado, revisor, PM o administrador); si no lo tiene, se rechaza.",
+      "Sube el DISEÑO de una tarea en un solo paso. Ajuste: `items` = cambios pedidos [{ description, note?, before?, after? }] (before/after son archivos o links). Prueba (QA) y Aceptación: crea la primera ronda si no existe (`deliverables` opcional: archivos o links de lo que se entrega) y le carga `checks` = pruebas o características [{ title, criteria? (un punto por línea), category?, evidence? }]; en Prueba también admite `templateId`. Cada acción exige el rol correspondiente (asignado, revisor, PM o administrador); si no lo tiene, se rechaza.",
     input_schema: {
       type: "object",
       properties: {
@@ -551,6 +567,8 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         plannedStart: { type: "string", description: "Fecha de inicio, formato YYYY-MM-DD." },
         durationDays: { type: "number", description: "Duración en días hábiles, mínimo 1." },
         assigneeIds: { type: "array", items: { type: "string" }, description: "Al menos un id de usuario." },
+        reviewerIds: { type: "array", items: { type: "string" }, description: "Solo tipo QA (Prueba): ids de revisores, distintos de los asignados." },
+        defaultTestTemplateId: { type: "string", description: "Solo tipo QA (Prueba): plantilla de pruebas (id de list_test_templates)." },
       },
       required: ["projectId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
     },
@@ -889,6 +907,13 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       });
     }
 
+    case "list_test_templates": {
+      const role = (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role;
+      if (!(await canManageTemplates(trustedActor({ id: userId, role })))) return JSON.stringify({ error: "Las plantillas de pruebas solo las ven revisores, PM o administradores." });
+      const templates = await prisma.testTemplate.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { items: true } } } });
+      return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
+    }
+
     case "get_task_design":
     case "get_task_threads": {
       const { taskId } = z.object({ taskId: z.string() }).parse(input);
@@ -1035,6 +1060,10 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       if (addUserId) return "Agregar una persona a la tarea";
       if (removeUserId) return "Quitar una persona de la tarea";
       return "Reasignar la tarea";
+    }
+    case "set_test_template": {
+      const { templateId } = input as { templateId?: string | null };
+      return templateId ? "Asignar la plantilla de pruebas a la tarea" : "Quitar la plantilla de pruebas de la tarea";
     }
     case "create_task": {
       const { title } = input as { title?: string };
@@ -1249,6 +1278,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             plannedStart: z.string(),
             durationDays: z.number(),
             assigneeIds: z.array(z.string()).min(1),
+            reviewerIds: z.array(z.string()).optional(),
+            defaultTestTemplateId: z.string().optional(),
           })
           .parse(input);
         // La fase se resuelve dentro del proyecto: por id, por nombre, o la única que exista.
@@ -1267,6 +1298,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         formData.set("plannedStart", parsed.plannedStart);
         formData.set("durationDays", String(parsed.durationDays));
         for (const id of parsed.assigneeIds) formData.append("assigneeIds", id);
+        for (const id of parsed.reviewerIds ?? []) formData.append("reviewerIds", id);
+        if (parsed.defaultTestTemplateId) formData.set("defaultTestTemplateId", parsed.defaultTestTemplateId);
         const result = await addTask(parsed.projectId, formData);
         return {
           ok: result.ok,
@@ -1401,6 +1434,17 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         return { ok: true, message: "Listo, se adjuntó el enlace." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "set_test_template": {
+      try {
+        const d = z.object({ taskId: z.string(), templateId: z.string().nullable() }).parse(input);
+        const r = await setDefaultTestTemplate(d.taskId, await currentActor(), d.templateId);
+        if (!r.ok) return { ok: false, message: r.error };
+        return { ok: true, message: d.templateId ? "Listo, la plantilla quedó asignada: se copia sola al enviar la Prueba a revisión." : "Listo, se quitó la plantilla de la Prueba." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "No se pudo cambiar la plantilla." };
       }
     }
 

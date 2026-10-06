@@ -15,7 +15,8 @@ const bodySchema = z.object({
         mimeType: z.string().min(1),
       })
     )
-    .min(1),
+    // Spec 002: opcional — se puede enviar a revisión sin link ni archivo.
+    .default([]),
 });
 
 // Envía (ronda 1) o reenvía (ronda 2+, tras una devolución) — para tipo
