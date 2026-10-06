@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { removeAttachment } from "./actions";
 import { LINK_MIME_TYPE, documentStyle, linkHostname, youtubeVideoId } from "@/lib/attachments";
@@ -201,22 +202,30 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
-// Bajo la ficha de la vista "Archivos": la tarea dueña, o la lista de tareas
-// que usan el mismo archivo (hasta 3 y «+N más», con el resto en el tooltip).
+// Bajo la ficha de la vista "Archivos": el lugar más reciente donde se usa el
+// archivo y, si hay más, «+N» que abre la lista completa (mismo popover que los
+// badges de colisiones y atrasos).
 function UsedIn({ taskLink, usedIn }: { taskLink?: { href: string; title: string }; usedIn?: { href: string; title: string }[] }) {
   const links = usedIn && usedIn.length > 1 ? usedIn : taskLink ? [taskLink] : [];
   if (links.length === 0) return null;
-  const shown = links.slice(0, 3);
-  const rest = links.slice(3);
+  const [latest, ...rest] = links;
   return (
-    <div className="mt-0.5 text-center text-[11px] text-slate-400">
-      {links.length > 1 && <p className="font-medium text-slate-500">Usado en {links.length} lugares</p>}
-      {shown.map((l) => (
-        <Link key={l.href + l.title} href={l.href} className="block truncate hover:text-slate-700 hover:underline">
-          → {l.title}
-        </Link>
-      ))}
-      {rest.length > 0 && <p title={rest.map((l) => l.title).join("\n")}>+{rest.length} más</p>}
+    <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] text-slate-400">
+      <Link href={latest.href} className="min-w-0 truncate hover:text-slate-700 hover:underline" title={latest.title}>
+        → {latest.title}
+      </Link>
+      {rest.length > 0 && (
+        <ReferencePopover
+          align="right"
+          hoverText={`Usado en ${links.length} lugares`}
+          items={links.map((l) => ({ id: l.href + l.title, label: l.title, href: l.href }))}
+          trigger={
+            <span className="flex-shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600" aria-label={`Usado en ${links.length} lugares`}>
+              +{rest.length}
+            </span>
+          }
+        />
+      )}
     </div>
   );
 }

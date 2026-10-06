@@ -29,7 +29,7 @@ export function AttachmentSections({
   sharedLinks?: SharedLinkItem[];
 }) {
   // Un mismo archivo (misma dirección) usado en varias tareas se muestra una sola vez,
-  // con la lista de dónde se usa (spec 001, RF-7/RF-8: nombre de la primera ficha).
+  // con la lista de dónde se usa, del uso más reciente al más antiguo (spec 001, RF-7/RF-8).
   const unique = groupByUrl(items);
   const groupOf = (type: AttachmentFileType) => {
     const group = unique.filter((i) => attachmentFileType(i.mimeType) === type);
@@ -82,6 +82,8 @@ function groupByUrl(items: AttachmentGridItem[]): AttachmentGridItem[] {
     if (item.taskLink && !existing.usedIn.some((u) => u.href === item.taskLink!.href && u.title === item.taskLink!.title)) existing.usedIn.push(item.taskLink);
     // Usado en varios lugares: se borra desde cada tarea, no desde la ficha agrupada.
     existing.canDelete = false;
+    // Llegan de lo más reciente a lo más antiguo: el nombre queda el de la primera carga (RF-8).
+    existing.name = item.name;
   }
   return [...byUrl.values()];
 }

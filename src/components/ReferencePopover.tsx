@@ -154,7 +154,7 @@ export function ReferencePopover({
           <div
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-50 w-64 rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
+            className="fixed z-[70] w-64 rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
             style={{ top: pos.top, left: pos.left }}
           >
             {filteredHref && (

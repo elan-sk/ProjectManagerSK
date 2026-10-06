@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useConfirm } from "@/components/Confirm";
 import { HTML_SANDBOX } from "@/lib/htmlShell";
 import { ToolbarButton, toolbarButtonClass } from "@/components/ToolbarButton";
-import { CheckIcon, CopyIcon, DownloadIcon, ExpandIcon, ExternalLinkIcon, TaskIcon, TrashIcon, XIcon } from "@/components/icons";
+import { CheckIcon, CopyIcon, DownloadIcon, ExpandIcon, ExternalLinkIcon, TrashIcon, XIcon } from "@/components/icons";
+import { TaskLinkButton } from "@/components/TaskLinkButton";
 
 export type PreviewFile = {
   id: string;
@@ -13,6 +13,8 @@ export type PreviewFile = {
   name: string;
   mimeType: string;
   taskLink?: { href: string; title: string };
+  /** Todos los lugares donde se usa (vista Archivos); con más de uno, «Ver tarea» abre la lista. */
+  usedIn?: { href: string; title: string }[];
 };
 
 const WORD_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -258,11 +260,7 @@ export function AttachmentPreviewModal({
             <a href={file.url} download={file.name} title="Descargar" aria-label="Descargar" className={toolbarButtonClass()}>
               <DownloadIcon className="h-4 w-4" />
             </a>
-            {file.taskLink && (
-              <Link href={file.taskLink.href} title="Ver tarea" aria-label="Ver tarea" className={toolbarButtonClass()}>
-                <TaskIcon className="h-4 w-4" />
-              </Link>
-            )}
+            <TaskLinkButton taskLink={file.taskLink} usedIn={file.usedIn} />
             {onDelete && (
               <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />
             )}

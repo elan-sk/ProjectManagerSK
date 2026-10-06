@@ -169,7 +169,7 @@ export default async function ProjectPage({
             reviewRounds: { select: { outcome: true } },
             taskTags: { include: { tag: { include: { category: true } } } },
             steps: true,
-            attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
+            attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
             dependsOn: {
               include: {
                 predecessor: {
@@ -463,12 +463,12 @@ export default async function ProjectPage({
   // Los archivos y links subidos directo al repositorio del proyecto (pestaña
   // Definición, no atados a ninguna tarea) cuentan como insumo del proyecto
   // en este filtro.
-  type FileRow = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; section?: string; readOnly?: boolean };
+  type FileRow = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; section?: string; readOnly?: boolean; uploadedAt?: Date };
   const projectRepoFiles: FileRow[] =
     projectFileKind !== "RESULTADO"
       ? [
           ...project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null })),
-          ...project.links.map((l) => ({ id: l.id, fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
+          ...project.links.map((l) => ({ id: l.id, fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null, uploadedAt: l.createdAt })),
           // Los repositorios vinculados también se listan como enlaces del proyecto.
           ...repoUrls.map((url, i) => ({ id: `repo-${i}`, fileUrl: url, fileName: `Repositorio${repoUrls.length > 1 ? ` ${i + 1}` : ""} — ${url.replace(/^https?:\/\/(www\.)?/, "")}`, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
         ]
@@ -477,18 +477,20 @@ export default async function ProjectPage({
     .flatMap((t) =>
       t.attachments
         .filter((a) => !projectFileKind || a.kind === projectFileKind)
-        .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos" }))
+        .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos", uploadedAt: a.uploadedAt }))
     )
     .concat(projectRepoFiles)
     // Spec 001: también los de Ajustes y rondas (solo en «Todos»: no son Insumos ni Evidencias de la tarea).
     .concat(
       view === "files" && !projectFileKind
-        ? (await getDesignFiles([project.id])).map((f): FileRow => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, section: f.section, readOnly: true }))
+        ? (await getDesignFiles([project.id])).map((f): FileRow => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, section: f.section, readOnly: true, uploadedAt: f.uploadedAt }))
         : []
     )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileTask || a.taskId === fileTask)
-    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)))
+    // Lo más reciente primero: en un archivo usado en varios lugares, la ficha muestra el uso más reciente.
+    .sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
 
   // Links compartidos (proyecto + tareas) buscables junto al resto de
   // archivos — distintos de un adjunto de tipo link (uno es un recurso

@@ -2,17 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { removeAttachment } from "./actions";
 import { useConfirm } from "@/components/Confirm";
 import { ToolbarButton, toolbarButtonClass } from "@/components/ToolbarButton";
-import { DownloadIcon, TaskIcon, TrashIcon, XIcon } from "@/components/icons";
+import { DownloadIcon, TrashIcon, XIcon } from "@/components/icons";
+import { TaskLinkButton } from "@/components/TaskLinkButton";
 
 export type LightboxImage = {
   id: string;
   url: string;
   name: string;
   taskLink?: { href: string; title: string };
+  /** Todos los lugares donde se usa (vista Archivos); con más de uno, «Ver tarea» abre la lista. */
+  usedIn?: { href: string; title: string }[];
   /** false = sin botón Eliminar para esta imagen (archivo usado en varios lugares). */
   canDelete?: boolean;
   /** Etiqueta del tramo del carrusel (ej. Antes / Después); el contador se cuenta dentro de cada tramo. */
@@ -165,11 +167,7 @@ export function AttachmentLightbox({
           <a href={current.url} download={current.name} title="Descargar" aria-label="Descargar" className={toolbarButtonClass()}>
             <DownloadIcon className="h-4 w-4" />
           </a>
-          {current.taskLink && (
-            <Link href={current.taskLink.href} title="Ver tarea" aria-label="Ver tarea" className={toolbarButtonClass()}>
-              <TaskIcon className="h-4 w-4" />
-            </Link>
-          )}
+          <TaskLinkButton taskLink={current.taskLink} usedIn={current.usedIn} />
           {canDelete && current.canDelete !== false && <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label="Eliminar" onClick={handleDelete} disabled={deleting} danger />}
           <ToolbarButton icon={<XIcon className="h-4 w-4" />} label="Cerrar" onClick={onClose} />
         </div>

@@ -236,7 +236,7 @@ export default async function ProjectsPage({
       reviewRounds: { select: { outcome: true } },
       taskTags: { include: { tag: { include: { category: true } } } },
       steps: true,
-      attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true } },
+      attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
       dependsOn: {
         include: {
           predecessor: {
@@ -471,9 +471,10 @@ export default async function ProjectsPage({
               taskTitle: null,
               projectId: p.id,
               projectName: p.name,
+              uploadedAt: l.createdAt,
             })),
           ]);
-  type BoardFile = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; projectId: string; projectName: string; section?: string };
+  type BoardFile = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; projectId: string; projectName: string; section?: string; uploadedAt?: Date };
   const boardFiles = boardTasksRaw
     .flatMap((t) =>
       t.attachments
@@ -488,18 +489,21 @@ export default async function ProjectsPage({
           projectId: t.projectId,
           projectName: t.project.name,
           section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos",
+          uploadedAt: a.uploadedAt,
         }))
     )
     .concat(boardProjectFiles)
     // Spec 001: también los de Ajustes y rondas (solo en «Todos»).
     .concat(
       view === "files" && !boardFileKind
-        ? (await getDesignFiles([...boardVisibleProjectIds])).map((f): BoardFile => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, projectId: f.projectId, projectName: f.projectName, section: f.section }))
+        ? (await getDesignFiles([...boardVisibleProjectIds])).map((f): BoardFile => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, projectId: f.projectId, projectName: f.projectName, section: f.section, uploadedAt: f.uploadedAt }))
         : []
     )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileProject || a.projectId === fileProject)
-    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
+    .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)))
+    // Lo más reciente primero (ver projects/[id]/page.tsx).
+    .sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
   const boardSharedLinks = [
     ...projects
       .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
