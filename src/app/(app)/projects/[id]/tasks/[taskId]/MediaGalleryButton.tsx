@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
@@ -25,6 +28,7 @@ type Props = Target & { taskId: string; open?: boolean; onClose?: () => void };
 export function MediaGalleryButton(props: Props) {
   const { taskId } = props;
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const [ownOpen, setOwnOpen] = useState(false);
   const controlled = props.open !== undefined;
   const open = controlled ? props.open! : ownOpen;
@@ -55,6 +59,7 @@ export function MediaGalleryButton(props: Props) {
         : await reuseMedia(taskId, props.kind, item.url, props.userId);
     setBusy(null);
     if (!result.ok) return setError(result.error);
+    if (isDuplicate(result)) notifyDuplicate([item.name]);
     setOpen(false);
     router.refresh();
   }

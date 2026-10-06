@@ -1432,8 +1432,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     case "attach_link_to_task": {
       try {
         const { taskId, url, name: linkName, kind } = z.object({ taskId: z.string(), url: z.string(), name: z.string(), kind: z.enum(["INSUMO", "RESULTADO"]).optional() }).parse(input);
-        await addLinkAttachment(taskId, kind ?? "INSUMO", url, linkName, await currentUserId());
-        return { ok: true, message: "Listo, se adjuntó el enlace." };
+        const r = await addLinkAttachment(taskId, kind ?? "INSUMO", url, linkName, await currentUserId());
+        return { ok: true, message: r?.duplicate ? "Ese enlace ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el enlace." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
@@ -1502,7 +1502,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           if (!v) throw new Error(`Falta ${what}.`);
           return v as string;
         };
-        let r: { ok: boolean; error?: string };
+        let r: { ok: boolean; error?: string; skipped?: string[] };
         switch (d.action) {
           case "update_adjustment":
             r = await updateAdjustmentItem(need(d.itemId, "itemId"), actor, { description: d.description, note: d.note });
@@ -1522,7 +1522,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           default:
             r = d.itemId ? await deleteAdjustmentItem(d.itemId, actor) : await removeCheck(need(d.checkId, "itemId o checkId"), actor);
         }
-        return { ok: r.ok, message: r.ok ? "Listo, quedó hecho." : (r.error ?? "No se pudo completar la acción.") };
+        return { ok: r.ok, message: r.ok ? `Listo, quedó hecho.${skippedNote(r.skipped)}` : (r.error ?? "No se pudo completar la acción.") };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
@@ -1603,7 +1603,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           }
         }
         const r = await addTaskAttachments(taskId, await currentActor(), kind ?? "INSUMO", files);
-        return { ok: r.ok, message: r.ok ? `Listo, se subieron ${files.length} archivo(s).` : r.error };
+        return { ok: r.ok, message: r.ok ? `Listo, se subieron ${r.added} archivo(s).${skippedNote(r.skipped)}` : r.error };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
@@ -1614,8 +1614,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           .object({ taskId: z.string(), fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ruta de archivo inválida."), fileName: z.string().min(1), kind: z.enum(["INSUMO", "RESULTADO"]).optional() })
           .parse(input);
         if (!(await findUploadPath(fileUrl))) return { ok: false, message: "Ese archivo no existe en el servidor." };
-        await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName) }, await currentUserId());
-        return { ok: true, message: "Listo, se adjuntó el archivo." };
+        const r = await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName) }, await currentUserId());
+        return { ok: true, message: r?.duplicate ? "Ese archivo ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el archivo." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
@@ -1853,4 +1853,9 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     default:
       return { ok: false, message: `Tool de escritura desconocida: ${name}` };
   }
+}
+
+// Spec 001: lo que ya estaba cargado en esa sección no se repite; se le cuenta a la persona.
+function skippedNote(skipped?: string[]) {
+  return skipped && skipped.length > 0 ? ` No se repitieron porque ya estaban cargados ahí: ${skipped.join(", ")}.` : "";
 }

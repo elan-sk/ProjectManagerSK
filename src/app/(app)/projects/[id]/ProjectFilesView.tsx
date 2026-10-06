@@ -33,7 +33,8 @@ export function ProjectFilesView({
   filesHref,
 }: {
   projectId: string;
-  files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string }[];
+  // section: dónde se usa dentro de la tarea (Insumos, Ajuste · Antes, Ronda 1 · Entregable…); readOnly: se quita desde su tarea.
+  files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; readOnly?: boolean }[];
   tasks: { id: string; title: string }[];
   // Links de "Compartir" (acceso público al proyecto/tarea) activos —
   // distintos de un adjunto tipo link (recurso externo pegado a mano),
@@ -116,7 +117,10 @@ export function ProjectFilesView({
             url: f.fileUrl,
             name: f.fileName,
             mimeType: f.mimeType,
-            taskLink: f.taskId ? { href: `/projects/${projectId}/tasks/${f.taskId}`, title: f.taskTitle! } : undefined,
+            taskLink: f.taskId
+              ? { href: `/projects/${projectId}/tasks/${f.taskId}`, title: f.section ? `${f.taskTitle} · ${f.section}` : f.taskTitle! }
+              : { href: `/projects/${projectId}?view=definition`, title: "Definición del proyecto" },
+            canDelete: f.readOnly ? false : undefined,
           }))}
         />
       )}

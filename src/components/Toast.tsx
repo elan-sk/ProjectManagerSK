@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from "react";
 
-type ToastVariant = "error" | "success";
+type ToastVariant = "error" | "success" | "info";
 type ToastItem = { id: number; message: string; variant: ToastVariant };
 
 const ToastContext = createContext<((message: string, variant?: ToastVariant) => void) | null>(null);
@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={`pointer-events-auto rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg ${
-              t.variant === "error" ? "bg-red-600" : "bg-emerald-600"
+              t.variant === "error" ? "bg-red-600" : t.variant === "info" ? "bg-slate-700" : "bg-emerald-600"
             }`}
           >
             {t.message}

@@ -28,6 +28,7 @@ import { GanttView, type GanttTask } from "./[id]/GanttView";
 import { KanbanBoard, type TaskCard } from "./[id]/KanbanBoard";
 import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarView";
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
+import { getDesignFiles } from "@/lib/designFiles";
 import { ProjectSummaryGrid } from "./ProjectSummaryGrid";
 
 export default async function ProjectsPage({
@@ -472,22 +473,30 @@ export default async function ProjectsPage({
               projectName: p.name,
             })),
           ]);
+  type BoardFile = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; projectId: string; projectName: string; section?: string };
   const boardFiles = boardTasksRaw
     .flatMap((t) =>
       t.attachments
         .filter((a) => !boardFileKind || a.kind === boardFileKind)
-        .map((a) => ({
+        .map((a): BoardFile => ({
           id: a.id,
           fileUrl: a.fileUrl,
           fileName: a.fileName,
           mimeType: a.mimeType,
-          taskId: t.id as string | null,
-          taskTitle: t.title as string | null,
+          taskId: t.id,
+          taskTitle: t.title,
           projectId: t.projectId,
           projectName: t.project.name,
+          section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos",
         }))
     )
     .concat(boardProjectFiles)
+    // Spec 001: también los de Ajustes y rondas (solo en «Todos»).
+    .concat(
+      view === "files" && !boardFileKind
+        ? (await getDesignFiles([...boardVisibleProjectIds])).map((f): BoardFile => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, projectId: f.projectId, projectName: f.projectName, section: f.section }))
+        : []
+    )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileProject || a.projectId === fileProject)
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));

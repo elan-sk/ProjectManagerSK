@@ -1,5 +1,6 @@
 "use client";
 
+import { ALREADY_LOADED, isDuplicate } from "@/lib/duplicateNotice";
 import { PublicFileGrid } from "./PublicFileGrid";
 import { PublicUploadWidget } from "./PublicUploadWidget";
 import { addPublicProjectAttachment, addPublicProjectLink } from "./shareActions";
@@ -28,11 +29,13 @@ export function PublicFilesView({
     if (!ok) return body.error ?? "No se pudo subir el archivo.";
     const result = await addPublicProjectAttachment(token, body);
     if (!result.ok) return "No se pudo guardar el archivo.";
+    if (isDuplicate(result)) return ALREADY_LOADED;
   }
 
   async function addLink(url: string, name: string) {
     const result = await addPublicProjectLink(token, url, name);
     if (!result.ok) return result.error;
+    if (isDuplicate(result)) return ALREADY_LOADED;
   }
 
   const files: PublicFile[] = [

@@ -42,6 +42,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Spec 001: el mismo link ya está en el proyecto → no se repite (se devuelve el existente).
+  const existing = await prisma.projectLink.findFirst({ where: { projectId, url: parsed.data.url.trim() } });
+  if (existing) return NextResponse.json({ ...existing, skipped: true }, { status: 200 });
   const link = await prisma.projectLink.create({ data: { projectId, title: parsed.data.title, url: parsed.data.url } });
   return NextResponse.json(link, { status: 201 });
 }

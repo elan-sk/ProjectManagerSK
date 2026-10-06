@@ -9,6 +9,12 @@ export async function register() {
   const { ensurePersistentUploads } = await import("@/lib/persistentUploads");
   await ensurePersistentUploads().catch((err) => console.error("[instrumentation] ensurePersistentUploads falló", err));
 
+  // Spec 001: unifica una vez los archivos repetidos subidos antes del nombre por contenido.
+  // En segundo plano: no demora el arranque, y si falla queda en el registro sin tumbar nada.
+  import("@/lib/unifyUploads")
+    .then(({ unifyUploads }) => unifyUploads())
+    .catch((err) => console.error("[instrumentation] unifyUploads falló", err));
+
   if (process.env.WHATSAPP_ENABLED === "true") {
     const { startWhatsApp } = await import("@/lib/whatsapp");
     // Mismo criterio que scheduler.ts: si falla la conexión, que quede en

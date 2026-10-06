@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -26,6 +29,7 @@ export function ProjectLinksPanel({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const [isPending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -45,6 +49,7 @@ export function ProjectLinksPanel({
       formData.set("title", title);
       formData.set("url", url);
       const result = await addProjectLink(projectId, formData);
+      if (isDuplicate(result)) notifyDuplicate([String(formData.get("title") || formData.get("url"))]);
       if (result.ok) {
         setTitle("");
         setUrl("");
@@ -60,6 +65,7 @@ export function ProjectLinksPanel({
     setUploadError(null);
     setProgress(0);
     const failed: string[] = [];
+    const dup: string[] = [];
     for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
@@ -71,12 +77,14 @@ export function ProjectLinksPanel({
           continue;
         }
         const result = await addProjectAttachment(projectId, { url: body.url, name: body.name, mimeType: body.mimeType });
+        if (isDuplicate(result)) dup.push(file.name);
         if (!result.ok) failed.push(`${file.name}: ${result.error ?? "no se pudo guardar"}`);
       } catch (err) {
         failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
       }
     }
     if (failed.length > 0) setUploadError(failed.join(" · "));
+    notifyDuplicate(dup);
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
     router.refresh();

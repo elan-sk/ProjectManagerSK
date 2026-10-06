@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -134,6 +137,7 @@ export const StepAttachments = forwardRef<
   }
 >(function StepAttachments({ taskId, stepId, attachments, canEdit, canAdd, poll, onPollAnswered }, ref) {
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   // Ctrl+V con una captura: va al paso sobre el que está el mouse o el foco (data-paste-zone en
@@ -172,6 +176,7 @@ export const StepAttachments = forwardRef<
     setError(null);
     setProgress(0);
     const failed: string[] = [];
+    const dup: string[] = [];
     for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
@@ -181,12 +186,13 @@ export const StepAttachments = forwardRef<
           failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
           continue;
         }
-        await addStepAttachment(stepId, body);
+        if (isDuplicate(await addStepAttachment(stepId, body))) dup.push(file.name);
       } catch (err) {
         failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
       }
     }
     if (failed.length > 0) setError(failed.join(" · "));
+    notifyDuplicate(dup);
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
     router.refresh();
@@ -196,7 +202,7 @@ export const StepAttachments = forwardRef<
     setUploading(true);
     setError(null);
     try {
-      await addStepLinkAttachment(stepId, linkUrl.trim(), linkName.trim());
+      if (isDuplicate(await addStepLinkAttachment(stepId, linkUrl.trim(), linkName.trim()))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       setAddingLink(false);

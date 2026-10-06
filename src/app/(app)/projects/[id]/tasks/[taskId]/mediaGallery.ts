@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { canEditTask } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { isDuplicate } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
@@ -14,14 +15,19 @@ export type MediaItem = { url: string; name: string; mimeType: string };
 export async function listReusableMedia(taskId: string): Promise<{ ok: true; items: MediaItem[] } | { ok: false; error: string }> {
   if (!(await canEditTask(taskId))) return { ok: false, error: "No tenés permiso para editar esta tarea." };
   const { projectId } = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
-  const [attachments, projectAttachments, links] = await Promise.all([
-    prisma.attachment.findMany({ where: { task: { projectId } }, select: { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } }),
-    prisma.projectAttachment.findMany({ where: { projectId }, select: { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } }),
+  const fileSelect = { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } as const;
+  // Spec 001 (RF-7): también los archivos de Ajustes y de las rondas de Prueba/Aceptación.
+  const [attachments, projectAttachments, links, adjustmentFiles, deliverables, evidence] = await Promise.all([
+    prisma.attachment.findMany({ where: { task: { projectId } }, select: fileSelect }),
+    prisma.projectAttachment.findMany({ where: { projectId }, select: fileSelect }),
     prisma.projectLink.findMany({ where: { projectId }, select: { url: true, title: true, createdAt: true } }),
+    prisma.adjustmentAttachment.findMany({ where: { adjustmentItem: { task: { projectId } } }, select: fileSelect }),
+    prisma.reviewDeliverable.findMany({ where: { reviewRound: { task: { projectId } } }, select: fileSelect }),
+    prisma.reviewCheckEvidence.findMany({ where: { reviewCheck: { reviewRound: { task: { projectId } } } }, select: fileSelect }),
   ]);
   // Siempre de lo más reciente a lo más antiguo, mezclando archivos y links; un archivo
   // usado en varios lugares aparece una vez, en la posición de su uso más reciente.
-  const all = [...attachments, ...projectAttachments, ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt }))]
+  const all = [...attachments, ...projectAttachments, ...adjustmentFiles, ...deliverables, ...evidence, ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt }))]
     .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
   const seen = new Set<string>();
   const items: MediaItem[] = [];
@@ -41,9 +47,8 @@ export async function reuseMedia(taskId: string, kind: AttachmentKind, url: stri
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
-    if (item.mimeType === LINK_MIME_TYPE) await addLinkAttachment(taskId, kind, item.url, item.name, userId);
-    else await addAttachmentRecord(taskId, kind, item, userId);
-    return { ok: true as const };
+    const r = item.mimeType === LINK_MIME_TYPE ? await addLinkAttachment(taskId, kind, item.url, item.name, userId) : await addAttachmentRecord(taskId, kind, item, userId);
+    return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -58,9 +63,8 @@ export async function reuseMediaForAdjustment(itemId: string, kind: AdjustmentAt
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
-    if (item.mimeType === LINK_MIME_TYPE) await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId);
-    else await addAdjustmentAttachment(itemId, kind, item, userId);
-    return { ok: true as const };
+    const r = item.mimeType === LINK_MIME_TYPE ? await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId) : await addAdjustmentAttachment(itemId, kind, item, userId);
+    return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -75,9 +79,8 @@ export async function reuseMediaForStep(stepId: string, url: string) {
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
-    if (item.mimeType === LINK_MIME_TYPE) await addStepLinkAttachment(stepId, item.url, item.name);
-    else await addStepAttachment(stepId, item);
-    return { ok: true as const };
+    const r = item.mimeType === LINK_MIME_TYPE ? await addStepLinkAttachment(stepId, item.url, item.name) : await addStepAttachment(stepId, item);
+    return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }

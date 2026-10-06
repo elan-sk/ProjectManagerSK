@@ -36,7 +36,7 @@ export function AllProjectsFilesView({
   fileQ,
   filesHref,
 }: {
-  files: { id: string; projectId: string; projectName: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string }[];
+  files: { id: string; projectId: string; projectName: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string }[];
   projects: { id: string; label: string }[];
   // Ver mismo comentario en ProjectFilesView.
   sharedLinks: { id: string; label: string; token: string; href: string }[];
@@ -116,7 +116,7 @@ export function AllProjectsFilesView({
             name: f.fileName,
             mimeType: f.mimeType,
             taskLink: f.taskId
-              ? { href: `/projects/${f.projectId}/tasks/${f.taskId}`, title: `${f.projectName} — ${f.taskTitle}` }
+              ? { href: `/projects/${f.projectId}/tasks/${f.taskId}`, title: `${f.projectName} — ${f.taskTitle}${f.section ? ` · ${f.section}` : ""}` }
               : { href: `/projects/${f.projectId}`, title: `${f.projectName} (insumo del proyecto)` },
           }))}
         />

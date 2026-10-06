@@ -1,22 +1,22 @@
 # Tareas 001 — Archivos sin duplicados
 
-- [ ] **T1. Chequeo ejecutable `verify:file-dedup` (en rojo).** RF-1, RF-2, RF-3, RF-9
+- [x] **T1. Chequeo ejecutable `verify:file-dedup` (en rojo).** RF-1, RF-2, RF-3, RF-9
   - Hecho cuando: el script existe y falla por lo que todavía no está hecho.
-- [ ] **T2. Nombre por contenido en `saveUploadedFile`.** RF-1, RF-2
+- [x] **T2. Nombre por contenido en `saveUploadedFile`.** RF-1, RF-2
   - Hecho cuando: mismo contenido → misma URL y un solo archivo; `.jpeg`/`.jpg` iguales; verificaciones de subidas existentes en verde.
-- [ ] **T3. `attachmentDedup.ts` (secciones y aviso).** RF-3, RF-4
+- [x] **T3. `attachmentDedup.ts` (secciones y aviso).** RF-3, RF-4
   - Hecho cuando: `inSection` cubre los 6 tipos de sección y pasa su parte de `verify:file-dedup`.
-- [ ] **T4. Acciones de la tarea, checklist y ajustes devuelven `duplicate`.** RF-3, RF-4
+- [x] **T4. Acciones de la tarea, checklist y ajustes devuelven `duplicate`.** RF-3, RF-4
   - Hecho cuando: las 6 acciones de `actions.ts` no crean repetidos; tsc en verde.
-- [ ] **T5. Acciones de Prueba, Aceptación, Definición y link del cliente.** RF-3, RF-6
+- [x] **T5. Acciones de Prueba, Aceptación, Definición y link del cliente.** RF-3, RF-6
   - Hecho cuando: las 14 acciones restantes no crean repetidos.
-- [ ] **T6. API, bot y comentarios (`skipped`, sin aviso en comentarios).** RF-5, RF-6
+- [x] **T6. API, bot y comentarios (`skipped`, sin aviso en comentarios).** RF-5, RF-6
   - Hecho cuando: `taskDesign` y las herramientas del bot devuelven `skipped`; los comentarios no duplican Insumos.
-- [ ] **T7. Aviso en los 10 componentes de subida.** RF-3
+- [x] **T7. Aviso en los 10 componentes de subida.** RF-3
   - Hecho cuando: cada componente muestra el aviso neutro (simple y múltiple); lint en verde.
-- [ ] **T8. Vista Archivos agrupada con «usado en» + galería con ajustes y rondas.** RF-7, RF-8
+- [x] **T8. Vista Archivos agrupada con «usado en» + galería con ajustes y rondas.** RF-7, RF-8
   - Hecho cuando: un archivo usado en 2 tareas aparece una vez con sus 2 usos (comprobado con datos locales); filtros funcionando.
-- [ ] **T9. Borrado seguro ampliado.** RF-9, RF-10
+- [x] **T9. Borrado seguro ampliado.** RF-9, RF-10
   - Hecho cuando: `verify:file-dedup` confirma que ícono/foto/texto impiden el borrado.
-- [ ] **T10. Unificación al arranque.** RF-11, RF-12, RF-13, RF-14
+- [x] **T10. Unificación al arranque.** RF-11, RF-12, RF-13, RF-14
   - Hecho cuando: en la base local, dos corridas dan el mismo resultado, toda referencia abre y el registro muestra el resumen.

@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { uploadWriteDir } from "@/lib/persistentUploads";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
 
 // El navegador a veces reporta un mimetype no estándar según cómo el sistema
@@ -89,16 +89,39 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
 
   // Seguridad: la extensión guardada sale SIEMPRE de la lista blanca. Antes un "x.svg" declarado
   // como image/png pasaba (el tipo lo manda el navegador) y quedaba servido como SVG ejecutable.
-  const safeExt = isHtml ? ".html" : EXTENSION_MIME[ext] ? ext : Object.keys(EXTENSION_MIME).find((e) => EXTENSION_MIME[e] === file.type)!;
-  const fileName = `${randomUUID()}${safeExt}`;
+  const safeExt = normalizeExt(isHtml ? ".html" : EXTENSION_MIME[ext] ? ext : Object.keys(EXTENSION_MIME).find((e) => EXTENSION_MIME[e] === file.type)!);
   const buffer = Buffer.from(await file.arrayBuffer());
+  // Spec 001: el nombre es la huella del contenido — el mismo archivo subido
+  // otra vez (en cualquier lugar, con cualquier nombre) termina en la misma
+  // copia física. Cada lugar conserva el nombre con que se cargó (`name`).
+  const fileName = contentFileName(buffer, safeExt);
   if (safeExt === ".svg") {
     const reason = unsafeSvgReason(buffer);
     if (reason) return { ok: false, status: 415, error: `El SVG no se puede subir porque contiene ${reason}. Se admite solo como imagen (formas, colores, degradados).` };
   }
   const uploadsDir = await uploadWriteDir();
   await mkdir(uploadsDir, { recursive: true });
-  await writeFile(path.join(uploadsDir, fileName), buffer);
+  const target = path.join(uploadsDir, fileName);
+  // Ya existe = es el mismo contenido: no se reescribe. Dos subidas simultáneas
+  // escribirían los mismos bytes en el mismo nombre (inofensivo).
+  if (!(await access(target).then(() => true, () => false))) await writeFile(target, buffer);
 
   return { ok: true, url: `/uploads/${fileName}`, name: file.name, mimeType };
+}
+
+// .jpeg y .jpg (y .htm/.html) son el mismo tipo: una sola extensión para que
+// el mismo contenido dé siempre el mismo nombre.
+const EXT_ALIASES: Record<string, string> = { ".jpeg": ".jpg", ".htm": ".html" };
+export function normalizeExt(ext: string) {
+  return EXT_ALIASES[ext.toLowerCase()] ?? ext.toLowerCase();
+}
+
+/** Nombre físico por contenido: SHA-256 en hexadecimal + extensión normalizada. */
+export function contentFileName(buffer: Buffer, ext: string) {
+  return `${createHash("sha256").update(buffer).digest("hex")}${normalizeExt(ext)}`;
+}
+
+/** true si el nombre ya es por contenido (64 hex + extensión). */
+export function isContentFileName(name: string) {
+  return /^[0-9a-f]{64}\.[a-z0-9]+$/.test(name);
 }

@@ -6,6 +6,7 @@ import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { createShareLink, getActiveShareLink, revokeShareLink } from "@/lib/shareLinks";
+import { splitNew } from "@/lib/attachmentDedup";
 import { submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
 import { submitAcceptanceRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/acceptanceActions";
 
@@ -154,8 +155,11 @@ export async function addAdjustmentItems(taskId: string, actor: Actor, items: Ad
         ...(item.before ?? []).map((f) => ({ kind: "BEFORE" as const, f })),
         ...(item.after ?? []).map((f) => ({ kind: "AFTER" as const, f })),
       ];
+      const seen = new Set<string>();
       for (const { kind, f } of files) {
         const file = toFile(f);
+        if (seen.has(`${kind}|${file.url.trim()}`)) continue; // mismo archivo dos veces en el mismo lado: una sola
+        seen.add(`${kind}|${file.url.trim()}`);
         await tx.adjustmentAttachment.create({
           data: { adjustmentItemId: row.id, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id },
         });
@@ -195,14 +199,15 @@ export async function addAdjustmentAttachments(itemId: string, actor: Actor, kin
   const item = await prisma.adjustmentItem.findUnique({ where: { id: itemId }, select: { taskId: true, task: { select: { id: true, projectId: true } } } });
   if (!item) return fail(404, "Ese cambio no existe.");
   if (!(await canEditTask(item.taskId, actor))) return fail(403, NO_EDIT);
-  for (const f of files) {
+  const { fresh, skipped } = await splitNew({ adjustmentItemId: itemId, kind }, files);
+  for (const f of fresh) {
     const file = toFile(f);
     await prisma.adjustmentAttachment.create({
       data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id },
     });
   }
   touch(item.task);
-  return { ok: true as const, added: files.length };
+  return { ok: true as const, added: fresh.length, skipped };
 }
 
 // Quitar un adjunto de un ajuste solo lo hace el PM/admin (igual que en la app).
@@ -246,7 +251,7 @@ export async function addChecksToRound(roundId: string, actor: Actor, checks: Ch
       const row = await tx.reviewCheck.create({
         data: { reviewRoundId: roundId, title: c.title, criteria: c.criteria || null, category: c.category || null, order: start + i },
       });
-      for (const f of c.evidence ?? []) {
+      for (const f of uniqueByUrl(c.evidence ?? [])) {
         const file = toFile(f);
         await tx.reviewCheckEvidence.create({ data: { reviewCheckId: row.id, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType } });
       }
@@ -297,12 +302,13 @@ export async function addCheckEvidence(checkId: string, actor: Actor, files: Fil
   const allowed = task.type === "QA" ? canReview || (canEdit && check.result === "FAILED") : canEdit && check.result === null;
   if (!allowed) return fail(403, "No se cuenta con permiso para agregar evidencia acá.");
   if (check.reviewRound.outcome !== null && !(task.type === "QA" && check.result === "FAILED")) return fail(409, "La ronda ya está cerrada.");
-  for (const f of files) {
+  const { fresh, skipped } = await splitNew({ reviewCheckId: checkId }, files);
+  for (const f of fresh) {
     const file = toFile(f);
     await prisma.reviewCheckEvidence.create({ data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType } });
   }
   touch(task);
-  return { ok: true as const, added: files.length };
+  return { ok: true as const, added: fresh.length, skipped };
 }
 
 export async function addRoundDeliverables(roundId: string, actor: Actor, files: FileRef[]) {
@@ -310,12 +316,13 @@ export async function addRoundDeliverables(roundId: string, actor: Actor, files:
   if (!round) return fail(404, "Esa ronda no existe.");
   if (!(await canEditTask(round.task.id, actor))) return fail(403, NO_EDIT);
   if (round.outcome !== null) return fail(409, "La ronda ya está cerrada.");
-  for (const f of files) {
+  const { fresh, skipped } = await splitNew({ reviewRoundId: roundId }, files);
+  for (const f of fresh) {
     const file = toFile(f);
     await prisma.reviewDeliverable.create({ data: { reviewRoundId: roundId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType } });
   }
   touch(round.task);
-  return { ok: true as const, added: files.length };
+  return { ok: true as const, added: fresh.length, skipped };
 }
 
 // Quitar un entregable de una ronda abierta (Prueba o Aceptación): mismas reglas que la app.
@@ -447,7 +454,8 @@ export async function addTaskAttachments(taskId: string, actor: Actor, kind: "IN
   if (!task) return fail(404, "La tarea no existe.");
   if (!(await canEditTask(taskId, actor))) return fail(403, NO_EDIT);
   if (task.status === "COMPLETED") return fail(409, `La tarea ya está completada — no se puede subir más ${kind === "RESULTADO" ? "evidencia" : "insumos"}.`);
-  for (const f of files) {
+  const { fresh, skipped } = await splitNew({ taskId, kind }, files);
+  for (const f of fresh) {
     const file = toFile(f);
     await prisma.attachment.create({ data: { taskId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id } });
   }
@@ -459,7 +467,7 @@ export async function addTaskAttachments(taskId: string, actor: Actor, kind: "IN
     }
   }
   touch(task);
-  return { ok: true as const, added: files.length };
+  return { ok: true as const, added: fresh.length, skipped };
 }
 
 // Reemplazar (file) o quitar (null) un archivo de la tarea. Solo quien lo subió: así la IA puede
@@ -513,4 +521,10 @@ export async function revokeShare(target: { taskId?: string; projectId?: string 
   if (!allowed) return fail(403, "No se cuenta con permiso para dejar de compartir esto.");
   await revokeShareLink(link.id);
   return { ok: true as const };
+}
+
+// Spec 001: el mismo archivo dos veces en una misma carga va una sola vez.
+function uniqueByUrl<T extends { url: string }>(files: T[]): T[] {
+  const seen = new Set<string>();
+  return files.filter((f) => !seen.has(f.url.trim()) && seen.add(f.url.trim()));
 }

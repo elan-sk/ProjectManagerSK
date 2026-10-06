@@ -19,6 +19,7 @@
     "verify:bot-file-prep": "tsx scripts/verify-bot-file-prep.ts",
     "verify:schedule-cascade": "tsx scripts/verify-schedule-cascade.ts",
     "verify:schedule-forecast": "tsx scripts/verify-schedule-forecast.ts",
+    "verify:file-dedup": "tsx scripts/verify-file-dedup.ts",
     "verify:move-task-group": "tsx scripts/verify-move-task-group.ts",
     "verify:late-start-alert": "tsx scripts/verify-late-start-alert.ts",
     "verify:insert-adjacent-task": "tsx scripts/verify-insert-adjacent-task.ts",

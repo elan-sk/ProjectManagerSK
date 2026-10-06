@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
@@ -306,6 +309,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
   canDelete: boolean;
 }) {
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
@@ -332,7 +336,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
         setError(body.error ?? "No se pudo subir el archivo");
         return;
       }
-      await addAdjustmentAttachment(itemId, kind, body, userId);
+      if (isDuplicate(await addAdjustmentAttachment(itemId, kind, body, userId))) notifyDuplicate([file.name]);
       router.refresh();
     } catch (err) {
       setError((err as Error).message || "No se pudo subir el archivo");
@@ -347,7 +351,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
     setUploading(true);
     setError(null);
     try {
-      await addAdjustmentLinkAttachment(itemId, kind, linkUrl.trim(), linkName.trim(), userId);
+      if (isDuplicate(await addAdjustmentLinkAttachment(itemId, kind, linkUrl.trim(), linkName.trim(), userId))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       setAddingLink(false);

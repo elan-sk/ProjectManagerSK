@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -23,6 +26,7 @@ export function AttachmentUploader({
   label: string;
 }) {
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
   const [uploading, setUploading] = useState(false);
@@ -39,6 +43,7 @@ export function AttachmentUploader({
     setError(null);
     setProgress(0);
     const failed: string[] = [];
+    const dup: string[] = [];
     for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
@@ -48,12 +53,13 @@ export function AttachmentUploader({
           failed.push(`${file.name}: ${body.error ?? "no se pudo subir"}`);
           continue;
         }
-        await addAttachmentRecord(taskId, kind, body, userId);
+        if (isDuplicate(await addAttachmentRecord(taskId, kind, body, userId))) dup.push(file.name);
       } catch (err) {
         failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
       }
     }
     if (failed.length > 0) setError(failed.join(" · "));
+    notifyDuplicate(dup);
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
     router.refresh();
@@ -75,7 +81,7 @@ export function AttachmentUploader({
     setUploading(true);
     setError(null);
     try {
-      await addLinkAttachment(taskId, kind, linkUrl.trim(), linkName.trim(), userId);
+      if (isDuplicate(await addLinkAttachment(taskId, kind, linkUrl.trim(), linkName.trim(), userId))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       setAddingLink(false);

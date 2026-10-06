@@ -1,5 +1,6 @@
 "use client";
 
+import { ALREADY_LOADED, isDuplicate } from "@/lib/duplicateNotice";
 import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { useRef, useState, useTransition } from "react";
@@ -697,6 +698,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
   async function handleAddEvidenceLink() {
     if (!linkName.trim() || !linkUrl.trim()) return;
     const result = await addReviewCheckEvidenceLink(check.id, linkUrl.trim(), linkName.trim());
+    if (isDuplicate(result)) showToast(ALREADY_LOADED, "info");
     if (result.ok) {
       setLinkName("");
       setLinkUrl("");
@@ -719,7 +721,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
       formData.append("file", file);
       const { ok, body } = await uploadWithProgress("/api/upload", formData);
       if (ok) {
-        await addReviewCheckEvidence(check.id, body);
+        if (isDuplicate(await addReviewCheckEvidence(check.id, body))) showToast(ALREADY_LOADED, "info");
         router.refresh();
       } else showToast(body.error ?? "No se pudo subir el archivo.");
     } finally {
@@ -908,7 +910,7 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
   function handleAddLink() {
     if (!name.trim() || !url.trim()) return;
     startTransition(async () => {
-      await addReviewDeliverableLink(reviewRoundId, url, name);
+      if (isDuplicate(await addReviewDeliverableLink(reviewRoundId, url, name))) showToast(ALREADY_LOADED, "info");
       setName("");
       setUrl("");
       setOpen(false);
@@ -922,7 +924,7 @@ function AddDeliverableForm({ reviewRoundId }: { reviewRoundId: string }) {
       formData.append("file", file);
       const { ok, body } = await uploadWithProgress("/api/upload", formData);
       if (ok) {
-        await addReviewDeliverable(reviewRoundId, body);
+        if (isDuplicate(await addReviewDeliverable(reviewRoundId, body))) showToast(ALREADY_LOADED, "info");
         router.refresh();
       } else showToast(body.error ?? "No se pudo subir el archivo.");
       if (inputRef.current) inputRef.current.value = "";

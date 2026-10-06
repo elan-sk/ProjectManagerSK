@@ -79,7 +79,7 @@ function groupByUrl(items: AttachmentGridItem[]): AttachmentGridItem[] {
       byUrl.set(key, { ...item, usedIn: item.taskLink ? [item.taskLink] : [] });
       continue;
     }
-    if (item.taskLink && !existing.usedIn.some((u) => u.href === item.taskLink!.href)) existing.usedIn.push(item.taskLink);
+    if (item.taskLink && !existing.usedIn.some((u) => u.href === item.taskLink!.href && u.title === item.taskLink!.title)) existing.usedIn.push(item.taskLink);
     // Usado en varios lugares: se borra desde cada tarea, no desde la ficha agrupada.
     existing.canDelete = false;
   }

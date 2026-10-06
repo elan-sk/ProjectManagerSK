@@ -1,5 +1,6 @@
 "use server";
 
+import { inSection } from "@/lib/attachmentDedup";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -255,6 +256,7 @@ export async function addProjectLink(projectId: string, formData: FormData) {
   const title = parsed.data.title || (await fetchPageTitle(parsed.data.url));
   if (!title) return { ok: false as const, error: "No se pudo obtener el nombre de ese link. Escribí uno." };
 
+  if (await inSection({ projectId, links: true }, parsed.data.url)) return { ok: true as const, duplicate: true as const };
   await prisma.projectLink.create({ data: { projectId, title, url: parsed.data.url } });
   revalidatePath(`/projects/${projectId}`);
   return { ok: true as const };
@@ -279,6 +281,7 @@ export async function addProjectAttachment(projectId: string, file: { url: strin
     return { ok: false as const, error: (err as Error).message };
   }
 
+  if (await inSection({ projectId }, file.url)) return { ok: true as const, duplicate: true as const };
   await prisma.projectAttachment.create({
     data: { projectId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: user.id },
   });

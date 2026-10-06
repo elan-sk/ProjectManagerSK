@@ -1,6 +1,6 @@
 import { unlink } from "node:fs/promises";
 import { findUploadPath } from "@/lib/persistentUploads";
-import { prisma } from "@/lib/prisma";
+import { countFileReferences } from "@/lib/fileReferences";
 
 /**
  * Borra el archivo físico de /uploads solo si ya nada lo referencia. Como la
@@ -20,18 +20,8 @@ export async function deleteFileIfUnused(fileUrl: string) {
 }
 
 async function deleteIfUnreferenced(fileUrl: string) {
-  const [a, pa, aa, dl, ev, msg, rma] = await Promise.all([
-    prisma.attachment.count({ where: { fileUrl } }),
-    prisma.projectAttachment.count({ where: { fileUrl } }),
-    prisma.adjustmentAttachment.count({ where: { fileUrl } }),
-    prisma.reviewDeliverable.count({ where: { fileUrl } }),
-    prisma.reviewCheckEvidence.count({ where: { fileUrl } }),
-    // En memoria y no con `contains`: ese LIKE falla en producción por mezcla de collations.
-    // ponytail: recorre todos los mensajes internos; pasar a una tabla de referencias si crecen mucho.
-    prisma.internalMessage.findMany({ select: { body: true } }).then((rows) => rows.filter((m) => m.body.includes(fileUrl)).length),
-    prisma.reviewMessageAttachment.count({ where: { fileUrl } }),
-  ]);
-  if (a + pa + aa + dl + ev + msg + rma > 0) return;
+  // Spec 001: cuenta TODOS los usos (adjuntos, íconos, fotos y textos), ver fileReferences.ts.
+  if ((await countFileReferences(fileUrl)) > 0) return;
   const file = await findUploadPath(fileUrl);
   if (file) await unlink(file).catch(() => {});
 }

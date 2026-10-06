@@ -1,5 +1,6 @@
 "use server";
 
+import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { revalidatePath } from "next/cache";
 import { unlink } from "node:fs/promises";
@@ -99,6 +100,7 @@ export async function addAttachmentRecord(
   // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
   uploadedById = (await getActingUser())?.id ?? uploadedById;
   await assertCanAddAttachment(taskId, kind);
+  if (await inSection({ taskId, kind }, file.url)) return DUPLICATE;
   await prisma.attachment.create({
     data: {
       taskId,
@@ -119,6 +121,7 @@ export async function addStepAttachment(stepId: string, file: { url: string; nam
   const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
   if (!(await canEditTask(step.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
   await assertCanAddAttachment(step.taskId, "INSUMO");
+  if (await inSection({ stepId }, file.url)) return DUPLICATE;
   const user = await getActingUser();
   await prisma.attachment.create({
     data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: user?.id ?? null },
@@ -135,6 +138,7 @@ export async function addStepLinkAttachment(stepId: string, url: string, name: s
   // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
   const parsedName = name.trim() || (await fetchPageTitle(parsedUrl.data));
   if (!parsedName) throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
+  if (await inSection({ stepId }, parsedUrl.data)) return DUPLICATE;
   const user = await getActingUser();
   await prisma.attachment.create({
     data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: parsedUrl.data, fileName: parsedName, mimeType: LINK_MIME_TYPE, uploadedById: user?.id ?? null },
@@ -236,6 +240,7 @@ export async function addLinkAttachment(
   if (!parsedName) {
     throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
   }
+  if (await inSection({ taskId, kind }, parsedUrl)) return DUPLICATE;
   await prisma.attachment.create({
     data: {
       taskId,
@@ -523,6 +528,7 @@ export async function addAdjustmentAttachment(
   }
   // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
   uploadedById = (await getActingUser())?.id ?? uploadedById;
+  if (await inSection({ adjustmentItemId: itemId, kind }, file.url)) return DUPLICATE;
   await prisma.adjustmentAttachment.create({
     data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById },
   });
@@ -546,6 +552,7 @@ export async function addAdjustmentLinkAttachment(
   if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
   const parsedName = z.string().trim().min(1).safeParse(name);
   if (!parsedName.success) throw new Error("Ponele un nombre al link.");
+  if (await inSection({ adjustmentItemId: itemId, kind }, parsedUrl.data)) return DUPLICATE;
   await prisma.adjustmentAttachment.create({
     data: {
       adjustmentItemId: itemId,

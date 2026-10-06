@@ -21,6 +21,7 @@ import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/cale
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { getProjectForecast } from "@/lib/scheduleForecast";
+import { getDesignFiles } from "@/lib/designFiles";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -462,7 +463,8 @@ export default async function ProjectPage({
   // Los archivos y links subidos directo al repositorio del proyecto (pestaña
   // Definición, no atados a ninguna tarea) cuentan como insumo del proyecto
   // en este filtro.
-  const projectRepoFiles: { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null }[] =
+  type FileRow = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; section?: string; readOnly?: boolean };
+  const projectRepoFiles: FileRow[] =
     projectFileKind !== "RESULTADO"
       ? [
           ...project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null })),
@@ -475,9 +477,15 @@ export default async function ProjectPage({
     .flatMap((t) =>
       t.attachments
         .filter((a) => !projectFileKind || a.kind === projectFileKind)
-        .map((a) => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id as string | null, taskTitle: t.title as string | null }))
+        .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos" }))
     )
     .concat(projectRepoFiles)
+    // Spec 001: también los de Ajustes y rondas (solo en «Todos»: no son Insumos ni Evidencias de la tarea).
+    .concat(
+      view === "files" && !projectFileKind
+        ? (await getDesignFiles([project.id])).map((f): FileRow => ({ id: f.id, fileUrl: f.fileUrl, fileName: f.fileName, mimeType: f.mimeType, taskId: f.taskId, taskTitle: f.taskTitle, section: f.section, readOnly: true }))
+        : []
+    )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
     .filter((a) => !fileTask || a.taskId === fileTask)
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)));
@@ -881,6 +889,8 @@ export default async function ProjectPage({
             fileUrl: f.fileUrl,
             fileName: f.fileName,
             mimeType: f.mimeType,
+            section: f.section,
+            readOnly: f.readOnly,
           }))}
           tasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
           sharedLinks={projectSharedLinks}

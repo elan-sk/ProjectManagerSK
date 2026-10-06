@@ -1,5 +1,6 @@
 "use server";
 
+import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -93,7 +94,10 @@ export async function submitAcceptanceRound(
     const created = await tx.reviewRound.create({
       data: { taskId, roundNumber, submittedById: session.id },
     });
+    const seenUrls = new Set<string>();
     for (const d of parsed.data) {
+      if (seenUrls.has(d.url.trim())) continue; // el mismo archivo dos veces en un envío va una sola vez
+      seenUrls.add(d.url.trim());
       if (d.id && reusableDeliverableIds.has(d.id)) {
         await tx.reviewDeliverable.update({
           where: { id: d.id },
@@ -128,6 +132,7 @@ export async function submitAcceptanceRound(
 export async function addAcceptanceDeliverable(reviewRoundId: string, file: { url: string; name: string; mimeType: string }) {
   const round = await prisma.reviewRound.findUniqueOrThrow({ where: { id: reviewRoundId } });
   if (!(await canEditTask(round.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+  if (await inSection({ reviewRoundId }, file.url)) return DUPLICATE;
   await prisma.reviewDeliverable.create({
     data: { reviewRoundId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
   });
@@ -141,6 +146,7 @@ export async function addAcceptanceDeliverableLink(reviewRoundId: string, url: s
   if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
   const parsedName = z.string().trim().min(1).safeParse(name);
   if (!parsedName.success) throw new Error("Ponele un nombre al link.");
+  if (await inSection({ reviewRoundId }, parsedUrl.data)) return DUPLICATE;
   await prisma.reviewDeliverable.create({
     data: { reviewRoundId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE },
   });
@@ -230,6 +236,7 @@ export async function updateAcceptanceItem(checkId: string, input: { title: stri
 export async function addAcceptanceItemEvidence(checkId: string, file: { url: string; name: string; mimeType: string }) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, include: { reviewRound: true } });
   if (!(await canEditTask(check.reviewRound.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+  if (await inSection({ reviewCheckId: checkId }, file.url)) return DUPLICATE;
   await prisma.reviewCheckEvidence.create({
     data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
   });
@@ -245,6 +252,7 @@ export async function addAcceptanceItemEvidenceLink(checkId: string, url: string
   if (!parsedUrl.success) return { ok: false as const, error: "Ese link no parece válido — revisá que sea una dirección web completa (con https://)." };
   const parsedName = z.string().trim().min(1).safeParse(name);
   if (!parsedName.success) return { ok: false as const, error: "Ponele un nombre al link." };
+  if (await inSection({ reviewCheckId: checkId }, parsedUrl.data)) return { ok: true as const, duplicate: true as const };
   await prisma.reviewCheckEvidence.create({
     data: { reviewCheckId: checkId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE },
   });

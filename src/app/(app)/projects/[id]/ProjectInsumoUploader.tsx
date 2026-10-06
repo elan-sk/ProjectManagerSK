@@ -1,5 +1,8 @@
 "use client";
 
+import { isDuplicate } from "@/lib/duplicateNotice";
+import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
+
 import { ModalTrigger, useModalClose } from "@/components/Modal";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { usePasteImage } from "@/lib/usePasteImage";
@@ -23,6 +26,7 @@ export function ProjectInsumoUploader({ projectId }: { projectId: string }) {
 
 function UploadForm({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const notifyDuplicate = useDuplicateNotice();
   const close = useModalClose();
   const inputRef = useRef<HTMLInputElement>(null);
   usePasteImage(inputRef);
@@ -39,6 +43,7 @@ function UploadForm({ projectId }: { projectId: string }) {
     setError(null);
     setProgress(0);
     const failed: string[] = [];
+    const dup: string[] = [];
     for (const [i, file] of files.entries()) {
       try {
         const formData = new FormData();
@@ -49,6 +54,7 @@ function UploadForm({ projectId }: { projectId: string }) {
           continue;
         }
         const result = await addProjectAttachment(projectId, { url: body.url, name: body.name, mimeType: body.mimeType });
+        if (isDuplicate(result)) dup.push(file.name);
         if (!result.ok) failed.push(`${file.name}: ${result.error ?? "no se pudo guardar"}`);
       } catch (err) {
         failed.push(`${file.name}: ${(err as Error).message || "no se pudo subir"}`);
@@ -57,6 +63,7 @@ function UploadForm({ projectId }: { projectId: string }) {
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
     router.refresh();
+    notifyDuplicate(dup);
     if (failed.length > 0) setError(failed.join(" · "));
     else close();
   }
@@ -69,6 +76,7 @@ function UploadForm({ projectId }: { projectId: string }) {
       formData.set("title", title);
       formData.set("url", url);
       const result = await addProjectLink(projectId, formData);
+      if (isDuplicate(result)) notifyDuplicate([String(formData.get("title") || formData.get("url"))]);
       if (result.ok) {
         router.refresh();
         close();

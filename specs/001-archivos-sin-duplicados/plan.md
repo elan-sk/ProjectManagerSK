@@ -1,6 +1,6 @@
 # Plan 001 — Archivos sin duplicados
 
-Estado: borrador (pendiente de aprobación 2)
+Estado: aprobado (2026-10-06)
 
 ## 1. Inventario de impacto
 

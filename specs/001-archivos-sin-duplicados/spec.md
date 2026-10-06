@@ -1,6 +1,6 @@
 # Especificación 001 — Archivos sin duplicados
 
-Estado: aprobada
+Estado: implementada
 
 | | |
 |---|---|

@@ -1,5 +1,6 @@
 "use server";
 
+import { inSection } from "@/lib/attachmentDedup";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +31,7 @@ const nameSchema = z.string().trim().min(1);
 
 export async function addPublicProjectAttachment(token: string, file: { url: string; name: string; mimeType: string }) {
   const projectId = await requireProjectLink(token);
+  if (await inSection({ projectId }, file.url)) return { ok: true as const, duplicate: true as const };
   await prisma.projectAttachment.create({
     data: { projectId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
   });
@@ -45,6 +47,7 @@ export async function addPublicProjectLink(token: string, url: string, name: str
   const title = name.trim() || (await fetchPageTitle(parsedUrl.data));
   if (!title) return { ok: false as const, error: "No se pudo obtener el nombre de ese link. Escribí uno." };
 
+  if (await inSection({ projectId, links: true }, parsedUrl.data)) return { ok: true as const, duplicate: true as const };
   await prisma.projectLink.create({ data: { projectId, title, url: parsedUrl.data } });
   revalidatePath(`/share/${token}`);
   return { ok: true as const };
@@ -62,6 +65,7 @@ async function assertCanUploadPublicInsumo(taskId: string) {
 export async function addPublicTaskInsumo(token: string, file: { url: string; name: string; mimeType: string }) {
   const taskId = await requireTaskLink(token);
   const taskTitle = await assertCanUploadPublicInsumo(taskId);
+  if (await inSection({ taskId, kind: "INSUMO" }, file.url)) return { ok: true as const, duplicate: true as const };
   await prisma.attachment.create({
     data: { taskId, kind: "INSUMO", fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
   });
@@ -77,6 +81,7 @@ export async function addPublicTaskInsumoLink(token: string, url: string, name: 
   if (!parsedUrl.success) return { ok: false as const, error: "Ese link no parece válido — revisá que sea una dirección web completa (con https://)." };
   const parsedName = nameSchema.safeParse(name);
   if (!parsedName.success) return { ok: false as const, error: "Ponele un nombre al link." };
+  if (await inSection({ taskId, kind: "INSUMO" }, parsedUrl.data)) return { ok: true as const, duplicate: true as const };
 
   await prisma.attachment.create({
     data: { taskId, kind: "INSUMO", fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE },

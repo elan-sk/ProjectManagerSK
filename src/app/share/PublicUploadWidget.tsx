@@ -3,13 +3,15 @@
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRef, useState } from "react";
+import { ALREADY_LOADED } from "@/lib/duplicateNotice";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md";
 
 // Widget de subida compartido entre el "Archivos" del proyecto y los
 // insumos de una tarea en la vista compartida por link (puntos 15/16) —
 // misma UI de arrastrar/soltar + link que AttachmentUploader, pero llamando
-// a las acciones públicas (sin sesión) en vez de las internas.
+// a las acciones públicas (sin sesión) en vez de las internas. Si el archivo ya
+// estaba cargado ahí (spec 001), el aviso sale en gris, no como error.
 export function PublicUploadWidget({
   onUploadFile,
   onAddLink,
@@ -47,7 +49,7 @@ export function PublicUploadWidget({
     try {
       const err = await onAddLink(linkUrl.trim(), linkName.trim());
       if (err) setError(err);
-      else {
+      if (!err || err === ALREADY_LOADED) {
         setLinkUrl("");
         setLinkName("");
         setAddingLink(false);
@@ -92,7 +94,7 @@ export function PublicUploadWidget({
             Cancelar
           </button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className={`text-xs ${error === ALREADY_LOADED ? "text-slate-500" : "text-red-600"}`}>{error}</p>}
       </div>
     );
   }
@@ -133,7 +135,7 @@ export function PublicUploadWidget({
           + Link
         </button>
       </div>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className={`mt-1 text-xs ${error === ALREADY_LOADED ? "text-slate-500" : "text-red-600"}`}>{error}</p>}
     </div>
   );
 }

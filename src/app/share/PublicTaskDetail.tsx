@@ -1,5 +1,6 @@
 "use client";
 
+import { ALREADY_LOADED, isDuplicate } from "@/lib/duplicateNotice";
 import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -90,11 +91,13 @@ export function PublicTaskDetail({
     if (!ok) return body.error ?? "No se pudo subir el archivo.";
     const result = await addPublicTaskInsumo(token, body);
     if (!result.ok) return "No se pudo guardar el insumo.";
+    if (isDuplicate(result)) return ALREADY_LOADED;
   }
 
   async function addInsumoLink(url: string, name: string) {
     const result = await addPublicTaskInsumoLink(token, url, name);
     if (!result.ok) return result.error;
+    if (isDuplicate(result)) return ALREADY_LOADED;
   }
 
   return (
