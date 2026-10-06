@@ -53,8 +53,13 @@ export default async function SettingsPage({
   const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       <h1 className="text-2xl font-semibold text-slate-900">Configuración</h1>
+
+      {/* Dos columnas parejas: la última tarjeta de cada una se estira para que
+          ambas terminen a ras de la tarjeta «Sobre». En pantallas chicas, una sola columna. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-4 [&>*:last-child]:flex-1">
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-medium text-slate-900">Mi cuenta</h2>
@@ -92,6 +97,8 @@ export default async function SettingsPage({
         </section>
       )}
 
+        </div>
+        <div className="flex flex-col gap-4 [&>*:last-child]:flex-1">
       {isAdmin && botSettings && (
         <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">{botSettings.name} (bot asistente)</h2>
@@ -250,6 +257,9 @@ export default async function SettingsPage({
           </a>
         )}
       </section>
+
+        </div>
+      </div>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático de marca, no aplica optimización de next/image */}
