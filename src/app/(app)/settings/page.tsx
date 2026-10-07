@@ -278,7 +278,7 @@ export default async function SettingsPage({
             <h3 className="text-center font-bold text-slate-900 mb-4">¿Qué se puede hacer?</h3>
             <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
               {APP_FEATURES.map((f) => (
-                <li key={f.title} className="text-sm">
+                <li key={f.title} className="text-center text-sm sm:text-left">
                   <p className="font-medium text-slate-800">
                     <span aria-hidden className="mr-1.5">{f.icon}</span>
                     {f.title}
