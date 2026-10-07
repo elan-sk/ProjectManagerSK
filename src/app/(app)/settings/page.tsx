@@ -283,7 +283,7 @@ export default async function SettingsPage({
                     <span aria-hidden className="mr-1.5">{f.icon}</span>
                     {f.title}
                   </p>
-                  <p className="text-slate-500">{f.text}</p>
+                  <p className="text-balance text-slate-500">{f.text}</p>
                 </li>
               ))}
             </ul>
