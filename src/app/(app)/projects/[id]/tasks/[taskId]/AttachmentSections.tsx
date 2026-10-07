@@ -5,6 +5,7 @@ import { SharedLinkTiles, type SharedLinkItem } from "@/components/SharedLinkTil
 // Vista «Archivos»: la lista se separa por tipo — links, imágenes y documentos —, cada uno con su título
 // y su propia grilla (y su propio visor de imágenes). Un tipo sin archivos no muestra sección.
 const SECTIONS: { type: AttachmentFileType; title: string }[] = [
+  { type: "credential", title: "Contraseñas" },
   { type: "link", title: "Links" },
   { type: "image", title: "Imágenes" },
   { type: "document", title: "Documentos" },

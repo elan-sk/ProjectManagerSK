@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { insertAdjacentTask } from "./actions";
 import { CalendarDatePicker } from "@/components/CalendarDatePicker";
 import { RichTextEditor } from "@/components/RichTextEditor";

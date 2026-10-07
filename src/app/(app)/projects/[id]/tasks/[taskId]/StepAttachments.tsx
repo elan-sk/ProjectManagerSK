@@ -1,5 +1,6 @@
 "use client";
 
+import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
@@ -20,8 +21,10 @@ import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
 import { PollFields, type TeamPoll } from "./TeamShareThread";
 import { PollFrame, TeamPollCard } from "./TeamPollCard";
 import { MediaGalleryButton } from "./MediaGalleryButton";
+import { ModalShell } from "@/components/Modal";
+import { CredentialForm } from "../../../../credentials/CredentialForm";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = UPLOAD_ACCEPT;
 
 // Contador informativo "X/Y casillas": si el HTML subido incluye un script que cuenta sus
 // `<input type="checkbox">` y avisa con window.top.postMessage, se muestra acá al lado de su nombre.
@@ -119,6 +122,8 @@ export type StepAttachmentsHandle = {
   openPollForm: () => void;
   pasteFromClipboard: () => void;
   openGallery: () => void;
+  /** «Contraseña»: crea una contraseña en este paso (queda también en los insumos de la tarea). */
+  openCredentialForm: () => void;
   uploadFiles: (files: File[]) => void;
 };
 
@@ -152,6 +157,7 @@ export const StepAttachments = forwardRef<
   const [pollMultiple, setPollMultiple] = useState(false);
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [credentialOpen, setCredentialOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // «Pegar imagen» del menú del clip: lee la imagen copiada sin tener que hacer Ctrl+V
@@ -247,6 +253,7 @@ export const StepAttachments = forwardRef<
     openPollForm: () => setAddingPoll(true),
     pasteFromClipboard,
     openGallery: () => setGalleryOpen(true),
+    openCredentialForm: () => setCredentialOpen(true),
     uploadFiles,
   }));
 
@@ -309,6 +316,11 @@ export const StepAttachments = forwardRef<
         />
       )}
       {canAdd && <MediaGalleryButton taskId={taskId} stepId={stepId} open={galleryOpen} onClose={() => setGalleryOpen(false)} />}
+      {canAdd && (
+        <ModalShell open={credentialOpen} onClose={() => setCredentialOpen(false)} title="Nueva contraseña">
+          <CredentialForm place={{ stepId }} onSaved={() => setCredentialOpen(false)} />
+        </ModalShell>
+      )}
       {canAdd && addingLink && (
         <div className="flex flex-wrap items-center gap-1.5">
           <input

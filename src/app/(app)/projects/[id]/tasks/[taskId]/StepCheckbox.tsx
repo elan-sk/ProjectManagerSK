@@ -17,7 +17,7 @@ import type { TeamPoll } from "./TeamShareThread";
  * + Archivo / + Link permanentes de antes, que ensuciaban visualmente cada paso — despliega las
  * opciones en un menú chico. Mismo patrón de click-afuera-cierra que InternalMessageBell.
  */
-function StepAttachMenu({ onFile, onPaste, onGallery, onLink, onPoll, disabled }: { onFile: () => void; onPaste: () => void; onGallery: () => void; onLink: () => void; onPoll?: () => void; disabled?: boolean }) {
+function StepAttachMenu({ onFile, onPaste, onGallery, onLink, onPoll, onCredential, disabled }: { onFile: () => void; onPaste: () => void; onGallery: () => void; onLink: () => void; onPoll?: () => void; onCredential: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +61,9 @@ function StepAttachMenu({ onFile, onPaste, onGallery, onLink, onPoll, disabled }
           </button>
           <button type="button" onClick={() => { onLink(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
             Link
+          </button>
+          <button type="button" onClick={() => { onCredential(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
+            Contraseña
           </button>
           {onPoll && (
             <button type="button" onClick={() => { onPoll(); setOpen(false); }} className="block w-full cursor-pointer rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-100">
@@ -209,6 +212,7 @@ export function StepCheckbox({
                   onGallery={() => attachRef.current?.openGallery()}
                   onLink={() => attachRef.current?.openLinkForm()}
                   onPoll={poll ? undefined : () => attachRef.current?.openPollForm()}
+                  onCredential={() => attachRef.current?.openCredentialForm()}
                 />
                 {/* Separador propio: evita presionar "Editar" sin querer al ir a buscar el clip. */}
                 <span className="h-4 w-px bg-slate-200" aria-hidden />

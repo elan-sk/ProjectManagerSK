@@ -80,7 +80,7 @@ export async function duplicateTask(taskId: string, actor?: Actor): Promise<Resu
   try {
     const src = await prisma.task.findUniqueOrThrow({
       where: { id: taskId },
-      include: { assignees: true, reviewers: true, steps: { orderBy: { order: "asc" } }, taskTags: true, attachments: { where: { kind: "INSUMO" } } },
+      include: { assignees: true, reviewers: true, steps: { orderBy: { order: "asc" } }, taskTags: true, attachments: { where: { kind: "INSUMO" } }, credentials: { select: { credentialId: true } } },
     });
     const user = await requireProjectAdmin(src.projectId, actor);
     const copy = await prisma.task.create({
@@ -101,6 +101,8 @@ export async function duplicateTask(taskId: string, actor?: Actor): Promise<Resu
         attachments: {
           create: src.attachments.map((a) => ({ kind: a.kind, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, uploadedById: user.id })),
         },
+        // Las contraseñas de la tarea también son insumos: la copia las conserva (mismos asignados).
+        credentials: { create: src.credentials.map((c) => ({ credentialId: c.credentialId })) },
       },
     });
     await notifyAssignment(copy.id, src.assignees.map((a) => a.userId), user.id);
@@ -182,6 +184,10 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
       // Comentarios, adjuntos y comentarios del link compartido → a la nueva.
       await tx.internalMessage.updateMany({ where: { taskId: { in: [...ids] } }, data: { taskId: created.id } });
       await tx.attachment.updateMany({ where: { taskId: { in: [...ids] } }, data: { taskId: created.id } });
+      // Contraseñas agregadas a las tareas combinadas: pasan a la nueva (sin repetir), si no se
+      // perderían al borrar las viejas y sus asignados podrían quedarse sin acceso.
+      const credentialIds = [...new Set((await tx.credentialTask.findMany({ where: { taskId: { in: [...ids] } }, select: { credentialId: true } })).map((c) => c.credentialId))];
+      if (credentialIds.length > 0) await tx.credentialTask.createMany({ data: credentialIds.map((credentialId) => ({ credentialId, taskId: created.id })) });
       await tx.shareComment.updateMany({ where: { taskId: { in: [...ids] } }, data: { taskId: created.id } });
       await tx.shareLink.deleteMany({ where: { taskId: { in: [...ids] } } });
       await tx.taskDependency.deleteMany({ where: { OR: [{ predecessorId: { in: [...ids] } }, { successorId: { in: [...ids] } }] } });

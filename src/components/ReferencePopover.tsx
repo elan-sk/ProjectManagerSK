@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 
 export type ReferenceItem = { id: string; label: string; href: string };
 

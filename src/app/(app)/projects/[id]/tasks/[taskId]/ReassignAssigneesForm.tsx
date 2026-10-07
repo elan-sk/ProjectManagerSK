@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { setTaskAssignees } from "./actions";
 import { useModalClose } from "@/components/Modal";
-import { Avatar } from "@/components/Avatar";
+import { UserCheckList } from "@/components/UserCheckList";
 
 type SaveResult = { ok: true } | { ok: false; error?: string };
 
@@ -40,21 +40,7 @@ export function ReassignAssigneesForm({
       }}
       className="space-y-3"
     >
-      <div className="max-h-56 space-y-0.5 overflow-x-hidden overflow-y-auto">
-        {users.map((u) => (
-          <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
-            <input
-              type="checkbox"
-              name={fieldName}
-              value={u.id}
-              defaultChecked={currentAssigneeIds.includes(u.id)}
-              className="rounded border-slate-300"
-            />
-            <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-6 w-6 text-[10px]" />
-            {u.name}
-          </label>
-        ))}
-      </div>
+      <UserCheckList users={users} fieldName={fieldName} defaultSelectedIds={currentAssigneeIds} />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         disabled={isPending}

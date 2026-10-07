@@ -91,6 +91,8 @@ enum NotificationType {
   URGENT_TASK
   // Aviso del sistema al administrador (ej. fallos del resumen diario).
   SYSTEM
+  // Se compartió una credencial con la persona (nunca lleva la contraseña).
+  CREDENTIAL_SHARED
 }
 
 enum ShareTargetType {
@@ -184,6 +186,9 @@ model User {
   activityDays          UserActivityDay[]
   sharePollVotes        SharePollVote[]
   claudeLinks           ClaudeLink[]
+  credentialsCreated    Credential[]              @relation("CredentialCreator")
+  credentialAccess      CredentialUser[]
+  credentialAccessLogs  CredentialAccessLog[]
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -244,13 +249,13 @@ model Project {
 
   // Solo un admin lo puede activar: el proyecto deja de verse para los demás
   // miembros del equipo.
-  hidden Boolean       @default(false)
+  hidden     Boolean       @default(false)
   // Archivado como historial (proyecto entregado/terminado): sale de la lista,
   // el buscador, la agenda, los reportes y las alertas, pero se puede abrir y
   // desarchivar desde «Archivados». Distinto de status ARCHIVED (= eliminado).
   archivedAt DateTime?
   // Repositorios adicionales (repoUrl queda como el principal).
-  repos  ProjectRepo[]
+  repos      ProjectRepo[]
 
   phases           Phase[]
   tasks            Task[]
@@ -267,6 +272,7 @@ model Project {
   shareComments    ShareComment[]
   notifications    Notification[]
   internalMessages InternalMessage[]
+  credentials      Credential[]
 }
 
 model ProjectRepo {
@@ -414,6 +420,7 @@ model Task {
   shareLinks       ShareLink[]
   claudeLinks      ClaudeLink[]
   internalMessages InternalMessage[]
+  credentials      CredentialTask[]
 }
 
 // Conversación estrictamente interna: nunca se consulta desde /share ni se
@@ -516,16 +523,17 @@ model TaskDependency {
 
 // Pasos de una tarea tipo CHECKLIST (también cubre los ítems de una tarea QA).
 model TaskStep {
-  id          String  @id @default(cuid())
+  id          String           @id @default(cuid())
   taskId      String
-  task        Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  description String  @db.Text
-  done        Boolean @default(false)
+  task        Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  description String           @db.Text
+  done        Boolean          @default(false)
   order       Int
   // Archivos, imágenes y links subidos desde este paso (también quedan como INSUMO de la tarea).
   attachments Attachment[]
   // Pregunta de selección única o múltiple: el texto del paso ES el enunciado (sin campo aparte).
   poll        SharePoll?
+  credentials CredentialStep[]
 }
 
 // Insumos (archivos/imágenes de entrada) y Resultados (evidencia) de una
@@ -581,6 +589,7 @@ model AdjustmentItem {
   shareComments    ShareComment[]
   // Hilo interno de la prueba (Prueba/QA): comentarios, menciones, imágenes y preguntas del equipo.
   internalMessages InternalMessage[]
+  credentials      CredentialAdjustmentItem[]
 }
 
 // Punto 16: hilo de comentarios de la vista compartida de una tarea —
@@ -708,20 +717,23 @@ model Holiday {
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taskId    String?
-  task      Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id           String           @id @default(cuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId       String?
+  task         Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
   // Punto 4: para avisos sin tarea puntual (ej. comentario en la pestaña
   // Definición de un proyecto) — sin esto, la campana no tenía cómo armar
   // el link (antes lo derivaba solo de task.projectId, que acá es null).
-  projectId String?
-  project   Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type      NotificationType
-  message   String           @db.Text
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  projectId    String?
+  project      Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Aviso de credencial compartida: la campana enlaza a la credencial.
+  credentialId String?
+  credential   Credential?      @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  type         NotificationType
+  message      String           @db.Text
+  read         Boolean          @default(false)
+  createdAt    DateTime         @default(now())
 }
 
 // Enlace de acceso público de solo lectura para clientes externos sin
@@ -1059,4 +1071,102 @@ model TaskTag {
   categoryId String
 
   @@unique([taskId, categoryId])
+}
+
+// Credencial compartida (URL, usuario y contraseña) — un tipo de archivo más del
+// proyecto: aparece en Archivos, Definición, galería e insumos de las tareas a
+// las que se agrega. La contraseña se guarda cifrada (src/lib/credentialCrypto.ts).
+// Quién la ve: src/lib/credentials.ts (credentialVisibleWhere / canSeeCredential).
+enum CredentialVisibility {
+  ALL // todos los usuarios que pueden ver el proyecto
+  PROJECT // PM, asignados y revisores de alguna tarea del proyecto y administradores (por defecto)
+  USERS // solo las personas marcadas
+}
+
+model Credential {
+  id              String                     @id @default(cuid())
+  projectId       String
+  project         Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  url             String?                    @db.Text
+  username        String?
+  passwordEnc     String                     @db.Text
+  notes           String?                    @db.Text
+  visibility      CredentialVisibility       @default(PROJECT)
+  createdById     String?
+  createdBy       User?                      @relation("CredentialCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  allowedUsers    CredentialUser[]
+  // Tareas donde se agregó como insumo: sus asignados siempre tienen acceso.
+  tasks           CredentialTask[]
+  // Pasos del checklist y ajustes donde se agregó (también quedan en los insumos de su tarea).
+  steps           CredentialStep[]
+  adjustmentItems CredentialAdjustmentItem[]
+  accessLogs      CredentialAccessLog[]
+  notifications   Notification[]
+}
+
+model CredentialUser {
+  credentialId String
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([credentialId, userId])
+}
+
+model CredentialTask {
+  credentialId String
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  taskId       String
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  addedAt      DateTime   @default(now())
+
+  @@id([credentialId, taskId])
+}
+
+model CredentialStep {
+  credentialId String
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  stepId       String
+  step         TaskStep   @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  addedAt      DateTime   @default(now())
+
+  @@id([credentialId, stepId])
+}
+
+model CredentialAdjustmentItem {
+  credentialId     String
+  credential       Credential     @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  adjustmentItemId String
+  adjustmentItem   AdjustmentItem @relation(fields: [adjustmentItemId], references: [id], onDelete: Cascade)
+  addedAt          DateTime       @default(now())
+
+  @@id([credentialId, adjustmentItemId])
+}
+
+// Historial de acceso a una contraseña (pedido del usuario 2026-10-07): quién la abrió, la mostró o
+// copió cada dato, y cuándo. Lo ven quien la creó, el PM y los administradores.
+enum CredentialEvent {
+  VIEW // abrió el detalle (app) o la leyó por la API
+  REVEAL // pulsó el ojo para ver la contraseña
+  COPY_URL
+  COPY_USERNAME
+  COPY_PASSWORD
+}
+
+model CredentialAccessLog {
+  id           String          @id @default(cuid())
+  credentialId String
+  credential   Credential      @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  // SetNull + nombre guardado: el historial sobrevive aunque se elimine el usuario.
+  userId       String?
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName     String
+  event        CredentialEvent
+  source       String          @default("app") // "app" | "api"
+  createdAt    DateTime        @default(now())
+
+  @@index([credentialId, createdAt])
 }

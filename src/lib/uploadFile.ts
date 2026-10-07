@@ -2,7 +2,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { uploadWriteDir } from "@/lib/persistentUploads";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
+import { ARCHIVE_MIME, isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
 
 // El navegador a veces reporta un mimetype no estándar según cómo el sistema
 // operativo asocie la extensión — ej. con WPS Office instalado, un .xlsx
@@ -29,6 +29,8 @@ const EXTENSION_MIME: Record<string, string> = {
   ".txt": "text/plain",
   ".csv": "text/csv",
   ".md": "text/markdown",
+  // Comprimidos (zip, rar, 7z, tar, gz…): se guardan y se descargan; nunca se abren ni se ejecutan.
+  ...ARCHIVE_MIME,
 };
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 
@@ -81,7 +83,7 @@ export async function saveUploadedFile(file: File, options: { allowHtml?: boolea
   const mimeType = isHtml ? "text/html" : EXTENSION_MIME[ext] ?? file.type;
 
   if (!isHtml && !EXTENSION_MIME[ext] && !ALLOWED_MIME_TYPES.has(file.type)) {
-    return { ok: false, status: 415, error: "Tipo de archivo no permitido. Usá imagen, PDF, Word, Excel, PowerPoint o texto/CSV." };
+    return { ok: false, status: 415, error: "Tipo de archivo no permitido. Se admiten imágenes, PDF, Word, Excel, PowerPoint, texto/CSV y comprimidos (ZIP, RAR, 7Z, TAR, GZ)." };
   }
   if (isTooLarge(file)) {
     return { ok: false, status: 413, error: TOO_LARGE_MESSAGE };

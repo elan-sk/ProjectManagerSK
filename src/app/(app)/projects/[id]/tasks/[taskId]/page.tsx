@@ -1,3 +1,7 @@
+import { credentialVisibleWhere } from "@/lib/credentials";
+import { CREDENTIAL_MIME_TYPE, credentialRef } from "@/lib/attachments";
+import type { CredentialPlace } from "@/lib/credentialPlace";
+import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 import Link from "next/link";
 import { canSeeProject } from "@/lib/permissions";
 import { notFound } from "next/navigation";
@@ -213,6 +217,32 @@ export default async function TaskDetailPage({
   const stepsPct = stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
 
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
+  // Credenciales agregadas a esta tarea que ESTA persona puede ver (sus asignados siempre pueden).
+  const taskCredentials = session?.user
+    ? await prisma.credential.findMany({
+        where: { tasks: { some: { taskId } }, ...credentialVisibleWhere(session.user) },
+        select: {
+          id: true,
+          name: true,
+          // De qué paso o ajuste de esta tarea vino (para la nota bajo la ficha y para mostrarla ahí).
+          steps: { where: { step: { taskId } }, select: { stepId: true } },
+          adjustmentItems: { where: { adjustmentItem: { taskId } }, select: { adjustmentItemId: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const credentialItem = (c: { id: string; name: string }, place: CredentialPlace, caption?: string) => ({
+    id: `cred-${c.id}`,
+    url: credentialRef(c.id),
+    name: c.name,
+    mimeType: CREDENTIAL_MIME_TYPE,
+    caption,
+    credentialPlace: place,
+    credentialCanRemove: canEdit,
+  });
+  const credentialsOfStep = (stepId: string) => taskCredentials.filter((c) => c.steps.some((x) => x.stepId === stepId)).map((c) => credentialItem(c, { stepId }));
+  const credentialsOfAdjustment = (adjustmentItemId: string) =>
+    taskCredentials.filter((c) => c.adjustmentItems.some((x) => x.adjustmentItemId === adjustmentItemId)).map((c) => credentialItem(c, { adjustmentItemId }));
   // Los Insumos que salieron de un paso del checklist llevan una nota con el nombre del paso.
   const stepTitleById = new Map(task.steps.map((st) => [st.id, st.description.replace(/\*([^*\n]+)\*/g, "$1")]));
   const insumoItems = insumos.map((a) => ({
@@ -221,7 +251,15 @@ export default async function TaskDetailPage({
     name: a.fileName,
     mimeType: a.mimeType,
     caption: a.stepId && stepTitleById.has(a.stepId) ? `del paso: ${stepTitleById.get(a.stepId)}` : undefined,
-  }));
+  })).concat(
+    taskCredentials.map((c) => {
+      const stepId = c.steps[0]?.stepId;
+      const itemId = c.adjustmentItems[0]?.adjustmentItemId;
+      const itemTitle = itemId ? task.adjustmentItems.find((i) => i.id === itemId)?.description : undefined;
+      const caption = stepId && stepTitleById.has(stepId) ? `del paso: ${stepTitleById.get(stepId)}` : itemTitle ? `del ajuste: ${itemTitle}` : undefined;
+      return credentialItem(c, { taskId }, caption);
+    })
+  );
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
 
   // Punto 5: mismas reglas de "¿puede completarse ya?" que updateTaskStatus
@@ -483,7 +521,7 @@ export default async function TaskDetailPage({
               id: st.id,
               description: st.description,
               done: st.done,
-              attachments: st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+              attachments: [...st.attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })), ...credentialsOfStep(st.id)],
               poll: st.poll ? toTeamPoll(st.poll, session?.user?.id ?? null) : null,
             }))}
             canEdit={canEdit}
@@ -510,6 +548,7 @@ export default async function TaskDetailPage({
             before: item.attachments.filter((a) => a.kind === "BEFORE").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             after: item.attachments.filter((a) => a.kind === "AFTER").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             insumos: item.attachments.filter((a) => a.kind === "INSUMO").map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
+            credentials: credentialsOfAdjustment(item.id),
             clientApproval: item.clientApproval,
             clientApprovalBy: item.clientApprovalBy,
             clientReviewOpen: item.clientReviewOpen,
@@ -530,12 +569,15 @@ export default async function TaskDetailPage({
               canDelete={canManage}
             />
             {canEdit && session?.user && task.status !== "COMPLETED" && (
-              <AttachmentUploader
-                taskId={taskId}
-                userId={session.user.id}
-                kind="INSUMO"
-                label="+ Subir insumo"
-              />
+              <>
+                <AttachmentUploader
+                  taskId={taskId}
+                  userId={session.user.id}
+                  kind="INSUMO"
+                  label="+ Subir insumo"
+                />
+                <AddCredentialButton place={{ taskId }} />
+              </>
             )}
             {task.status === "COMPLETED" && (
               <p className="text-xs text-slate-400">La tarea ya está completada — no se pueden subir más insumos.</p>
@@ -564,7 +606,7 @@ export default async function TaskDetailPage({
       )}
 
       {/* Tarea tipo Ajuste: las imágenes que suben cliente/equipo en los comentarios quedan como Insumos. */}
-      {task.type === "ADJUSTMENT" && (insumos.length > 0 || (canEdit && task.status !== "COMPLETED")) && (
+      {task.type === "ADJUSTMENT" && (insumos.length > 0 || taskCredentials.length > 0 || (canEdit && task.status !== "COMPLETED")) && (
         <section className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
           <AttachmentGrid
@@ -572,7 +614,10 @@ export default async function TaskDetailPage({
             canDelete={canManage}
           />
           {canEdit && session?.user && task.status !== "COMPLETED" && (
-            <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" />
+            <>
+              <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" />
+              <AddCredentialButton place={{ taskId }} />
+            </>
           )}
         </section>
       )}

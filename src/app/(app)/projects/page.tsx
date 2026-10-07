@@ -1,10 +1,11 @@
+import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { visibleProjectWhere } from "@/lib/permissions";
 import { ComboFilter } from "@/components/ComboFilter";
 import { ArchiveIcon, OverlapIcon } from "@/components/icons";
 import { SearchBox } from "@/components/SearchBox";
 import { getAppCountryCode } from "@/lib/appSettings";
-import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
+import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { findScheduleCollisions } from "@/lib/collisions";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
@@ -475,6 +476,19 @@ export default async function ProjectsPage({
             })),
           ]);
   type BoardFile = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; projectId: string; projectName: string; section?: string; uploadedAt?: Date };
+  // Credenciales que esta persona puede ver, de los mismos proyectos visibles (ver projects/[id]/page.tsx).
+  const boardCredentialFiles: BoardFile[] =
+    view === "files" && boardFileKind !== "RESULTADO"
+      ? (
+          await prisma.credential.findMany({
+            where: { projectId: { in: [...boardVisibleProjectIds] }, ...credentialVisibleWhere(session.user) },
+            select: { id: true, name: true, createdAt: true, projectId: true, project: { select: { name: true } }, tasks: { select: { taskId: true, addedAt: true, task: { select: { title: true } } } } },
+          })
+        ).flatMap((c) => [
+          { id: `cred-${c.id}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: null, taskTitle: null, projectId: c.projectId, projectName: c.project.name, uploadedAt: c.createdAt },
+          ...c.tasks.map((t): BoardFile => ({ id: `cred-${c.id}-${t.taskId}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: t.taskId, taskTitle: t.task.title, projectId: c.projectId, projectName: c.project.name, section: "Insumos", uploadedAt: t.addedAt })),
+        ])
+      : [];
   const boardFiles = boardTasksRaw
     .flatMap((t) =>
       t.attachments
@@ -493,6 +507,7 @@ export default async function ProjectsPage({
         }))
     )
     .concat(boardProjectFiles)
+    .concat(boardCredentialFiles)
     // Spec 001: también los de Ajustes y rondas (solo en «Todos»).
     .concat(
       view === "files" && !boardFileKind

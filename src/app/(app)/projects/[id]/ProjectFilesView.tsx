@@ -4,12 +4,14 @@ import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
+import { AddCredentialButton } from "../../credentials/AddCredentialButton";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
   image: "Imágenes",
   document: "Documentos",
   link: "Links",
+  credential: "Contraseñas",
 };
 
 function tabClass(active: boolean) {
@@ -61,7 +63,12 @@ export function ProjectFilesView({
         <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
           Evidencia
         </Link>
-        {canDelete && <ProjectInsumoUploader projectId={projectId} />}
+        {canDelete && (
+          <div className="ml-auto flex flex-shrink-0 gap-2">
+            <AddCredentialButton place={{ projectId }} className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-slate-700 hover:bg-slate-200" />
+            <ProjectInsumoUploader projectId={projectId} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
@@ -91,7 +98,7 @@ export function ProjectFilesView({
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Tipo</span>
           <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
-            {(["all", "image", "document", "link"] as const).map((t) => (
+            {(["all", "image", "document", "link", "credential"] as const).map((t) => (
               <Link key={t} href={filesHref({ fileType: t === "all" ? undefined : t })} className={pillClass((fileType ?? "all") === t)}>
                 {FILE_TYPE_LABEL[t]}
               </Link>

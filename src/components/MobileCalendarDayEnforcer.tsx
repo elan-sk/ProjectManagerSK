@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 
 // Por debajo de lg el calendario solo ofrece la vista Día (Mes/Semana no entran bien en ese
 // ancho, ver ProjectCalendarView) — si alguien carga o gira el celular estando en Mes/Semana,

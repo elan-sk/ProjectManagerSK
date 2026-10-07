@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BYTES } from "@/lib/uploadLimits";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { uploadSearchDirs } from "@/lib/persistentUploads";
@@ -7,7 +8,7 @@ import { htmlShell } from "@/lib/htmlShell";
 // Público, igual que el resto de /uploads: quien tenga el enlace (ej. un cliente) lo puede ver.
 export const dynamic = "force-dynamic";
 
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES; // mismo tope que la subida
 
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;

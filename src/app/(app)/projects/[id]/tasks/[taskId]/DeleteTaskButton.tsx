@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { useState, useTransition } from "react";
 import { deleteTask } from "./actions";
 import { useConfirm } from "@/components/Confirm";

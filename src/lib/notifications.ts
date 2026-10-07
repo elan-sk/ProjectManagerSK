@@ -318,6 +318,34 @@ export async function notifyUrgentTask(taskId: string, actorId: string | null) {
   for (const id of ids) await dispatchDirect(id, text, true);
 }
 
+// Texto del aviso de credencial compartida (exportado para poder previsualizarlo). Nunca lleva la contraseña.
+export const credentialSharedText = (author: string, name: string, projectName: string, link: string) =>
+  `🔐 *${author}* compartió con usted la contraseña "${name}" del proyecto "${projectName}".\nPor seguridad, la clave no viaja en este mensaje: se ve en la app.\n\n🔗 ${link}`;
+
+/**
+ * Credencial compartida: aviso en la campana (enlaza a la credencial), push y WhatsApp individual
+ * (respeta el horario laboral; fuera de él queda en la cola) a `userIds` — nunca a quien la compartió
+ * ni a un grupo. El mensaje dice que se compartió y trae el enlace; la contraseña jamás va en el aviso.
+ */
+export async function notifyCredentialShared(credentialId: string, userIds: string[], actorId: string | null) {
+  const ids = [...new Set(userIds)].filter((id) => id !== actorId);
+  if (ids.length === 0) return;
+  const credential = await prisma.credential.findUnique({
+    where: { id: credentialId },
+    select: { name: true, projectId: true, project: { select: { name: true } }, createdBy: { select: { name: true } } },
+  });
+  if (!credential) return;
+  const author = (actorId ? (await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } }))?.name : null) ?? credential.createdBy?.name ?? "Alguien";
+  const path = `/credentials/${credentialId}`;
+  const inApp = `${author} compartió la contraseña "${credential.name}" (${credential.project.name}).`;
+  await prisma.notification.createMany({
+    data: ids.map((userId) => ({ userId, type: "CREDENTIAL_SHARED" as const, message: inApp, projectId: credential.projectId, credentialId })),
+  });
+  await Promise.all(ids.map((id) => sendPushToUser(id, `🔐 ${inApp}`, path)));
+  const text = credentialSharedText(author, credential.name, credential.project.name, absoluteUrl(path)!);
+  for (const id of ids) await dispatchDirect(id, text);
+}
+
 // ponytail: sin cron real todavía — se recalcula al cargar el layout
 // protegido (barato: solo tareas del usuario logueado) y evita duplicar
 // alertas ya creadas para la misma tarea/tipo mientras sigan sin leer.

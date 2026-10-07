@@ -1,3 +1,5 @@
+import { credentialVisibleWhere } from "@/lib/credentials";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { mimeFromFileName } from "@/lib/uploadFile";
@@ -696,6 +698,17 @@ async function currentUserId(): Promise<string> {
 // nivel de PROYECTO completo (no por tarea individual dentro de él),
 // espejando cómo ya funciona la pestaña "Archivos" del proyecto (le
 // muestra todos los adjuntos del proyecto a cualquiera que la abra).
+/**
+ * Contraseñas (credenciales) que el bot puede mencionar: solo las que esta persona ve, y solo nombre
+ * + enlace — decisión del usuario 2026-10-07: el bot nunca escribe la URL, el usuario ni la contraseña
+ * en el chat; para verlas, la persona abre el enlace.
+ */
+async function credentialsForBot(where: Prisma.CredentialWhereInput, userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
+  const list = await prisma.credential.findMany({ where: { AND: [where, credentialVisibleWhere(user)] }, select: { id: true, name: true } });
+  return list.map((c) => ({ name: c.name, link: `${process.env.NEXTAUTH_URL ?? ""}/credentials/${c.id}`, note: "Contraseña guardada: por seguridad solo se ve abriendo el enlace." }));
+}
+
 async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
@@ -879,9 +892,10 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       });
       if (!project) return JSON.stringify({ error: "No existe ese proyecto." });
       const { tasks, ...projectRest } = project;
+      const credentials = await credentialsForBot({ projectId }, userId);
       const [delaySummary, forecast] = await Promise.all([getProjectDelaySummary(projectId), getProjectForecast(projectId)]);
       // schedule (spec 003): retraso (−) u holgura (+) en días hábiles si sigue al ritmo actual, y las tareas que empujan el fin.
-      return JSON.stringify({ project: { ...projectRest, ...computePhase(tasks) }, delaySummary, schedule: scheduleForApi(forecast) });
+      return JSON.stringify({ project: { ...projectRest, ...computePhase(tasks), credentials }, delaySummary, schedule: scheduleForApi(forecast) });
     }
 
     case "get_task_details": {
@@ -902,8 +916,9 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const fileAccessIds = await getFileAccessibleTaskIds(userId);
       const filesAccessible = canSeeTaskFiles(fileAccessIds, task.id);
       const alert = await getTaskAlert(task.project.countryCode, task);
+      const credentials = await credentialsForBot({ tasks: { some: { taskId: task.id } } }, userId);
       return JSON.stringify({
-        task: { ...task, statusLabel: TASK_STATUS_LABEL[task.status], attachments: filesAccessible ? task.attachments : [] },
+        task: { ...task, statusLabel: TASK_STATUS_LABEL[task.status], attachments: filesAccessible ? task.attachments : [], credentials },
         filesAccessible,
         alert,
       });

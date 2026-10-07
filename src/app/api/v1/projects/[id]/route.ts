@@ -12,6 +12,7 @@ import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getProjectAdmin } from "@/lib/permissions";
+import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 
 const FILE_SELECT = { id: true, fileUrl: true, fileName: true, mimeType: true } as const;
 const FILE_SELECT_WITH_KIND = { ...FILE_SELECT, kind: true } as const;
@@ -56,7 +57,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ]);
 
   // schedule: retraso u holgura si sigue al ritmo actual (spec 003).
-  return NextResponse.json({ ...project, bottlenecks, delays, schedule: scheduleForApi(forecast) });
+  // Contraseñas (credenciales) que esta persona puede ver, con la contraseña (decisión del usuario).
+  const credentials = (
+    await prisma.credential.findMany({ where: { projectId: id, ...credentialVisibleWhere(auth.actor) }, include: { tasks: { select: { taskId: true } }, allowedUsers: { select: { userId: true } } }, orderBy: { createdAt: "asc" } })
+  ).map(credentialForApi);
+  await logCredentialAccess(credentials.map((c) => c.id), auth.actor, "VIEW", "api");
+  return NextResponse.json({ ...project, bottlenecks, delays, schedule: scheduleForApi(forecast), credentials });
 }
 
 // Punto 3.1 (skill dev-project-definer): completar la descripción/fechas del

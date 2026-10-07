@@ -23,6 +23,7 @@ export function DefinitionTab({
   phases,
   links,
   attachments,
+  credentials,
   whatsappGroupJid,
 }: {
   projectId: string;
@@ -43,6 +44,7 @@ export function DefinitionTab({
   })[];
   links: { id: string; title: string; url: string }[];
   attachments: { id: string; fileName: string; fileUrl: string; mimeType: string }[];
+  credentials: { id: string; name: string }[];
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -84,7 +86,7 @@ export function DefinitionTab({
         phases={phases}
       />
 
-      <ProjectLinksPanel projectId={projectId} links={links} attachments={attachments} canManage={canManage} />
+      <ProjectLinksPanel projectId={projectId} links={links} attachments={attachments} credentials={credentials} canManage={canManage} />
 
       {canManage && <ProjectWhatsAppGroupPanel projectId={projectId} currentGroupJid={whatsappGroupJid} />}
     </div>

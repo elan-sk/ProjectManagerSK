@@ -1,3 +1,4 @@
+import { ARCHIVE_MIME } from "@/lib/uploadLimits";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
@@ -30,6 +31,7 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain",
   ".csv": "text/csv",
   ".md": "text/markdown",
+  ...ARCHIVE_MIME,
 };
 
 const SVG_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:";

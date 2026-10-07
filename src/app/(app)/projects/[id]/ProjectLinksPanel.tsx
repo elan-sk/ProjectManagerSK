@@ -1,5 +1,6 @@
 "use client";
 
+import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
@@ -10,22 +11,26 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addProjectLink, addProjectAttachment } from "./definitionActions";
 import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
-import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialRef } from "@/lib/attachments";
+import { AddCredentialButton } from "../../credentials/AddCredentialButton";
 
 type ProjectLink = { id: string; title: string; url: string };
 type ProjectAttachment = { id: string; fileName: string; fileUrl: string; mimeType: string };
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = UPLOAD_ACCEPT;
 
 export function ProjectLinksPanel({
   projectId,
   links,
   attachments,
+  credentials = [],
   canManage,
 }: {
   projectId: string;
   links: ProjectLink[];
   attachments: ProjectAttachment[];
+  /** Solo las que esta persona puede ver (filtradas en el servidor). */
+  credentials?: { id: string; name: string }[];
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -106,7 +111,7 @@ export function ProjectLinksPanel({
     <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="text-[21px] font-semibold text-slate-900">Archivos y enlaces</h2>
       {/* Misma grilla con miniaturas que la pestaña Archivos: imágenes, documentos y enlaces (YouTube en visor). */}
-      {links.length === 0 && attachments.length === 0 ? (
+      {links.length === 0 && attachments.length === 0 && credentials.length === 0 ? (
         <p className="text-sm text-slate-400">Sin archivos ni enlaces todavía.</p>
       ) : (
         <AttachmentGrid
@@ -115,6 +120,7 @@ export function ProjectLinksPanel({
           items={[
             ...attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             ...links.map((l) => ({ id: l.id, url: l.url, name: l.title, mimeType: LINK_MIME_TYPE })),
+            ...credentials.map((c) => ({ id: `cred-${c.id}`, url: credentialRef(c.id), name: c.name, mimeType: CREDENTIAL_MIME_TYPE })),
           ]}
         />
       )}
@@ -157,6 +163,7 @@ export function ProjectLinksPanel({
             >
               Agregar
             </button>
+            <AddCredentialButton place={{ projectId }} className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50" />
           </div>
         </div>
       )}

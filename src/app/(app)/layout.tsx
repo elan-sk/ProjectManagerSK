@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import { NavigationProgress } from "@/components/NavigationProgress";
+import { credentialVisibleWhere } from "@/lib/credentials";
 import { redirect } from "next/navigation";
 import { visibleProjectWhere } from "@/lib/permissions";
 import Link from "next/link";
@@ -51,7 +54,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     include: { task: { select: { projectId: true } } },
     orderBy: { createdAt: "desc" },
   }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { OR: [{ mentions: { some: { userId: session.user.id } } }, { project: { OR: [{ pmId: session.user.id }, { tasks: { some: { OR: [{ assignees: { some: { userId: session.user.id } } }, { reviewers: { some: { userId: session.user.id } } }] } } }] } }] }) }, include: { author: { select: { name: true } }, mentions: { where: { userId: session.user.id }, select: { userId: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
-  const bellItems = notifications.map((n) => ({
+  // Avisos de credencial: si la persona ya no tiene acceso (cambió la visibilidad), el aviso no se
+  // muestra — ni siquiera el nombre de la credencial.
+  const credentialIds = notifications.flatMap((n) => (n.credentialId ? [n.credentialId] : []));
+  const visibleCredentialIds = new Set(
+    credentialIds.length > 0
+      ? (await prisma.credential.findMany({ where: { id: { in: credentialIds }, ...credentialVisibleWhere(session.user) }, select: { id: true } })).map((c) => c.id)
+      : []
+  );
+  const bellItems = notifications.filter((n) => !n.credentialId || visibleCredentialIds.has(n.credentialId)).map((n) => ({
     id: n.id,
     message: n.message,
     type: n.type,
@@ -60,6 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // propio Notification.projectId — antes esto quedaba siempre null y la
     // campana no tenía cómo armar el link para ese caso.
     projectId: n.task?.projectId ?? n.projectId ?? null,
+    credentialId: n.credentialId,
   }));
 
   // Alertas fijas del header (punto 10 confirmado con el usuario): siempre
@@ -109,6 +121,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         (/agenda, /settings, etc.) quedaba pisada hasta recargar a mano. */}
     <LiveRefresh />
     <ActivityPing />
+    {/* Barra y «Cargando…» mientras navega (links, filtros, buscador). Suspense: usa useSearchParams. */}
+    <Suspense fallback={null}>
+      <NavigationProgress />
+    </Suspense>
     <div className="pacific-shell min-h-screen bg-slate-50">
       <header className="pacific-header sticky top-0 z-50 relative flex items-center gap-2 px-4 py-1 sm:px-6">
         <div className="flex flex-shrink-0 items-center gap-2 text-sm font-medium">

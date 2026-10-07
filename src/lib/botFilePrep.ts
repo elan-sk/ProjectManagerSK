@@ -109,5 +109,5 @@ export async function prepareFileForBot(buffer: Buffer, fileName: string, mimeTy
     }
   }
 
-  return JSON.stringify({ error: "Este formato (PowerPoint, .xls antiguo) no se puede leer desde el chat. Solo puedo ver su nombre." });
+  return JSON.stringify({ error: "Este formato (PowerPoint, .xls antiguo o un archivo comprimido como ZIP o RAR) no se puede leer desde el chat. Solo puedo ver su nombre." });
 }

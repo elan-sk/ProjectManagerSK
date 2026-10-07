@@ -13,6 +13,7 @@ export type NotificationItem = {
   type: NotificationType;
   taskId: string | null;
   projectId: string | null;
+  credentialId?: string | null;
 };
 
 export function NotificationBell({ items }: { items: NotificationItem[] }) {
@@ -66,7 +67,9 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
               />
               <Link
                 href={
-                  n.taskId
+                  n.credentialId
+                    ? `/credentials/${n.credentialId}`
+                    : n.taskId
                     ? `/projects/${n.projectId}/tasks/${n.taskId}`
                     : n.projectId
                       ? `/projects/${n.projectId}?view=definition`

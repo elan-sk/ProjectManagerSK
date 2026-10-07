@@ -1,11 +1,12 @@
 "use client";
 
+import { UPLOAD_ACCEPT_PUBLIC } from "@/lib/uploadLimits";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
 import { useRef, useState } from "react";
 import { ALREADY_LOADED } from "@/lib/duplicateNotice";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md";
+const ACCEPT = UPLOAD_ACCEPT_PUBLIC;
 
 // Widget de subida compartido entre el "Archivos" del proyecto y los
 // insumos de una tarea en la vista compartida por link (puntos 15/16) —

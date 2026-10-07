@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { commentPreview } from "@/lib/commentBody";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { credentialVisibleWhere } from "@/lib/credentials";
 import type { Prisma, TaskStatus } from "@prisma/client";
 
 // Los resultados se muestran agrupados y en este orden: Proyectos → Tareas
@@ -12,7 +13,7 @@ import type { Prisma, TaskStatus } from "@prisma/client";
 export type SearchGroup = "project" | "task" | "comment" | "file";
 
 export type SearchHit = {
-  kind: "project" | "task" | "step" | "comment" | "file" | "link";
+  kind: "project" | "task" | "step" | "comment" | "file" | "link" | "credential";
   group: SearchGroup;
   id: string;
   title: string;
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
   const hits: SearchHit[] = [];
   const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus">) => {
     const score = fuzzyScore(q, text);
-    const group: SearchGroup = kind === "step" ? "task" : kind === "link" ? "file" : kind;
+    const group: SearchGroup = kind === "step" ? "task" : kind === "link" || kind === "credential" ? "file" : kind;
     if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
 
@@ -122,6 +123,15 @@ export async function GET(request: Request) {
         push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName, logo, [...(a.uploadedBy ? [a.uploadedBy] : []), ...involved].filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i));
       }
     }
+  }
+  // Credenciales: solo las que esta persona puede ver; se busca por nombre, URL y usuario (nunca por
+  // la contraseña, que además está cifrada).
+  const credentials = await prisma.credential.findMany({
+    where: { AND: [credentialVisibleWhere(session.user), { project: LIVE_PROJECT_WHERE }] },
+    select: { id: true, name: true, url: true, username: true, project: { select: { name: true, iconUrl: true } } },
+  });
+  for (const c of credentials) {
+    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}`, { name: c.project.name, iconUrl: c.project.iconUrl });
   }
   const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {

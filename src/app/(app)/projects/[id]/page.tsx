@@ -1,3 +1,4 @@
+import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { canSeeProject } from "@/lib/permissions";
 import { Avatar } from "@/components/Avatar";
@@ -16,7 +17,7 @@ import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
 import { getActiveClaudeLink } from "@/lib/apiAuth";
 import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
-import { attachmentFileType, LINK_MIME_TYPE } from "@/lib/attachments";
+import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
@@ -203,6 +204,12 @@ export default async function ProjectPage({
   if (!project) notFound();
   // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
   if (!session?.user || !canSeeProject(project, session.user)) notFound();
+  // Credenciales que ESTA persona puede ver (las demás no existen para ella: ni nombre ni ficha).
+  const credentials = await prisma.credential.findMany({
+    where: { projectId: project.id, ...credentialVisibleWhere(session.user) },
+    select: { id: true, name: true, createdAt: true, tasks: { select: { taskId: true, addedAt: true } } },
+    orderBy: { createdAt: "desc" },
+  });
 
   // Sin ?view= en la URL: un proyecto sin nada definido (sin descripción, objetivos
   // ni requerimientos) abre en Definición; el resto, en el Tablero de siempre.
@@ -474,6 +481,18 @@ export default async function ProjectPage({
           ...repoUrls.map((url, i) => ({ id: `repo-${i}`, fileUrl: url, fileName: `Repositorio${repoUrls.length > 1 ? ` ${i + 1}` : ""} — ${url.replace(/^https?:\/\/(www\.)?/, "")}`, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
         ]
       : [];
+  // Credenciales: una fila del proyecto (Definición) y una por tarea donde está como insumo — la
+  // grilla las junta en una ficha con «usado en». Cuentan como insumo; no son evidencia.
+  const taskTitleById = new Map(project.tasks.map((t) => [t.id, t.title]));
+  const credentialFiles: FileRow[] =
+    projectFileKind !== "RESULTADO"
+      ? credentials.flatMap((c) => [
+          { id: `cred-${c.id}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: null, taskTitle: null, uploadedAt: c.createdAt },
+          ...c.tasks
+            .filter((t) => taskTitleById.has(t.taskId))
+            .map((t): FileRow => ({ id: `cred-${c.id}-${t.taskId}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: t.taskId, taskTitle: taskTitleById.get(t.taskId)!, section: "Insumos", uploadedAt: t.addedAt })),
+        ])
+      : [];
   const projectFiles = project.tasks
     .flatMap((t) =>
       t.attachments
@@ -481,6 +500,7 @@ export default async function ProjectPage({
         .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos", uploadedAt: a.uploadedAt }))
     )
     .concat(projectRepoFiles)
+    .concat(credentialFiles)
     // Spec 001: también los de Ajustes y rondas (solo en «Todos»: no son Insumos ni Evidencias de la tarea).
     .concat(
       view === "files" && !projectFileKind
@@ -916,6 +936,7 @@ export default async function ProjectPage({
           phases={cascadeProgress.phases}
           links={project.links}
           attachments={project.attachments}
+          credentials={credentials.map((c) => ({ id: c.id, name: c.name }))}
           whatsappGroupJid={project.whatsappGroupJid}
         />
       ) : view === "gantt" ? (

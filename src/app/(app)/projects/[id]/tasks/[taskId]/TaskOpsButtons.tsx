@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { useToast } from "@/components/Toast";
 import { CopyIcon, UrgentIcon } from "@/components/icons";
 import { duplicateTask, setTaskUrgent, unarchiveTask } from "../../taskOps";

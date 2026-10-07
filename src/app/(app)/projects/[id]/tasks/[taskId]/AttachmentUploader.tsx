@@ -1,5 +1,6 @@
 "use client";
 
+import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
@@ -12,7 +13,7 @@ import { addAttachmentRecord, addLinkAttachment } from "./actions";
 import { MediaGalleryButton } from "./MediaGalleryButton";
 import type { AttachmentKind } from "@prisma/client";
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = UPLOAD_ACCEPT;
 
 export function AttachmentUploader({
   taskId,

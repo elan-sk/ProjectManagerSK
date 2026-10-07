@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
 import { attachmentFileType, documentStyle, youtubeVideoId } from "@/lib/attachments";
-import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, LinkIcon } from "@/components/icons";
+import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, KeyIcon, LinkIcon } from "@/components/icons";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { YouTubeModal } from "@/components/YouTubeModal";
@@ -64,7 +64,11 @@ export function MediaGalleryButton(props: Props) {
     router.refresh();
   }
 
-  const shown = (items ?? []).filter((i) => i.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // Contraseñas: en los insumos de la tarea, en los pasos y en los insumos de un ajuste (no en evidencias ni antes/después).
+  const allowsCredentials = props.stepId !== undefined || props.kind === "INSUMO";
+  const shown = (items ?? [])
+    .filter((i) => allowsCredentials || attachmentFileType(i.mimeType) !== "credential")
+    .filter((i) => i.name.toLowerCase().includes(q.trim().toLowerCase()));
   const images = shown.filter((i) => attachmentFileType(i.mimeType) === "image").map((i) => ({ id: i.url, url: i.url, name: i.name }));
   const actionClass = "absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm hover:bg-white hover:text-[#0a6b78]";
 
@@ -103,6 +107,11 @@ export function MediaGalleryButton(props: Props) {
                           </span>
                         </span>
                       </span>
+                    ) : type === "credential" ? (
+                      <span className="flex h-20 w-full flex-col items-center justify-center gap-1 rounded bg-[#0a6b78]/10 text-[#0a6b78]">
+                        <KeyIcon className="h-7 w-7" />
+                        <span className="text-[10px] font-bold tracking-wide">CONTRASEÑA</span>
+                      </span>
                     ) : type === "link" ? (
                       <span className="flex h-20 w-full items-center justify-center rounded bg-slate-100 text-slate-400">
                         <LinkIcon className="h-7 w-7" />
@@ -116,7 +125,7 @@ export function MediaGalleryButton(props: Props) {
                     )}
                     <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
                   </button>
-                  {type === "link" && !videoId ? (
+                  {type === "credential" ? null : type === "link" && !videoId ? (
                     <a href={item.url} target="_blank" rel="noopener noreferrer" title="Abrir enlace en otra pestaña" aria-label={`Abrir ${item.name}`} className={actionClass}>
                       <ExternalLinkIcon className="h-4 w-4" />
                     </a>

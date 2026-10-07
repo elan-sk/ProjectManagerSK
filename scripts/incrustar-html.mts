@@ -12,7 +12,7 @@ const IMAGE_MIME: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
   ".svg": "image/svg+xml", ".avif": "image/avif", ".ico": "image/x-icon", ".bmp": "image/bmp",
 };
-const MAX_BYTES = 20 * 1024 * 1024; // mismo límite de subida de la app
+const MAX_BYTES = 50 * 1024 * 1024; // mismo límite de subida de la app (src/lib/uploadLimits.ts)
 
 const [input, outputArg] = process.argv.slice(2);
 if (!input) {
@@ -117,6 +117,6 @@ const size = statSync(output).size;
 console.log(`Listo: ${output}`);
 console.log(`Incrustado: ${counts.imagenes} imagen(es), ${counts.css} CSS, ${counts.js} JS · ${(size / 1024).toFixed(0)} KB`);
 if (missing.length) console.log(`No encontrado (revisar antes de subir): ${[...new Set(missing)].join(", ")}`);
-if (size > MAX_BYTES) console.log("AVISO: pasa de 20 MB, la app no lo va a aceptar. Reducir las imágenes o dejar las grandes como link.");
+if (size > MAX_BYTES) console.log("AVISO: pasa de 50 MB, la app no lo va a aceptar. Reducir las imágenes o dejar las grandes como link.");
 // Lo que el script no puede incrustar (rutas armadas en JavaScript, fetch de .json, fuentes locales en
 // @font-face con formato no imagen) se ve como "No encontrado" solo si aparece literal; revisar a mano.

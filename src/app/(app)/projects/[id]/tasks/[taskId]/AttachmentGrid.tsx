@@ -8,6 +8,7 @@ import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPr
 import { YouTubeModal } from "@/components/YouTubeModal";
 import { LINK_MIME_TYPE, youtubeVideoId } from "@/lib/attachments";
 import { removeAttachment } from "./actions";
+import type { CredentialPlace } from "@/lib/credentialPlace";
 
 export type AttachmentGridItem = {
   id: string;
@@ -21,6 +22,9 @@ export type AttachmentGridItem = {
   canDelete?: boolean;
   /** Texto corto bajo la ficha (ej. «del paso: …» en los Insumos que salieron de un paso del checklist). */
   caption?: string;
+  /** Contraseña en una tarea, paso o ajuste: su visor ofrece quitarla de ahí a quien puede editar la tarea. */
+  credentialPlace?: CredentialPlace;
+  credentialCanRemove?: boolean;
 };
 
 /**
@@ -57,6 +61,8 @@ export function AttachmentGrid({
             taskLink={a.taskLink}
             usedIn={a.usedIn}
             caption={a.caption}
+            credentialPlace={a.credentialPlace}
+            credentialCanRemove={a.credentialCanRemove}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
             onOpenVideo={

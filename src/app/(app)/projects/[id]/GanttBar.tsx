@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { resizeTask, moveTask } from "./actions";
 import { AlertBadge } from "@/components/AlertBadge";
 import { LockIcon } from "@/components/icons";

@@ -1,8 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { canEditTask } from "@/lib/permissions";
-import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
+import { canEditTask, resolveActor } from "@/lib/permissions";
+import { credentialVisibleWhere } from "@/lib/credentials";
+import { linkCredential } from "../../../../credentials/actions";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, credentialRef, linkKey } from "@/lib/attachments";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
@@ -27,7 +29,20 @@ export async function listReusableMedia(taskId: string): Promise<{ ok: true; ite
   ]);
   // Siempre de lo más reciente a lo más antiguo, mezclando archivos y links; un archivo
   // usado en varios lugares aparece una vez, en la posición de su uso más reciente.
-  const all = [...attachments, ...projectAttachments, ...adjustmentFiles, ...deliverables, ...evidence, ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt }))]
+  // Credenciales del proyecto que esta persona puede ver (nunca las ajenas): se agregan como insumo.
+  const actor = await resolveActor();
+  const credentials = actor
+    ? await prisma.credential.findMany({ where: { projectId, ...credentialVisibleWhere(actor) }, select: { id: true, name: true, createdAt: true } })
+    : [];
+  const all = [
+    ...attachments,
+    ...projectAttachments,
+    ...adjustmentFiles,
+    ...deliverables,
+    ...evidence,
+    ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt })),
+    ...credentials.map((c) => ({ fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, uploadedAt: c.createdAt })),
+  ]
     .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
   const seen = new Set<string>();
   const items: MediaItem[] = [];
@@ -47,6 +62,13 @@ export async function reuseMedia(taskId: string, kind: AttachmentKind, url: stri
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
+    // Credencial: se agrega como insumo de la tarea (sus asignados ganan acceso y se les avisa).
+    const credentialId = item.mimeType === CREDENTIAL_MIME_TYPE ? credentialIdFromRef(item.url) : null;
+    if (credentialId) {
+      if (kind !== "INSUMO") return { ok: false as const, error: "Las contraseñas se agregan a los insumos de la tarea." };
+      const linked = await linkCredential(credentialId, { taskId });
+      return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
+    }
     const r = item.mimeType === LINK_MIME_TYPE ? await addLinkAttachment(taskId, kind, item.url, item.name, userId) : await addAttachmentRecord(taskId, kind, item, userId);
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
@@ -63,6 +85,12 @@ export async function reuseMediaForAdjustment(itemId: string, kind: AdjustmentAt
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
+    const credentialId = item.mimeType === CREDENTIAL_MIME_TYPE ? credentialIdFromRef(item.url) : null;
+    if (credentialId) {
+      if (kind !== "INSUMO") return { ok: false as const, error: "Las contraseñas se agregan a los insumos del ajuste." };
+      const linked = await linkCredential(credentialId, { adjustmentItemId: itemId });
+      return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
+    }
     const r = item.mimeType === LINK_MIME_TYPE ? await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId) : await addAdjustmentAttachment(itemId, kind, item, userId);
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
@@ -79,6 +107,11 @@ export async function reuseMediaForStep(stepId: string, url: string) {
     if (!gallery.ok) return gallery;
     const item = gallery.items.find((i) => i.url === url);
     if (!item) return { ok: false as const, error: "Ese archivo ya no está disponible en la galería." };
+    const credentialId = item.mimeType === CREDENTIAL_MIME_TYPE ? credentialIdFromRef(item.url) : null;
+    if (credentialId) {
+      const linked = await linkCredential(credentialId, { stepId });
+      return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
+    }
     const r = item.mimeType === LINK_MIME_TYPE ? await addStepLinkAttachment(stepId, item.url, item.name) : await addStepAttachment(stepId, item);
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {

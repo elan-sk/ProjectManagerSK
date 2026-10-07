@@ -1,5 +1,6 @@
 "use client";
 
+import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
@@ -14,6 +15,8 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { MediaGalleryButton } from "./MediaGalleryButton";
+import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
+import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 import {
   addAdjustmentItem,
   removeAdjustmentItem,
@@ -36,6 +39,8 @@ type AdjustmentItemData = {
   before: AdjustmentAttachment[];
   after: AdjustmentAttachment[];
   insumos: AdjustmentAttachment[];
+  /** Contraseñas agregadas a este ajuste (solo las que la persona puede ver). */
+  credentials?: AttachmentGridItem[];
   clientApproval: boolean | null;
   clientApprovalBy: string | null;
   clientReviewOpen: boolean;
@@ -256,8 +261,8 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
         <AdjustmentSide label="Después" kind="AFTER" itemId={item.id} attachments={item.after} userId={userId} canEdit={canEdit} canDelete={canDelete} />
       </div>
 
-      {(item.insumos.length > 0 || canEdit) && (
-        <AdjustmentSide label="Insumos" kind="INSUMO" itemId={item.id} taskId={taskId} attachments={item.insumos} userId={userId} canEdit={canEdit} canDelete={canDelete} />
+      {(item.insumos.length > 0 || (item.credentials?.length ?? 0) > 0 || canEdit) && (
+        <AdjustmentSide label="Insumos" kind="INSUMO" itemId={item.id} taskId={taskId} attachments={item.insumos} credentials={item.credentials} userId={userId} canEdit={canEdit} canDelete={canDelete} />
       )}
 
       {canEdit && item.after.length === 0 && (
@@ -296,14 +301,16 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   );
 }
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.html";
+const ACCEPT = UPLOAD_ACCEPT;
 
-function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canEdit, canDelete }: {
+function AdjustmentSide({ label, kind, itemId, taskId, attachments, credentials = [], userId, canEdit, canDelete }: {
   label: string;
   kind: AdjustmentAttachmentKind;
   itemId: string;
   taskId?: string;
   attachments: AdjustmentAttachment[];
+  /** Solo en Insumos: contraseñas del ajuste (ficha propia; se abren en su visor). */
+  credentials?: AttachmentGridItem[];
   userId: string | null;
   canEdit: boolean;
   canDelete: boolean;
@@ -391,6 +398,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
       className={`space-y-1.5 rounded-lg p-2 ${dragOver ? "bg-slate-50 ring-1 ring-slate-400" : ""}`}
     >
       <p className="text-[18px] font-semibold text-slate-600">{label}</p>
+      {credentials.length > 0 && <AttachmentGrid items={credentials} canDelete={false} className="grid grid-cols-2 gap-1.5" />}
       <div className="grid grid-cols-2 gap-1.5">
         {attachments.map((a) => {
           const isImage = a.mimeType.startsWith("image/");
@@ -472,6 +480,12 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, userId, canE
             </button>
             {kind === "INSUMO" && taskId && userId && (
               <MediaGalleryButton taskId={taskId} userId={userId} kind="INSUMO" adjustmentItemId={itemId} />
+            )}
+            {kind === "INSUMO" && (
+              <AddCredentialButton
+                place={{ adjustmentItemId: itemId }}
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300 py-1 text-[15px] text-slate-500 hover:border-slate-400"
+              />
             )}
           </div>
         )

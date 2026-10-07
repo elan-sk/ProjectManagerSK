@@ -1,7 +1,8 @@
 "use client";
 
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { useEffect, useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
 import { deleteTask } from "./tasks/[taskId]/actions";

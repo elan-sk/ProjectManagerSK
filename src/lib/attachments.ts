@@ -4,9 +4,18 @@
 export const LINK_MIME_TYPE = "text/uri-list";
 export const HTML_MIME_TYPE = "text/html";
 
-export type AttachmentFileType = "image" | "document" | "link";
+// Credencial (URL, usuario y contraseña): se muestra como una ficha más del
+// sistema de archivos, pero su "url" es `credential:<id>` y su contenido se
+// pide aparte al abrirla (ver src/lib/credentials.ts) — la contraseña nunca
+// viaja en las listas.
+export const CREDENTIAL_MIME_TYPE = "application/x-pmsk-credential";
+export const credentialRef = (credentialId: string) => `credential:${credentialId}`;
+export const credentialIdFromRef = (url: string) => (url.startsWith("credential:") ? url.slice("credential:".length) : null);
+
+export type AttachmentFileType = "image" | "document" | "link" | "credential";
 
 export function attachmentFileType(mimeType: string): AttachmentFileType {
+  if (mimeType === CREDENTIAL_MIME_TYPE) return "credential";
   if (mimeType === LINK_MIME_TYPE) return "link";
   if (mimeType.startsWith("image/")) return "image";
   return "document";
@@ -42,7 +51,7 @@ export function youtubeVideoId(url: string): string | null {
  */
 export function linkKey(url: string): string {
   const raw = url.trim();
-  if (raw.startsWith("/uploads/")) return raw;
+  if (raw.startsWith("/uploads/") || raw.startsWith("credential:")) return raw;
   const video = youtubeVideoId(raw);
   if (video) return `youtube:${video}`;
   try {
@@ -75,6 +84,7 @@ const DOC_STYLES = {
   excel: { label: "EXCEL", text: "text-[#217346]", bg: "bg-[#217346]/10", border: "border-[#217346]/30", hover: "hover:border-[#217346] hover:bg-[#217346]/20", name: "text-[#124a2c]" },
   powerpoint: { label: "PPT", text: "text-[#f0740f]", bg: "bg-[#f0740f]/10", border: "border-[#f0740f]/35", hover: "hover:border-[#f0740f] hover:bg-[#f0740f]/20", name: "text-[#9a4708]" },
   html: { label: "HTML", text: "text-[#7c3aed]", bg: "bg-[#7c3aed]/10", border: "border-[#7c3aed]/30", hover: "hover:border-[#7c3aed] hover:bg-[#7c3aed]/20", name: "text-[#4c1d95]" },
+  archive: { label: "ZIP", text: "text-[#8a5a14]", bg: "bg-[#c08a2b]/10", border: "border-[#c08a2b]/35", hover: "hover:border-[#c08a2b] hover:bg-[#c08a2b]/20", name: "text-[#5c3c0c]" },
   text: { label: "TXT / MD", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", hover: "hover:border-slate-500 hover:bg-slate-200", name: "text-slate-800" },
 } satisfies Record<string, DocumentStyle>;
 
@@ -85,6 +95,8 @@ export function documentStyle(mimeType: string, name: string): DocumentStyle {
   if (ext === "xls" || ext === "xlsx" || ext === "csv" || mimeType.includes("sheet") || mimeType.includes("excel") || mimeType === "text/csv") return DOC_STYLES.excel;
   if (ext === "ppt" || ext === "pptx" || mimeType.includes("presentation") || mimeType.includes("powerpoint")) return DOC_STYLES.powerpoint;
   if (ext === "html" || ext === "htm" || mimeType === "text/html") return DOC_STYLES.html;
+  // Comprimidos: color propio (ocre) para distinguirlos de los documentos.
+  if (["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz"].includes(ext)) return DOC_STYLES.archive;
   // Texto plano (txt, md, markdown, log, rtf, json, xml…) y cualquier otra extensión: nunca queda una ficha sin estilo.
   return DOC_STYLES.text;
 }

@@ -9,6 +9,7 @@ const FILE_TYPE_LABEL: Record<string, string> = {
   image: "Imágenes",
   document: "Documentos",
   link: "Links",
+  credential: "Contraseñas",
 };
 
 function tabClass(active: boolean) {
@@ -89,7 +90,7 @@ export function AllProjectsFilesView({
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Tipo</span>
           <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
-            {(["all", "image", "document", "link"] as const).map((t) => (
+            {(["all", "image", "document", "link", "credential"] as const).map((t) => (
               <Link key={t} href={filesHref({ fileType: t === "all" ? undefined : t })} className={pillClass((fileType ?? "all") === t)}>
                 {FILE_TYPE_LABEL[t]}
               </Link>

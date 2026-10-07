@@ -1,3 +1,4 @@
+import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 import { NextResponse } from "next/server";
 import { archiveCompletedTasks, setTaskUrgent, unarchiveTask } from "@/app/(app)/projects/[id]/taskOps";
 import { taskVisibleTo } from "@/lib/visibility";
@@ -50,7 +51,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const delayDays =
     task.status === "COMPLETED" ? await getTaskDelayDays(task.project.countryCode, task) : 0;
 
-  return NextResponse.json({ ...task, delayDays });
+  // Contraseñas agregadas a esta tarea que esta persona puede ver (con la contraseña).
+  const credentials = (
+    await prisma.credential.findMany({ where: { tasks: { some: { taskId: id } }, ...credentialVisibleWhere(auth.actor) }, include: { tasks: { select: { taskId: true } }, allowedUsers: { select: { userId: true } } } })
+  ).map(credentialForApi);
+  await logCredentialAccess(credentials.map((c) => c.id), auth.actor, "VIEW", "api");
+  return NextResponse.json({ ...task, delayDays, credentials });
 }
 
 const updateTaskSchema = z.object({

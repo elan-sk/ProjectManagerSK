@@ -6,7 +6,9 @@ import Link from "next/link";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { DocumentIcon, LinkIcon } from "@/components/icons";
 import { removeAttachment } from "./actions";
-import { LINK_MIME_TYPE, documentStyle, linkHostname, youtubeVideoId } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, documentStyle, linkHostname, youtubeVideoId } from "@/lib/attachments";
+import { CredentialTile } from "../../../../credentials/CredentialTile";
+import type { CredentialPlace } from "@/lib/credentialPlace";
 import { useConfirm } from "@/components/Confirm";
 
 /**
@@ -27,6 +29,8 @@ export function AttachmentPreview({
   onOpenImage,
   onOpenPreview,
   onOpenVideo,
+  credentialPlace,
+  credentialCanRemove,
 }: {
   id: string;
   url: string;
@@ -44,6 +48,9 @@ export function AttachmentPreview({
   onOpenPreview?: () => void;
   /** Link de YouTube — abre el reproductor integrado en vez de salir a otra pestaña. */
   onOpenVideo?: () => void;
+  /** Contraseña mostrada en una tarea, paso o ajuste (ofrece quitarla de ahí si `credentialCanRemove`). */
+  credentialPlace?: CredentialPlace;
+  credentialCanRemove?: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -67,6 +74,26 @@ export function AttachmentPreview({
   }
 
   const videoId = isLink ? youtubeVideoId(url) : null;
+
+  // Credencial: ficha propia; se abre en su visor (que pide los datos al servidor) y se borra o se
+  // quita de la tarea desde ahí, no con la papelera de la ficha.
+  const credentialId = mimeType === CREDENTIAL_MIME_TYPE ? credentialIdFromRef(url) : null;
+  if (credentialId) {
+    return (
+      <CredentialTile
+        credentialId={credentialId}
+        name={name}
+        place={credentialPlace}
+        canRemove={credentialCanRemove}
+        footer={
+          <>
+            {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
+            <UsedIn taskLink={taskLink} usedIn={usedIn} />
+          </>
+        }
+      />
+    );
+  }
 
   if (isLink) {
     // Tarjeta de link: dominio visible y, para YouTube, miniatura con play.

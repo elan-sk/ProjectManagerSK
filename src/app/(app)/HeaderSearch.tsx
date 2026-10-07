@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
@@ -27,7 +27,7 @@ const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
 
 // La etiqueta por resultado solo aporta cuando distingue algo dentro del grupo
 // (paso vs. tarea, archivo vs. link); en los demás sería repetir el título.
-const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link"]);
+const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link", "credential"]);
 
 const KIND_LABEL: Record<SearchHit["kind"], string> = {
   project: "Proyecto",
@@ -36,6 +36,7 @@ const KIND_LABEL: Record<SearchHit["kind"], string> = {
   comment: "Comentario",
   file: "Archivo",
   link: "Link",
+  credential: "Contraseña",
 };
 
 const KIND_COLOR: Record<SearchHit["kind"], string> = {
@@ -46,6 +47,7 @@ const KIND_COLOR: Record<SearchHit["kind"], string> = {
   comment: "bg-amber-50 text-amber-700",
   file: "bg-sky-50 text-sky-700",
   link: "bg-violet-50 text-violet-700",
+  credential: "bg-teal-50 text-teal-700",
 };
 
 /**

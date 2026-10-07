@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useAppRouter";
 import { resetPasswordWithToken } from "../../forgotActions";
 
 export function NewPasswordForm({ token }: { token: string }) {
