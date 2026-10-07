@@ -11,6 +11,7 @@ import {
   getFailureAnalysisByUser,
   getFailureInsight,
   getRecentFirstPassTrend,
+  reviewRates,
 } from "@/lib/reviewPerformance";
 import { PERFORMANCE_GOALS } from "@/lib/performanceGoals";
 import { Avatar } from "@/components/Avatar";
@@ -73,8 +74,9 @@ function ReviewUserSection({
     review || reviewByProject.length > 0 || failureAnalysis.byCategory.length > 0 || failureAnalysis.byResponseCategory.length > 0;
   if (!hasAnything) return null;
 
-  const firstTryRate = review && review.tasksReviewed > 0 ? review.roundsApprovedFirstTry / review.tasksReviewed : null;
-  const reworkRate = review && review.tasksReviewed > 0 ? review.roundsSubmitted / review.tasksReviewed : null;
+  const rates = reviewRates(review);
+  const firstTryRate = rates?.firstTry ?? null;
+  const reworkRate = rates?.roundsPerTask ?? null;
   const failureInsight = getFailureInsight(failureAnalysis.byCategory);
 
   return (

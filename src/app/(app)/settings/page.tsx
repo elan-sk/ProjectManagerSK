@@ -308,7 +308,7 @@ export default async function SettingsPage({
       </section>
     </div>
   );
-}
+} 
 
 // Resumen de lo que ofrece la app, para la tarjeta «Sobre ProjectManagerSK».
 const APP_FEATURES = [

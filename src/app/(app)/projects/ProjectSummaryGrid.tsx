@@ -22,6 +22,8 @@ import { projectStatus } from "@/lib/scheduleVarianceLabel";
 // única diferencia real siendo QUÉ proyectos entran en `rows` (ver
 // getProjectSummaryRows) y el `basePath`/params para que sus links de filtro
 // no choquen con los de la página que la usa.
+const RECENT_LIMIT = 2;
+
 export async function ProjectSummaryGrid({
   rows,
   basePath,
@@ -55,6 +57,11 @@ export async function ProjectSummaryGrid({
     // Filtra por lo que dice el badge: con fecha de cierre, el cronograma; sin ella, la salud.
     .filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health)
     .filter(({ project }) => !pid || pid === "all" || project.id === pid);
+  // Cuántos más aparecen al pulsar «Ver todos» (pid=all conserva el filtro de
+  // salud): sin filtros la vista muestra solo `RECENT_LIMIT`.
+  const limit = pid || health ? undefined : RECENT_LIMIT;
+  const shownCount = limit ? Math.min(visibleRows.length, limit) : visibleRows.length;
+  const hiddenCount = rows.filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health).length - shownCount;
 
   return (
     <div className="space-y-4">
@@ -97,6 +104,11 @@ export async function ProjectSummaryGrid({
               <span className="text-xs text-slate-400">&nbsp;</span>
               <Link href={href({ pid: "all" })} scroll={false} className="py-1.5 text-sm text-slate-600 underline underline-offset-2 hover:text-[#0a6b78]">
                 Ver todos los proyectos
+                {hiddenCount > 0 && (
+                  <span className="ml-1.5 inline-block rounded-full bg-slate-100 px-1.5 py-px align-[1px] text-[11px] font-medium text-slate-500 no-underline">
+                    +{hiddenCount}
+                  </span>
+                )}
               </Link>
             </div>
           )}
@@ -115,7 +127,7 @@ export async function ProjectSummaryGrid({
           </p>
         )}
         <ProjectCardsOrder
-          limit={pid || health ? undefined : 2}
+          limit={limit}
           items={visibleRows.map(({ project: p, summary }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return {

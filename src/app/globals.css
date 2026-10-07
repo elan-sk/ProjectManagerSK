@@ -96,6 +96,14 @@
   --color-emerald-600: #176b4c;
   --color-emerald-700: #12543d;
   --color-emerald-800: #0e4230;
+  /* "Completada": emerald-50 quedaba casi igual al fondo verde azulado
+     (--pacific-foam) y la tarea terminada se leía neutra. 50/300 (fondo y
+     borde de la tarjeta): verde hacia esmeralda, más claro que el fondo.
+     100/700 (etiqueta): verde puro más intenso. Elegidos por el usuario. */
+  --color-done-50: #e8f7ee;
+  --color-done-100: #c9ebcc;
+  --color-done-300: #80c99c;
+  --color-done-700: #1e6427;
   --color-amber-50: #fff7df;
   --color-amber-100: #fbedbb;
   --color-amber-400: #e0a740;

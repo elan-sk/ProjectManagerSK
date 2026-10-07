@@ -13,13 +13,16 @@ import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
 import { getPmProjectsSummary, tallyAgendaCounts, type AgendaCounts } from "@/lib/agendaSummary";
-import { getTaskAlert, getUserPerformance, matchesRiskFilter, type TaskAlert } from "@/lib/delays";
+import { getRecentOnTimeTrend, getTaskAlert, getUserPerformance, matchesRiskFilter, type TaskAlert } from "@/lib/delays";
 import { prisma } from "@/lib/prisma";
-import { getReviewPerformance } from "@/lib/reviewPerformance";
+import { getFailureAnalysisByUser, getRecentFirstPassTrend, getReviewPerformance, reviewRates, type RecentTrend } from "@/lib/reviewPerformance";
+import { getUserActivityStats } from "@/lib/activity";
+import { PERFORMANCE_GOALS } from "@/lib/performanceGoals";
 import { matchesTaskSearch } from "@/lib/search";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabel";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
+import { ProjectCardsOrder } from "../projects/ProjectCardsOrder";
 import type { TaskStatus } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -182,7 +185,7 @@ export default async function AgendaPage({
         : pmProjectIds!
       : null;
 
-  const [tasksRaw, projects, users, pmSummary, myPerformance, myReviewPerf] = await Promise.all([
+  const [tasksRaw, projects, users, pmSummary, myPerf] = await Promise.all([
     prisma.task.findMany({
       where: {
         assignees: { some: { userId: effectiveUserId } },
@@ -207,12 +210,7 @@ export default async function AgendaPage({
     // "Mis proyectos"/"Mi rendimiento" — solo tienen sentido en tu propia
     // agenda, nunca mirando la de otra persona.
     viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user),
-    viewingOther ? Promise.resolve([]) : getUserPerformance(session.user.id),
-    // Resumen de pruebas entregadas (si el usuario nunca entrega nada a QA,
-    // roundsSubmitted queda en 0 y no se muestra ese dato extra) — Aceptación
-    // queda afuera de este resumen rápido, tiene su propio bloque en
-    // /performance.
-    viewingOther ? Promise.resolve([]) : getReviewPerformance("QA"),
+    viewingOther ? Promise.resolve(null) : getMyPerformanceSummary(session.user.id, session.user.role === "ADMIN" ? session.user : null),
   ]);
 
   // Links de compartir activos de estas tareas: alimentan el indicador (igual que en las demás vistas) y el filtro «Compartidas».
@@ -281,11 +279,6 @@ export default async function AgendaPage({
     else groups.push({ key, cards: [card] });
   }
 
-  const perf = myPerformance[0];
-  const onTimePct = perf?.onTimeRate != null ? `${Math.round(perf.onTimeRate * 100)}%` : "—";
-  const reviewPerf = myReviewPerf.find((r) => r.userId === session.user.id);
-  const firstPassPct =
-    reviewPerf && reviewPerf.roundsSubmitted > 0 ? `${Math.round((reviewPerf.roundsApprovedFirstTry / reviewPerf.roundsSubmitted) * 100)}%` : null;
 
   function agendaHref(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
@@ -327,51 +320,32 @@ export default async function AgendaPage({
 
       {!viewingOther && (
         <div className={`grid grid-cols-1 gap-3 ${pmSummary.length > 0 ? "md:grid-cols-2" : ""}`}>
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+          <div className="flex min-h-48 flex-col rounded-xl border border-slate-200 bg-white p-3.5">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-medium text-slate-400">Mi rendimiento</p>
               <Link href={`/performance/${session.user.id}`} className="text-xs text-slate-400 hover:text-slate-700">
                 Ver detalle →
               </Link>
             </div>
-            <div className="flex flex-wrap gap-5">
-              <div>
-                <p className="text-xl font-semibold text-slate-900">{perf?.tasksCompleted ?? 0}</p>
-                <p className="text-xs text-slate-500">completadas</p>
-              </div>
-              <div>
-                <p
-                  className={`text-xl font-semibold ${
-                    perf?.onTimeRate == null ? "text-slate-900" : perf.onTimeRate >= 0.7 ? "text-emerald-600" : "text-red-600"
-                  }`}
-                >
-                  {onTimePct}
-                </p>
-                <p className="text-xs text-slate-500">a tiempo</p>
-              </div>
-              {/* Solo si alguna vez entregó algo a revisión QA — la mayoría de
-                  los usuarios no, así que "completadas/a tiempo" solos no
-                  siempre alcanzan para saber cómo le va. */}
-              {firstPassPct && (
-                <div>
-                  <p className={`text-xl font-semibold ${reviewPerf!.roundsApprovedFirstTry / reviewPerf!.roundsSubmitted >= 0.7 ? "text-emerald-600" : "text-amber-600"}`}>
-                    {firstPassPct}
-                  </p>
-                  <p className="text-xs text-slate-500">aprobadas a la primera</p>
-                </div>
-              )}
-            </div>
+            {myPerf && <div className="flex flex-1 flex-col justify-center"><MyPerformanceStats perf={myPerf} /></div>}
           </div>
 
           {pmSummary.length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-3.5">
               <p className="mb-2 text-xs font-medium text-slate-400">Mis proyectos</p>
-              {/* Alto/ancho explícitos en las dos direcciones (nunca uno solo
-                  implícito) — ~3 proyectos visibles, el resto con scroll. */}
-              <div className="max-h-[130px] space-y-1 overflow-y-auto overflow-x-hidden pr-1">
-                {pmSummary.map((p) => {
+              {/* Misma altura que «Mi rendimiento» (la fila de la grilla la
+                  define esa tarjeta): la lista va en absolute, así no estira
+                  la fila, y lo que no entra se ve con scroll. Mínimo 3 filas
+                  (28px c/u + 2 separaciones de 4px) para el celular, donde las
+                  tarjetas van apiladas. Overflow explícito en los dos ejes. */}
+              <div className="relative min-h-23 flex-1">
+              <div className="absolute inset-0 space-y-1 overflow-y-auto overflow-x-hidden pr-1">
+                {/* Mismo orden que el resumen de Proyectos: último abierto primero,
+                    el resto por creación (más reciente primero). */}
+                <ProjectCardsOrder
+                  items={pmSummary.map((p) => {
                   const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0;
-                  return (
+                  return { id: p.id, node: (
                   <div key={p.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-slate-50">
                     <Link href={`/projects/${p.id}`} className="flex flex-shrink-0 items-center gap-1.5">
                       <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-5 w-5 text-[9px]" />
@@ -448,8 +422,10 @@ export default async function AgendaPage({
                     )}
                     </div>
                   </div>
-                  );
+                  ) };
                 })}
+                />
+              </div>
               </div>
             </div>
           )}
@@ -581,12 +557,15 @@ export default async function AgendaPage({
             ) : (
               <h2 className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{dayHeader(group.cards[0].plannedStart)}</h2>
             )}
-            <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+            {/* overflow-hidden + radio interno (12px del ul − 1px de borde) en la
+                primera/última fila: el color de la fila y el borde de las
+                completadas siguen la curva en vez de taparla en cuadrado. */}
+            <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
               {group.cards.map((card) => (
-                <li key={card.id}>
+                <li key={card.id} className="group/row">
                   <Link
                     href={`/projects/${card.projectId}/tasks/${card.id}`}
-                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:brightness-95 ${
+                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 group-first/row:rounded-t-[11px] group-last/row:rounded-b-[11px] hover:brightness-95 ${
                       card.isUrgent ? "border-l-4 border-red-600 bg-red-50" : taskCardTint(card.status, card.alert.level)
                     }`}
                   >
@@ -641,6 +620,123 @@ export default async function AgendaPage({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// «Mi rendimiento»: mismas fuentes, alcance y fórmulas que /performance/[userId]
+// (su propia página), en versión compacta. Admin: sin los proyectos ocultos
+// que no administra, igual que en el detalle.
+async function getMyPerformanceSummary(userId: string, admin: Parameters<typeof visibleProjectWhere>[0] | null) {
+  const scope = admin ? (await prisma.project.findMany({ where: visibleProjectWhere(admin), select: { id: true } })).map((p) => p.id) : undefined;
+  const [overall, recentOnTime, qa, qaRecent, qaFailures, acc, accRecent, accFailures, activity] = await Promise.all([
+    getUserPerformance(userId, scope),
+    getRecentOnTimeTrend(userId, scope),
+    getReviewPerformance("QA", scope),
+    getRecentFirstPassTrend(userId, "QA", scope),
+    getFailureAnalysisByUser(userId, "QA", scope),
+    getReviewPerformance("ACCEPTANCE", scope),
+    getRecentFirstPassTrend(userId, "ACCEPTANCE", scope),
+    getFailureAnalysisByUser(userId, "ACCEPTANCE", scope),
+    getUserActivityStats(userId),
+  ]);
+  return {
+    overall: overall[0],
+    recentOnTime,
+    qa: { rates: reviewRates(qa.find((r) => r.userId === userId)), recent: qaRecent, topError: qaFailures.byCategory[0]?.category ?? null },
+    acceptance: { rates: reviewRates(acc.find((r) => r.userId === userId)), recent: accRecent, topError: accFailures.byCategory[0]?.category ?? null },
+    activity,
+  };
+}
+
+type MyPerformance = NonNullable<Awaited<ReturnType<typeof getMyPerformanceSummary>>>;
+
+const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+
+function MiniStat({ value, label, caption, tone }: { value: string; label: string; caption?: string; tone?: boolean | null }) {
+  return (
+    // Cada texto en una sola línea (truncate, con el completo en title).
+    <div className="min-w-0" title={caption ? `${label} · ${caption}` : label}>
+      <p className={`truncate text-xl font-semibold leading-tight ${tone == null ? "text-slate-900" : tone ? "text-emerald-600" : "text-red-600"}`}>{value}</p>
+      <p className="truncate text-xs text-slate-500">{label}</p>
+      {caption && <p className="truncate text-[11px] text-slate-400">{caption}</p>}
+    </div>
+  );
+}
+
+function StatGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="@container min-w-0 space-y-1.5 border-l border-slate-100 pl-3">
+      <p className="text-[11px] font-medium text-slate-400">{title}</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 @sm:auto-cols-fr @sm:grid-flow-col @sm:grid-cols-none">{children}</div>
+    </div>
+  );
+}
+
+/** Tendencia de las últimas N contra el histórico: ↑ igual o mejor, ↓ peor (mismo criterio que el detalle). */
+function TrendStat({ recent, historic }: { recent: RecentTrend; historic: number | null }) {
+  const better = historic === null ? null : Math.round(recent.rate * 100) >= Math.round(historic * 100);
+  return (
+    <MiniStat
+      value={`${better === null ? "" : better ? "↑ " : "↓ "}${pct(recent.rate)}`}
+      label={`últimas ${recent.count}`}
+      caption={historic === null ? undefined : `Histórico ${pct(historic)}`}
+      tone={better}
+    />
+  );
+}
+
+function ReviewGroup({ title, data }: { title: string; data: MyPerformance["qa"] }) {
+  if (!data.rates) return null;
+  return (
+    <StatGroup title={title}>
+      <MiniStat
+        value={pct(data.rates.firstTry)}
+        label="al 1er intento"
+        caption={`Meta ${pct(PERFORMANCE_GOALS.firstTryApprovalRate)}`}
+        tone={data.rates.firstTry >= PERFORMANCE_GOALS.firstTryApprovalRate}
+      />
+      <MiniStat value={data.rates.roundsPerTask.toFixed(1)} label="rondas por tarea" caption="Ideal 1.0" />
+      {data.recent && <TrendStat recent={data.recent} historic={data.rates.firstTry} />}
+      {data.topError && <MiniStat value={data.topError} label="error más común" />}
+    </StatGroup>
+  );
+}
+
+function MyPerformanceStats({ perf }: { perf: MyPerformance }) {
+  const { overall, recentOnTime, activity } = perf;
+  const completed = overall?.tasksCompleted ?? 0;
+  const onTime = overall?.onTimeRate ?? null;
+  return (
+    // Grupos en dos columnas cuando la TARJETA es ancha (container query, no
+    // el ancho de pantalla): en una sola columna quedaba mucho espacio vacío.
+    <div className="@container">
+    <div className="grid grid-cols-1 gap-x-8 gap-y-4 @xl:grid-cols-2">
+      <StatGroup title="General">
+        <MiniStat
+          value={String(completed)}
+          label="completadas"
+          caption={`Meta ${PERFORMANCE_GOALS.tasksCompleted}`}
+          tone={completed >= PERFORMANCE_GOALS.tasksCompleted}
+        />
+        <MiniStat
+          value={onTime === null ? "—" : pct(onTime)}
+          label="a tiempo"
+          caption={`Meta ${pct(PERFORMANCE_GOALS.onTimeRate)}`}
+          tone={onTime === null ? null : onTime >= PERFORMANCE_GOALS.onTimeRate}
+        />
+        {recentOnTime && <TrendStat recent={recentOnTime} historic={onTime} />}
+      </StatGroup>
+      <ReviewGroup title="Pruebas" data={perf.qa} />
+      <ReviewGroup title="Aceptaciones" data={perf.acceptance} />
+      {activity.activeDays > 0 && (
+        <StatGroup title={`Uso de la app · últimos ${activity.periodDays} días`}>
+          <MiniStat value={`${activity.activeDays}/${activity.periodDays}`} label="días con uso" />
+          <MiniStat value={String(activity.avgPerActiveDay)} label="interacciones/día" caption="en días con uso" />
+          <MiniStat value={String(activity.avgPerDay)} label="promedio diario" caption="todo el período" />
+        </StatGroup>
+      )}
+    </div>
     </div>
   );
 }

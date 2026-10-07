@@ -102,7 +102,10 @@ export const TASK_STATUS_COLOR: Record<
   // dot/badge/solid/tint (Kanban, control de estado, etc.) siguen en rojo,
   // sin cambios — el pedido fue puntual sobre la barra.
   BLOCKED: { dot: "bg-red-500", badge: "bg-red-50 text-red-700", solid: "bg-red-600 hover:bg-red-700", bar: "bg-slate-600", tint: "bg-red-50" },
-  COMPLETED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700", bar: "bg-emerald-500", tint: "bg-emerald-50" },
+  // Tono "done" propio (ver globals.css): con emerald-50 la tarjeta terminada
+  // se confundía con el fondo. El borde fino (ring inset, no cambia el tamaño)
+  // la destaca sin competir con las alertas.
+  COMPLETED: { dot: "bg-emerald-500", badge: "bg-done-100 text-done-700", solid: "bg-emerald-600 hover:bg-emerald-700", bar: "bg-emerald-500", tint: "bg-done-50 ring-1 ring-inset ring-done-300" },
   RETURNED: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700", solid: "bg-orange-600 hover:bg-orange-700", bar: "bg-orange-500", tint: "bg-orange-50" },
 };
 
@@ -119,7 +122,7 @@ export const TASK_STATUS_COLOR: Record<
 // toda la app.
 export function pctStatus(pct: number, atRisk: boolean): { label: string; className: string } {
   if (atRisk) return { label: "En riesgo", className: "bg-red-50 text-red-700" };
-  if (pct >= 100) return { label: "Completado", className: "bg-emerald-50 text-emerald-700" };
+  if (pct >= 100) return { label: "Completado", className: TASK_STATUS_COLOR.COMPLETED.badge };
   if (pct <= 0) return { label: "Sin iniciar", className: "bg-slate-100 text-slate-700" };
   return { label: "En curso", className: "bg-blue-50 text-blue-700" };
 }

@@ -24,6 +24,12 @@ export type ReviewPerformance = {
   roundsReturned: number;
 };
 
+/** Fórmulas únicas de la entrega a revisión (detalle de rendimiento y Agenda): sobre tareas revisadas, no sobre rondas. */
+export function reviewRates(r: Pick<ReviewPerformance, "tasksReviewed" | "roundsApprovedFirstTry" | "roundsSubmitted"> | undefined) {
+  if (!r || r.tasksReviewed === 0) return null;
+  return { firstTry: r.roundsApprovedFirstTry / r.tasksReviewed, roundsPerTask: r.roundsSubmitted / r.tasksReviewed };
+}
+
 export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?: string[]): Promise<ReviewPerformance[]> {
   const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
 

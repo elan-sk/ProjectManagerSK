@@ -86,7 +86,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise
       countryCode: true,
       tasks: { select: { status: true, plannedStart: true, plannedEnd: true } },
     },
-    orderBy: { name: "asc" },
+    orderBy: { createdAt: "desc" }, // mismo orden que el resumen de Proyectos: el más reciente primero
   });
 
   const summaries: PmProjectSummary[] = [];
