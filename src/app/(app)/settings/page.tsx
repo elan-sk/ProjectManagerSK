@@ -293,9 +293,9 @@ export default async function SettingsPage({
         <div className="flex flex-col justify-center space-y-3 text-center lg:border-l lg:border-slate-100 lg:pl-8">
           {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático de marca, no aplica optimización de next/image */}
           <img src="/brand/logo-elan-sk-soft.svg" alt="Elan SK Soft" className="mx-auto h-24" />
-          <h2 className="font-medium text-slate-900">Sobre ProjectManagerSK</h2>
+          <h2 className="font-black text-xl text-slate-900">ProjectManagerSK</h2>
           <p className="text-sm text-slate-600">
-            Un producto de <b>Elan-SK Soft</b>, elaborado por <b>ELAN-SK</b>, para organizar proyectos, tareas y tiempos del equipo en un solo lugar.
+            Es un producto de <b>Elan-SK Soft</b>, elaborado por <b>ELAN-SK</b>, para organizar proyectos, tareas y tiempos del equipo en un solo lugar.
           </p>
           <p className="text-sm text-slate-600">
             Contacto:{" "}
@@ -303,7 +303,7 @@ export default async function SettingsPage({
               elan-sk@hotmail.com
             </a>
           </p>
-          <p className="text-xs text-slate-400">Elaborado por ELAN-SK · Elan SK Soft · 2026</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Elaborado por ELAN-SK <br/> Todos los derechos reservados.</p>
         </div>
       </section>
     </div>
