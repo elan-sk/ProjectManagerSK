@@ -93,7 +93,7 @@ Todas las personas que suben archivos o links: equipo (miembros, revisores, PM, 
 
 ## Cambios
 - 2026-10-06 — Links: dos links son el mismo si su dirección es la misma ignorando espacios, http/https, «www.», mayúsculas del dominio, barra final y #ancla; un video de YouTube es el mismo en cualquiera de sus formatos. Los parámetros (?a=1) sí distinguen. Aplica a la vista Archivos, la galería, el aviso «ya está cargado aquí» y la API (pedido del usuario: «si la URL es la misma es un mismo link independientemente del nombre»).
-- 2026-10-06 — Vista Archivos en masonry de dos columnas (izquierda: links compartidos + imágenes; derecha: links + documentos), sin huecos entre bloques.
+- 2026-10-06 — ~~Vista Archivos en masonry de dos columnas~~ → vuelve a una sola columna a todo el ancho: Links compartidos, Links, Imágenes, Documentos (pedido del usuario: el masonry no convenció).
 
 ## Dudas abiertas
 Ninguna.

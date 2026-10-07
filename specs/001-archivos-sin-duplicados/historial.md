@@ -18,3 +18,4 @@
   - Verificaciones: verify:file-dedup (nuevo), persistent-uploads, svg-upload, paste-image, comments, uploads-route, group-alert-digest: OK. tsc OK; lint sin errores nuevos.
 - 2026-10-06 — «Usado en»: la ficha muestra el uso más reciente + «+N» que abre la lista (ReferencePopover); el botón «Ver tarea» de los visores abre la lista si hay más de un lugar (TaskLinkButton). Galería verificada: 1 elemento por contenido distinto.
 - 2026-10-06 — Links por clave normalizada (linkKey) en vista, galería, chequeo de sección, envíos de ronda, API y mensajes internos; masonry de dos columnas en Archivos. verify:file-dedup OK (con casos de links).
+- 2026-10-06 — Archivos vuelve a una columna a todo el ancho (Links compartidos, Links, Imágenes, Documentos); se mantienen la agrupación y «Usado en».
