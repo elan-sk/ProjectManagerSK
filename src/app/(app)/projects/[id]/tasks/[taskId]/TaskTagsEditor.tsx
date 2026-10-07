@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TagChip } from "@/components/TagChip";
 import { setTaskTag, removeTaskTag } from "../../../../settings/tags/tagActions";
+import { TagCategorySelect, type TagCategoryOption } from "../../../../settings/tags/TagCategorySelect";
 
 type CurrentTag = { taskTagId: string; categoryId: string; categoryName: string; colorHex: string; emoji: string | null; name: string };
 type Category = { id: string; name: string; colorHex: string; emoji: string | null };
@@ -19,12 +20,14 @@ export function TaskTagsEditor({
   categories,
   projectTagNamesByCategory,
   canEdit,
+  canCreateCategory,
 }: {
   taskId: string;
   currentTags: CurrentTag[];
   categories: Category[];
   projectTagNamesByCategory: Record<string, string[]>;
   canEdit: boolean;
+  canCreateCategory: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -32,12 +35,15 @@ export function TaskTagsEditor({
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Categorías creadas desde acá: se usan ya, antes de que llegue el refresh.
+  const [createdCategories, setCreatedCategories] = useState<TagCategoryOption[]>([]);
 
   const usedCategoryIds = new Set(currentTags.map((t) => t.categoryId));
-  const availableCategories = categories.filter((c) => !usedCategoryIds.has(c.id));
+  const allCategories = [...categories, ...createdCategories.filter((c) => !categories.some((k) => k.id === c.id))];
+  const availableCategories = allCategories.filter((c) => !usedCategoryIds.has(c.id));
 
   function handleAdd() {
-    if (!categoryId || !name.trim()) return;
+    if (!categoryId) return;
     setError(null);
     startTransition(async () => {
       const result = await setTaskTag(taskId, categoryId, name.trim());
@@ -62,33 +68,27 @@ export function TaskTagsEditor({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {currentTags.map((t) => (
-        <TagChip key={t.taskTagId} colorHex={t.colorHex} emoji={t.emoji} name={t.name} onRemove={canEdit ? () => handleRemove(t.taskTagId) : undefined} />
+        <TagChip key={t.taskTagId} colorHex={t.colorHex} emoji={t.emoji} categoryName={t.categoryName} name={t.name} onRemove={canEdit ? () => handleRemove(t.taskTagId) : undefined} />
       ))}
 
-      {canEdit && !adding && availableCategories.length > 0 && (
+      {canEdit && !adding && (availableCategories.length > 0 || canCreateCategory) && (
         <button type="button" onClick={() => setAdding(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
           + Etiqueta
         </button>
       )}
 
       {canEdit && adding && (
-        <div className="flex items-center gap-1.5">
-          <select
+        <div className="flex flex-wrap items-center gap-1.5">
+          <TagCategorySelect
+            categories={availableCategories}
             value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value);
+            onChange={(id) => {
+              setCategoryId(id);
               setName("");
             }}
-            className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
-          >
-            <option value="">Categoría…</option>
-            {availableCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.emoji ? `${c.emoji} ` : ""}
-                {c.name}
-              </option>
-            ))}
-          </select>
+            canCreate={canCreateCategory}
+            onCreated={(c) => setCreatedCategories((prev) => [...prev, c])}
+          />
           {categoryId && (
             <>
               <input
@@ -96,7 +96,7 @@ export function TaskTagsEditor({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                placeholder="Nombre (ej. hero-banner)"
+                placeholder="Etiqueta (opcional)"
                 autoFocus
                 className="w-40 rounded-lg border border-slate-300 px-2 py-1 text-xs"
               />
@@ -107,7 +107,7 @@ export function TaskTagsEditor({
               </datalist>
             </>
           )}
-          <button type="button" disabled={isPending || !categoryId || !name.trim()} onClick={handleAdd} className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white disabled:opacity-50">
+          <button type="button" disabled={isPending || !categoryId} onClick={handleAdd} className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white disabled:opacity-50">
             OK
           </button>
           <button type="button" onClick={() => setAdding(false)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500">

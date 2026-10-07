@@ -40,9 +40,11 @@ export async function createTagCategory(formData: FormData, actor?: Actor) {
   const rawEmoji = formData.get("emoji");
   const emoji = typeof rawEmoji === "string" && rawEmoji.trim() ? rawEmoji.trim() : null;
 
-  await prisma.tagCategory.create({ data: { name: name.data, colorHex: colorHex.data, emoji } });
+  // Devuelve la categoría creada: el selector de «+ Etiqueta» la elige al
+  // instante, sin esperar a que se recarguen las categorías de la página.
+  const category = await prisma.tagCategory.create({ data: { name: name.data, colorHex: colorHex.data, emoji } });
   revalidate();
-  return { ok: true as const };
+  return { ok: true as const, category: { id: category.id, name: category.name, colorHex: category.colorHex, emoji: category.emoji } };
 }
 
 export async function updateTagCategory(categoryId: string, formData: FormData, actor?: Actor) {
@@ -86,8 +88,9 @@ export async function setTaskTag(taskId: string, categoryId: string, rawName: st
   if (!(await canEditTask(taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
-  const name = z.string().trim().min(1).safeParse(rawName);
-  if (!name.success) return { ok: false as const, error: "Escribí un nombre para la etiqueta." };
+  // El nombre es opcional: vacío = la tarea queda marcada solo con la categoría.
+  const name = z.string().trim().max(80).safeParse(rawName ?? "");
+  if (!name.success) return { ok: false as const, error: "El nombre de la etiqueta es demasiado largo." };
 
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
 

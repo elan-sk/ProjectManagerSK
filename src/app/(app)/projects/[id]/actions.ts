@@ -225,8 +225,9 @@ async function attachTagsToNewTask(taskId: string, projectId: string, formData: 
   const names = formData.getAll("tagName") as string[];
   for (let i = 0; i < categoryIds.length; i++) {
     const categoryId = categoryIds[i]?.trim();
-    const name = names[i]?.trim();
-    if (!categoryId || !name) continue;
+    // Nombre vacío = solo la categoría (permitido).
+    const name = names[i]?.trim() ?? "";
+    if (!categoryId) continue;
     const tag = await upsertTag(projectId, categoryId, name);
     await prisma.taskTag.create({ data: { taskId, categoryId, tagId: tag.id } });
   }

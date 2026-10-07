@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
 import { utcToBogotaLocalInputValue } from "@/lib/workingHours";
-import { getProjectAdmin, canEditTask, canReviewTask } from "@/lib/permissions";
+import { getProjectAdmin, canEditTask, canReviewTask, isPmOrAdminAnywhere } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { NewStepInput } from "./NewStepInput";
 import { StepList } from "./StepList";
@@ -186,7 +186,8 @@ export default async function TaskDetailPage({
   // proyecto por categoría, para sugerir (sin obligar) en el <datalist>.
   const projectTagNamesByCategory: Record<string, string[]> = {};
   for (const t of projectTags) {
-    (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
+    // Etiqueta sin nombre (solo categoría): no es una sugerencia de nombre.
+    if (t.name) (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
   }
 
   const delayDays =
@@ -271,6 +272,27 @@ export default async function TaskDetailPage({
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>
         </div>
+        {/* Compartir y Conectar IA bajo el título (pedido del usuario): son
+            accesos de la tarea entera, no acciones de estado ni de gestión. */}
+        {(canEdit || canManage) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            {canEdit && (
+              <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
+                <ShareLinkPanel
+                  activeToken={activeShareLink?.token ?? null}
+                  activeLinkId={activeShareLink?.id ?? null}
+                  onCreate={createTaskShareLink.bind(null, taskId)}
+                  onRevoke={revokeTaskShareLink.bind(null, taskId)}
+                />
+              </ModalTrigger>
+            )}
+            {canManage && (
+              <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+                <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+              </ModalTrigger>
+            )}
+          </div>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
           <span>
             <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase:{" "}
@@ -305,6 +327,7 @@ export default async function TaskDetailPage({
             categories={tagCategories}
             projectTagNamesByCategory={projectTagNamesByCategory}
             canEdit={canEdit}
+            canCreateCategory={canEdit && (await isPmOrAdminAnywhere())}
           />
         </div>
 
@@ -419,16 +442,6 @@ export default async function TaskDetailPage({
             canManage={canManage}
             completionBlockedReason={completionBlockedReason}
           />
-          {canEdit && (
-            <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
-              <ShareLinkPanel
-                activeToken={activeShareLink?.token ?? null}
-                activeLinkId={activeShareLink?.id ?? null}
-                onCreate={createTaskShareLink.bind(null, taskId)}
-                onRevoke={revokeTaskShareLink.bind(null, taskId)}
-              />
-            </ModalTrigger>
-          )}
         </div>
 
         {/* Urgente, Duplicar y Eliminar: siempre juntos en UNA sola línea. */}
@@ -436,9 +449,6 @@ export default async function TaskDetailPage({
           <div className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto">
             <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
             <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
-            <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
-              <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
-            </ModalTrigger>
           </div>
         )}
 

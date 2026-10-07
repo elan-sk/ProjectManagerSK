@@ -8,7 +8,7 @@ import { createTagCategory, updateTagCategory, deleteTagCategory } from "./tagAc
 
 type Category = { id: string; name: string; colorHex: string; emoji: string | null };
 
-function ColorSwatchPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+export function ColorSwatchPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       <input type="hidden" name="colorHex" value={value} />

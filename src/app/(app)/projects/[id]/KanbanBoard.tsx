@@ -43,7 +43,7 @@ export type TaskCard = {
   assignees: { name: string; avatarUrl: string | null }[];
   assigneeIds: string[];
   reviewers: { name: string; avatarUrl: string | null }[];
-  tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
+  tags: { id: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   plannedStart: string;
   plannedEnd: string;
   stepsProgress: { done: number; total: number } | null;
@@ -191,7 +191,7 @@ function CardBody({
       {task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {task.tags.map((tag) => (
-            <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} name={tag.name} />
+            <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} />
           ))}
         </div>
       )}

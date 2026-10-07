@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TagChip } from "@/components/TagChip";
+import { TagCategorySelect, type TagCategoryOption } from "../../settings/tags/TagCategorySelect";
 
 type Category = { id: string; name: string; colorHex: string; emoji: string | null };
 type Row = { categoryId: string; name: string };
@@ -13,21 +14,26 @@ type Row = { categoryId: string; name: string };
 export function NewTaskTagsPicker({
   categories,
   projectTagNamesByCategory,
+  canCreateCategory,
 }: {
   categories: Category[];
   projectTagNamesByCategory: Record<string, string[]>;
+  canCreateCategory: boolean;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [adding, setAdding] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
+  // Categorías creadas desde acá: se usan ya, antes de que llegue el refresh.
+  const [createdCategories, setCreatedCategories] = useState<TagCategoryOption[]>([]);
 
   const usedCategoryIds = new Set(rows.map((r) => r.categoryId));
-  const availableCategories = categories.filter((c) => !usedCategoryIds.has(c.id));
-  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const allCategories = [...categories, ...createdCategories.filter((c) => !categories.some((k) => k.id === c.id))];
+  const availableCategories = allCategories.filter((c) => !usedCategoryIds.has(c.id));
+  const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
   function addRow() {
-    if (!categoryId || !name.trim()) return;
+    if (!categoryId) return;
     setRows([...rows, { categoryId, name: name.trim() }]);
     setAdding(false);
     setCategoryId("");
@@ -48,35 +54,29 @@ export function NewTaskTagsPicker({
             <span key={i}>
               <input type="hidden" name="tagCategoryId" value={r.categoryId} />
               <input type="hidden" name="tagName" value={r.name} />
-              <TagChip colorHex={c.colorHex} emoji={c.emoji} name={r.name} onRemove={() => removeRow(i)} />
+              <TagChip colorHex={c.colorHex} emoji={c.emoji} categoryName={c.name} name={r.name} onRemove={() => removeRow(i)} />
             </span>
           );
         })}
 
-        {!adding && availableCategories.length > 0 && (
+        {!adding && (availableCategories.length > 0 || canCreateCategory) && (
           <button type="button" onClick={() => setAdding(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
             + Etiqueta
           </button>
         )}
 
         {adding && (
-          <div className="flex items-center gap-1.5">
-            <select
+          <div className="flex flex-wrap items-center gap-1.5">
+            <TagCategorySelect
+              categories={availableCategories}
               value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
+              onChange={(id) => {
+                setCategoryId(id);
                 setName("");
               }}
-              className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
-            >
-              <option value="">Categoría…</option>
-              {availableCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.emoji ? `${c.emoji} ` : ""}
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              canCreate={canCreateCategory}
+              onCreated={(c) => setCreatedCategories((prev) => [...prev, c])}
+            />
             {categoryId && (
               <>
                 <input
@@ -84,7 +84,7 @@ export function NewTaskTagsPicker({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRow())}
-                  placeholder="Nombre (ej. hero-banner)"
+                  placeholder="Etiqueta (opcional)"
                   autoFocus
                   className="w-40 rounded-lg border border-slate-300 px-2 py-1 text-xs"
                 />
@@ -95,7 +95,7 @@ export function NewTaskTagsPicker({
                 </datalist>
               </>
             )}
-            <button type="button" disabled={!categoryId || !name.trim()} onClick={addRow} className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white disabled:opacity-50">
+            <button type="button" disabled={!categoryId} onClick={addRow} className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-medium text-white disabled:opacity-50">
               OK
             </button>
             <button type="button" onClick={() => setAdding(false)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-500">

@@ -3,26 +3,39 @@
 // color es un hex arbitrario de la paleta de proyectos, no una clase de
 // Tailwind fija, así que el tinte de fondo se arma en línea (mismo hex con
 // alfa bajo) en vez de mapear cada hex a una clase.
+// Formato «Categoría | etiqueta» (pedido del usuario): la categoría en tono
+// suave, una barra fina y la etiqueta en negrita. Sin nombre de etiqueta,
+// solo la categoría.
 export function TagChip({
   colorHex,
   emoji,
+  categoryName,
   name,
   onRemove,
 }: {
   colorHex: string;
   emoji?: string | null;
+  categoryName: string;
   name: string;
   onRemove?: () => void;
 }) {
+  const fullLabel = name ? `${categoryName} | ${name}` : categoryName;
   return (
     <span
+      title={fullLabel}
       className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
       style={{ backgroundColor: `${colorHex}1f`, color: colorHex }}
     >
       {emoji ? <span aria-hidden>{emoji}</span> : <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorHex }} aria-hidden />}
-      <span className="truncate">{name}</span>
+      <span className={name ? "flex-shrink-0 opacity-80" : "truncate"}>{categoryName}</span>
+      {name && (
+        <>
+          <span className="h-2.5 w-px flex-shrink-0 opacity-40" style={{ backgroundColor: colorHex }} aria-hidden />
+          <span className="truncate font-semibold">{name}</span>
+        </>
+      )}
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label={`Quitar etiqueta ${name}`} className="flex-shrink-0 opacity-60 hover:opacity-100">
+        <button type="button" onClick={onRemove} aria-label={`Quitar etiqueta ${fullLabel}`} className="flex-shrink-0 opacity-60 hover:opacity-100">
           ✕
         </button>
       )}

@@ -52,7 +52,7 @@ type AgendaCard = {
   attachmentsCount: number;
   shareToken: string | null;
   status: TaskStatus;
-  tags: { id: string; name: string; colorHex: string; emoji: string | null }[];
+  tags: { id: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   assignees: { name: string; avatarUrl: string | null }[];
   plannedStart: string;
   plannedEnd: string;
@@ -259,7 +259,7 @@ export default async function AgendaPage({
     attachmentsCount: t.attachments.length,
     shareToken: shareTokenByTaskId.get(t.id) ?? null,
     status: t.status,
-    tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+    tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
@@ -586,7 +586,7 @@ export default async function AgendaPage({
                           {card.alert.level === "onTrack" && ` · vence en ${card.alert.daysRemaining}d`}
                         </p>
                         {card.tags.map((tag) => (
-                          <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} name={tag.name} />
+                          <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} />
                         ))}
                       </div>
                     </div>

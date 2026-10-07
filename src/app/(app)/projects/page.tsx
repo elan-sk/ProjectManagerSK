@@ -364,7 +364,7 @@ export default async function ProjectsPage({
       assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
       assigneeIds: t.assignees.map((a) => a.userId),
       reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
-      tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+      tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       stepsProgress:
@@ -415,7 +415,7 @@ export default async function ProjectsPage({
         collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
         assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
         reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
-        tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+        tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
         shareToken: taskShareTokenById.get(t.id) ?? null,
       };
     });

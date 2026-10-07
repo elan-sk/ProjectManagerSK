@@ -185,9 +185,9 @@ export function NewTaskForm({
         </>
       )}
 
-      {tagCategories.length > 0 && (
-        <NewTaskTagsPicker categories={tagCategories} projectTagNamesByCategory={projectTagNamesByCategory} />
-      )}
+      {/* Solo PM del proyecto o administrador abre este formulario: mismo
+          permiso que crear una categoría, así que siempre puede crearla acá. */}
+      <NewTaskTagsPicker categories={tagCategories} projectTagNamesByCategory={projectTagNamesByCategory} canCreateCategory />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

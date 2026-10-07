@@ -215,7 +215,8 @@ export default async function ProjectPage({
   // alimenta el <datalist> del picker de etiquetas (sugiere sin obligar).
   const projectTagNamesByCategory: Record<string, string[]> = {};
   for (const t of projectTags) {
-    (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
+    // Etiqueta sin nombre (solo categoría): no es una sugerencia de nombre.
+    if (t.name) (projectTagNamesByCategory[t.categoryId] ??= []).push(t.name);
   }
 
   // Repositorio principal (repoUrl) + los adicionales.
@@ -341,7 +342,7 @@ export default async function ProjectPage({
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     assigneeIds: t.assignees.map((a) => a.userId),
     reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
-    tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+    tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
     stepsProgress:
@@ -433,7 +434,7 @@ export default async function ProjectPage({
       collidesWith: null,
       assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
       reviewers: t.reviewers.map((r) => ({ name: r.user.name, avatarUrl: r.user.avatarUrl })),
-      tags: t.taskTags.map((tt) => ({ id: tt.tagId, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+      tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
       shareToken: taskShareTokenById.get(t.id) ?? null,
     };
   });

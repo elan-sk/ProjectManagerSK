@@ -67,7 +67,8 @@ export function buildTagFilterOptions(
         .filter((t) => t.categoryId === c.id)
         .map((t) => ({
           id: t.id,
-          label: c.emoji ? `${c.emoji} ${c.name}: ${t.name}` : `${c.name}: ${t.name}`,
+          // Etiqueta sin nombre = marcada solo con la categoría.
+          label: `${c.emoji ? `${c.emoji} ` : ""}${c.name}${t.name ? ` | ${t.name}` : " (solo categoría)"}`,
           dotColorHex: c.emoji ? undefined : c.colorHex,
         })),
     ]);

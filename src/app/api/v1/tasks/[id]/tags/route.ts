@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { setTaskTag } from "@/app/(app)/settings/tags/tagActions";
 
-const bodySchema = z.object({ categoryId: z.string().min(1), name: z.string().min(1) });
+// `name` opcional: sin nombre, la tarea queda marcada solo con la categoría.
+const bodySchema = z.object({ categoryId: z.string().min(1), name: z.string().optional().default("") });
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
