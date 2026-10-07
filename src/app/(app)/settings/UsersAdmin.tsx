@@ -148,10 +148,10 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
               {u.active ? (
                 <>
                   <RoleSelect userId={u.id} role={u.role} />
-                  <ModalTrigger label="Editar" title={`Editar usuario — ${u.name}`} variant="secondary">
+                  <ModalTrigger label="Editar" title={`Editar usuario — ${u.name}`} variant="secondary" small>
                     <EditUserForm userId={u.id} name={u.name} username={u.username} email={u.email} phone={u.phone} avatarUrl={u.avatarUrl} />
                   </ModalTrigger>
-                  <ModalTrigger label="Restablecer clave" title={`Restablecer contraseña — ${u.name}`} variant="secondary">
+                  <ModalTrigger label="Restablecer clave" title={`Restablecer contraseña — ${u.name}`} variant="secondary" small>
                     <ResetPasswordForm userId={u.id} />
                   </ModalTrigger>
                   {u.id !== currentUserId && (
