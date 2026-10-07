@@ -129,7 +129,7 @@ function ReviewUserSection({
                 <th className="px-4 py-2 font-medium">Aprobado 1er intento</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
               {reviewByProject.map((rev) => {
                 const revPct = rev.tasksReviewed > 0 ? Math.round((rev.roundsApprovedFirstTry / rev.tasksReviewed) * 100) : null;
                 const revPctMeetsGoal = revPct === null ? null : revPct / 100 >= PERFORMANCE_GOALS.firstTryApprovalRate;
@@ -324,7 +324,7 @@ export default async function IndividualPerformancePage({
                   <th className="px-4 py-2 font-medium">Días de atraso</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
                 {byProject.map((p) => {
                   const pct = p.onTimeRate == null ? null : Math.round(p.onTimeRate * 100);
                   const pctMeetsGoal = pct === null ? null : pct / 100 >= PERFORMANCE_GOALS.onTimeRate;

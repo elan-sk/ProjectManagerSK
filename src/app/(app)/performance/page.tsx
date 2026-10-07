@@ -129,7 +129,7 @@ function ReviewPerformanceSection({
                 <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
               {reviewPerformance.map((p) => {
                 const fpy = p.tasksReviewed > 0 ? p.roundsApprovedFirstTry / p.tasksReviewed : null;
                 const reworkRate = p.tasksReviewed > 0 ? p.roundsSubmitted / p.tasksReviewed : null;
@@ -387,7 +387,7 @@ export default async function PerformancePage({
                 <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
               {performance.map((p) => (
                 <tr key={p.userId}>
                   <td className="px-4 py-2 font-medium text-slate-900">
@@ -473,7 +473,7 @@ async function AppUsageSection() {
               <th className="px-4 py-2 font-medium">Último uso</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
             {rows.map(({ id, name, stats }) => {
               const warn = stats.daysSinceLast === null || stats.daysSinceLast >= 3;
               return (
