@@ -128,8 +128,10 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
 
       <ul className="divide-y divide-slate-100">
         {users.map((u) => (
-          <li key={u.id} className={`flex items-center justify-between gap-3 py-2.5 ${!u.active ? "opacity-50" : ""}`}>
-            <div className="flex items-center gap-2.5 min-w-0">
+          // Responsive: si los botones no entran al lado del nombre, bajan a una segunda línea
+          // (el nombre nunca se aplasta por debajo de ~10rem ni se pisa con los botones).
+          <li key={u.id} className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 ${!u.active ? "opacity-50" : ""}`}>
+            <div className="flex min-w-[10rem] flex-1 items-center gap-2.5 [&>*:first-child]:flex-shrink-0">
               <Avatar name={u.name} avatarUrl={u.avatarUrl} size="h-8 w-8 text-xs" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">
@@ -142,7 +144,7 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
                 </p>
               </div>
             </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {u.active ? (
                 <>
                   <RoleSelect userId={u.id} role={u.role} />
