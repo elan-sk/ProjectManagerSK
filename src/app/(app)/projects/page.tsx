@@ -1,6 +1,8 @@
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { visibleProjectWhere } from "@/lib/permissions";
+import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
+import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { ComboFilter } from "@/components/ComboFilter";
 import { ArchiveIcon, OverlapIcon } from "@/components/icons";
 import { SearchBox } from "@/components/SearchBox";
@@ -126,13 +128,17 @@ export default async function ProjectsPage({
   // (arriba, collision="1") que muestra TODAS las tareas con alguna colisión.
   const collisionUrlBase = boardHref({ collision: undefined });
 
+  // Panorama general: sin las tareas (ni archivos) de proyectos ocultos, salvo «Incluir proyectos
+  // ocultos». Las tarjetas de proyecto (Vista resumen) siguen mostrándolos: desde ahí se entra.
+  const hiddenPref = await hiddenProjectsPref(session.user);
+
   const [projects, users, allTasksForCollisions, activeShareLinks, tagCategories] = await Promise.all([
     // Liviano a propósito: pm/tasks (salud, progreso, alertas) ya los trae
     // getProjectSummaryRows por su cuenta — acá solo hace falta lo que
     // alimenta la vista Archivos del panorama general y el selector "Buscar".
     prisma.project.findMany({
       // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
-      where: visibleProjectWhere(session.user),
+      where: hiddenPref.projectWhere,
       include: {
         // Insumos del proyecto cargados en Definición (repositorio de
         // archivos + links de referencia) — se mezclan más abajo con los
@@ -144,7 +150,7 @@ export default async function ProjectsPage({
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.task.findMany({
-      where: { archivedAt: null, project: visibleProjectWhere(session.user) },
+      where: { archivedAt: null, project: hiddenPref.projectWhere },
       select: {
         id: true,
         projectId: true,
@@ -228,7 +234,7 @@ export default async function ProjectsPage({
 
   const boardTasksRaw = await prisma.task.findMany({
     // Las tareas archivadas salen del flujo visual; las de proyectos ocultos, para quien no es admin.
-    where: { ...boardWhere, archivedAt: null, project: visibleProjectWhere(session.user) },
+    where: { ...boardWhere, archivedAt: null, project: hiddenPref.projectWhere },
     include: {
       project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
       phase: { select: { name: true } },
@@ -602,6 +608,7 @@ export default async function ProjectsPage({
             >
               Archivos
             </Link>
+            {hiddenPref.canToggle && <ShowHiddenProjectsToggle active={hiddenPref.include} />}
           </div>
 
           {view === "calendar" && calendarMode !== "day" && (

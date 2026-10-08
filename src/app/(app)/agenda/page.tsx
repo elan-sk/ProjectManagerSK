@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
 import { visibleProjectWhere } from "@/lib/permissions";
+import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
+import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { AlertBadge } from "@/components/AlertBadge";
 import { AvatarGroup } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
@@ -185,6 +187,10 @@ export default async function AgendaPage({
         : pmProjectIds!
       : null;
 
+  // Tareas de proyectos ocultos: solo con «Incluir proyectos ocultos» (o entrando al proyecto).
+  // «Mis proyectos» y «Mi rendimiento» no cambian.
+  const hiddenPref = await hiddenProjectsPref(session.user);
+
   const [tasksRaw, projects, users, pmSummary, myPerf] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -192,7 +198,7 @@ export default async function AgendaPage({
         projectId: scopedProjectIds ? { in: scopedProjectIds } : projectId || undefined,
         status: status || undefined,
         archivedAt: null,
-        project: visibleProjectWhere(session.user),
+        project: hiddenPref.projectWhere,
       },
       include: {
         project: true,
@@ -203,7 +209,7 @@ export default async function AgendaPage({
       orderBy: { plannedStart: "asc" },
     }),
     prisma.project.findMany({
-      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...visibleProjectWhere(session.user) },
+      where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...hiddenPref.projectWhere },
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -532,6 +538,13 @@ export default async function AgendaPage({
           <span className="text-xs text-slate-400">Fechas</span>
           <DateRangeFilter from={from} to={to} basePath="/agenda" currentParams={{ projectId, userId, status, risk, type, q }} />
         </div>
+
+        {hiddenPref.canToggle && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Proyectos ocultos</span>
+            <ShowHiddenProjectsToggle active={hiddenPref.include} />
+          </div>
+        )}
 
         <ResetFiltersButton
           count={[projectId, userId, status, risk, type, q, from || to].filter(Boolean).length}
