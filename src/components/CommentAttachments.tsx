@@ -4,12 +4,13 @@ import { useRef, useState } from "react";
 import { PaperclipIcon } from "@/components/icons";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { UPLOAD_ACCEPT, UPLOAD_ACCEPT_PUBLIC } from "@/lib/uploadLimits";
 
 export type PendingFile = { url: string; name: string; mimeType: string };
 
-const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf";
-
-// Adjuntar imágenes/PDF a un comentario (vista externa e interna): sube cada
+// Adjuntar archivos a un comentario (vista externa e interna) — los mismos tipos que el resto de las
+// zonas de subida, comprimidos incluidos (pedido del usuario 2026-10-07); el visitante del link
+// compartido no puede subir HTML. Sube cada
 // archivo apenas se elige o pega (Ctrl+V) y deja la lista en `files` para que
 // quien lo usa la mande junto con el texto. `token` distingue la subida
 // pública (/api/upload/public) de la interna (/api/upload, con sesión). Quien
@@ -81,11 +82,11 @@ export function CommentAttachments({
         className={`inline-flex cursor-pointer items-center gap-1 text-[15px] text-slate-500 hover:text-slate-900 ${disabled ? "pointer-events-none opacity-50" : ""}`}
       >
         <PaperclipIcon className="h-3.5 w-3.5" />
-        {uploading ? "Subiendo…" : "Adjuntar imagen (o pegar con Ctrl+V)"}
+        {uploading ? "Subiendo…" : "Adjuntar archivo (o pegar una imagen con Ctrl+V)"}
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPT}
+          accept={token ? UPLOAD_ACCEPT_PUBLIC : UPLOAD_ACCEPT}
           disabled={disabled || uploading}
           className="hidden"
           onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
