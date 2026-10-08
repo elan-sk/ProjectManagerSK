@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { applyGroupMove } from "../src/app/(app)/projects/[id]/actions";
 
 // Chequeo del recorte de delta en applyGroupMove/moveTaskGroup (punto confirmado con el
@@ -60,7 +61,7 @@ async function main() {
 
     console.log("OK: moveTaskGroup recorta el delta del grupo a la dependencia externa más restrictiva, ignora las internas.");
   } finally {
-    await prisma.project.delete({ where: { id: project.id } });
+    await deleteTestProject(project.id);
   }
 }
 

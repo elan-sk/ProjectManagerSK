@@ -44,7 +44,7 @@ export function AttachmentSections({
 
   return (
     <div className="space-y-6">
-      {sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} />}
+      {sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} className={className} />}
       {SECTIONS.map(({ type }) => groupOf(type)).map((g) => g && renderSection(g))}
     </div>
   );

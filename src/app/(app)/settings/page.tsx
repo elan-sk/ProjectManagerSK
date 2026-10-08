@@ -321,4 +321,5 @@ const APP_FEATURES = [
   { icon: "💬", title: "Avisos por WhatsApp", text: "Asignaciones, vencimientos, resumen diario y alertas al grupo de cada proyecto." },
   { icon: "🤖", title: "Asistente con IA", text: "Responde sobre proyectos y tiempos, y hace cambios con confirmación; también se conecta con Claude." },
   { icon: "📁", title: "Archivos en orden", text: "Galería por proyecto, sin archivos repetidos y con el detalle de dónde se usa cada uno." },
+  { icon: "🔐", title: "Contraseñas seguras", text: "Accesos guardados cifrados, visibles solo para quien corresponda, con botón de copiar e historial de quién los vio." },
 ];

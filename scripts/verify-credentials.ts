@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { encryptPassword, decryptPassword } from "../src/lib/credentialCrypto";
 import { credentialAudienceIds, credentialVisibleWhere } from "../src/lib/credentials";
 import { trustedActor } from "../src/lib/permissions";
@@ -125,8 +126,7 @@ async function main() {
 
     console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial)");
   } finally {
-    await prisma.task.deleteMany({ where: { projectId: project.id } });
-    await prisma.project.delete({ where: { id: project.id } });
+    await deleteTestProject(project.id);
     await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
   }
 }

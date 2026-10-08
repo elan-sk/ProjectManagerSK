@@ -11,6 +11,8 @@ export const HTML_MIME_TYPE = "text/html";
 export const CREDENTIAL_MIME_TYPE = "application/x-pmsk-credential";
 export const credentialRef = (credentialId: string) => `credential:${credentialId}`;
 export const credentialIdFromRef = (url: string) => (url.startsWith("credential:") ? url.slice("credential:".length) : null);
+/** URL de una contraseña para mostrar bajo su ficha: sin protocolo ni barra final. */
+export const credentialUrlLabel = (url: string | null | undefined) => (url ? url.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "") || undefined : undefined);
 
 export type AttachmentFileType = "image" | "document" | "link" | "credential";
 

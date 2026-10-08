@@ -14,12 +14,15 @@ import type { CredentialPlace } from "@/lib/credentialPlace";
 export function CredentialTile({
   credentialId,
   name,
+  subtitle,
   place,
   canRemove,
   footer,
 }: {
   credentialId: string;
   name: string;
+  /** URL de la contraseña (sin protocolo); sin URL se muestra «Contraseña». */
+  subtitle?: string;
   /** Tarea, paso o ajuste donde se muestra: su visor ofrece quitarla de ahí (si `canRemove`). */
   place?: CredentialPlace;
   canRemove?: boolean;
@@ -38,7 +41,10 @@ export function CredentialTile({
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2.5">
           <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
-          <span className="text-[11px] text-slate-400">Contraseña</span>
+          {/* La llave y la sección ya dicen que es una contraseña: debajo va su URL (pedido del usuario). */}
+          <span className="truncate text-[11px] text-slate-400" title={subtitle}>
+            {subtitle ?? "Contraseña"}
+          </span>
         </span>
       </button>
       {footer}

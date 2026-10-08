@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { quietly } from "@/lib/activityStatus";
 import { connectWhatsApp, disconnectWhatsApp, whatsAppStatus, whatsAppGroups, updateDailyDigestTime, updateDefaultWhatsAppGroup, updateWorkHours, testWhatsAppDelivery, getStaleQueue, sendStaleQueue, discardStaleQueue } from "./whatsappActions";
 import type { WhatsAppStatus } from "@/lib/whatsapp";
 
@@ -96,8 +97,9 @@ export function WhatsAppConnectPanel({
     getStaleQueue().then(setStale).catch(() => {});
   }, []);
 
+  // Sondeo automático: en silencio para la barra de estado (no es algo que haga la persona).
   function refreshStatus() {
-    return whatsAppStatus().then((s) => {
+    return quietly(() => whatsAppStatus()).then((s) => {
       setStatus(s.status);
       setQrDataUrl(s.qrDataUrl);
     });

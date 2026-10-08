@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { propagateToSuccessors } from "../src/app/(app)/projects/[id]/actions";
 
 // Chequeo de la regla de holgura/retraso (punto confirmado con el usuario):
@@ -76,7 +77,7 @@ async function main() {
 
     console.log("OK: holgura corre sucesoras hacia atrás y retraso hacia adelante, sin tocar el plannedEnd de la predecesora.");
   } finally {
-    await prisma.project.delete({ where: { id: project.id } });
+    await deleteTestProject(project.id);
   }
 }
 

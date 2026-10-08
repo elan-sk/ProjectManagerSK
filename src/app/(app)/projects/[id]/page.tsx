@@ -17,7 +17,7 @@ import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
 import { getActiveClaudeLink } from "@/lib/apiAuth";
 import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
-import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, LINK_MIME_TYPE } from "@/lib/attachments";
+import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
@@ -207,7 +207,7 @@ export default async function ProjectPage({
   // Credenciales que ESTA persona puede ver (las demás no existen para ella: ni nombre ni ficha).
   const credentials = await prisma.credential.findMany({
     where: { projectId: project.id, ...credentialVisibleWhere(session.user) },
-    select: { id: true, name: true, createdAt: true, tasks: { select: { taskId: true, addedAt: true } } },
+    select: { id: true, name: true, url: true, createdAt: true, tasks: { select: { taskId: true, addedAt: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -471,7 +471,7 @@ export default async function ProjectPage({
   // Los archivos y links subidos directo al repositorio del proyecto (pestaña
   // Definición, no atados a ninguna tarea) cuentan como insumo del proyecto
   // en este filtro.
-  type FileRow = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; section?: string; readOnly?: boolean; uploadedAt?: Date };
+  type FileRow = { id: string; fileUrl: string; fileName: string; mimeType: string; taskId: string | null; taskTitle: string | null; section?: string; readOnly?: boolean; uploadedAt?: Date; subtitle?: string };
   const projectRepoFiles: FileRow[] =
     projectFileKind !== "RESULTADO"
       ? [
@@ -487,10 +487,10 @@ export default async function ProjectPage({
   const credentialFiles: FileRow[] =
     projectFileKind !== "RESULTADO"
       ? credentials.flatMap((c) => [
-          { id: `cred-${c.id}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: null, taskTitle: null, uploadedAt: c.createdAt },
+          { id: `cred-${c.id}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: null, taskTitle: null, uploadedAt: c.createdAt, subtitle: credentialUrlLabel(c.url) },
           ...c.tasks
             .filter((t) => taskTitleById.has(t.taskId))
-            .map((t): FileRow => ({ id: `cred-${c.id}-${t.taskId}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: t.taskId, taskTitle: taskTitleById.get(t.taskId)!, section: "Insumos", uploadedAt: t.addedAt })),
+            .map((t): FileRow => ({ id: `cred-${c.id}-${t.taskId}`, fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, taskId: t.taskId, taskTitle: taskTitleById.get(t.taskId)!, section: "Insumos", uploadedAt: t.addedAt, subtitle: credentialUrlLabel(c.url) })),
         ])
       : [];
   const projectFiles = project.tasks
@@ -914,6 +914,7 @@ export default async function ProjectPage({
             mimeType: f.mimeType,
             section: f.section,
             readOnly: f.readOnly,
+            subtitle: f.subtitle,
           }))}
           tasks={project.tasks.map((t) => ({ id: t.id, title: t.title }))}
           sharedLinks={projectSharedLinks}
@@ -936,7 +937,7 @@ export default async function ProjectPage({
           phases={cascadeProgress.phases}
           links={project.links}
           attachments={project.attachments}
-          credentials={credentials.map((c) => ({ id: c.id, name: c.name }))}
+          credentials={credentials.map((c) => ({ id: c.id, name: c.name, url: c.url }))}
           whatsappGroupJid={project.whatsappGroupJid}
         />
       ) : view === "gantt" ? (

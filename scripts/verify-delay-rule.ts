@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { getTaskDelayDays } from "../src/lib/delays";
 
 // Chequeo de la regla más importante y menos trivial del sistema (punto 11
@@ -21,6 +22,9 @@ async function main() {
   const phaseId = project.phases[0].id;
 
   try {
+    // Las fechas REALES son momentos (la app guarda new Date() al cambiar el estado) y se leen en hora
+    // de Colombia (calendarDay); por eso van al mediodía local (17:00 UTC). Con "2026-09-07" a secas
+    // serían las 19:00 del domingo 6 en Colombia y el conteo se corre un día.
     // A: planeada lun 7 -> mié 9 (3 días hábiles), pero se demoró hasta el
     // viernes 11 (5 días hábiles reales) -> A generó 2 días de atraso propio.
     const taskA = await prisma.task.create({
@@ -30,8 +34,8 @@ async function main() {
         title: "A",
         plannedStart: new Date("2026-09-07"),
         plannedEnd: new Date("2026-09-09"),
-        actualStart: new Date("2026-09-07"),
-        actualEnd: new Date("2026-09-11"),
+        actualStart: new Date("2026-09-07T17:00:00Z"),
+        actualEnd: new Date("2026-09-11T17:00:00Z"),
         status: "COMPLETED",
       },
     });
@@ -46,8 +50,8 @@ async function main() {
         title: "B",
         plannedStart: new Date("2026-09-10"),
         plannedEnd: new Date("2026-09-11"),
-        actualStart: new Date("2026-09-14"),
-        actualEnd: new Date("2026-09-15"),
+        actualStart: new Date("2026-09-14T17:00:00Z"),
+        actualEnd: new Date("2026-09-15T17:00:00Z"),
         status: "COMPLETED",
       },
     });
@@ -60,7 +64,7 @@ async function main() {
 
     console.log("OK: la responsabilidad de atraso quedó en A (2 días), no en B (0 días).");
   } finally {
-    await prisma.project.delete({ where: { id: project.id } });
+    await deleteTestProject(project.id);
   }
 }
 

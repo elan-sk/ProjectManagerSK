@@ -11,7 +11,7 @@ export type SharedLinkItem = { id: string; label: string; token: string; href: s
  * grilla, igual que los archivos, con franja de color sólida para distinguirse. Un clic en la
  * tarjeta COPIA el link público; el icono pequeño de la esquina abre la tarea o el proyecto.
  */
-export function SharedLinkTiles({ links }: { links: SharedLinkItem[] }) {
+export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[]; /** Misma grilla que las demás secciones de la vista. */ className?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   function copy(l: SharedLinkItem) {
@@ -28,7 +28,7 @@ export function SharedLinkTiles({ links }: { links: SharedLinkItem[] }) {
         Links compartidos
         <span className="rounded-full bg-[#0a6b78]/15 px-2 py-0.5 text-xs font-medium">{links.length}</span>
       </h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={className ?? "grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6"}>
         {links.map((l) => {
           // La etiqueta viene como «Tarea — nombre» o «Proyecto — nombre».
           const [kind, ...rest] = l.label.split(" — ");
@@ -40,14 +40,15 @@ export function SharedLinkTiles({ links }: { links: SharedLinkItem[] }) {
                 type="button"
                 onClick={() => copy(l)}
                 title="Copiar el link compartido"
-                className="flex h-20 w-full min-w-0 cursor-pointer items-stretch overflow-hidden rounded-xl border-2 border-[#0a6b78]/40 bg-white text-left shadow-sm transition hover:border-[#0a6b78] hover:shadow"
+                className="flex h-full min-h-24 w-full min-w-0 cursor-pointer items-stretch overflow-hidden rounded-xl border-2 border-[#0a6b78]/40 bg-white text-left shadow-sm transition hover:border-[#0a6b78] hover:shadow"
               >
                 <span className="flex w-9 flex-shrink-0 items-center justify-center bg-[#0a6b78] text-white">
                   {copied ? <CheckIcon className="h-4 w-4" /> : <ShareIcon className="h-4 w-4" />}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pl-2.5 pr-9">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-[#0a6b78]">{copied ? "¡Link copiado!" : rest.length > 0 ? kind : "Link"}</span>
-                  <span className="line-clamp-2 break-words text-sm font-medium text-slate-800">{name}</span>
+                  {/* Completo: un nombre largo baja de línea y la ficha crece en alto (pedido del usuario). */}
+                  <span className="break-words text-sm leading-snug font-medium text-slate-800">{name}</span>
                 </span>
               </button>
               <Link

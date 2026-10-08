@@ -31,6 +31,7 @@ export function AttachmentPreview({
   onOpenVideo,
   credentialPlace,
   credentialCanRemove,
+  subtitle,
 }: {
   id: string;
   url: string;
@@ -51,6 +52,8 @@ export function AttachmentPreview({
   /** Contraseña mostrada en una tarea, paso o ajuste (ofrece quitarla de ahí si `credentialCanRemove`). */
   credentialPlace?: CredentialPlace;
   credentialCanRemove?: boolean;
+  /** Segunda línea de la ficha (URL de la contraseña). */
+  subtitle?: string;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -83,6 +86,7 @@ export function AttachmentPreview({
       <CredentialTile
         credentialId={credentialId}
         name={name}
+        subtitle={subtitle}
         place={credentialPlace}
         canRemove={credentialCanRemove}
         footer={

@@ -1,5 +1,5 @@
 import { credentialVisibleWhere } from "@/lib/credentials";
-import { CREDENTIAL_MIME_TYPE, credentialRef } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 import Link from "next/link";
@@ -224,6 +224,7 @@ export default async function TaskDetailPage({
         select: {
           id: true,
           name: true,
+          url: true,
           // De qué paso o ajuste de esta tarea vino (para la nota bajo la ficha y para mostrarla ahí).
           steps: { where: { step: { taskId } }, select: { stepId: true } },
           adjustmentItems: { where: { adjustmentItem: { taskId } }, select: { adjustmentItemId: true } },
@@ -231,7 +232,7 @@ export default async function TaskDetailPage({
         orderBy: { createdAt: "asc" },
       })
     : [];
-  const credentialItem = (c: { id: string; name: string }, place: CredentialPlace, caption?: string) => ({
+  const credentialItem = (c: { id: string; name: string; url: string | null }, place: CredentialPlace, caption?: string) => ({
     id: `cred-${c.id}`,
     url: credentialRef(c.id),
     name: c.name,
@@ -239,6 +240,7 @@ export default async function TaskDetailPage({
     caption,
     credentialPlace: place,
     credentialCanRemove: canEdit,
+    subtitle: credentialUrlLabel(c.url),
   });
   const credentialsOfStep = (stepId: string) => taskCredentials.filter((c) => c.steps.some((x) => x.stepId === stepId)).map((c) => credentialItem(c, { stepId }));
   const credentialsOfAdjustment = (adjustmentItemId: string) =>

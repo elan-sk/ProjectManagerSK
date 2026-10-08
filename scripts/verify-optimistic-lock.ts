@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { updateTaskStatus, resizeTask, moveTask, moveTaskGroup } from "../src/app/(app)/projects/[id]/actions";
 
 // Punto 12: prueba real (contra la DB, no simulada) de que dos ediciones
@@ -113,7 +114,7 @@ async function main() {
 
     console.log("\n✔ Los 4 mecanismos de bloqueo optimista funcionan: una edición vieja nunca pisa una más nueva.");
   } finally {
-    await prisma.project.delete({ where: { id: project.id } }).catch(() => {});
+    await deleteTestProject(project.id);
   }
 }
 

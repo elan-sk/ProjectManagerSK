@@ -22,6 +22,8 @@ export type AttachmentGridItem = {
   canDelete?: boolean;
   /** Texto corto bajo la ficha (ej. «del paso: …» en los Insumos que salieron de un paso del checklist). */
   caption?: string;
+  /** Segunda línea de la ficha (hoy: la URL de una contraseña). */
+  subtitle?: string;
   /** Contraseña en una tarea, paso o ajuste: su visor ofrece quitarla de ahí a quien puede editar la tarea. */
   credentialPlace?: CredentialPlace;
   credentialCanRemove?: boolean;
@@ -61,6 +63,7 @@ export function AttachmentGrid({
             taskLink={a.taskLink}
             usedIn={a.usedIn}
             caption={a.caption}
+            subtitle={a.subtitle}
             credentialPlace={a.credentialPlace}
             credentialCanRemove={a.credentialCanRemove}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}

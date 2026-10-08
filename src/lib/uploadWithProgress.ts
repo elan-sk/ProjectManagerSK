@@ -1,4 +1,5 @@
 import { isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
+import { beginActivity } from "@/lib/activityStatus";
 
 export type UploadResponse = { url: string; name: string; mimeType: string; error?: string };
 
@@ -11,10 +12,19 @@ export function uploadWithProgress(url: string, formData: FormData, onProgress?:
   if (file instanceof Blob && isTooLarge(file)) {
     return Promise.resolve({ ok: false, body: { error: TOO_LARGE_MESSAGE } as UploadResponse });
   }
+  // Barra de estado inferior: «Subiendo "plano.pdf" · 45 %».
+  const fileName = file instanceof File ? file.name : "archivo";
+  const label = `Subiendo "${fileName.length > 40 ? `${fileName.slice(0, 40)}…` : fileName}"`;
+  const activity = beginActivity(label);
   return new Promise<{ ok: boolean; body: UploadResponse }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      onProgress?.(e.loaded / e.total);
+      activity.update({ progress: e.loaded / e.total });
+    };
+    xhr.onloadend = () => activity.end();
     xhr.onload = () => {
       let body = {} as UploadResponse;
       try {

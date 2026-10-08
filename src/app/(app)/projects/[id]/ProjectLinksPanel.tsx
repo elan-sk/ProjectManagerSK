@@ -11,7 +11,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addProjectLink, addProjectAttachment } from "./definitionActions";
 import { AttachmentGrid } from "./tasks/[taskId]/AttachmentGrid";
-import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialRef } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import { AddCredentialButton } from "../../credentials/AddCredentialButton";
 
 type ProjectLink = { id: string; title: string; url: string };
@@ -30,7 +30,7 @@ export function ProjectLinksPanel({
   links: ProjectLink[];
   attachments: ProjectAttachment[];
   /** Solo las que esta persona puede ver (filtradas en el servidor). */
-  credentials?: { id: string; name: string }[];
+  credentials?: { id: string; name: string; url: string | null }[];
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -120,7 +120,7 @@ export function ProjectLinksPanel({
           items={[
             ...attachments.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType })),
             ...links.map((l) => ({ id: l.id, url: l.url, name: l.title, mimeType: LINK_MIME_TYPE })),
-            ...credentials.map((c) => ({ id: `cred-${c.id}`, url: credentialRef(c.id), name: c.name, mimeType: CREDENTIAL_MIME_TYPE })),
+            ...credentials.map((c) => ({ id: `cred-${c.id}`, url: credentialRef(c.id), name: c.name, mimeType: CREDENTIAL_MIME_TYPE, subtitle: credentialUrlLabel(c.url) })),
           ]}
         />
       )}

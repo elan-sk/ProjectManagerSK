@@ -44,7 +44,7 @@ export function DefinitionTab({
   })[];
   links: { id: string; title: string; url: string }[];
   attachments: { id: string; fileName: string; fileUrl: string; mimeType: string }[];
-  credentials: { id: string; name: string }[];
+  credentials: { id: string; name: string; url: string | null }[];
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">

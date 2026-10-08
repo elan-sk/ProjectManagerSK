@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
+import { deleteTestProject } from "./verifyCleanup";
 import { insertAdjacentTaskCore } from "../src/app/(app)/projects/[id]/actions";
 
 // Chequeo de "Crear predecesor"/"Crear sucesor" del menú contextual del
@@ -104,7 +105,7 @@ async function main() {
 
     console.log("OK: crear predecesor/sucesor comparte fase, se inserta en medio de un vínculo existente y empuja en cascada lo que sigue.");
   } finally {
-    await prisma.project.delete({ where: { id: project.id } });
+    await deleteTestProject(project.id);
   }
 }
 
