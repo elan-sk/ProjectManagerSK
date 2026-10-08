@@ -31,6 +31,7 @@ export function AttachmentPreview({
   onOpenVideo,
   credentialPlace,
   credentialCanRemove,
+  credentialCanDelete,
   subtitle,
 }: {
   id: string;
@@ -52,6 +53,7 @@ export function AttachmentPreview({
   /** Contraseña mostrada en una tarea, paso o ajuste (ofrece quitarla de ahí si `credentialCanRemove`). */
   credentialPlace?: CredentialPlace;
   credentialCanRemove?: boolean;
+  credentialCanDelete?: boolean;
   /** Segunda línea de la ficha (URL de la contraseña). */
   subtitle?: string;
 }) {
@@ -78,8 +80,8 @@ export function AttachmentPreview({
 
   const videoId = isLink ? youtubeVideoId(url) : null;
 
-  // Credencial: ficha propia; se abre en su visor (que pide los datos al servidor) y se borra o se
-  // quita de la tarea desde ahí, no con la papelera de la ficha.
+  // Credencial: ficha propia; se abre en su visor (que pide los datos al servidor). Su papelera la
+  // quita del lugar o, si se creó ahí, deja elegir eliminarla del todo (CredentialTile).
   const credentialId = mimeType === CREDENTIAL_MIME_TYPE ? credentialIdFromRef(url) : null;
   if (credentialId) {
     return (
@@ -89,6 +91,7 @@ export function AttachmentPreview({
         subtitle={subtitle}
         place={credentialPlace}
         canRemove={credentialCanRemove}
+        canDelete={credentialCanDelete}
         footer={
           <>
             {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}

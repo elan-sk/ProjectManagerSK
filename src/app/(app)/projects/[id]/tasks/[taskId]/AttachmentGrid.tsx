@@ -27,6 +27,8 @@ export type AttachmentGridItem = {
   /** Contraseña en una tarea, paso o ajuste: su visor ofrece quitarla de ahí a quien puede editar la tarea. */
   credentialPlace?: CredentialPlace;
   credentialCanRemove?: boolean;
+  /** Se creó en ese lugar (no vino de la galería) y la persona puede eliminarla: al quitarla se ofrece eliminarla del todo. */
+  credentialCanDelete?: boolean;
 };
 
 /**
@@ -66,6 +68,7 @@ export function AttachmentGrid({
             subtitle={a.subtitle}
             credentialPlace={a.credentialPlace}
             credentialCanRemove={a.credentialCanRemove}
+            credentialCanDelete={a.credentialCanDelete}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
             onOpenVideo={

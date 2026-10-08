@@ -225,14 +225,27 @@ export default async function TaskDetailPage({
           id: true,
           name: true,
           url: true,
+          createdAt: true,
+          createdById: true,
+          tasks: { where: { taskId }, select: { addedAt: true } },
           // De qué paso o ajuste de esta tarea vino (para la nota bajo la ficha y para mostrarla ahí).
-          steps: { where: { step: { taskId } }, select: { stepId: true } },
-          adjustmentItems: { where: { adjustmentItem: { taskId } }, select: { adjustmentItemId: true } },
+          steps: { where: { step: { taskId } }, select: { stepId: true, addedAt: true } },
+          adjustmentItems: { where: { adjustmentItem: { taskId } }, select: { adjustmentItemId: true, addedAt: true } },
         },
         orderBy: { createdAt: "asc" },
       })
     : [];
-  const credentialItem = (c: { id: string; name: string; url: string | null }, place: CredentialPlace, caption?: string) => ({
+  type TaskCredential = (typeof taskCredentials)[number];
+  // Mismo criterio que canManageCredential (lib/credentials.ts): quien la creó, el PM o un administrador.
+  const canManageCred = (c: TaskCredential) => session?.user?.role === "ADMIN" || task.project.pmId === session?.user?.id || c.createdById === session?.user?.id;
+  // ¿Se creó en este lugar (no vino de la galería)? createCredential arma el vínculo en la misma
+  // escritura que la contraseña, así que su addedAt coincide con createdAt.
+  // ponytail: heurística por tiempo (10 s); si hace falta exactitud, guardar el lugar de origen en Credential.
+  const createdHere = (c: TaskCredential, place: CredentialPlace) => {
+    const link = "stepId" in place ? c.steps.find((x) => x.stepId === place.stepId) : "adjustmentItemId" in place ? c.adjustmentItems.find((x) => x.adjustmentItemId === place.adjustmentItemId) : c.tasks[0];
+    return Boolean(link) && Math.abs(link!.addedAt.getTime() - c.createdAt.getTime()) < 10_000;
+  };
+  const credentialItem = (c: TaskCredential, place: CredentialPlace, caption?: string) => ({
     id: `cred-${c.id}`,
     url: credentialRef(c.id),
     name: c.name,
@@ -240,6 +253,7 @@ export default async function TaskDetailPage({
     caption,
     credentialPlace: place,
     credentialCanRemove: canEdit,
+    credentialCanDelete: canEdit && createdHere(c, place) && canManageCred(c),
     subtitle: credentialUrlLabel(c.url),
   });
   const credentialsOfStep = (stepId: string) => taskCredentials.filter((c) => c.steps.some((x) => x.stepId === stepId)).map((c) => credentialItem(c, { stepId }));
