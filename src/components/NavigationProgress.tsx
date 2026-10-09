@@ -134,7 +134,7 @@ export function NavigationProgress() {
     </>
   );
   const label = (
-    <span className="flex h-full w-full items-center justify-center gap-2 px-4 text-sm font-semibold">
+    <span className="flex h-full w-full items-center justify-center gap-2 px-4 text-xs font-semibold">
       <span className="min-w-0 truncate text-center">{shownText}</span>
       {extras}
     </span>
@@ -152,7 +152,7 @@ export function NavigationProgress() {
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-[60] border-t border-emerald-100 bg-done-50 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] transition-transform duration-200 ease-out ${visible ? "translate-y-0" : "translate-y-full"}`}
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="relative h-9 overflow-hidden">
+      <div className="relative h-7 overflow-hidden">
         {/* 1. fondo claro (verde muy suave, el del contenedor) + texto verde oscuro */}
         <div className="absolute inset-0 text-emerald-800">{label}</div>
         {/* 2. barra que se carga: mismo degradado que el avance de los proyectos (progress-fill-emerald),
