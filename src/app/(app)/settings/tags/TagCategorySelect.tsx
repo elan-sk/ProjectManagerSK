@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_COLORS } from "@/components/ProjectIcon";
+import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { ColorSwatchPicker } from "./TagCategoriesPanel";
 import { createTagCategory } from "./tagActions";
 
@@ -35,7 +35,7 @@ export function TagCategorySelect({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("");
-  const [colorHex, setColorHex] = useState(DEFAULT_COLORS[0]);
+  const [colorHex, setColorHex] = useState(TAG_CATEGORY_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
 
   function handleCreate() {

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { DEFAULT_COLORS } from "@/components/ProjectIcon";
+import { ALLOWED_TAG_CATEGORY_COLORS, TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 
 // Entrada de una categoría de etiqueta por API (POST/PATCH /api/v1/tags/categories): la acción de la app recibe FormData.
 export const categorySchema = z.object({
   name: z.string().trim().min(1),
-  colorHex: z.string().refine((c) => DEFAULT_COLORS.includes(c), `colorHex debe ser uno de: ${DEFAULT_COLORS.join(", ")}`),
+  colorHex: z.string().refine((c) => ALLOWED_TAG_CATEGORY_COLORS.includes(c), `colorHex debe ser uno de: ${TAG_CATEGORY_COLORS.join(", ")}`),
   emoji: z.string().trim().nullable().optional(),
 });
 

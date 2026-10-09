@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
-import { DEFAULT_COLORS } from "@/components/ProjectIcon";
+import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { createTagCategory, updateTagCategory, deleteTagCategory } from "./tagActions";
 
 type Category = { id: string; name: string; colorHex: string; emoji: string | null };
@@ -12,7 +12,8 @@ export function ColorSwatchPicker({ value, onChange }: { value: string; onChange
   return (
     <div className="flex flex-wrap gap-1.5">
       <input type="hidden" name="colorHex" value={value} />
-      {DEFAULT_COLORS.map((hex) => (
+      {/* Una categoría vieja con un color de la paleta anterior lo sigue mostrando, primero. */}
+      {[...(TAG_CATEGORY_COLORS.includes(value) ? [] : [value]), ...TAG_CATEGORY_COLORS].map((hex) => (
         <button
           key={hex}
           type="button"
@@ -30,7 +31,7 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categor
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [colorHex, setColorHex] = useState(DEFAULT_COLORS[0]);
+  const [colorHex, setColorHex] = useState(TAG_CATEGORY_COLORS[0]);
   const [emoji, setEmoji] = useState("");
   const [error, setError] = useState<string | null>(null);
 

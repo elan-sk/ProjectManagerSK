@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isPmOrAdminAnywhere, canEditTask, resolveActor, type Actor } from "@/lib/permissions";
-import { DEFAULT_COLORS } from "@/components/ProjectIcon";
+import { ALLOWED_TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { upsertTag } from "@/lib/tags";
 
 async function requireAdmin(actor?: Actor) {
@@ -34,7 +34,7 @@ export async function createTagCategory(formData: FormData, actor?: Actor) {
   const name = z.string().trim().min(1).safeParse(formData.get("name"));
   if (!name.success) return { ok: false as const, error: "Ponele un nombre a la categoría." };
   const colorHex = z.string().trim().min(1).safeParse(formData.get("colorHex"));
-  if (!colorHex.success || !DEFAULT_COLORS.includes(colorHex.data)) {
+  if (!colorHex.success || !ALLOWED_TAG_CATEGORY_COLORS.includes(colorHex.data)) {
     return { ok: false as const, error: "Elegí un color de la paleta." };
   }
   const rawEmoji = formData.get("emoji");
@@ -56,7 +56,7 @@ export async function updateTagCategory(categoryId: string, formData: FormData, 
   const name = z.string().trim().min(1).safeParse(formData.get("name"));
   if (!name.success) return { ok: false as const, error: "Ponele un nombre a la categoría." };
   const colorHex = z.string().trim().min(1).safeParse(formData.get("colorHex"));
-  if (!colorHex.success || !DEFAULT_COLORS.includes(colorHex.data)) {
+  if (!colorHex.success || !ALLOWED_TAG_CATEGORY_COLORS.includes(colorHex.data)) {
     return { ok: false as const, error: "Elegí un color de la paleta." };
   }
   const rawEmoji = formData.get("emoji");
