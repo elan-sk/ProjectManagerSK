@@ -21,6 +21,7 @@ import { getFailureAnalysisByUser, getRecentFirstPassTrend, getReviewPerformance
 import { getUserActivityStats } from "@/lib/activity";
 import { PERFORMANCE_GOALS } from "@/lib/performanceGoals";
 import { matchesTaskSearch } from "@/lib/search";
+import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabel";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
@@ -55,7 +56,7 @@ type AgendaCard = {
   attachmentsCount: number;
   shareToken: string | null;
   status: TaskStatus;
-  tags: { id: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
+  tags: { id: string; categoryId: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   assignees: { name: string; avatarUrl: string | null }[];
   plannedStart: string;
   plannedEnd: string;
@@ -159,12 +160,14 @@ export default async function AgendaPage({
     q?: string;
     from?: string;
     to?: string;
+    /** Etiqueta (id) o categoría (`cat:<id>`), igual que en Proyectos. */
+    tag?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { projectId, status, userId, risk, type, q, from: fromParam, to: toParam } = await searchParams;
+  const { projectId, status, userId, risk, type, q, tag, from: fromParam, to: toParam } = await searchParams;
   const from = parseDayKey(fromParam);
   const to = parseDayKey(toParam);
 
@@ -248,7 +251,11 @@ export default async function AgendaPage({
       });
     })
     .filter((t) => matchesDateRange(t, from, to))
-    .filter((t) => matchesTaskSearch(t, q));
+    .filter((t) => matchesTaskSearch(t, q))
+    .filter((t) => matchesTagFilter(tag, t.taskTags.map((tt) => ({ tagId: tt.tagId, categoryId: tt.tag.categoryId }))));
+  // Opciones del filtro Etiqueta: las que usan las tareas de esta agenda (antes de filtrar).
+  const agendaTagCategories = [...new Map(tasksRaw.flatMap((t) => t.taskTags.map((tt) => [tt.tag.category.id, tt.tag.category] as const))).values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const agendaTags = [...new Map(tasksRaw.flatMap((t) => t.taskTags.map((tt) => [tt.tagId, { id: tt.tagId, categoryId: tt.tag.categoryId, name: tt.tag.name }] as const))).values()];
 
   // Los tiles reflejan la lista filtrada de abajo (misma regla de conteo que
   // el resumen diario de WhatsApp, ver tallyAgendaCounts).
@@ -267,7 +274,7 @@ export default async function AgendaPage({
     attachmentsCount: t.attachments.length,
     shareToken: shareTokenByTaskId.get(t.id) ?? null,
     status: t.status,
-    tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
+    tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryId: tt.tag.categoryId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
@@ -457,7 +464,7 @@ export default async function AgendaPage({
             options={projects.map((p) => ({ id: p.id, label: p.name }))}
             paramKey="projectId"
             basePath="/agenda"
-            currentParams={{ status, userId, risk, type, q, from, to }}
+            currentParams={{ status, userId, risk, type, q, tag, from, to }}
           />
         </div>
 
@@ -470,7 +477,7 @@ export default async function AgendaPage({
               options={users.map((u) => ({ id: u.id, label: u.name }))}
               paramKey="userId"
               basePath="/agenda"
-              currentParams={{ projectId, status, risk, type, q, from, to }}
+              currentParams={{ projectId, status, risk, type, q, tag, from, to }}
             />
           </div>
         )}
@@ -487,7 +494,7 @@ export default async function AgendaPage({
             }))}
             paramKey="status"
             basePath="/agenda"
-            currentParams={{ projectId, userId, risk, type, q, from, to }}
+            currentParams={{ projectId, userId, risk, type, q, tag, from, to }}
             triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
           />
         </div>
@@ -503,7 +510,7 @@ export default async function AgendaPage({
             ]}
             paramKey="type"
             basePath="/agenda"
-            currentParams={{ projectId, userId, status, risk, q, from, to }}
+            currentParams={{ projectId, userId, status, risk, q, tag, from, to }}
             triggerColorClass={attributeTypeTriggerClass(type)}
           />
         </div>
@@ -524,7 +531,7 @@ export default async function AgendaPage({
             ]}
             paramKey="risk"
             basePath="/agenda"
-            currentParams={{ projectId, userId, status, type, q, from, to }}
+            currentParams={{ projectId, userId, status, type, q, tag, from, to }}
             triggerColorClass={
               risk === "overdue"
                 ? "bg-red-600 text-white"
@@ -539,9 +546,23 @@ export default async function AgendaPage({
           />
         </div>
 
+        {agendaTags.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Etiqueta</span>
+            <ComboFilter
+              allLabel="Todas las etiquetas"
+              value={tag}
+              options={buildTagFilterOptions(agendaTagCategories, agendaTags)}
+              paramKey="tag"
+              basePath="/agenda"
+              currentParams={{ projectId, userId, status, risk, type, q, from, to }}
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Fechas</span>
-          <DateRangeFilter from={from} to={to} basePath="/agenda" currentParams={{ projectId, userId, status, risk, type, q }} />
+          <DateRangeFilter from={from} to={to} basePath="/agenda" currentParams={{ projectId, userId, status, risk, type, q, tag }} />
         </div>
 
         {hiddenPref.canToggle && (
@@ -552,7 +573,7 @@ export default async function AgendaPage({
         )}
 
         <ResetFiltersButton
-          count={[projectId, userId, status, risk, type, q, from || to].filter(Boolean).length}
+          count={[projectId, userId, status, risk, type, q, tag, from || to].filter(Boolean).length}
           href="/agenda"
         />
       </div>
@@ -604,7 +625,7 @@ export default async function AgendaPage({
                           {card.alert.level === "onTrack" && ` · vence en ${card.alert.daysRemaining}d`}
                         </p>
                         {card.tags.map((tag) => (
-                          <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} />
+                          <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} filter={{ tagId: tag.id, categoryId: tag.categoryId }} />
                         ))}
                       </div>
                     </div>

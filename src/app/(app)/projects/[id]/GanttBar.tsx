@@ -85,7 +85,7 @@ export function GanttBar({
   alert: TaskAlert;
   assignees: { name: string; avatarUrl: string | null }[];
   reviewers: { name: string; avatarUrl: string | null }[];
-  tags: { id: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
+  tags: { id: string; categoryId: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   // Mientras se sostiene Ctrl/Cmd (selección múltiple, ver GanttView) el
   // hover no debe abrir el tooltip — estorba tapando las barras vecinas
   // justo cuando el usuario está clickeando varias rápido.
@@ -440,7 +440,7 @@ export function GanttBar({
             {tags.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {tags.map((tag) => (
-                  <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} />
+                  <TagChip key={tag.id} colorHex={tag.colorHex} emoji={tag.emoji} categoryName={tag.categoryName} name={tag.name} filter={{ tagId: tag.id, categoryId: tag.categoryId }} />
                 ))}
               </div>
             )}

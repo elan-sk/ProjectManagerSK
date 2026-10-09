@@ -1,3 +1,9 @@
+"use client";
+
+import type { MouseEvent } from "react";
+import { useRouter } from "@/lib/useAppRouter";
+import { categoryFilterValue } from "@/lib/tagFilter";
+
 // Punto 17: la etiqueta siempre se ve igual en cualquier lado de la app —
 // color/emoji de la categoría + el nombre puntual (ej. 🧩 hero-banner). El
 // color es un hex arbitrario de la paleta de proyectos, no una clase de
@@ -12,14 +18,37 @@ export function TagChip({
   categoryName,
   name,
   onRemove,
+  filter,
 }: {
   colorHex: string;
   emoji?: string | null;
   categoryName: string;
   name: string;
   onRemove?: () => void;
+  /**
+   * En las tarjetas de las vistas con filtro «Etiqueta»: clic en la categoría filtra por toda la categoría
+   * y clic en el nombre filtra por esa etiqueta puntual (mismo valor que el ComboFilter, `?tag=`).
+   */
+  filter?: { tagId: string; categoryId: string };
 }) {
+  const router = useRouter();
   const fullLabel = name ? `${categoryName} | ${name}` : categoryName;
+  // Dentro de una tarjeta (arrastrable y con link a la tarea): el clic solo filtra.
+  const filterBy = (value: string) => (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const params = new URLSearchParams(window.location.search);
+    params.set("tag", value);
+    router.push(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+  };
+  const part = (value: string, title: string, className: string, children: React.ReactNode) =>
+    filter ? (
+      <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={filterBy(value)} title={title} className={`${className} cursor-pointer hover:underline`}>
+        {children}
+      </button>
+    ) : (
+      <span className={className}>{children}</span>
+    );
   return (
     <span
       title={fullLabel}
@@ -27,11 +56,13 @@ export function TagChip({
       style={{ backgroundColor: `${colorHex}1f`, color: colorHex }}
     >
       {emoji ? <span aria-hidden>{emoji}</span> : <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorHex }} aria-hidden />}
-      <span className={name ? "flex-shrink-0 opacity-80" : "truncate"}>{categoryName}</span>
+      {filter
+        ? part(categoryFilterValue(filter.categoryId), `Filtrar por la categoría ${categoryName}`, name ? "flex-shrink-0 opacity-80" : "truncate", categoryName)
+        : <span className={name ? "flex-shrink-0 opacity-80" : "truncate"}>{categoryName}</span>}
       {name && (
         <>
           <span className="h-2.5 w-px flex-shrink-0 opacity-40" style={{ backgroundColor: colorHex }} aria-hidden />
-          <span className="truncate font-semibold">{name}</span>
+          {part(filter?.tagId ?? "", `Filtrar por la etiqueta ${fullLabel}`, "truncate font-semibold", name)}
         </>
       )}
       {onRemove && (

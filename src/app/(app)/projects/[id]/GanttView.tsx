@@ -59,7 +59,7 @@ export type GanttTask = {
   collidesWith: CollisionInfo[] | null;
   assignees: { name: string; avatarUrl: string | null }[];
   reviewers: { name: string; avatarUrl: string | null }[];
-  tags: { id: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
+  tags: { id: string; categoryId: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   shareToken: string | null;
 };
 

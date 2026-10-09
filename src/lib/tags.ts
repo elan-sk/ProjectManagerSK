@@ -13,16 +13,10 @@ export async function upsertTag(projectId: string, categoryId: string, name: str
   });
 }
 
-// El filtro "Etiqueta" (ComboFilter) es un único <select> con un solo
-// paramKey ("tag") — para que pueda elegir tanto una etiqueta concreta como
-// "toda la categoría", el valor de una categoría se codifica con este
-// prefijo en la URL (ej. tag=cat:xyz). Un id de Tag real nunca empieza así
-// (son cuid), así que no hay colisión posible.
-const TAG_FILTER_CATEGORY_PREFIX = "cat:";
-
-export function categoryFilterValue(categoryId: string) {
-  return `${TAG_FILTER_CATEGORY_PREFIX}${categoryId}`;
-}
+// Valor «toda la categoría» del filtro Etiqueta: vive en tagFilter.ts (sin Prisma) para que también
+// lo use TagChip, que es de cliente.
+import { categoryFilterValue, TAG_FILTER_CATEGORY_PREFIX } from "@/lib/tagFilter";
+export { categoryFilterValue };
 
 // Compartido entre projects/page.tsx (panorama general) y
 // projects/[id]/page.tsx (un proyecto puntual) para no repetir la misma
