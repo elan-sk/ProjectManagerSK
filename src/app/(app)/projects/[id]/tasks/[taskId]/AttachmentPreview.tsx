@@ -258,7 +258,7 @@ function UsedIn({ taskLink, usedIn }: { taskLink?: PlaceLink; usedIn?: PlaceLink
     <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] text-slate-400">
       {latest.project && <ProjectIcon name={latest.project.name} iconUrl={latest.project.iconUrl} parent={latest.project.parent} inline size="h-3.5 w-3.5 text-[7px]" />}
       <Link href={latest.href} className="min-w-0 truncate hover:text-slate-700 hover:underline" title={latest.title}>
-        → {latest.title}
+        {!latest.project && "→ "}{latest.title}
       </Link>
       {rest.length > 0 && (
         <ReferencePopover

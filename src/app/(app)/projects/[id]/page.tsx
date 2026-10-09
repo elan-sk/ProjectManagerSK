@@ -21,6 +21,7 @@ import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
 import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE, repoLinkName } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
+import { orderDefinitionBySchedule } from "@/lib/definitionOrder";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { getProjectForecast } from "@/lib/scheduleForecast";
 import { getDesignFiles } from "@/lib/designFiles";
@@ -232,6 +233,7 @@ export default async function ProjectPage({
   if (!project) notFound();
   // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
   if (!session?.user || !canSeeProject(project, session.user)) notFound();
+  const orderedDefinition = orderDefinitionBySchedule(cascadeProgress, project.tasks);
   // Credenciales que ESTA persona puede ver (las demás no existen para ella: ni nombre ni ficha).
   const credentials = await prisma.credential.findMany({
     where: { projectId: project.id, ...credentialVisibleWhere(session.user) },
@@ -1081,9 +1083,9 @@ export default async function ProjectPage({
           iconUrl={project.iconUrl}
           description={project.description}
           canManage={canManage}
-          objectives={cascadeProgress.objectives}
-          requirements={cascadeProgress.requirements}
-          phases={cascadeProgress.phases}
+          objectives={orderedDefinition.objectives}
+          requirements={orderedDefinition.requirements}
+          phases={orderedDefinition.phases}
           links={project.links}
           attachments={project.attachments}
           credentials={credentials.map((c) => ({ id: c.id, name: c.name, url: c.url }))}

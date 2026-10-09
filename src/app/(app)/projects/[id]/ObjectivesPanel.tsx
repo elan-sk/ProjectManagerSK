@@ -77,7 +77,7 @@ export function ObjectivesPanel({
       {objectives.length === 0 && <p className="text-[18px] text-slate-400">Todavía no hay objetivos definidos.</p>}
       <ul className="space-y-2">
         {objectives.map((o) => (
-          <li key={o.id} className="rounded-lg border border-slate-100 p-3">
+          <li key={o.id} id={`definition-objective-${o.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-900">{o.title}</p>

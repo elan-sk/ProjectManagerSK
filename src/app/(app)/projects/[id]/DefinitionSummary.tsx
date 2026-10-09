@@ -56,15 +56,23 @@ export function DefinitionSummary({
               <p className="text-sm text-slate-400">Sin definir.</p>
             ) : (
               <ul className="space-y-1.5">
-                {g.rows.map((r) => (
-                  <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_4.5rem_2.5rem] items-center gap-2 text-sm" title={`${r.label}: ${r.pct}%${r.atRisk ? " · con tareas atrasadas" : ""}`}>
-                    <span className="truncate text-slate-600">{r.label}</span>
-                    <span className="h-1.5 overflow-hidden bg-slate-100">
-                      <span className={`block h-full ${r.atRisk ? "progress-fill-red" : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
-                    </span>
-                    <span className={`text-right tabular-nums ${r.atRisk ? "text-red-700" : "text-slate-500"}`}>{r.pct}%</span>
-                  </li>
-                ))}
+                {g.rows.map((r) => {
+                  const RowContent = g.key ? "a" : "div";
+                  return (
+                    <li key={r.id} title={`${r.label}: ${r.pct}%${r.atRisk ? " · con tareas atrasadas" : ""}`}>
+                      <RowContent
+                        href={g.key ? `#definition-${g.key.toLowerCase()}-${r.id}` : undefined}
+                        className={`grid grid-cols-[minmax(0,1fr)_4.5rem_2.5rem] items-center gap-2 text-sm ${g.key ? "cursor-pointer rounded hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-teal-700" : ""}`}
+                      >
+                        <span className="truncate text-slate-600">{r.label}</span>
+                        <span className="h-1.5 overflow-hidden bg-slate-100">
+                          <span className={`block h-full ${r.atRisk ? "progress-fill-red" : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
+                        </span>
+                        <span className={`text-right tabular-nums ${r.atRisk ? "text-red-700" : "text-slate-500"}`}>{r.pct}%</span>
+                      </RowContent>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
