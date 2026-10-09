@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { visibleProjectWhere, LIVE_PROJECT_WHERE } from "@/lib/permissions";
+import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/lib/permissions";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
@@ -21,7 +21,7 @@ export type SearchHit = {
   href: string;
   score: number;
   // Logo del proyecto (solo en resultados de proyecto y tarea): nombre para el respaldo con inicial + imagen si tiene.
-  project?: { name: string; iconUrl: string | null };
+  project?: { name: string; iconUrl: string | null; parent?: { name: string; iconUrl: string | null } | null };
   // Involucrados de un comentario: autor primero y luego las personas @mencionadas.
   people?: { name: string; avatarUrl: string | null }[];
   // Solo en resultados de tarea: tipo y estado (el cliente los traduce a etiqueta y color).
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
           ...LIVE_PROJECT_WHERE,
           hidden: false,
           OR: [
-            { pmId: userId },
+            ...managedProjectWhere(userId).OR,
             { tasks: { some: { OR: [{ assignees: { some: { userId } } }, { reviewers: { some: { userId } } }] } } },
           ],
         };
@@ -67,6 +67,7 @@ export async function GET(request: Request) {
       name: true,
       clientName: true,
       iconUrl: true,
+      parent: { select: { name: true, iconUrl: true } },
       pm: { select: { name: true, avatarUrl: true } },
       links: { select: { id: true, title: true, url: true } },
       attachments: { select: { id: true, fileName: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
@@ -109,7 +110,7 @@ export async function GET(request: Request) {
 
   const taskTitleById = new Map<string, string>();
   for (const p of projects) {
-    const logo = { name: p.name, iconUrl: p.iconUrl };
+    const logo = { name: p.name, iconUrl: p.iconUrl, parent: p.parent };
     push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo, [p.pm]);
     for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo);
     for (const a of p.attachments) {
@@ -132,10 +133,10 @@ export async function GET(request: Request) {
   // la contraseña, que además está cifrada).
   const credentials = await prisma.credential.findMany({
     where: { AND: [credentialVisibleWhere(session.user), { project: LIVE_PROJECT_WHERE }] },
-    select: { id: true, name: true, url: true, username: true, project: { select: { name: true, iconUrl: true } } },
+    select: { id: true, name: true, url: true, username: true, project: { select: { name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } } } },
   });
   for (const c of credentials) {
-    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}${allCredentials ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl });
+    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}${allCredentials ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl, parent: c.project.parent });
   }
   const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {
@@ -149,7 +150,7 @@ export async function GET(request: Request) {
       `${m.author.name} · ${where} · ${projectById.get(m.projectId)?.name ?? ""}`,
       m.taskId ? `/projects/${m.projectId}/tasks/${m.taskId}` : `/projects/${m.projectId}?view=conversation`,
       body,
-      proj && { name: proj.name, iconUrl: proj.iconUrl },
+      proj && { name: proj.name, iconUrl: proj.iconUrl, parent: proj.parent },
       [m.author, ...m.mentions.map((x) => x.user).filter((u) => u.name !== m.author.name)]
     );
   }

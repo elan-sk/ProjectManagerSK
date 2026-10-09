@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, type Actor } from "@/lib/permissions";
+import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, PM_SCOPE_SELECT, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { mimeFromFileName } from "@/lib/uploadFile";
@@ -45,7 +45,7 @@ const fileList = z.array(fileRefSchema).max(20);
 // ---------- Helpers ----------
 
 async function loadTask(taskId: string) {
-  return prisma.task.findUnique({ where: { id: taskId }, select: { id: true, projectId: true, type: true, status: true, project: { select: { hidden: true, pmId: true } } } });
+  return prisma.task.findUnique({ where: { id: taskId }, select: { id: true, projectId: true, type: true, status: true, project: { select: PM_SCOPE_SELECT } } });
 }
 const touch = (task: { projectId: string; id: string }) => revalidatePath(`/projects/${task.projectId}/tasks/${task.id}`);
 const NO_EDIT = "No se cuenta con permiso para editar esta tarea (se necesita ser asignado, PM del proyecto o administrador).";

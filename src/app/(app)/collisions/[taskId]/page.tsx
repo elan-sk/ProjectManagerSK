@@ -27,7 +27,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
   const anchorTask = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      project: { select: { id: true, name: true, iconUrl: true, hidden: true, pmId: true } },
+      project: { select: { id: true, name: true, iconUrl: true, hidden: true, pmId: true, parent: { select: { name: true, iconUrl: true, pmId: true } } } },
       assignees: { include: { user: true } },
     },
   });
@@ -53,7 +53,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
         plannedStart: true,
         plannedEnd: true,
         assignees: { select: { userId: true } },
-        project: { select: { id: true, name: true, iconUrl: true } },
+        project: { select: { id: true, name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } } },
       },
     }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, avatarUrl: true } }),
@@ -94,7 +94,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-indigo-300 bg-white p-3 shadow-[0_4px_16px_rgba(99,102,241,0.18)]">
           <div className="flex min-w-0 items-center gap-2">
-            <ProjectIcon name={anchorTask.project.name} iconUrl={anchorTask.project.iconUrl} size="h-9 w-9 text-sm" projectId={anchorTask.projectId} />
+            <ProjectIcon name={anchorTask.project.name} iconUrl={anchorTask.project.iconUrl} parent={anchorTask.project.parent} size="h-9 w-9 text-sm" projectId={anchorTask.projectId} />
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500">Tarea analizada</p>
               <Link
@@ -143,7 +143,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
               <div key={c.taskId} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <ProjectIcon name={c.projectName} iconUrl={otherTask?.project.iconUrl ?? null} size="h-9 w-9 text-sm" projectId={c.projectId} />
+                    <ProjectIcon name={c.projectName} iconUrl={otherTask?.project.iconUrl ?? null} parent={otherTask?.project.parent} size="h-9 w-9 text-sm" projectId={c.projectId} />
                     <div className="min-w-0">
                       <Link
                         href={`/projects/${c.projectId}/tasks/${c.taskId}`}

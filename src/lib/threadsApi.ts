@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { canSeeProject } from "@/lib/permissions";
+import { canSeeProject, PM_SCOPE_SELECT } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import type { Actor } from "@/lib/permissions";
 import { fileMarker, imageMarker, linkMarker, mentionMarker, commentPlainText } from "@/lib/commentBody";
@@ -202,7 +202,7 @@ const internalOut = (m: InternalRow, actor: Actor) => ({
 
 /** Hilos de un proyecto: conversación interna y comentarios de la Definición (los ve también el cliente). */
 export async function listProjectThreads(projectId: string, actor: Actor) {
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { hidden: true, pmId: true } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: PM_SCOPE_SELECT });
   if (!project || !canSeeProject(project, actor)) return fail(404, "El proyecto no existe.");
   const [shared, internal] = await Promise.all([
     prisma.shareComment.findMany({ where: { projectId, taskId: null, parentId: null }, include: threadInclude, orderBy: { createdAt: "asc" } }),
@@ -219,7 +219,7 @@ export async function listProjectThreads(projectId: string, actor: Actor) {
 }
 
 export async function listTaskThreads(taskId: string, actor: Actor) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, project: { select: { hidden: true, pmId: true } } } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, project: { select: PM_SCOPE_SELECT } } });
   if (!task || !canSeeProject(task.project, actor)) return fail(404, "La tarea no existe.");
 
   const [shared, internal, roundMsgs] = await Promise.all([

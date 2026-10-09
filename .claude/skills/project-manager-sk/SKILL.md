@@ -72,13 +72,16 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
 - `GET /api/v1/projects` — lista los proyectos del flujo normal (con PM y fases). `GET /api/v1/projects?archived=1` — el historial de **archivados** (proyectos entregados/terminados; no aparecen en la lista normal, buscador, agenda, reportes ni alertas).
 - `POST /api/v1/projects` — crea un proyecto.
   ```json
-  { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string" }
+  { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string", "parentId": "string?" }
   ```
-- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/resultados, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella), `delays` (atrasos por tarea, ver regla abajo) y `schedule`: `{ projectedEnd, targetEndDate, varianceBusinessDays (+ holgura / − retraso, null sin fecha de cierre), label, delayingTasks }` — cuándo terminaría el proyecto si sigue al ritmo actual (tarea en curso vencida = hoy + su duración; sin iniciar con inicio pasado = arranca hoy; se corren sus sucesoras).
+  `parentId` lo crea ya como **subproyecto** de ese proyecto principal (exige ser PM del principal o admin; el principal no puede ser a su vez subproyecto).
+- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/resultados, antes/después/insumos de ajustes, entregables y evidencias de rondas), `parent` (principal, si es subproyecto) y `children` (subproyectos, si es principal), más `bottlenecks` (cuellos de botella), `delays` (atrasos por tarea, ver regla abajo) y `schedule`: `{ projectedEnd, targetEndDate, varianceBusinessDays (+ holgura / − retraso, null sin fecha de cierre), label, delayingTasks }` — cuándo terminaría el proyecto si sigue al ritmo actual (tarea en curso vencida = hoy + su duración; sin iniciar con inicio pasado = arranca hoy; se corren sus sucesoras).
 - `PATCH /api/v1/projects/:id` — todo lo que se edita en la app. Requiere PM/admin. Campos (todos opcionales; `null` vacía uno opcional):
   `name`, `description` (HTML), `startDate`, `targetEndDate`, `clientName`, `repoUrl`, `color`, `iconUrl` (url de `/api/upload`), `whatsappGroupJid`,
   `archived: true|false` (archivar/desarchivar: lo manda al historial o lo devuelve; PM o admin),
-  `hidden: true|false` (ocultar/mostrar: solo el administrador que además es PM del proyecto).
+  `hidden: true|false` (ocultar/mostrar: solo el administrador que además es PM del proyecto o de su principal),
+  `parentId: "id" | null` (subproyectos: vincula este proyecto como subproyecto de otro, o lo quita del grupo con `null`. Solo dos niveles: un subproyecto no tiene subproyectos y un principal no tiene principal. Vincular exige administrar los dos).
+  Ocultar, archivar o eliminar un **principal** hace lo mismo con sus subproyectos. El PM del principal administra también sus subproyectos (al revés no).
 - `DELETE /api/v1/projects/:id` — **elimina** el proyecto (solo administrador; desaparece para todos). Para un proyecto terminado usar `archived: true`, no esto.
 - `DELETE /api/v1/projects/:id/links/:linkId` — quita un link de la Definición.
 - `POST /api/v1/projects/:id/repos` — `{ "url" }` agrega un repositorio (el primero queda como principal). `DELETE /api/v1/projects/:id/repos?url=…` lo quita.
@@ -94,7 +97,7 @@ Pensada para volcar acá lo que ya se armó en otra conversación (contexto, act
 - `POST /api/v1/projects/:id/phases` — `{ "name": "string" }`.
 - `PATCH /api/v1/projects/:id/phases/:phaseId` — `{ "name": "string", "requirementIds": ["..."] }`.
 - `DELETE /api/v1/projects/:id/phases/:phaseId` — falla (409) si la fase todavía tiene tareas; movelas o borralas primero.
-- `POST /api/v1/projects/:id/objectives` — `{ "title": "string", "description": "string?" }`.
+- `POST /api/v1/projects/:id/objectives` — `{ "title": "string", "description": "string?", "parentObjectiveId": "string?" }` (`parentObjectiveId`: en un subproyecto, objetivo del principal al que aporta; también en el PATCH, `null` lo desliga).
 - `PATCH /api/v1/projects/:id/objectives/:objectiveId` / `DELETE .../:objectiveId`.
 - `POST /api/v1/projects/:id/requirements` — `{ "title": "string", "description": "string?", "objectiveIds": ["..."], "phaseIds": ["..."] }`.
 - `PATCH /api/v1/projects/:id/requirements/:requirementId` (mismo body que crear, reemplaza `objectiveIds`) / `DELETE .../:requirementId`.

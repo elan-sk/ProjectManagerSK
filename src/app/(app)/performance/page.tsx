@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { visibleProjectWhere, LIVE_PROJECT_WHERE } from "@/lib/permissions";
+import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -174,7 +174,7 @@ export default async function PerformancePage({
   const isAdmin = session.user.role === "ADMIN";
   const myPmProjectIds = isAdmin
     ? null
-    : (await prisma.project.findMany({ where: { pmId: session.user.id, ...LIVE_PROJECT_WHERE }, select: { id: true } })).map((p) => p.id);
+    : (await prisma.project.findMany({ where: { ...managedProjectWhere(session.user.id), ...LIVE_PROJECT_WHERE }, select: { id: true } })).map((p) => p.id);
   // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
   const adminVisibleIds = isAdmin ? (await prisma.project.findMany({ where: visibleProjectWhere(session.user), select: { id: true } })).map((p) => p.id) : null;
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);
@@ -207,6 +207,7 @@ export default async function PerformancePage({
   ] = await Promise.all([
     prisma.project.findMany({
       where: isAdmin ? visibleProjectWhere(session.user) : { id: { in: myPmProjectIds! } },
+      include: { parent: { select: { name: true, iconUrl: true } } },
       orderBy: { name: "asc" },
     }),
     getUserPerformance(undefined, selectedProjectIds),
@@ -256,7 +257,7 @@ export default async function PerformancePage({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {selectedProject && (
-            <ProjectIcon name={selectedProject.name} iconUrl={selectedProject.iconUrl} size="h-8 w-8 text-sm" projectId={selectedProject.id} />
+            <ProjectIcon name={selectedProject.name} iconUrl={selectedProject.iconUrl} parent={selectedProject.parent} size="h-8 w-8 text-sm" projectId={selectedProject.id} />
           )}
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Rendimiento</h1>

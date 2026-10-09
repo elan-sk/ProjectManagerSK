@@ -14,6 +14,8 @@ export type CalendarTask = {
   id: string;
   projectId: string;
   projectName: string;
+  /** Subproyecto (spec 004): nombre del proyecto principal, se antepone al del proyecto. */
+  projectParentName?: string | null;
   title: string;
   isUrgent: boolean;
   attachmentsCount: number;
@@ -24,6 +26,9 @@ export type CalendarTask = {
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
 };
+
+// Subproyecto (spec 004): «Principal › Proyecto».
+const fullProjectName = (t: { projectName: string; projectParentName?: string | null }) => (t.projectParentName ? `${t.projectParentName} › ${t.projectName}` : t.projectName);
 
 // Urgente (sin completar): color rojo fuerte + icono, por encima de la alerta normal.
 const isUrgentOpen = (t: { isUrgent: boolean; status: TaskStatus }) => t.isUrgent && t.status !== "COMPLETED";
@@ -104,7 +109,7 @@ export function ProjectCalendarView({
                     >
                       {showProjectName && (
                         <span className="flex-shrink-0 text-xs text-slate-400 sm:text-sm">
-                          {t.projectName}
+                          {fullProjectName(t)}
                           <span className="hidden sm:inline"> ·</span>
                         </span>
                       )}
@@ -180,7 +185,7 @@ export function ProjectCalendarView({
               </span>
               <div className="mt-1 space-y-1">
                 {dayTasks.slice(0, maxPerCell).map((t) => {
-                  const label = showProjectName ? `${t.projectName} · ${t.title}` : t.title;
+                  const label = showProjectName ? `${fullProjectName(t)} · ${t.title}` : t.title;
                   const collision = collisionText(t);
                   return (
                     <CalendarTaskLink

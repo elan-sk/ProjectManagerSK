@@ -1,5 +1,5 @@
 import { getUserActivityStats } from "@/lib/activity";
-import { visibleProjectWhere, LIVE_PROJECT_WHERE } from "@/lib/permissions";
+import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/lib/permissions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -198,7 +198,7 @@ export default async function IndividualPerformancePage({
   const isAdmin = session.user.role === "ADMIN";
   const myPmProjectIds = isAdmin
     ? null
-    : (await prisma.project.findMany({ where: { pmId: session.user.id, ...LIVE_PROJECT_WHERE }, select: { id: true } })).map((p) => p.id);
+    : (await prisma.project.findMany({ where: { ...managedProjectWhere(session.user.id), ...LIVE_PROJECT_WHERE }, select: { id: true } })).map((p) => p.id);
   // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
   const adminVisibleIds = isAdmin ? (await prisma.project.findMany({ where: visibleProjectWhere(session.user), select: { id: true } })).map((p) => p.id) : null;
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);

@@ -256,6 +256,11 @@ model Project {
   archivedAt DateTime?
   // Repositorios adicionales (repoUrl queda como el principal).
   repos      ProjectRepo[]
+  // Subproyectos (spec 004): solo dos niveles — un hijo no tiene hijos y un
+  // padre no tiene padre (lo valida lib/subprojects.ts, no la base).
+  parentId   String?
+  parent     Project?      @relation("ProjectChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Project[]     @relation("ProjectChildren")
 
   phases           Phase[]
   tasks            Task[]
@@ -339,6 +344,10 @@ model Objective {
   createdAt   DateTime @default(now())
 
   requirements Requirement[] @relation("RequirementObjectives")
+  // Spec 004: un objetivo de un subproyecto puede aportar a un objetivo del proyecto padre.
+  parentObjectiveId String?
+  parentObjective   Objective?  @relation("ObjectiveContributions", fields: [parentObjectiveId], references: [id], onDelete: SetNull)
+  contributions     Objective[] @relation("ObjectiveContributions")
 }
 
 // "Requerimiento" (Fase 2 de /dev-project-definer) — se cumple a través de

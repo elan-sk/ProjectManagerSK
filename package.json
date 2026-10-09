@@ -36,6 +36,7 @@
     "verify:svg-upload": "tsx scripts/verify-svg-upload.ts",
     "example:digest": "tsx scripts/example-daily-digest.mts",
     "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
+    "verify:subprojects": "tsx --env-file=.env scripts/verify-subprojects.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh"
   },
   "dependencies": {

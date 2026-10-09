@@ -2,7 +2,7 @@ import { credentialVisibleWhere } from "@/lib/credentials";
 import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 import Link from "next/link";
-import { canSeeProject } from "@/lib/permissions";
+import { canSeeProject, isProjectPm } from "@/lib/permissions";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -100,7 +100,7 @@ export default async function TaskDetailPage({
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      project: true,
+      project: { include: { parent: { select: { id: true, name: true, iconUrl: true, pmId: true } } } },
       phase: true,
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
@@ -236,7 +236,7 @@ export default async function TaskDetailPage({
     : [];
   type TaskCredential = (typeof taskCredentials)[number];
   // Mismo criterio que canManageCredential (lib/credentials.ts): quien la creó, el PM o un administrador.
-  const canManageCred = (c: TaskCredential) => session?.user?.role === "ADMIN" || task.project.pmId === session?.user?.id || c.createdById === session?.user?.id;
+  const canManageCred = (c: TaskCredential) => session?.user?.role === "ADMIN" || (session?.user ? isProjectPm(task.project, session.user.id) : false) || c.createdById === session?.user?.id;
   // ¿Se creó en este lugar (no vino de la galería)? createCredential arma el vínculo en la misma
   // escritura que la contraseña, así que su addedAt coincide con createdAt.
   // ponytail: heurística por tiempo (10 s); si hace falta exactitud, guardar el lugar de origen en Credential.
@@ -312,15 +312,22 @@ export default async function TaskDetailPage({
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <NavLinkWithMemory
-          href={`/projects/${projectId}`}
-          storageKey={`project:${projectId}`}
-          className="text-sm text-slate-500 hover:underline"
-        >
-          ← {task.project.name}
-        </NavLinkWithMemory>
+        {/* Subproyecto (spec 004): «← principal | subproyecto», cada uno lleva a su proyecto. */}
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          {task.project.parent && (
+            <>
+              <NavLinkWithMemory href={`/projects/${task.project.parent.id}`} storageKey={`project:${task.project.parent.id}`} className="hover:underline">
+                ← {task.project.parent.name}
+              </NavLinkWithMemory>
+              <span className="h-3.5 w-px bg-slate-400" aria-hidden />
+            </>
+          )}
+          <NavLinkWithMemory href={`/projects/${projectId}`} storageKey={`project:${projectId}`} className="hover:underline">
+            {task.project.parent ? task.project.name : `← ${task.project.name}`}
+          </NavLinkWithMemory>
+        </div>
         <div className="mt-1 flex items-center gap-2">
-          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
+          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} parent={task.project.parent} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
           <div className="min-w-0 flex-1">
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>

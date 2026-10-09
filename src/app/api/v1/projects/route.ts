@@ -5,6 +5,7 @@ import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { visibleProjectWhere } from "@/lib/permissions";
 import { getAppCountryCode } from "@/lib/appSettings";
+import { newSubprojectParentError } from "@/lib/subprojectsServer";
 
 export async function GET(request: Request) {
   const auth = await requireApiUser(request);
@@ -30,6 +31,8 @@ const createProjectSchema = z.object({
   clientName: z.string().optional(),
   startDate: z.coerce.date(),
   pmId: z.string().min(1),
+  // Spec 004: crearlo ya como subproyecto de este proyecto principal.
+  parentId: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -42,6 +45,11 @@ export async function POST(request: Request) {
   const parsed = createProjectSchema.safeParse(parsedBody.data);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (parsed.data.parentId) {
+    const error = await newSubprojectParentError(parsed.data.parentId, auth.actor);
+    if (error) return NextResponse.json({ error }, { status: error.startsWith("Solo") ? 403 : 400 });
   }
 
   const project = await prisma.project.create({

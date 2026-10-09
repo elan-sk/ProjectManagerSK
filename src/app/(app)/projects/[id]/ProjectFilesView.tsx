@@ -6,6 +6,7 @@ import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
 import { AddCredentialButton } from "../../credentials/AddCredentialButton";
 import type { SharedLinkItem } from "@/components/SharedLinkTiles";
+import type { PlaceLink } from "./tasks/[taskId]/AttachmentPreview";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -34,10 +35,13 @@ export function ProjectFilesView({
   fileQ,
   canDelete,
   filesHref,
+  projectOptions,
+  fileProject,
 }: {
   projectId: string;
   // section: dónde se usa dentro de la tarea (Insumos, Ajuste · Antes, Ronda 1 · Entregable…); readOnly: se quita desde su tarea.
-  files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; readOnly?: boolean; subtitle?: string }[];
+  // projectId/project (spec 004): en un proyecto principal, cada archivo dice de qué proyecto del grupo es.
+  files: { id: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; readOnly?: boolean; subtitle?: string; projectId?: string; project?: PlaceLink["project"] }[];
   tasks: { id: string; title: string }[];
   // Links de "Compartir" (acceso público al proyecto/tarea) activos —
   // distintos de un adjunto tipo link (recurso externo pegado a mano),
@@ -49,6 +53,9 @@ export function ProjectFilesView({
   fileQ?: string;
   canDelete: boolean;
   filesHref: (overrides: Record<string, string | undefined>) => string;
+  /** Solo en proyectos principales (spec 004): filtro «Proyecto» (el principal y cada subproyecto). */
+  projectOptions?: { id: string; label: string }[];
+  fileProject?: string;
 }) {
   const showSharedLinks = !fileType || fileType === "all" || fileType === "link";
   return (
@@ -80,9 +87,23 @@ export function ProjectFilesView({
             q={fileQ}
             paramName="fileQ"
             placeholder="Buscar por nombre…"
-            hiddenParams={{ view: "files", fileKind, fileType, fileTask }}
+            hiddenParams={{ view: "files", fileKind, fileType, fileTask, fileProject }}
           />
         </div>
+
+        {projectOptions && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">Proyecto</span>
+            <ComboFilter
+              allLabel="Todos los proyectos"
+              value={fileProject}
+              options={projectOptions}
+              paramKey="fileProject"
+              basePath={`/projects/${projectId}`}
+              currentParams={{ view: "files", fileKind, fileType, fileTask, fileQ }}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Tarea</span>
@@ -92,7 +113,7 @@ export function ProjectFilesView({
             options={tasks.map((t) => ({ id: t.id, label: t.title }))}
             paramKey="fileTask"
             basePath={`/projects/${projectId}`}
-            currentParams={{ view: "files", fileKind, fileType, fileQ }}
+            currentParams={{ view: "files", fileKind, fileType, fileQ, fileProject }}
           />
         </div>
 
@@ -108,8 +129,8 @@ export function ProjectFilesView({
         </div>
 
         <ResetFiltersButton
-          count={[fileTask, fileQ, fileKind, fileType && fileType !== "all"].filter(Boolean).length}
-          href={filesHref({ fileKind: undefined, fileType: undefined, fileTask: undefined, fileQ: undefined })}
+          count={[fileTask, fileQ, fileKind, fileProject, fileType && fileType !== "all"].filter(Boolean).length}
+          href={filesHref({ fileKind: undefined, fileType: undefined, fileTask: undefined, fileQ: undefined, fileProject: undefined })}
         />
       </div>
 
@@ -126,8 +147,8 @@ export function ProjectFilesView({
             name: f.fileName,
             mimeType: f.mimeType,
             taskLink: f.taskId
-              ? { href: `/projects/${projectId}/tasks/${f.taskId}`, title: f.section ? `${f.taskTitle} · ${f.section}` : f.taskTitle! }
-              : { href: `/projects/${projectId}?view=definition`, title: "Definición del proyecto" },
+              ? { href: `/projects/${f.projectId ?? projectId}/tasks/${f.taskId}`, title: f.section ? `${f.taskTitle} · ${f.section}` : f.taskTitle!, project: f.project }
+              : { href: `/projects/${f.projectId ?? projectId}?view=definition`, title: "Definición del proyecto", project: f.project },
             canDelete: f.readOnly ? false : undefined,
             subtitle: f.subtitle,
           }))}

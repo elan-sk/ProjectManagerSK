@@ -9,14 +9,15 @@ import { setProjectHidden } from "./taskOps";
 
 // Solo lo ve el administrador: oculta el proyecto para el resto del equipo
 // (o lo vuelve a mostrar). Un proyecto oculto sigue visible para el admin.
-export function HideProjectButton({ projectId, hidden }: { projectId: string; hidden: boolean }) {
+import { subprojectsNote } from "@/lib/subprojects";
+export function HideProjectButton({ projectId, hidden, subprojectCount = 0 }: { projectId: string; hidden: boolean; subprojectCount?: number }) {
   const router = useRouter();
   const confirm = useConfirm();
   const showToast = useToast();
   const [pending, setPending] = useState(false);
 
   async function toggle() {
-    if (!hidden && !(await confirm("¿Ocultar este proyecto? El resto del equipo dejará de verlo hasta que lo vuelvas a mostrar.", { confirmLabel: "Ocultar" }))) return;
+    if (!hidden && !(await confirm(`¿Ocultar este proyecto? El resto del equipo dejará de verlo hasta que lo vuelvas a mostrar.${subprojectsNote(subprojectCount, "ocultará")}`, { confirmLabel: "Ocultar" }))) return;
     setPending(true);
     const result = await setProjectHidden(projectId, !hidden);
     setPending(false);

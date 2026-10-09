@@ -4,11 +4,11 @@ import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { EyeOffIcon, OverlapIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ModalTrigger } from "@/components/Modal";
-import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
-import type { ProjectSummaryRow } from "@/lib/projectSummaries";
+import { groupSummaryRows, type ProjectSummaryRow } from "@/lib/projectSummaries";
 import { PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
@@ -53,7 +53,11 @@ export async function ProjectSummaryGrid({
     return `${basePath}${qs ? `?${qs}` : ""}`;
   }
 
-  const visibleRows = rows
+  // Spec 004: una tarjeta por principal con los números del grupo. Elegir un subproyecto en Buscar muestra su tarjeta.
+  const grouped = groupSummaryRows(rows);
+  const pickedChild = pid && pid !== "all" && !grouped.some((g) => g.project.id === pid) ? rows.find((r) => r.project.id === pid) : undefined;
+  const cardRows = pickedChild ? [{ ...pickedChild, subprojects: [] }] : grouped;
+  const visibleRows = cardRows
     // Filtra por lo que dice el badge: con fecha de cierre, el cronograma; sin ella, la salud.
     .filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health)
     .filter(({ project }) => !pid || pid === "all" || project.id === pid);
@@ -61,7 +65,7 @@ export async function ProjectSummaryGrid({
   // salud): sin filtros la vista muestra solo `RECENT_LIMIT`.
   const limit = pid || health ? undefined : RECENT_LIMIT;
   const shownCount = limit ? Math.min(visibleRows.length, limit) : visibleRows.length;
-  const hiddenCount = rows.filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health).length - shownCount;
+  const hiddenCount = grouped.filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health).length - shownCount;
 
   return (
     <div className="space-y-4">
@@ -128,7 +132,7 @@ export async function ProjectSummaryGrid({
         )}
         <ProjectCardsOrder
           limit={limit}
-          items={visibleRows.map(({ project: p, summary }) => {
+          items={visibleRows.map(({ project: p, summary, subprojects }) => {
             const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return {
               id: p.id,
@@ -140,7 +144,8 @@ export async function ProjectSummaryGrid({
                 >
                   <div className="flex flex-col gap-2">
                     <div className="flex min-w-0 items-start gap-2">
-                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-12 w-12 text-base" />
+                      {/* Subproyecto suelto (su principal no está en la lista): doble ícono. */}
+                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} parent={grouped.some((g) => g.project.id === p.parentId) ? null : p.parent} size="h-12 w-12 text-base" />
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 font-medium text-slate-900">
                           <span className="truncate">{p.name}</span>
@@ -159,6 +164,7 @@ export async function ProjectSummaryGrid({
                             />
                           )}
                           {projectShareTokenById.get(p.id) && <CopyLinkButton token={projectShareTokenById.get(p.id)!} />}
+                          <ProjectIconGroup projects={subprojects} size="h-5 w-5 text-[9px]" />
                         </p>
                         <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
                       </div>
@@ -177,6 +183,12 @@ export async function ProjectSummaryGrid({
                         scheduleVarianceDays={scheduleVarianceDays}
                       />
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{PROJECT_PHASE_LABEL[phase]}</span>
+                      {/* Spec 004: los números de esta tarjeta son del grupo completo. */}
+                      {subprojects.length > 0 && (
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                          Grupo: {subprojects.length} {subprojects.length === 1 ? "subproyecto" : "subproyectos"}
+                        </span>
+                      )}
                       <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                     </div>
                   </div>

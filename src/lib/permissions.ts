@@ -30,8 +30,23 @@ export async function resolveActor(actor?: Actor): Promise<Actor | null> {
  * responsable (PM). Un segundo administrador, o un PM que no sea administrador,
  * no lo ven ni por la app, ni por la API, ni por el chat, ni por avisos.
  */
-export function canSeeProject(project: { hidden: boolean; pmId: string }, user: Actor) {
-  return !project.hidden || (user.role === "ADMIN" && project.pmId === user.id);
+export function canSeeProject(project: { hidden: boolean } & PmScope, user: Actor) {
+  return !project.hidden || (user.role === "ADMIN" && isProjectPm(project, user.id));
+}
+
+/**
+ * Subproyectos (spec 004): el PM del proyecto padre es PM, a efectos de permisos, de cada hijo.
+ * Al revés no: el PM de un hijo no administra al padre ni a los otros hijos.
+ */
+export type PmScope = { pmId: string; parent?: { pmId: string } | null };
+export function isProjectPm(project: PmScope, userId: string) {
+  return project.pmId === userId || project.parent?.pmId === userId;
+}
+/** Select mínimo para canSeeProject / isProjectPm (incluye al PM del padre). */
+export const PM_SCOPE_SELECT = { hidden: true, pmId: true, parent: { select: { pmId: true } } } as const;
+/** Filtro de Prisma: proyectos que esta persona administra como PM (propios + hijos de los suyos). */
+export function managedProjectWhere(userId: string) {
+  return { OR: [{ pmId: userId }, { parent: { pmId: userId } }] };
 }
 
 /** Proyectos del flujo normal: ni eliminados (status ARCHIVED) ni archivados como historial (archivedAt). */
@@ -43,7 +58,10 @@ export const LIVE_PROJECT_WHERE = { status: { not: "ARCHIVED" as const }, archiv
  */
 export function visibleProjectWhere(user: Actor, { includeArchived = false } = {}) {
   const live = includeArchived ? { status: LIVE_PROJECT_WHERE.status } : LIVE_PROJECT_WHERE;
-  return user.role === "ADMIN" ? { NOT: { hidden: true, pmId: { not: user.id } }, ...live } : { hidden: false, ...live };
+  // Oculto ajeno = oculto cuyo PM no es esta persona, ni lo es el PM de su padre (spec 004).
+  return user.role === "ADMIN"
+    ? { NOT: { hidden: true, pmId: { not: user.id }, OR: [{ parentId: null }, { parent: { pmId: { not: user.id } } }] }, ...live }
+    : { hidden: false, ...live };
 }
 
 /**
@@ -55,9 +73,9 @@ export async function getProjectAdmin(projectId: string, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return null;
 
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: PM_SCOPE_SELECT });
   if (!project || !canSeeProject(project, user)) return null;
-  if (user.role === "ADMIN" || project.pmId === user.id) return user;
+  if (user.role === "ADMIN" || isProjectPm(project, user.id)) return user;
   return null;
 }
 
@@ -80,10 +98,10 @@ export async function canEditTask(taskId: string, actor?: Actor) {
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { project: true, assignees: true },
+    include: { project: { select: PM_SCOPE_SELECT }, assignees: true },
   });
   if (!task || !canSeeProject(task.project, user)) return false;
-  if (user.role === "ADMIN" || task.project.pmId === user.id) return true;
+  if (user.role === "ADMIN" || isProjectPm(task.project, user.id)) return true;
   return task.assignees.some((a) => a.userId === user.id);
 }
 
@@ -99,10 +117,10 @@ export async function canReviewTask(taskId: string, actor?: Actor) {
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { project: true, reviewers: true },
+    include: { project: { select: PM_SCOPE_SELECT }, reviewers: true },
   });
   if (!task || !canSeeProject(task.project, user)) return false;
-  if (user.role === "ADMIN" || task.project.pmId === user.id) return true;
+  if (user.role === "ADMIN" || isProjectPm(task.project, user.id)) return true;
   return task.reviewers.some((r) => r.userId === user.id);
 }
 
@@ -150,9 +168,9 @@ export async function isPmOrAdminAnywhere(actor?: Actor) {
 export async function canParticipateInProject(projectId: string, taskId?: string | null, actor?: Actor) {
   const user = await resolveActor(actor);
   if (!user) return false;
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true, hidden: true } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: PM_SCOPE_SELECT });
   if (!project || !canSeeProject(project, user)) return false;
-  if (user.role === "ADMIN" || project.pmId === user.id) return true;
+  if (user.role === "ADMIN" || isProjectPm(project, user.id)) return true;
   const scope = taskId ? { id: taskId } : { projectId };
   const member = await prisma.task.findFirst({
     where: { ...scope, OR: [{ assignees: { some: { userId: user.id } } }, { reviewers: { some: { userId: user.id } } }] },

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { visibleProjectWhere } from "@/lib/permissions";
+import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
 import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
 import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { AlertBadge } from "@/components/AlertBadge";
@@ -10,11 +10,11 @@ import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
-import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
 import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
-import { getPmProjectsSummary, tallyAgendaCounts, type AgendaCounts } from "@/lib/agendaSummary";
+import { getPmProjectsSummary, groupPmSummaries, tallyAgendaCounts, type AgendaCounts } from "@/lib/agendaSummary";
 import { getRecentOnTimeTrend, getTaskAlert, getUserPerformance, matchesRiskFilter, type TaskAlert } from "@/lib/delays";
 import { prisma } from "@/lib/prisma";
 import { getFailureAnalysisByUser, getRecentFirstPassTrend, getReviewPerformance, reviewRates, type RecentTrend } from "@/lib/reviewPerformance";
@@ -49,6 +49,7 @@ type AgendaCard = {
   projectId: string;
   projectName: string;
   projectIconUrl: string | null;
+  projectParent: { name: string; iconUrl: string | null } | null;
   title: string;
   isUrgent: boolean;
   attachmentsCount: number;
@@ -174,7 +175,7 @@ export default async function AgendaPage({
   const isAdmin = session.user.role === "ADMIN";
   const pmProjectIds = isAdmin
     ? null
-    : (await prisma.project.findMany({ where: { pmId: session.user.id }, select: { id: true } })).map((p) => p.id);
+    : (await prisma.project.findMany({ where: managedProjectWhere(session.user.id), select: { id: true } })).map((p) => p.id);
   const viewingOther = Boolean(userId && userId !== session.user.id);
   const canViewOthers = isAdmin || Boolean(pmProjectIds && pmProjectIds.length > 0);
   const effectiveUserId = viewingOther && canViewOthers ? userId! : session.user.id;
@@ -201,7 +202,7 @@ export default async function AgendaPage({
         project: hiddenPref.projectWhere,
       },
       include: {
-        project: true,
+        project: { include: { parent: { select: { name: true, iconUrl: true } } } },
         assignees: { include: { user: true } },
         taskTags: { include: { tag: { include: { category: true } } } },
         attachments: { select: { fileName: true, mimeType: true } },
@@ -215,7 +216,7 @@ export default async function AgendaPage({
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     // "Mis proyectos"/"Mi rendimiento" — solo tienen sentido en tu propia
     // agenda, nunca mirando la de otra persona.
-    viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user),
+    viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user, { withSubprojects: true }).then(groupPmSummaries),
     viewingOther ? Promise.resolve(null) : getMyPerformanceSummary(session.user.id, session.user.role === "ADMIN" ? session.user : null),
   ]);
 
@@ -260,6 +261,7 @@ export default async function AgendaPage({
     projectId: t.projectId,
     projectName: t.project.name,
     projectIconUrl: t.project.iconUrl,
+    projectParent: t.project.parent,
     title: t.title,
     isUrgent: t.isUrgent && t.status !== "COMPLETED",
     attachmentsCount: t.attachments.length,
@@ -354,11 +356,14 @@ export default async function AgendaPage({
                   return { id: p.id, node: (
                   <div key={p.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-slate-50">
                     <Link href={`/projects/${p.id}`} className="flex flex-shrink-0 items-center gap-1.5">
-                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-5 w-5 text-[9px]" />
+                      {/* Subproyecto suelto (su principal no está en la lista): doble ícono (spec 004). */}
+                      <ProjectIcon name={p.name} iconUrl={p.iconUrl} parent={p.parent} size="h-5 w-5 text-[9px]" />
                       {/* Ancho máximo fijo: un nombre largo no debe empujar el
                           resto de la fila ni romper el layout. */}
                       <span className="max-w-[110px] truncate text-sm font-medium text-slate-800">{p.name}</span>
                     </Link>
+                    {/* Principal: grupito de logos de sus subproyectos (como los asignados de una tarea). */}
+                    {p.subprojects && p.subprojects.length > 0 && <ProjectIconGroup projects={p.subprojects} size="h-4 w-4 text-[7px]" max={3} />}
                     <div className="flex flex-shrink-0 items-center gap-1.5">
                       <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden bg-slate-100">
                         <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
@@ -584,7 +589,7 @@ export default async function AgendaPage({
                   >
                     <div className="min-w-0">
                       <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                        <ProjectIcon name={card.projectName} iconUrl={card.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" />
+                        <ProjectIcon name={card.projectName} iconUrl={card.projectIconUrl} parent={card.projectParent} inline size="h-3.5 w-3.5 text-[7px]" />
                         {card.projectName}
                       </p>
                       <p className={`flex items-center gap-1 font-medium ${card.isUrgent ? "text-red-700" : "text-slate-900"}`}>

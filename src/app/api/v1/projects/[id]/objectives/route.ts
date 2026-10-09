@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parentObjectiveFrom } from "@/lib/objectiveLink";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
@@ -7,6 +8,8 @@ import { getProjectAdmin } from "@/lib/permissions";
 const createObjectiveSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullable().optional(),
+  // Spec 004: objetivo del proyecto principal al que aporta (solo en subproyectos).
+  parentObjectiveId: z.string().nullable().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,9 +32,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const linkForm = new FormData();
+  if (parsed.data.parentObjectiveId !== undefined) linkForm.set("parentObjectiveId", parsed.data.parentObjectiveId ?? "");
+  const link = await parentObjectiveFrom(projectId, linkForm);
+  if (link.error) return NextResponse.json({ error: link.error }, { status: 400 });
+
   const count = await prisma.objective.count({ where: { projectId } });
   const objective = await prisma.objective.create({
-    data: { projectId, title: parsed.data.title, description: parsed.data.description ?? null, order: count },
+    data: { projectId, title: parsed.data.title, description: parsed.data.description ?? null, order: count, parentObjectiveId: link.value ?? null },
   });
   return NextResponse.json(objective, { status: 201 });
 }

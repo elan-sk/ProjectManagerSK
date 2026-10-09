@@ -7,11 +7,12 @@ import { revalidatePath } from "next/cache";
 import { runAction, withAuth, withBody } from "@/lib/apiResult";
 import { archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { setProjectArchived, setProjectHidden } from "@/app/(app)/projects/[id]/taskOps";
+import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
 import { updateProjectWhatsAppGroup } from "@/app/(app)/projects/[id]/definitionActions";
 import { getBottlenecks, getProjectDelaySummary } from "@/lib/delays";
 import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { getProjectAdmin } from "@/lib/permissions";
+import { getProjectAdmin, visibleProjectWhere } from "@/lib/permissions";
 import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 
 const FILE_SELECT = { id: true, fileUrl: true, fileName: true, mimeType: true } as const;
@@ -27,6 +28,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     where: { id },
     include: {
       pm: { select: PUBLIC_USER_SELECT },
+      // Subproyectos (spec 004): su proyecto principal y, si es principal, sus subproyectos activos.
+      parent: { select: { id: true, name: true, iconUrl: true } },
+      children: { where: visibleProjectWhere(auth.actor), select: { id: true, name: true, iconUrl: true, pmId: true }, orderBy: { name: "asc" } },
       phases: { orderBy: { order: "asc" } },
       // Definición completa: lo que la app muestra en la pestaña Definición.
       objectives: { orderBy: { order: "asc" } },
@@ -83,13 +87,19 @@ const updateProjectSchema = z.object({
   whatsappGroupJid: z.string().nullable().optional(),
   hidden: z.boolean().optional(),
   archived: z.boolean().optional(),
+  // Spec 004: id del proyecto principal (vincular como subproyecto) o null (quitar del grupo).
+  parentId: z.string().min(1).nullable().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return withBody(request, updateProjectSchema, async (actor, data) => {
     if (!(await getProjectAdmin(id, actor))) return { ok: false, status: 403, error: "Solo el PM de este proyecto o un administrador pueden editarlo." };
-    const { hidden, archived, whatsappGroupJid, ...fields } = data;
+    const { hidden, archived, whatsappGroupJid, parentId, ...fields } = data;
+    if (parentId !== undefined) {
+      const r = await setProjectParent(id, parentId, actor);
+      if (!r.ok) return r;
+    }
     if (hidden !== undefined) {
       const r = await setProjectHidden(id, hidden, actor);
       if (!r.ok) return r;

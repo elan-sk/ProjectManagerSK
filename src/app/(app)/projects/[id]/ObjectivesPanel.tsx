@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { deleteObjective } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { ObjectiveForm } from "./ObjectiveForm";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import Link from "next/link";
 import { RequirementForm } from "./RequirementForm";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -29,11 +31,14 @@ export function ObjectivesPanel({
   objectives,
   requirements,
   canManage,
+  parentObjectives,
 }: {
   projectId: string;
   objectives: ObjectiveSummary[];
   requirements: RequirementSummary[];
   canManage: boolean;
+  /** Subproyecto (spec 004): objetivos del proyecto principal a los que se puede aportar. */
+  parentObjectives?: { id: string; title: string }[];
 }) {
   const objectiveOptions = objectives.map((o) => ({ id: o.id, title: o.title }));
   const requirementById = new Map(requirements.map((r) => [r.id, r]));
@@ -65,7 +70,7 @@ export function ObjectivesPanel({
         </h2>
         {canManage && (
           <ModalTrigger label="+ Objetivo" title="Nuevo objetivo" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-            <ObjectiveForm projectId={projectId} />
+            <ObjectiveForm projectId={projectId} parentObjectives={parentObjectives} />
           </ModalTrigger>
         )}
       </div>
@@ -77,6 +82,20 @@ export function ObjectivesPanel({
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-900">{o.title}</p>
                 {o.description && <p className="mt-0.5 text-[18px] text-slate-500">{o.description}</p>}
+                {o.parentObjectiveTitle && <p className="mt-0.5 text-sm text-slate-400">Contribuye a: {o.parentObjectiveTitle}</p>}
+                {o.contributions.length > 0 && (
+                  <ul className="mt-1.5 space-y-1">
+                    {o.contributions.map((c) => (
+                      <li key={c.id} className="flex items-center gap-1.5 text-sm text-slate-600">
+                        <ProjectIcon name={c.projectName} iconUrl={c.projectIconUrl} size="h-4 w-4 text-[8px]" />
+                        <Link href={`/projects/${c.projectId}?view=definition`} className="min-w-0 truncate hover:underline" title={`${c.projectName} — ${c.title}`}>
+                          {c.title}
+                        </Link>
+                        <span className="flex-shrink-0 text-xs text-slate-400">{c.pct}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="flex shrink-0 items-start gap-4">
                 <div className="flex items-start gap-2">
@@ -112,7 +131,7 @@ export function ObjectivesPanel({
                 {canManage && (
                   <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
                     <ModalTrigger label="Editar" title="Editar objetivo" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-                      <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} />
+                      <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} parentObjectives={parentObjectives} currentParentObjectiveId={o.parentObjectiveId} />
                     </ModalTrigger>
                     <button
                       type="button"

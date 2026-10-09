@@ -7,12 +7,14 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { getAppCountryCode } from "@/lib/appSettings";
+import { newSubprojectParentError } from "@/lib/subprojectsServer";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().optional(),
   startDate: z.coerce.date(),
   pmId: z.string().min(1),
+  parentId: z.string().optional(),
 });
 
 export async function createProject(formData: FormData) {
@@ -24,11 +26,17 @@ export async function createProject(formData: FormData) {
     clientName: formData.get("clientName") || undefined,
     startDate: formData.get("startDate"),
     pmId: formData.get("pmId"),
+    parentId: formData.get("parentId") || undefined,
   });
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
   const data = parsed.data;
+  // Spec 004: «+ Nuevo subproyecto» — solo quien administra el principal, y el principal no puede ser a su vez subproyecto.
+  if (data.parentId) {
+    const error = await newSubprojectParentError(data.parentId);
+    if (error) return { ok: false as const, error };
+  }
 
   const project = await prisma.project.create({
     data: {

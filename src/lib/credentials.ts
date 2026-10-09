@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { resolveActor, visibleProjectWhere, type Actor } from "@/lib/permissions";
+import { isProjectPm, resolveActor, visibleProjectWhere, type Actor } from "@/lib/permissions";
 import { decryptPassword } from "@/lib/credentialCrypto";
 import type { CredentialEventName } from "@/lib/credentialPlace";
 
@@ -17,7 +17,8 @@ import type { CredentialEventName } from "@/lib/credentialPlace";
 export function credentialVisibleWhere(user: Actor): Prisma.CredentialWhereInput {
   const uid = user.id;
   const projectMember: Prisma.ProjectWhereInput = {
-    OR: [{ pmId: uid }, { tasks: { some: { OR: [{ assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] } } }],
+    // PM del proyecto o de su proyecto principal (spec 004).
+    OR: [{ pmId: uid }, { parent: { pmId: uid } }, { tasks: { some: { OR: [{ assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] } } }],
   };
   return {
     project: visibleProjectWhere(user, { includeArchived: true }),
@@ -42,8 +43,8 @@ export async function canSeeCredential(credentialId: string, actor?: Actor) {
 export async function canManageCredential(credentialId: string, actor?: Actor) {
   const user = await canSeeCredential(credentialId, actor);
   if (!user) return null;
-  const c = await prisma.credential.findUniqueOrThrow({ where: { id: credentialId }, select: { createdById: true, project: { select: { pmId: true } } } });
-  return user.role === "ADMIN" || c.project.pmId === user.id || c.createdById === user.id ? user : null;
+  const c = await prisma.credential.findUniqueOrThrow({ where: { id: credentialId }, select: { createdById: true, project: { select: { pmId: true, parent: { select: { pmId: true } } } } } });
+  return user.role === "ADMIN" || isProjectPm(c.project, user.id) || c.createdById === user.id ? user : null;
 }
 
 /**

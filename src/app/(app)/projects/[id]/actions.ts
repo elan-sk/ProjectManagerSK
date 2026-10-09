@@ -25,7 +25,8 @@ export async function archiveProject(projectId: string, actor?: Actor) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) return { ok: false, error: "Proyecto no encontrado." };
 
-  await prisma.project.update({ where: { id: projectId }, data: { status: "ARCHIVED" } });
+  // Spec 004: eliminar un proyecto principal elimina también sus subproyectos.
+  await prisma.project.updateMany({ where: { OR: [{ id: projectId }, { parentId: projectId }] }, data: { status: "ARCHIVED" } });
 
   revalidatePath("/projects");
   return { ok: true };

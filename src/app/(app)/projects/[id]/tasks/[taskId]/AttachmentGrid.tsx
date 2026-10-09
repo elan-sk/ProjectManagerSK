@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AttachmentPreview } from "./AttachmentPreview";
+import { AttachmentPreview, type PlaceLink } from "./AttachmentPreview";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { YouTubeModal } from "@/components/YouTubeModal";
@@ -15,9 +15,9 @@ export type AttachmentGridItem = {
   url: string;
   name: string;
   mimeType: string;
-  taskLink?: { href: string; title: string };
+  taskLink?: PlaceLink;
   /** Vista "Archivos": todos los lugares que usan este mismo archivo. */
-  usedIn?: { href: string; title: string }[];
+  usedIn?: PlaceLink[];
   /** false = no se ofrece borrar esta ficha aunque el grupo permita borrar (archivo usado en varios lugares). */
   canDelete?: boolean;
   /** Texto corto bajo la ficha (ej. «del paso: …» en los Insumos que salieron de un paso del checklist). */

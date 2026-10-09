@@ -11,6 +11,10 @@ import { CredentialTile } from "../../../../credentials/CredentialTile";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 import { useConfirm } from "@/components/Confirm";
 import { LinkFavicon } from "@/components/LinkFavicon";
+import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
+
+/** Lugar donde se usa un archivo; `project` (spec 004) = ícono de su proyecto en vistas que juntan varios. */
+export type PlaceLink = { href: string; title: string; project?: { name: string; iconUrl: string | null; parent?: ProjectIconParent } };
 
 /**
  * Solo la miniatura — un documento/link abre en pestaña nueva, una imagen
@@ -42,9 +46,9 @@ export function AttachmentPreview({
   mimeType: string;
   canDelete: boolean;
   /** Solo en la vista "Archivos" del proyecto, que junta adjuntos de varias tareas — lleva de vuelta a la tarea dueña. */
-  taskLink?: { href: string; title: string };
+  taskLink?: PlaceLink;
   /** Vista "Archivos": todas las tareas que usan este mismo archivo (si son varias, se listan). */
-  usedIn?: { href: string; title: string }[];
+  usedIn?: PlaceLink[];
   /** Texto corto bajo la ficha (sin enlace). */
   caption?: string;
   onOpenImage?: () => void;
@@ -246,12 +250,13 @@ function TrashIcon({ className }: { className?: string }) {
 // Bajo la ficha de la vista "Archivos": el lugar más reciente donde se usa el
 // archivo y, si hay más, «+N» que abre la lista completa (mismo popover que los
 // badges de colisiones y atrasos).
-function UsedIn({ taskLink, usedIn }: { taskLink?: { href: string; title: string }; usedIn?: { href: string; title: string }[] }) {
+function UsedIn({ taskLink, usedIn }: { taskLink?: PlaceLink; usedIn?: PlaceLink[] }) {
   const links = usedIn && usedIn.length > 1 ? usedIn : taskLink ? [taskLink] : [];
   if (links.length === 0) return null;
   const [latest, ...rest] = links;
   return (
     <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] text-slate-400">
+      {latest.project && <ProjectIcon name={latest.project.name} iconUrl={latest.project.iconUrl} parent={latest.project.parent} inline size="h-3.5 w-3.5 text-[7px]" />}
       <Link href={latest.href} className="min-w-0 truncate hover:text-slate-700 hover:underline" title={latest.title}>
         → {latest.title}
       </Link>

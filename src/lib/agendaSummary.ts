@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { visibleProjectWhere, LIVE_PROJECT_WHERE, type Actor } from "@/lib/permissions";
+import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere, type Actor } from "@/lib/permissions";
+import { groupRows, worstVariance } from "@/lib/subprojects";
 import { getTaskAlert, type TaskAlert } from "@/lib/delays";
 import type { TaskStatus } from "@prisma/client";
 import { projectHealth } from "@/lib/projectHealth";
@@ -56,6 +57,10 @@ export function tallyAgendaCounts(items: { status: TaskStatus; alert: TaskAlert;
 export type PmProjectSummary = {
   id: string;
   name: string;
+  /** Spec 004: principal (si es subproyecto) y subproyectos agrupados en esta fila (solo «Mis proyectos» de Agenda). */
+  parentId?: string | null;
+  parent?: { name: string; iconUrl: string | null } | null;
+  subprojects?: { id: string; name: string; iconUrl: string | null }[];
   iconUrl: string | null;
   total: number;
   completed: number;
@@ -76,13 +81,17 @@ export type PmProjectSummary = {
 // usa sin filtro y cubre toda la cartera activa.
 // Los proyectos ocultos solo entran al resumen de su administrador responsable
 // (viewer); para cualquier otra persona quedan fuera.
-export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise<PmProjectSummary[]> {
+// `withSubprojects` (spec 004, solo Agenda): también los subproyectos de los principales que administra.
+// El resumen diario de WhatsApp no lo usa: sus avisos no cambian (RF-32).
+export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSubprojects = false } = {}): Promise<PmProjectSummary[]> {
   const projects = await prisma.project.findMany({
-    where: { ...(pmId ? { pmId } : {}), ...(viewer ? visibleProjectWhere(viewer) : { hidden: false, ...LIVE_PROJECT_WHERE }) },
+    where: { ...(pmId ? (withSubprojects ? managedProjectWhere(pmId) : { pmId }) : {}), ...(viewer ? visibleProjectWhere(viewer) : { hidden: false, ...LIVE_PROJECT_WHERE }) },
     select: {
       id: true,
       name: true,
       iconUrl: true,
+      parentId: true,
+      parent: { select: { name: true, iconUrl: true } },
       countryCode: true,
       tasks: { select: { status: true, plannedStart: true, plannedEnd: true } },
     },
@@ -100,6 +109,8 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise
     summaries.push({
       id: p.id,
       name: p.name,
+      parentId: p.parentId,
+      parent: p.parent,
       iconUrl: p.iconUrl,
       total: p.tasks.length,
       completed,
@@ -117,6 +128,32 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor): Promise
 
 // Alias explícito para la Agenda y los sitios donde el alcance debe ser solo
 // lo administrado por una persona.
-export async function getPmProjectsSummary(userId: string, viewer?: Actor) {
-  return getProjectsSummary(userId, viewer);
+export async function getPmProjectsSummary(userId: string, viewer?: Actor, options?: { withSubprojects?: boolean }) {
+  return getProjectsSummary(userId, viewer, options);
+}
+
+/** Spec 004 (RF-24): una fila por principal con los números de su grupo; un subproyecto suelto si su principal no está. */
+export function groupPmSummaries(rows: PmProjectSummary[]): PmProjectSummary[] {
+  const { visible, childrenOf } = groupRows(rows.map((r) => ({ ...r, parentId: r.parentId ?? null })));
+  return visible.map((r) => {
+    const kids = childrenOf.get(r.id) ?? [];
+    if (kids.length === 0) return { ...r, subprojects: [] };
+    const all = [r, ...kids];
+    const sum = (f: (x: PmProjectSummary) => number) => all.reduce((acc, x) => acc + f(x), 0);
+    const total = sum((x) => x.total);
+    const overdueCount = sum((x) => x.overdueCount);
+    return {
+      ...r,
+      subprojects: kids.map((k) => ({ id: k.id, name: k.name, iconUrl: k.iconUrl })),
+      total,
+      completed: sum((x) => x.completed),
+      blockedCount: sum((x) => x.blockedCount),
+      lateStartCount: sum((x) => x.lateStartCount),
+      overdueCount,
+      warningCount: sum((x) => x.warningCount),
+      startingSoonCount: sum((x) => x.startingSoonCount),
+      health: projectHealth(overdueCount, total),
+      scheduleVarianceDays: worstVariance(all.map((x) => x.scheduleVarianceDays)),
+    };
+  });
 }

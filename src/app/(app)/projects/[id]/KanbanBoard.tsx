@@ -10,7 +10,7 @@ import { archiveCompletedTasks, duplicateTask, mergeTasks, setTaskUrgent, unarch
 import { ReassignAssigneesForm } from "./tasks/[taskId]/ReassignAssigneesForm";
 import { ModalTrigger } from "@/components/Modal";
 import { AvatarGroup } from "@/components/Avatar";
-import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
@@ -28,6 +28,8 @@ export type TaskCard = {
   projectId: string;
   projectName: string;
   projectIconUrl: string | null;
+  /** Subproyecto (spec 004): proyecto principal, para el doble ícono. */
+  projectParent?: ProjectIconParent;
   title: string;
   type: string;
   // Urgente (la marcan Admin/PM): la card queda anclada arriba de su columna.
@@ -183,7 +185,7 @@ function CardBody({
 
       {showProjectName && (
         <p className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-          <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} size="h-3.5 w-3.5 text-[7px]" projectId={task.projectId} />
+          <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} parent={task.projectParent} inline size="h-3.5 w-3.5 text-[7px]" projectId={task.projectId} />
           {task.projectName}
         </p>
       )}

@@ -9,7 +9,8 @@ import { setProjectArchived } from "./taskOps";
 
 // Archivar = mandar al historial (proyecto entregado/terminado). No es el
 // «Eliminar» de ArchiveProjectButton: se desarchiva cuando haga falta.
-export function ArchiveToggleButton({ projectId, archived, openTaskCount }: { projectId: string; archived: boolean; openTaskCount: number }) {
+import { subprojectsNote } from "@/lib/subprojects";
+export function ArchiveToggleButton({ projectId, archived, openTaskCount, subprojectCount = 0 }: { projectId: string; archived: boolean; openTaskCount: number; subprojectCount?: number }) {
   const router = useRouter();
   const confirm = useConfirm();
   const showToast = useToast();
@@ -18,7 +19,7 @@ export function ArchiveToggleButton({ projectId, archived, openTaskCount }: { pr
   async function toggle() {
     if (!archived) {
       const pendingNote = openTaskCount > 0 ? ` Todavía tiene ${openTaskCount} tarea(s) sin completar.` : "";
-      const message = `¿Archivar este proyecto? Dejará de aparecer en la lista, el buscador, la agenda, los reportes y las alertas; quedará en «Archivados».${pendingNote}`;
+      const message = `¿Archivar este proyecto? Dejará de aparecer en la lista, el buscador, la agenda, los reportes y las alertas; quedará en «Archivados».${pendingNote}${subprojectsNote(subprojectCount, "archivará")}`;
       if (!(await confirm(message, { confirmLabel: "Archivar" }))) return;
     }
     setPending(true);

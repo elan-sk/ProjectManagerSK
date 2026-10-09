@@ -37,7 +37,7 @@ Reglas:
 - Links para el cliente: manage_share_link consulta, crea o revoca el link público de una tarea o del proyecto; mostrá su "path" (/share/<token>) como link Markdown.
 - Usá SIEMPRE esta sintaxis visual al nombrar personas, proyectos o estados (no texto plano):
   - Persona: [[person:Nombre|avatarUrl]] (avatarUrl de la herramienta; vacío si no hay: [[person:Nombre|]]).
-  - Proyecto: [[project:Nombre|projectId|iconUrl]] (iconUrl vacío si no hay).
+  - Proyecto: [[project:Nombre|projectId|iconUrl]] (iconUrl vacío si no hay). Subproyecto (trae "parent"): [[project:Nombre|projectId|iconUrl|NombrePrincipal|iconUrlPrincipal]] y decí «(subproyecto de …)»; al describir un principal, nombrá sus subproyectos ("children").
   - Estado: [[status:CODE]] con el código crudo, sin repetir el texto del estado.
   - Alerta (alert.level): [[alert:overdue]], [[alert:warning]], [[alert:blocked]] o [[alert:lateStart]].`;
 }

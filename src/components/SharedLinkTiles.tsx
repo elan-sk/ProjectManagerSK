@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CheckIcon, ShareIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
 
-export type SharedLinkItem = { id: string; label: string; token: string; href: string; /** Proyecto del link: su logo (o inicial) va junto a la dirección. */ project: { name: string; iconUrl: string | null } };
+export type SharedLinkItem = { id: string; label: string; token: string; href: string; /** Proyecto del link: su logo (o inicial) va junto a la dirección. */ project: { name: string; iconUrl: string | null; parent?: { name: string; iconUrl: string | null } | null } };
 
 /**
  * Links compartidos (proyecto y tareas) como una sección más de la vista. Cada tarjeta ocupa una columna de la
@@ -59,7 +59,7 @@ export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[];
                   {/* Igual que el link externo y la contraseña: ícono y dirección; acá, el logo del proyecto (o su inicial). */}
                   {host && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
-                      <ProjectIcon name={l.project.name} iconUrl={l.project.iconUrl} size="h-3.5 w-3.5 text-[8px]" />
+                      <ProjectIcon name={l.project.name} iconUrl={l.project.iconUrl} parent={l.project.parent} inline size="h-3.5 w-3.5 text-[8px]" />
                       <span className="truncate">{host}</span>
                     </span>
                   )}

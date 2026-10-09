@@ -179,6 +179,7 @@ export function HeaderSearch() {
                         <ProjectIcon
                           name={h.project.name}
                           iconUrl={h.project.iconUrl}
+                          parent={h.project.parent}
                           size={h.kind === "project" ? "h-10 w-10 rounded-lg text-base" : "h-7 w-7 rounded text-xs"}
                         />
                       )}

@@ -15,7 +15,9 @@ import { updateProjectDescription, updatePhase, deletePhase, addObjective, updat
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
-import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor } from "@/lib/permissions";
+import { newSubprojectParentError } from "@/lib/subprojectsServer";
+import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
+import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -439,7 +441,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
 export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "create_project",
-    description: "Crea un proyecto nuevo (con una fase inicial \"General\"). Si no se indica pmId, el PM es la persona que conversa.",
+    description: "Crea un proyecto nuevo (con una fase inicial \"General\"). Si no se indica pmId, el PM es la persona que conversa. Con parentId se crea como subproyecto de ese proyecto principal (solo dos niveles: el principal no puede ser a su vez subproyecto).",
     input_schema: {
       type: "object",
       properties: {
@@ -447,6 +449,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         clientName: { type: "string", description: "Opcional." },
         startDate: { type: "string", description: "Fecha de inicio YYYY-MM-DD." },
         pmId: { type: "string", description: "Opcional — id del usuario que será PM." },
+        parentId: { type: "string", description: "Opcional — id del proyecto principal (crearlo como subproyecto)." },
       },
       required: ["name", "startDate"],
     },
@@ -454,7 +457,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "update_project",
     description:
-      "Edita un proyecto: nombre, cliente, fecha de inicio, fecha de cierre (targetEndDate, vacío la quita), descripción del proyecto (description, el texto de la pestaña Definición; vacío la borra) o ícono (iconUrl = ruta /uploads/… de una imagen subida en el chat). Solo se cambia lo que se mande.",
+      "Edita un proyecto: nombre, cliente, fecha de inicio, fecha de cierre (targetEndDate, vacío la quita), descripción del proyecto (description, el texto de la pestaña Definición; vacío la borra), ícono (iconUrl = ruta /uploads/… de una imagen subida en el chat) o proyecto principal (parentId: id del principal para volverlo subproyecto; vacío lo quita del grupo). Solo se cambia lo que se mande.",
     input_schema: {
       type: "object",
       properties: {
@@ -465,6 +468,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         targetEndDate: { type: "string", description: "YYYY-MM-DD, o vacío para quitarla." },
         description: { type: "string", description: "Descripción del proyecto en texto plano (reemplaza la actual)." },
         iconUrl: { type: "string" },
+        parentId: { type: "string", description: "Id del proyecto principal, o vacío para quitarlo del grupo." },
       },
       required: ["projectId"],
     },
@@ -492,7 +496,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "manage_objective",
-    description: "Gestiona los objetivos de la pestaña Definición: add (projectId, title, description?), update (objectiveId, title, description?) o delete (objectiveId).",
+    description: "Gestiona los objetivos de la pestaña Definición: add (projectId, title, description?), update (objectiveId, title, description?) o delete (objectiveId). En un subproyecto, parentObjectiveId liga el objetivo a uno del proyecto principal al que aporta (vacío lo desliga).",
     input_schema: {
       type: "object",
       properties: {
@@ -501,6 +505,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         objectiveId: { type: "string" },
         title: { type: "string" },
         description: { type: "string" },
+        parentObjectiveId: { type: "string", description: "Opcional — objetivo del proyecto principal al que aporta; vacío lo desliga." },
       },
       required: ["action"],
     },
@@ -721,7 +726,7 @@ async function getAccessibleProjectIds(userId: string): Promise<string[] | null>
   if (user.role === "ADMIN") return (await prisma.project.findMany({ where: visibleProjectWhere(user, { includeArchived: true }), select: { id: true } })).map((p) => p.id);
 
   const [pmProjects, assigned, reviewed] = await Promise.all([
-    prisma.project.findMany({ where: { pmId: userId }, select: { id: true } }),
+    prisma.project.findMany({ where: managedProjectWhere(userId), select: { id: true } }),
     prisma.taskAssignee.findMany({ where: { userId }, select: { task: { select: { projectId: true } } } }),
     prisma.taskReviewer.findMany({ where: { userId }, select: { task: { select: { projectId: true } } } }),
   ]);
@@ -754,7 +759,7 @@ async function getFileAccessibleTaskIds(userId: string): Promise<Set<string> | n
   }
 
   const [pmProjects, assigned, reviewed] = await Promise.all([
-    prisma.project.findMany({ where: { pmId: userId }, select: { tasks: { select: { id: true } } } }),
+    prisma.project.findMany({ where: managedProjectWhere(userId), select: { tasks: { select: { id: true } } } }),
     prisma.taskAssignee.findMany({ where: { userId }, select: { taskId: true } }),
     prisma.taskReviewer.findMany({ where: { userId }, select: { taskId: true } }),
   ]);
@@ -787,7 +792,7 @@ function computePhase(tasks: { status: string }[]) {
 async function myTasksWhere(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   if (user.role === "ADMIN") return { project: visibleProjectWhere(user) };
-  const pmProjects = await prisma.project.findMany({ where: { pmId: userId, ...LIVE_PROJECT_WHERE }, select: { id: true } });
+  const pmProjects = await prisma.project.findMany({ where: { ...managedProjectWhere(userId), ...LIVE_PROJECT_WHERE }, select: { id: true } });
   if (pmProjects.length > 0) return { projectId: { in: pmProjects.map((p) => p.id) } };
   return { assignees: { some: { userId } } };
 }
@@ -825,11 +830,12 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const accessibleIds = await getAccessibleProjectIds(userId);
       const projects = await prisma.project.findMany({
         where: { ...(accessibleIds ? { id: { in: accessibleIds } } : {}), ...LIVE_PROJECT_WHERE },
-        select: { id: true, name: true, clientName: true, iconUrl: true, tasks: { select: { status: true } } },
+        select: { id: true, name: true, clientName: true, iconUrl: true, parent: { select: { id: true, name: true, iconUrl: true } }, tasks: { select: { status: true } } },
         orderBy: { name: "asc" },
       });
+      // Spec 004: parent = proyecto principal de un subproyecto.
       return JSON.stringify(
-        projects.map((p) => ({ id: p.id, name: p.name, clientName: p.clientName, iconUrl: p.iconUrl, ...computePhase(p.tasks) }))
+        projects.map((p) => ({ id: p.id, name: p.name, clientName: p.clientName, iconUrl: p.iconUrl, parent: p.parent, ...computePhase(p.tasks) }))
       );
     }
 
@@ -890,6 +896,9 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           startDate: true,
           targetEndDate: true,
           iconUrl: true,
+          // Spec 004: proyecto principal (si es subproyecto) y subproyectos (si es principal).
+          parent: { select: { id: true, name: true, iconUrl: true } },
+          children: { where: LIVE_PROJECT_WHERE, select: { id: true, name: true, iconUrl: true }, orderBy: { name: "asc" } },
           pm: { select: { name: true, avatarUrl: true } },
           phases: { select: { id: true, name: true, order: true }, orderBy: { order: "asc" } },
           links: { select: { title: true, url: true } },
@@ -1229,7 +1238,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const senderId = await currentUserId();
         const [sender, project, task, whatsapp] = await Promise.all([
           prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
-          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, whatsappGroupJid: true, hidden: true } }),
+          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, parent: { select: { pmId: true } }, whatsappGroupJid: true, hidden: true } }),
           prisma.task.findFirst({
             where: { id: taskId, projectId },
             select: { title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } },
@@ -1237,7 +1246,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           getWhatsAppSettings(),
         ]);
         if (!project) return { ok: false, message: "No existe ese proyecto." };
-        if (sender.role !== "ADMIN" && project.pmId !== senderId) {
+        if (sender.role !== "ADMIN" && !isProjectPm(project, senderId)) {
           return { ok: false, message: "Solo el PM de este proyecto o un administrador pueden escribir en su grupo." };
         }
         if (!task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
@@ -1646,8 +1655,12 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
       try {
         const userId = await currentUserId();
         const parsed = z
-          .object({ name: z.string().trim().min(1), clientName: z.string().optional(), startDate: z.coerce.date(), pmId: z.string().optional() })
+          .object({ name: z.string().trim().min(1), clientName: z.string().optional(), startDate: z.coerce.date(), pmId: z.string().optional(), parentId: z.string().optional() })
           .parse(input);
+        if (parsed.parentId) {
+          const parentError = await newSubprojectParentError(parsed.parentId);
+          if (parentError) return { ok: false, message: parentError };
+        }
         const pmId = parsed.pmId ?? userId;
         if (!(await prisma.user.findFirst({ where: { id: pmId, active: true }, select: { id: true } }))) return { ok: false, message: "Ese PM no existe o está inactivo." };
         const project = await prisma.project.create({
@@ -1656,6 +1669,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             clientName: parsed.clientName || null,
             startDate: parsed.startDate,
             pmId,
+            parentId: parsed.parentId || null,
             countryCode: await getAppCountryCode(),
             phases: { create: [{ name: "General", order: 0 }] },
           },
@@ -1678,6 +1692,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             targetEndDate: z.string().optional(),
             description: z.string().optional(),
             iconUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ícono inválido: tiene que ser una imagen subida.").optional(),
+            parentId: z.string().optional(),
           })
           .parse(input);
         await requireProjectAdmin(parsed.projectId);
@@ -1687,6 +1702,11 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         if (parsed.clientName !== undefined) (data.clientName = parsed.clientName.trim() || null), changed.push("cliente");
         if (parsed.iconUrl !== undefined) (data.iconUrl = parsed.iconUrl), changed.push("ícono");
         if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: parsed.projectId }, data });
+        if (parsed.parentId !== undefined) {
+          const r = await setProjectParent(parsed.projectId, parsed.parentId || null);
+          if (!r.ok) return { ok: false, message: r.error };
+          changed.push(parsed.parentId ? "proyecto principal" : "quitado del grupo");
+        }
         if (parsed.startDate !== undefined) {
           const fd = new FormData();
           fd.set("startDate", parsed.startDate);
@@ -1764,11 +1784,12 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     case "manage_objective": {
       try {
         const parsed = z
-          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), objectiveId: z.string().optional(), title: z.string().optional(), description: z.string().optional() })
+          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), objectiveId: z.string().optional(), title: z.string().optional(), description: z.string().optional(), parentObjectiveId: z.string().optional() })
           .parse(input);
         const fd = new FormData();
         fd.set("title", parsed.title ?? "");
         if (parsed.description) fd.set("description", parsed.description);
+        if (parsed.parentObjectiveId !== undefined) fd.set("parentObjectiveId", parsed.parentObjectiveId);
         let r: { ok: boolean; error?: string };
         if (parsed.action === "add") r = parsed.projectId ? await addObjective(parsed.projectId, fd) : { ok: false, error: "Falta el proyecto." };
         else if (!parsed.objectiveId) r = { ok: false, error: "Falta indicar el objetivo." };

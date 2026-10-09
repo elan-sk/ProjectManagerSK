@@ -8,7 +8,7 @@ import { createProject } from "./actions";
 // mostrar el error: la acción es una redirect() en el camino feliz, así que
 // nunca se armó un manejo de resultado. Mismo patrón que el resto de los
 // formularios de la app (useTransition + error en pantalla).
-export function CreateProjectForm({ users }: { users: { id: string; name: string }[] }) {
+export function CreateProjectForm({ users, parentId }: { users: { id: string; name: string }[]; parentId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,6 +25,7 @@ export function CreateProjectForm({ users }: { users: { id: string; name: string
       }}
       className="space-y-3"
     >
+      {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Nombre</label>
         <input name="name" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
@@ -53,7 +54,7 @@ export function CreateProjectForm({ users }: { users: { id: string; name: string
         disabled={isPending}
         className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
       >
-        {isPending ? "Creando…" : "Crear proyecto"}
+        {isPending ? "Creando…" : parentId ? "Crear subproyecto" : "Crear proyecto"}
       </button>
     </form>
   );

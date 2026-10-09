@@ -4,6 +4,7 @@ import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentSections } from "./[id]/tasks/[taskId]/AttachmentSections";
 import type { SharedLinkItem } from "@/components/SharedLinkTiles";
+import type { PlaceLink } from "./[id]/tasks/[taskId]/AttachmentPreview";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -38,7 +39,7 @@ export function AllProjectsFilesView({
   fileQ,
   filesHref,
 }: {
-  files: { id: string; projectId: string; projectName: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; subtitle?: string }[];
+  files: { id: string; projectId: string; projectName: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; subtitle?: string; project?: PlaceLink["project"] }[];
   projects: { id: string; label: string }[];
   // Ver mismo comentario en ProjectFilesView.
   sharedLinks: SharedLinkItem[];
@@ -118,8 +119,8 @@ export function AllProjectsFilesView({
             name: f.fileName,
             mimeType: f.mimeType,
             taskLink: f.taskId
-              ? { href: `/projects/${f.projectId}/tasks/${f.taskId}`, title: `${f.projectName} — ${f.taskTitle}${f.section ? ` · ${f.section}` : ""}` }
-              : { href: `/projects/${f.projectId}`, title: `${f.projectName} (insumo del proyecto)` },
+              ? { href: `/projects/${f.projectId}/tasks/${f.taskId}`, title: `${f.projectName} — ${f.taskTitle}${f.section ? ` · ${f.section}` : ""}`, project: f.project }
+              : { href: `/projects/${f.projectId}`, title: `${f.projectName} (insumo del proyecto)`, project: f.project },
             subtitle: f.subtitle,
           }))}
         />

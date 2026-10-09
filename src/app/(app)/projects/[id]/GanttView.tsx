@@ -7,7 +7,7 @@ import Link from "next/link";
 import { TASK_STATUS_COLOR } from "@/lib/statusColors";
 import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon, UrgentIcon } from "@/components/icons";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
-import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { setDependency, removeDependency, deleteTask } from "./tasks/[taskId]/actions";
@@ -31,6 +31,8 @@ export type GanttTask = {
   projectId: string;
   projectName: string;
   projectIconUrl: string | null;
+  /** Subproyecto (spec 004): proyecto principal, para el doble ícono. */
+  projectParent?: ProjectIconParent;
   title: string;
   // Urgente: el encabezado de la fila se resalta con icono y color.
   isUrgent: boolean;
@@ -236,6 +238,7 @@ export function GanttView({
   users,
   collisionUrlBase = "/projects",
   focusCollision = false,
+  projectHeaders,
 }: {
   businessDays: Date[];
   tasks: GanttTask[];
@@ -251,6 +254,8 @@ export function GanttView({
   // hasta la fecha de inicio MÁS TEMPRANA de ese bloque, en vez de dejar al
   // usuario buscarlo a mano.
   focusCollision?: boolean;
+  /** Gantt de un proyecto principal (spec 004): encabezado con barra resumen antes de las fases de cada subproyecto. */
+  projectHeaders?: Record<string, { pct: number }>;
 }) {
   const router = useRouter();
   const showToast = useToast();
@@ -833,7 +838,18 @@ export function GanttView({
   // siguiente sin importar en qué fase/fila esté cada una.
   const rowCenterY = new Map<string, number>();
   let cursorY = 0;
-  for (const phaseTasks of grouped.values()) {
+  // Primer grupo (fase) de cada subproyecto: ahí va su encabezado, que ocupa una fila más.
+  const headerBeforeGroup = new Map<string, string>();
+  for (const [key, phaseTasks] of grouped) {
+    const pid = phaseTasks[0].projectId;
+    if (projectHeaders?.[pid] && ![...headerBeforeGroup.values()].includes(pid)) headerBeforeGroup.set(key, pid);
+  }
+  const projectSpan = (pid: string) => {
+    const own = tasks.filter((t) => t.projectId === pid);
+    return { start: Math.min(...own.map((t) => t.startIndex)), end: Math.max(...own.map((t) => t.startIndex + t.span)) };
+  };
+  for (const [key, phaseTasks] of grouped) {
+    if (headerBeforeGroup.has(key)) cursorY += PHASE_ROW_HEIGHT;
     cursorY += PHASE_ROW_HEIGHT;
     for (const t of phaseTasks) {
       rowCenterY.set(t.id, cursorY + TASK_ROW_HEIGHT / 2);
@@ -989,8 +1005,27 @@ export function GanttView({
             const phaseHasOverdue = phaseTasks.some((t) => t.alert.level === "overdue");
             const first = phaseTasks[0];
 
+            const headerPid = headerBeforeGroup.get(groupKey);
+            const headerSpan = headerPid ? projectSpan(headerPid) : null;
             return (
               <div key={groupKey}>
+                {headerPid && headerSpan && (
+                  <div className="flex items-center border-t-2 border-slate-300 bg-slate-100" style={{ minWidth: LABEL_WIDTH + timelineWidth, height: PHASE_ROW_HEIGHT }}>
+                    <div className="z-30 flex flex-shrink-0 items-center gap-1.5 self-stretch bg-slate-100 px-3 py-1.5 sm:sticky sm:left-0" style={{ width: LABEL_WIDTH }}>
+                      <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} parent={first.projectParent} size="h-5 w-5 flex-shrink-0 text-[9px]" projectId={first.projectId} />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-slate-800" title={first.projectName}>{first.projectName}</p>
+                        <p className="text-[10px] text-slate-500">{projectHeaders![headerPid].pct}% completado</p>
+                      </div>
+                    </div>
+                    <div className="relative z-10 flex-1" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
+                      <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
+                      <div className="absolute top-1/2 h-2.5 -translate-y-1/2 overflow-hidden bg-slate-300" style={{ left: headerSpan.start * DAY_WIDTH, width: (headerSpan.end - headerSpan.start) * DAY_WIDTH }}>
+                        <div className="progress-fill-emerald h-full" style={{ width: `${projectHeaders![headerPid].pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div
                   className="flex items-center bg-slate-50"
                   // ponytail: content-visibility salta el layout/paint de filas
@@ -1006,7 +1041,7 @@ export function GanttView({
                     style={{ width: LABEL_WIDTH }}
                   >
                     <Link href={`/projects/${first.projectId}`} aria-label={`Ir al proyecto ${first.projectName}`} onClick={(e) => e.stopPropagation()} className="contents">
-                      <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} size="h-5 w-5 flex-shrink-0 text-[9px]" />
+                      <ProjectIcon name={first.projectName} iconUrl={first.projectIconUrl} parent={first.projectParent} size="h-5 w-5 flex-shrink-0 text-[9px]" />
                     </Link>
                     <div className="min-w-0">
                       <p className="truncate text-xs font-semibold text-slate-600" title={first.phaseName}>{first.phaseName}</p>

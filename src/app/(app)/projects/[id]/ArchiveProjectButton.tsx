@@ -18,14 +18,15 @@ import { hrefWithMemory } from "../../NavLinkWithMemory";
 // que React nunca llegue a pintar el modal (se reprodujo así en pruebas
 // locales: el botón quedaba en "Eliminando…" para siempre sin que apareciera
 // nada). Mismo patrón que ya usa el resto de la app (ver ProjectLinksPanel).
-export function ArchiveProjectButton({ projectId, projectName }: { projectId: string; projectName: string }) {
+import { subprojectsNote } from "@/lib/subprojects";
+export function ArchiveProjectButton({ projectId, projectName, subprojectCount = 0 }: { projectId: string; projectName: string; subprojectCount?: number }) {
   const router = useRouter();
   const confirm = useConfirm();
   const showToast = useToast();
   const [isPending, setIsPending] = useState(false);
 
   async function handleDelete() {
-    const ok = await confirm(`¿Eliminar el proyecto "${projectName}"? No lo vas a volver a ver ni a poder usar.`, {
+    const ok = await confirm(`¿Eliminar el proyecto "${projectName}"? No lo vas a volver a ver ni a poder usar.${subprojectsNote(subprojectCount, "eliminará")}`, {
       confirmLabel: "Eliminar proyecto",
       danger: true,
     });

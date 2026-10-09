@@ -5,6 +5,7 @@ import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { parentObjectiveFrom } from "@/lib/objectiveLink";
 import { requireProjectAdmin, type Actor } from "@/lib/permissions";
 import { listGroups } from "@/lib/whatsapp";
 import { fetchPageTitle } from "@/lib/pageTitle";
@@ -78,8 +79,10 @@ export async function addObjective(projectId: string, formData: FormData, actor?
   });
   if (!parsed.success) return { ok: false as const, error: "Ponele un título al objetivo." };
   const data = parsed.data;
+  const link = await parentObjectiveFrom(projectId, formData);
+  if (link.error) return { ok: false as const, error: link.error };
   const count = await prisma.objective.count({ where: { projectId } });
-  await prisma.objective.create({ data: { projectId, title: data.title, description: data.description, order: count } });
+  await prisma.objective.create({ data: { projectId, title: data.title, description: data.description, order: count, parentObjectiveId: link.value ?? null } });
   revalidatePath(`/projects/${projectId}`);
   return { ok: true as const };
 }
@@ -95,7 +98,12 @@ export async function updateObjective(objectiveId: string, formData: FormData, a
   });
   if (!parsed.success) return { ok: false as const, error: "Ponele un título al objetivo." };
   const data = parsed.data;
-  await prisma.objective.update({ where: { id: objectiveId }, data: { title: data.title, description: data.description } });
+  const link = await parentObjectiveFrom(objective.projectId, formData);
+  if (link.error) return { ok: false as const, error: link.error };
+  await prisma.objective.update({
+    where: { id: objectiveId },
+    data: { title: data.title, description: data.description, ...(link.value !== undefined ? { parentObjectiveId: link.value } : {}) },
+  });
   revalidatePath(`/projects/${objective.projectId}`);
   return { ok: true as const };
 }

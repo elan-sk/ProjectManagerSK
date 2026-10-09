@@ -5,6 +5,7 @@ import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { findScheduleCollisions, type CollisionInfo } from "@/lib/collisions";
 import { projectHealth, HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectPhase, PROJECT_PHASE_LABEL } from "@/lib/statusColors";
+import { groupRows, worstVariance } from "@/lib/subprojects";
 import type { Prisma } from "@prisma/client";
 
 // Extraído de /projects/page.tsx para poder reusar EXACTAMENTE la misma
@@ -15,6 +16,8 @@ import type { Prisma } from "@prisma/client";
 // `where` en vez de ser siempre "todos los no archivados".
 const projectInclude = {
   pm: true,
+  // Spec 004: principal de un subproyecto (doble ícono cuando el subproyecto sale suelto).
+  parent: { select: { id: true, name: true, iconUrl: true } },
   tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
   attachments: { orderBy: { uploadedAt: "asc" as const } },
   links: { orderBy: { createdAt: "asc" as const } },
@@ -138,4 +141,44 @@ export async function getProjectSummaryRows(
       };
     })
   );
+}
+
+/**
+ * Spec 004 (RF-23/RF-25): una tarjeta por proyecto principal con los números de todo su grupo; sus
+ * subproyectos no salen en tarjeta propia si el principal está en la lista (van en el grupito de logos).
+ * Un subproyecto cuyo principal no está en la lista sale suelto (con el ícono del principal).
+ */
+export type GroupedSummaryRow = ProjectSummaryRow & { subprojects: { id: string; name: string; iconUrl: string | null }[] };
+export function groupSummaryRows(rows: ProjectSummaryRow[]): GroupedSummaryRow[] {
+  const { visible, childrenOf } = groupRows(rows.map((r) => ({ id: r.project.id, parentId: r.project.parentId, row: r })));
+  return visible.map(({ id, row }) => {
+    const kids = (childrenOf.get(id) ?? []).map((k) => k.row);
+    if (kids.length === 0) return { ...row, subprojects: [] };
+    const all = [row, ...kids].map((r) => r.summary);
+    const sum = (f: (x: ProjectSummaryRow["summary"]) => number) => all.reduce((acc, x) => acc + f(x), 0);
+    const total = sum((x) => x.total);
+    const completed = sum((x) => x.completed);
+    const overdueCount = sum((x) => x.overdueCount);
+    const slack = all.map((x) => x.openSlackDays).filter((v): v is number => v !== null);
+    return {
+      project: row.project,
+      subprojects: kids.map((k) => ({ id: k.project.id, name: k.project.name, iconUrl: k.project.iconUrl })),
+      summary: {
+        overdueCount,
+        warningCount: sum((x) => x.warningCount),
+        lateStartCount: sum((x) => x.lateStartCount),
+        overdueTasks: all.flatMap((x) => x.overdueTasks),
+        warningTasks: all.flatMap((x) => x.warningTasks),
+        lateStartTasks: all.flatMap((x) => x.lateStartTasks),
+        bottlenecks: all.flatMap((x) => x.bottlenecks),
+        total,
+        completed,
+        health: projectHealth(overdueCount, total),
+        phase: projectPhase(total, completed, all.some((x) => x.phase !== "PLANNING")),
+        collisionTasks: all.flatMap((x) => x.collisionTasks),
+        openSlackDays: slack.length > 0 ? Math.min(...slack) : null,
+        scheduleVarianceDays: worstVariance(all.map((x) => x.scheduleVarianceDays)),
+      },
+    };
+  });
 }

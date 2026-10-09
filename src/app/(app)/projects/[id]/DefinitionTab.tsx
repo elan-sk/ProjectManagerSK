@@ -9,6 +9,9 @@ import { RequirementsPanel } from "./RequirementsPanel";
 import { PhasesPanel } from "./PhasesPanel";
 import { ProjectLinksPanel } from "./ProjectLinksPanel";
 import { ProjectWhatsAppGroupPanel } from "./ProjectWhatsAppGroupPanel";
+import { SubprojectsPanel } from "./SubprojectsPanel";
+import { DefinitionSummary } from "./DefinitionSummary";
+import type { ComponentProps } from "react";
 import type { ObjectiveSummary, RequirementSummary, PhaseSummary, TaskRef } from "@/lib/cascadeProgress";
 import type { TaskStatus } from "@prisma/client";
 
@@ -25,6 +28,9 @@ export function DefinitionTab({
   attachments,
   credentials,
   whatsappGroupJid,
+  subprojects,
+  parentObjectives,
+  taskProgress,
 }: {
   projectId: string;
   name: string;
@@ -45,12 +51,17 @@ export function DefinitionTab({
   links: { id: string; title: string; url: string }[];
   attachments: { id: string; fileName: string; fileUrl: string; mimeType: string }[];
   credentials: { id: string; name: string; url: string | null }[];
+  /** Spec 004: bloque Subproyectos (o «Subproyecto de…»). */
+  subprojects: Omit<ComponentProps<typeof SubprojectsPanel>, "projectId" | "canManage">;
+  parentObjectives?: { id: string; title: string }[];
+  /** Tareas completadas / total (en un principal, de todo el grupo). */
+  taskProgress: { completed: number; total: number };
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <ProjectIcon name={name} iconUrl={iconUrl} size="h-12 w-12 text-[18px]" projectId={projectId} />
+          <ProjectIcon name={name} iconUrl={iconUrl} parent={subprojects.parent} size="h-12 w-12 text-[18px]" projectId={projectId} />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-[18px] font-medium text-slate-900">Descripción</p>
             {canManage ? (
@@ -71,7 +82,17 @@ export function DefinitionTab({
         )}
       </div>
 
-      <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} />
+      <SubprojectsPanel projectId={projectId} canManage={canManage} {...subprojects} />
+
+      <DefinitionSummary
+        taskProgress={taskProgress}
+        objectives={objectives.map((o) => ({ id: o.id, label: o.title, pct: o.pct, atRisk: o.atRiskRequirementCount > 0 }))}
+        requirements={requirements.map((r) => ({ id: r.id, label: r.title, pct: r.pct, atRisk: r.atRiskPhaseCount > 0 }))}
+        phases={phases.map((p) => ({ id: p.id, label: p.name, pct: p.pct, atRisk: p.atRisk }))}
+        subprojects={subprojects.subprojects.map((s) => ({ id: s.id, label: s.name, pct: s.pct, atRisk: false }))}
+      />
+
+      <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} parentObjectives={parentObjectives} />
 
       <RequirementsPanel
         projectId={projectId}

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { updateObjective, deleteObjective } from "@/app/(app)/projects/[id]/definitionActions";
 
-const bodySchema = z.object({ title: z.string().min(1), description: z.string().nullable().optional() });
+// parentObjectiveId (spec 004): objetivo del proyecto principal al que aporta; null lo desliga.
+const bodySchema = z.object({ title: z.string().min(1), description: z.string().nullable().optional(), parentObjectiveId: z.string().nullable().optional() });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; objectiveId: string }> }) {
   const auth = await requireApiUser(request);
@@ -19,6 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const formData = new FormData();
   formData.set("title", parsed.data.title);
   if (parsed.data.description) formData.set("description", parsed.data.description);
+  if (parsed.data.parentObjectiveId !== undefined) formData.set("parentObjectiveId", parsed.data.parentObjectiveId ?? "");
 
   const result = await updateObjective(objectiveId, formData, auth.actor);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 403 });

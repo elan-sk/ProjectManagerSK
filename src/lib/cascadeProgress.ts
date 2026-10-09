@@ -120,6 +120,11 @@ export type ObjectiveSummary = {
   requirementIds: string[];
   openSlackDays: number | null;
   scheduleVarianceDays: number | null;
+  /** Spec 004: objetivo del proyecto principal al que aporta (solo en subproyectos). */
+  parentObjectiveId: string | null;
+  parentObjectiveTitle: string | null;
+  /** Spec 004: objetivos de subproyectos que aportan a este (solo en proyectos principales). */
+  contributions: { id: string; title: string; pct: number; projectId: string; projectName: string; projectIconUrl: string | null }[];
 };
 
 export async function getProjectCascadeProgress(projectId: string) {
@@ -128,7 +133,16 @@ export async function getProjectCascadeProgress(projectId: string) {
     prisma.objective.findMany({
       where: { projectId },
       orderBy: { order: "asc" },
-      include: { requirements: { select: { id: true, title: true } } },
+      include: {
+        requirements: { select: { id: true, title: true } },
+        parentObjective: { select: { id: true, title: true } },
+        // Solo de subproyectos activos (no archivados ni eliminados).
+        contributions: {
+          where: { project: { archivedAt: null, status: { not: "ARCHIVED" } } },
+          orderBy: { order: "asc" },
+          select: { id: true, title: true, projectId: true, project: { select: { name: true, iconUrl: true } } },
+        },
+      },
     }),
     prisma.requirement.findMany({
       where: { projectId },
@@ -213,11 +227,21 @@ export async function getProjectCascadeProgress(projectId: string) {
   const requirementSlackById = new Map(requirements.map((r) => [r.id, r.openSlackDays]));
   const requirementVarianceById = new Map(requirements.map((r) => [r.id, r.scheduleVarianceDays]));
 
+  // Avance de los objetivos de subproyectos que aportan (un subproyecto no tiene subproyectos: no hay recursión infinita).
+  const contributorProjectIds = [...new Set(objectivesRaw.flatMap((o) => o.contributions.map((c) => c.projectId)))];
+  const contributorPct = new Map(
+    (await Promise.all(contributorProjectIds.map((id) => getProjectCascadeProgress(id)))).flatMap((c) => c.objectives.map((o) => [o.id, o.pct] as const))
+  );
+
   const objectives: ObjectiveSummary[] = objectivesRaw.map((o) => ({
     id: o.id,
     title: o.title,
     description: o.description,
-    pct: average(o.requirements.map((r) => requirementPctById.get(r.id) ?? 0)),
+    parentObjectiveId: o.parentObjective?.id ?? null,
+    parentObjectiveTitle: o.parentObjective?.title ?? null,
+    contributions: o.contributions.map((c) => ({ id: c.id, title: c.title, pct: contributorPct.get(c.id) ?? 0, projectId: c.projectId, projectName: c.project.name, projectIconUrl: c.project.iconUrl })),
+    // Promedio simple entre sus requerimientos y los objetivos de subproyectos que aportan (RF-15).
+    pct: average([...o.requirements.map((r) => requirementPctById.get(r.id) ?? 0), ...o.contributions.map((c) => contributorPct.get(c.id) ?? 0)]),
     atRiskRequirementCount: o.requirements.filter((r) => requirementAtRiskById.get(r.id)).length,
     atRiskTasks: dedupeById(o.requirements.flatMap((r) => requirementAtRiskTasksById.get(r.id) ?? [])),
     requirementTitles: o.requirements.map((r) => r.title),

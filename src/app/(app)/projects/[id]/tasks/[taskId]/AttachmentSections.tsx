@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { KeyIcon } from "@/components/icons";
 import { attachmentFileType, linkKey, type AttachmentFileType } from "@/lib/attachments";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
+import type { PlaceLink } from "./AttachmentPreview";
 import { SharedLinkTiles, type SharedLinkItem } from "@/components/SharedLinkTiles";
 
 // Vista «Archivos»: la lista se separa por tipo — links, imágenes y documentos —, cada uno con su título
@@ -67,7 +68,7 @@ export function AttachmentSections({
 }
 
 function groupByUrl(items: AttachmentGridItem[]): AttachmentGridItem[] {
-  const byUrl = new Map<string, AttachmentGridItem & { usedIn: { href: string; title: string }[] }>();
+  const byUrl = new Map<string, AttachmentGridItem & { usedIn: PlaceLink[] }>();
   for (const item of items) {
     const key = linkKey(item.url); // mismo link aunque cambie el nombre o un detalle de la dirección
     const existing = byUrl.get(key);

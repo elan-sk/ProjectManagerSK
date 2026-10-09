@@ -1,11 +1,10 @@
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
-import { visibleProjectWhere } from "@/lib/permissions";
+import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
 import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
 import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { ComboFilter } from "@/components/ComboFilter";
 import { ArchiveIcon, OverlapIcon } from "@/components/icons";
-import { SearchBox } from "@/components/SearchBox";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
@@ -14,6 +13,7 @@ import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { businessDaysRange } from "@/lib/holidays";
 import { prisma } from "@/lib/prisma";
 import { getProjectSummaryRows } from "@/lib/projectSummaries";
+import { expandProjectFilter, projectFilterOptions } from "@/lib/subprojects";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
@@ -56,12 +56,14 @@ export default async function ProjectsPage({
     fileType?: string;
     fileProject?: string;
     fileQ?: string;
+    /** Spec 004: filtro «Proyecto» del Panorama general (reemplaza a Buscar); un principal incluye sus subproyectos. */
+    proj?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const { risk, view, date, mode, status, type, userId, q, tag, from: fromParam, to: toParam, collision, pid, health, fileKind, fileType, fileProject, fileQ } = await searchParams;
+  const { risk, view, date, mode, status, type, userId, q, tag, from: fromParam, to: toParam, collision, pid, health, fileKind, fileType, fileProject, fileQ, proj } = await searchParams;
   const from = parseDayKey(fromParam);
   const to = parseDayKey(toParam);
 
@@ -71,7 +73,7 @@ export default async function ProjectsPage({
   const isAdmin = session.user.role === "ADMIN";
   const myPmProjectIds = isAdmin
     ? null
-    : (await prisma.project.findMany({ where: { pmId: session.user.id }, select: { id: true } })).map((p) => p.id);
+    : (await prisma.project.findMany({ where: managedProjectWhere(session.user.id), select: { id: true } })).map((p) => p.id);
   const isPM = Boolean(myPmProjectIds && myPmProjectIds.length > 0);
   const canManageBoard = isAdmin || isPM;
   // Las colisiones de agenda (punto confirmado) solo se muestran a quien
@@ -102,6 +104,7 @@ export default async function ProjectsPage({
       from,
       to,
       collision,
+      proj,
       ...overrides,
     };
     for (const [k, v] of Object.entries(merged)) {
@@ -145,6 +148,7 @@ export default async function ProjectsPage({
         // adjuntos de tarea en la vista Archivos del panorama general.
         attachments: { orderBy: { uploadedAt: "asc" } },
         links: { orderBy: { createdAt: "asc" } },
+        parent: { select: { name: true, iconUrl: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -236,7 +240,7 @@ export default async function ProjectsPage({
     // Las tareas archivadas salen del flujo visual; las de proyectos ocultos, para quien no es admin.
     where: { ...boardWhere, archivedAt: null, project: hiddenPref.projectWhere },
     include: {
-      project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true } },
+      project: { select: { id: true, name: true, countryCode: true, startDate: true, color: true, iconUrl: true, parentId: true, parent: { select: { id: true, name: true, iconUrl: true } } } },
       phase: { select: { name: true } },
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
@@ -257,6 +261,11 @@ export default async function ProjectsPage({
   });
 
   const boardProjectIds = [...new Set(boardTasksRaw.map((t) => t.projectId))];
+  // Filtro «Proyecto» (spec 004): proyectos con tareas en este panorama, cada principal seguido de sus subproyectos.
+  const boardProjectNodes = [...new Map(boardTasksRaw.map((t) => [t.projectId, { id: t.projectId, parentId: t.project.parentId, name: t.project.name, parentName: t.project.parent?.name ?? null }])).values()];
+  const boardProjectOptions = projectFilterOptions(boardProjectNodes);
+  const projSet = expandProjectFilter(proj, boardProjectNodes);
+  const fileProjectSet = expandProjectFilter(fileProject, boardProjectNodes);
   // Etiquetas del filtro "Etiqueta": solo las ya usadas en algún proyecto
   // visible en este panorama (mismo criterio que projects/[id]/page.tsx, acá
   // agregado a través de todos los boardProjectIds).
@@ -308,6 +317,7 @@ export default async function ProjectsPage({
   };
   const matchesBoardFilters = (t: {
     id: string;
+    projectId: string;
     status: string;
     type: string;
     title: string;
@@ -326,6 +336,7 @@ export default async function ProjectsPage({
     (!userId || t.assignees.some((a) => a.userId === userId)) &&
     matchesTagFilter(tag, t.taskTags) &&
     (!collision || (myCollisionTaskIds ? myCollisionTaskIds.has(t.id) : Boolean(collisionsById.get(t.id)))) &&
+    (!projSet || projSet.has(t.projectId)) &&
     matchesTaskSearch(t, q);
 
   const earliestStart =
@@ -361,6 +372,7 @@ export default async function ProjectsPage({
       projectId: t.projectId,
       projectName: t.project.name,
       projectIconUrl: t.project.iconUrl,
+      projectParent: t.project.parent,
       title: t.title,
       type: t.type,
       isUrgent: t.isUrgent,
@@ -398,6 +410,7 @@ export default async function ProjectsPage({
         projectId: t.projectId,
         projectName: t.project.name,
         projectIconUrl: t.project.iconUrl,
+        projectParent: t.project.parent,
         title: t.title,
         isUrgent: t.isUrgent,
         phaseId: t.phaseId,
@@ -433,6 +446,7 @@ export default async function ProjectsPage({
       id: t.id,
       projectId: t.projectId,
       projectName: t.project.name,
+      projectParentName: t.project.parent?.name ?? null,
       title: t.title,
       isUrgent: t.isUrgent,
       attachmentsCount: t.attachments.length,
@@ -466,7 +480,7 @@ export default async function ProjectsPage({
     boardFileKind === "RESULTADO"
       ? []
       : projects
-          .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
+          .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProjectSet || fileProjectSet.has(p.id)))
           .flatMap((p) => [
             ...p.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null, projectId: p.id, projectName: p.name })),
             ...p.links.map((l) => ({
@@ -521,31 +535,31 @@ export default async function ProjectsPage({
         : []
     )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
-    .filter((a) => !fileProject || a.projectId === fileProject)
+    .filter((a) => !fileProjectSet || fileProjectSet.has(a.projectId))
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)))
     // Lo más reciente primero (ver projects/[id]/page.tsx).
     .sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
   const boardSharedLinks = [
     ...projects
-      .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
+      .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProjectSet || fileProjectSet.has(p.id)))
       .map((p) => {
         const token = projectShareTokenById.get(p.id);
-        return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}`, project: { name: p.name, iconUrl: p.iconUrl } } : null;
+        return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}`, project: { name: p.name, iconUrl: p.iconUrl, parent: p.parent } } : null;
       })
-      .filter((l): l is { id: string; label: string; token: string; href: string; project: { name: string; iconUrl: string | null } } => l !== null),
+      .filter((l) => l !== null),
     ...boardTasksRaw
-      .filter((t) => !fileProject || t.projectId === fileProject)
+      .filter((t) => !fileProjectSet || fileProjectSet.has(t.projectId))
       .map((t) => {
         const token = taskShareTokenById.get(t.id);
         return token
-          ? { id: `task:${t.id}`, label: `Tarea — ${t.title} (${t.project.name})`, token, href: `/projects/${t.projectId}/tasks/${t.id}`, project: { name: t.project.name, iconUrl: t.project.iconUrl } }
+          ? { id: `task:${t.id}`, label: `Tarea — ${t.title} (${t.project.name})`, token, href: `/projects/${t.projectId}/tasks/${t.id}`, project: { name: t.project.name, iconUrl: t.project.iconUrl, parent: t.project.parent } }
           : null;
       })
-      .filter((l): l is { id: string; label: string; token: string; href: string; project: { name: string; iconUrl: string | null } } => l !== null),
+      .filter((l) => l !== null),
   ].filter((l) => !fileQ || normalizeSearchText(l.label).includes(normalizeSearchText(fileQ)));
-  const boardFileProjectOptions = Array.from(new Map(boardTasksRaw.map((t) => [t.projectId, t.project.name])).entries()).map(
-    ([id, label]) => ({ id, label })
-  );
+  const boardFileProjectOptions = boardProjectOptions;
+  // Ícono de cada ficha de Archivos (doble ícono en subproyectos, spec 004).
+  const boardProjectIcon = new Map(boardTasksRaw.map((t) => [t.projectId, { name: t.project.name, iconUrl: t.project.iconUrl, parent: t.project.parent }]));
 
   return (
     <div className="space-y-8">
@@ -630,12 +644,16 @@ export default async function ProjectsPage({
 
         {view !== "files" && (
           <MobileFiltersToggle>
+            {/* Spec 004: «Proyecto» reemplaza a Buscar (ya está el buscador general). Un principal incluye sus subproyectos. */}
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-slate-400">Buscar</span>
-              <SearchBox
+              <span className="text-xs text-slate-400">Proyecto</span>
+              <ComboFilter
+                allLabel="Todos los proyectos"
+                value={proj}
+                options={boardProjectOptions}
+                paramKey="proj"
                 basePath="/projects"
-                q={q}
-                hiddenParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -646,7 +664,7 @@ export default async function ProjectsPage({
                 options={users.map((u) => ({ id: u.id, label: u.name }))}
                 paramKey="userId"
                 basePath="/projects"
-                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, proj, tag, collision }}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -661,7 +679,7 @@ export default async function ProjectsPage({
                 }))}
                 paramKey="status"
                 basePath="/projects"
-                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, proj, tag, collision }}
                 triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
               />
             </div>
@@ -681,7 +699,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="type"
                 basePath="/projects"
-                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, tag, collision }}
+                currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, q, proj, tag, collision }}
                 triggerColorClass={attributeTypeTriggerClass(type)}
               />
             </div>
@@ -694,7 +712,7 @@ export default async function ProjectsPage({
                   options={buildTagFilterOptions(tagCategories, boardTags)}
                   paramKey="tag"
                   basePath="/projects"
-                  currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, collision }}
+                  currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, proj, collision }}
                 />
               </div>
             )}
@@ -712,7 +730,7 @@ export default async function ProjectsPage({
                 ]}
                 paramKey="risk"
                 basePath="/projects"
-                currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, tag, collision }}
+                currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, status, type, q, proj, tag, collision }}
                 triggerColorClass={
                   risk === "overdue"
                     ? "bg-red-600 text-white"
@@ -732,7 +750,7 @@ export default async function ProjectsPage({
                 from={from}
                 to={to}
                 basePath="/projects"
-                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, q, tag, collision }}
+                currentParams={{ risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, userId, q, proj, tag, collision }}
               />
             </div>
             {canSeeCollisions && (
@@ -749,8 +767,8 @@ export default async function ProjectsPage({
               </div>
             )}
             <ResetFiltersButton
-              count={[q, userId, status, type, tag, risk, collision, from || to].filter(Boolean).length}
-              href={boardHref({ status: undefined, type: undefined, userId: undefined, risk: undefined, q: undefined, tag: undefined, collision: undefined, from: undefined, to: undefined })}
+              count={[q, proj, userId, status, type, tag, risk, collision, from || to].filter(Boolean).length}
+              href={boardHref({ status: undefined, type: undefined, userId: undefined, risk: undefined, q: undefined, tag: undefined, collision: undefined, from: undefined, to: undefined, proj: undefined })}
             />
           </MobileFiltersToggle>
         )}
@@ -777,7 +795,7 @@ export default async function ProjectsPage({
 
         {view === "files" ? (
           <AllProjectsFilesView
-            files={boardFiles}
+            files={boardFiles.map((f) => ({ ...f, project: boardProjectIcon.get(f.projectId) }))}
             projects={boardFileProjectOptions}
             sharedLinks={boardSharedLinks}
             fileKind={boardFileKind}
@@ -817,7 +835,7 @@ export default async function ProjectsPage({
             <KanbanBoard
               // Solo cambia con los filtros: las cards movidas de estado siguen
               // visibles hasta que se toquen los filtros (ver KanbanBoard).
-              key={[risk, status, type, userId, q, tag, collision, from, to].join("|")}
+              key={[risk, status, type, userId, q, tag, collision, from, to, proj].join("|")}
               initialTasks={boardTaskCards}
               showProjectName
               users={users}
