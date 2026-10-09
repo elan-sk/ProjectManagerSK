@@ -452,7 +452,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
 
   // Punto 2.3: un Entregable exige evidencia cargada antes de poder cerrarse.
   if (status === "COMPLETED" && task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
-    return { ok: false, error: "Este entregable necesita al menos una evidencia cargada para poder completarse." };
+    return { ok: false, error: "Este entregable necesita al menos un resultado cargado para poder completarse." };
   }
 
   // Punto 2.5: un Ajuste solo se completa cuando todos sus cambios quedaron

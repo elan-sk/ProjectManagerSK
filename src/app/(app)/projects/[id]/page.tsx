@@ -497,7 +497,7 @@ export default async function ProjectPage({
     .flatMap((t) =>
       t.attachments
         .filter((a) => !projectFileKind || a.kind === projectFileKind)
-        .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos", uploadedAt: a.uploadedAt }))
+        .map((a): FileRow => ({ id: a.id, fileUrl: a.fileUrl, fileName: a.fileName, mimeType: a.mimeType, taskId: t.id, taskTitle: t.title, section: a.kind === "RESULTADO" ? "Resultados" : "Insumos", uploadedAt: a.uploadedAt }))
     )
     .concat(projectRepoFiles)
     .concat(credentialFiles)

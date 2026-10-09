@@ -454,7 +454,7 @@ export async function addTaskAttachments(taskId: string, actor: Actor, kind: "IN
   const task = await loadTask(taskId);
   if (!task) return fail(404, "La tarea no existe.");
   if (!(await canEditTask(taskId, actor))) return fail(403, NO_EDIT);
-  if (task.status === "COMPLETED") return fail(409, `La tarea ya está completada — no se puede subir más ${kind === "RESULTADO" ? "evidencia" : "insumos"}.`);
+  if (task.status === "COMPLETED") return fail(409, `La tarea ya está completada — no se puede subir más ${kind === "RESULTADO" ? "resultados" : "insumos"}.`);
   const { fresh, skipped } = await splitNew({ taskId, kind }, files);
   for (const f of fresh) {
     const file = toFile(f);

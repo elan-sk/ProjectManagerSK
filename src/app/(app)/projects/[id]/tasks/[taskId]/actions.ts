@@ -151,7 +151,7 @@ export async function addStepLinkAttachment(stepId: string, url: string, name: s
 async function assertCanAddAttachment(taskId: string, kind: AttachmentKind) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { status: true } });
   if (task.status === "COMPLETED") {
-    const label = kind === "RESULTADO" ? "evidencia" : "insumos";
+    const label = kind === "RESULTADO" ? "resultados" : "insumos";
     throw new Error(`La tarea ya está completada — no se puede subir más ${label}.`);
   }
 }

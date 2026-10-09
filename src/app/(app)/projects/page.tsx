@@ -508,7 +508,7 @@ export default async function ProjectsPage({
           taskTitle: t.title,
           projectId: t.projectId,
           projectName: t.project.name,
-          section: a.kind === "RESULTADO" ? "Evidencias" : "Insumos",
+          section: a.kind === "RESULTADO" ? "Resultados" : "Insumos",
           uploadedAt: a.uploadedAt,
         }))
     )

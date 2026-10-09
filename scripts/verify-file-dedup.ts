@@ -47,7 +47,7 @@ async function main() {
 
     // RF-3/RF-4: repetido solo en la MISMA sección.
     assert.equal(await inSection({ taskId: task.id, kind: "INSUMO" }, urlFile), true, "ya está en Insumos");
-    assert.equal(await inSection({ taskId: task.id, kind: "RESULTADO" }, urlFile), false, "en Evidencias sí se permite");
+    assert.equal(await inSection({ taskId: task.id, kind: "RESULTADO" }, urlFile), false, "en Resultados sí se permite");
     assert.equal(await inSection({ taskId: task.id, kind: "INSUMO" }, `  ${urlFile}  `), true, "ignora espacios de los extremos");
     const split = await splitNew({ taskId: task.id, kind: "INSUMO" }, [
       { url: urlFile, name: "a.png" },

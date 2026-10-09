@@ -61,7 +61,7 @@ export function ProjectFilesView({
           Insumos
         </Link>
         <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
-          Evidencia
+          Resultados
         </Link>
         {canDelete && (
           <div className="ml-auto flex flex-shrink-0 gap-2">

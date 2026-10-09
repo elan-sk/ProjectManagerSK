@@ -300,7 +300,7 @@ function CompleteTaskButton({ taskId }: { taskId: string }) {
 
   async function handleClick() {
     const ok = await confirm(
-      "Una vez que la marques como completada, no vas a poder subir más evidencia para esta tarea. ¿Querés continuar?",
+      "Una vez que la marques como completada, no vas a poder subir más resultados para esta tarea. ¿Querés continuar?",
       { confirmLabel: "Sí, completar" }
     );
     if (!ok) return;

@@ -59,7 +59,7 @@ export function AllProjectsFilesView({
           Insumos
         </Link>
         <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
-          Evidencia
+          Resultados
         </Link>
       </div>
 

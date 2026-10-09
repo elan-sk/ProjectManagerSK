@@ -287,7 +287,7 @@ export default async function TaskDetailPage({
   if (task.steps.some((s) => !s.done)) {
     completionBlockedReason = "Todavía hay pasos del checklist sin completar.";
   } else if (task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
-    completionBlockedReason = "Este entregable necesita al menos una evidencia cargada para poder completarse.";
+    completionBlockedReason = "Este entregable necesita al menos un resultado cargado para poder completarse.";
   } else if (task.type === "ADJUSTMENT") {
     const pendingCount = task.adjustmentItems.filter(
       (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
@@ -601,7 +601,7 @@ export default async function TaskDetailPage({
           </div>
 
           <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-[21px] font-semibold text-slate-900">Evidencias</h2>
+            <h2 className="text-[21px] font-semibold text-slate-900">Resultados</h2>
             <AttachmentGrid
               items={resultados.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName, mimeType: a.mimeType }))}
               canDelete={canManage}
@@ -611,11 +611,11 @@ export default async function TaskDetailPage({
                 taskId={taskId}
                 userId={session.user.id}
                 kind="RESULTADO"
-                label="+ Subir evidencia"
+                label="+ Subir resultado"
               />
             )}
             {task.status === "COMPLETED" && (
-              <p className="text-xs text-slate-400">La tarea ya está completada — no se puede subir más evidencia.</p>
+              <p className="text-xs text-slate-400">La tarea ya está completada — no se puede subir más resultados.</p>
             )}
           </div>
         </section>

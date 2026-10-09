@@ -129,7 +129,7 @@ export function PublicTaskDetail({
             )}
           </div>
           <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-[21px] font-semibold text-slate-900">Evidencias</h2>
+            <h2 className="text-[21px] font-semibold text-slate-900">Resultados</h2>
             <PublicFileGrid files={evidencia} />
           </div>
         </div>

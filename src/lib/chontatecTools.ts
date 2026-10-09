@@ -256,14 +256,14 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "attach_link_to_task",
-    description: "Adjunta un enlace (URL) a una tarea como insumo o evidencia.",
+    description: "Adjunta un enlace (URL) a una tarea como insumo o resultado.",
     input_schema: {
       type: "object",
       properties: {
         taskId: { type: "string" },
         url: { type: "string" },
         name: { type: "string", description: "Nombre visible del enlace." },
-        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (evidencia)." },
+        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (resultado de la tarea)." },
       },
       required: ["taskId", "url", "name"],
     },
@@ -278,7 +278,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         taskId: { type: "string" },
         fileUrl: { type: "string", description: "Ruta /uploads/… exactamente como aparece en el mensaje." },
         fileName: { type: "string" },
-        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (evidencia)." },
+        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (resultado de la tarea)." },
       },
       required: ["taskId", "fileUrl", "fileName"],
     },
@@ -420,7 +420,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "add_task_files",
-    description: "Sube varios archivos o links de una vez como Insumos (INSUMO) o Evidencias (RESULTADO) de una tarea. Para uno solo también sirven attach_uploaded_file y attach_link_to_task.",
+    description: "Sube varios archivos o links de una vez como Insumos (INSUMO) o Resultados (RESULTADO) de una tarea. Para uno solo también sirven attach_uploaded_file y attach_link_to_task.",
     input_schema: {
       type: "object",
       properties: { taskId: { type: "string" }, kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO" }, files: FILE_REFS },
@@ -630,7 +630,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "remove_attachment",
-    description: "Elimina un adjunto (insumo o evidencia) de una tarea — IRREVERSIBLE.",
+    description: "Elimina un adjunto (insumo o resultado) de una tarea — IRREVERSIBLE.",
     input_schema: {
       type: "object",
       properties: { attachmentId: { type: "string" } },

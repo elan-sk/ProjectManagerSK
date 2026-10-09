@@ -74,7 +74,7 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
   ```json
   { "name": "string", "clientName": "string?", "startDate": "2026-09-07", "pmId": "string" }
   ```
-- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/evidencias, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella), `delays` (atrasos por tarea, ver regla abajo) y `schedule`: `{ projectedEnd, targetEndDate, varianceBusinessDays (+ holgura / − retraso, null sin fecha de cierre), label, delayingTasks }` — cuándo terminaría el proyecto si sigue al ritmo actual (tarea en curso vencida = hoy + su duración; sin iniciar con inicio pasado = arranca hoy; se corren sus sucesoras).
+- `GET /api/v1/projects/:id` — detalle completo: fases, objetivos, requerimientos, adjuntos, links, repos, tareas con asignados y todos sus archivos (insumos/resultados, antes/después/insumos de ajustes, entregables y evidencias de rondas), más `bottlenecks` (cuellos de botella), `delays` (atrasos por tarea, ver regla abajo) y `schedule`: `{ projectedEnd, targetEndDate, varianceBusinessDays (+ holgura / − retraso, null sin fecha de cierre), label, delayingTasks }` — cuándo terminaría el proyecto si sigue al ritmo actual (tarea en curso vencida = hoy + su duración; sin iniciar con inicio pasado = arranca hoy; se corren sus sucesoras).
 - `PATCH /api/v1/projects/:id` — todo lo que se edita en la app. Requiere PM/admin. Campos (todos opcionales; `null` vacía uno opcional):
   `name`, `description` (HTML), `startDate`, `targetEndDate`, `clientName`, `repoUrl`, `color`, `iconUrl` (url de `/api/upload`), `whatsappGroupJid`,
   `archived: true|false` (archivar/desarchivar: lo manda al historial o lo devuelve; PM o admin),
@@ -134,14 +134,14 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
   }
   ```
   `plannedEnd` se calcula solo en días hábiles (festivos del país del proyecto vía Nager.Date). `reviewerIds`/`defaultTestTemplateId` solo aplican con `type: "QA"` — y ningún id puede repetirse entre `assigneeIds` y `reviewerIds` (409 si se repite).
-- `GET /api/v1/tasks/:id` — detalle de una tarea: asignados, revisores, etiquetas, checklist ordenado (con su pregunta si tiene), insumos/evidencias (`attachments`, con `kind`, `stepId` y quién subió), predecesoras (`dependsOn`) y sucesoras (`blocks`); incluye `delayDays` si está completada.
+- `GET /api/v1/tasks/:id` — detalle de una tarea: asignados, revisores, etiquetas, checklist ordenado (con su pregunta si tiene), insumos/resultados (`attachments`, con `kind`, `stepId` y quién subió), predecesoras (`dependsOn`) y sucesoras (`blocks`); incluye `delayDays` si está completada.
 - `PATCH /api/v1/tasks/:id` — estado, título, descripción, fase (`phaseId` del mismo proyecto), link de reunión, riesgo. Requiere ser asignado/PM/admin.
   Solo PM/admin: `type` (SIMPLE|MILESTONE|QA|ADJUSTMENT|ACCEPTANCE), `isUrgent: true|false` (marcarla urgente avisa por WhatsApp al instante), `archived: true|false` (archivar solo aplica a tareas completadas).
 - `POST /api/v1/tasks/:id/duplicate` — duplica la tarea (datos, asignados, revisores, checklist sin marcar, etiquetas, insumos). PM/admin. Devuelve `{ id }`.
   ```json
   { "status": "NOT_STARTED | IN_PROGRESS | BLOCKED | COMPLETED | RETURNED" }
   ```
-  El cambio de estado corre las MISMAS reglas que la app web: checklist de pasos completo, evidencia cargada (Entregable), cambios respondidos (Ajuste), ronda de revisión aprobada (Prueba), "Devuelta" no se puede tocar a mano, y solo PM/admin puede reabrir una tarea ya completada o devolverla a "Sin iniciar". Cualquier violación → **409** con el motivo.
+  El cambio de estado corre las MISMAS reglas que la app web: checklist de pasos completo, resultado cargado (Entregable), cambios respondidos (Ajuste), ronda de revisión aprobada (Prueba), "Devuelta" no se puede tocar a mano, y solo PM/admin puede reabrir una tarea ya completada o devolverla a "Sin iniciar". Cualquier violación → **409** con el motivo.
 - `DELETE /api/v1/tasks/:id` — borra la tarea. Requiere PM/admin.
 
 #### Cronograma (fechas y dependencias)
