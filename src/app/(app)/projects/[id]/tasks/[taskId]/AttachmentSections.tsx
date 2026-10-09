@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+import { KeyIcon } from "@/components/icons";
 import { attachmentFileType, linkKey, type AttachmentFileType } from "@/lib/attachments";
 import { AttachmentGrid, type AttachmentGridItem } from "./AttachmentGrid";
 import { SharedLinkTiles, type SharedLinkItem } from "@/components/SharedLinkTiles";
@@ -11,7 +13,7 @@ const SECTIONS: { type: AttachmentFileType; title: string }[] = [
   { type: "document", title: "Documentos" },
 ];
 
-// Una sola columna a todo el ancho (pedido del usuario): Links compartidos, Links,
+// Una sola columna a todo el ancho (pedido del usuario): Contraseñas, Links compartidos, Links,
 // Imágenes y Documentos, cada sección con su grilla completa.
 export function AttachmentSections({
   items,
@@ -34,18 +36,32 @@ export function AttachmentSections({
 
   const renderSection = ({ type, title, group }: NonNullable<ReturnType<typeof groupOf>>) => (
     <section key={type} className="space-y-2.5">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-        {title}
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{group.length}</span>
-      </h3>
+      {type === "credential" ? (
+        // Contraseñas: título en rojo con su ícono, como el de Links compartidos (pedido del usuario).
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-red-700">
+          <KeyIcon className="h-4 w-4" />
+          {title}
+          <span className="rounded-full bg-red-600/15 px-2 py-0.5 text-xs font-medium">{group.length}</span>
+        </h3>
+      ) : (
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          {title}
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{group.length}</span>
+        </h3>
+      )}
       <AttachmentGrid items={group} canDelete={canDelete} className={className} />
     </section>
   );
 
   return (
     <div className="space-y-6">
-      {sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} className={className} />}
-      {SECTIONS.map(({ type }) => groupOf(type)).map((g) => g && renderSection(g))}
+      {/* Contraseñas primero, luego Links compartidos y el resto (pedido del usuario). */}
+      {SECTIONS.map(({ type }) => groupOf(type)).map((g, i) => (
+        <Fragment key={i}>
+          {g && renderSection(g)}
+          {i === 0 && sharedLinks.length > 0 && <SharedLinkTiles links={sharedLinks} className={className} />}
+        </Fragment>
+      ))}
     </div>
   );
 }

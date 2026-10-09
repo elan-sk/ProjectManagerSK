@@ -43,6 +43,10 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ hits: [] satisfies SearchHit[] });
 
+  // Buscar «contraseña(s)» o «clave(s)» trae todas las contraseñas que la persona puede ver, primero y sin
+  // tope. No hace falta escribirla exacta: desde 4 letras vale el comienzo («contra», «clav») o un error de
+  // tipeo («contrasena», «calve»); con dos errores ya no, para no confundirla con «contrato».
+  const allCredentials = q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
   const userId = session.user.id;
   const projectWhere: Prisma.ProjectWhereInput =
     session.user.role === "ADMIN"
@@ -131,7 +135,7 @@ export async function GET(request: Request) {
     select: { id: true, name: true, url: true, username: true, project: { select: { name: true, iconUrl: true } } },
   });
   for (const c of credentials) {
-    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}`, { name: c.project.name, iconUrl: c.project.iconUrl });
+    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}${allCredentials ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl });
   }
   const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {
@@ -155,12 +159,13 @@ export async function GET(request: Request) {
   // primero lo principal (tarea, archivo) y después lo secundario (paso, link);
   // luego por coincidencia.
   const LIMIT: Record<SearchGroup, number> = { project: 5, task: 8, comment: 8, file: 8 };
-  const secondary = (h: SearchHit) => (h.kind === "step" || h.kind === "link" ? 1 : 0);
+  const secondary = (h: SearchHit) => (allCredentials && h.kind === "credential" ? -1 : h.kind === "step" || h.kind === "link" ? 1 : 0);
+  const credentialHits = allCredentials ? hits.filter((h) => h.kind === "credential").length : 0;
   const ordered = (Object.keys(LIMIT) as SearchGroup[]).flatMap((group) =>
     hits
       .filter((h) => h.group === group)
       .sort((a, b) => secondary(a) - secondary(b) || b.score - a.score)
-      .slice(0, LIMIT[group])
+      .slice(0, LIMIT[group] + (group === "file" ? credentialHits : 0))
   );
   return NextResponse.json({ hits: ordered });
 }

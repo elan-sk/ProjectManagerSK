@@ -108,7 +108,7 @@ export function MediaGalleryButton(props: Props) {
                         </span>
                       </span>
                     ) : type === "credential" ? (
-                      <span className="flex h-20 w-full flex-col items-center justify-center gap-1 rounded bg-[#0a6b78]/10 text-[#0a6b78]">
+                      <span className="flex h-20 w-full flex-col items-center justify-center gap-1 rounded bg-red-600/10 text-red-700">
                         <KeyIcon className="h-7 w-7" />
                         <span className="text-[10px] font-bold tracking-wide">CONTRASEÑA</span>
                       </span>

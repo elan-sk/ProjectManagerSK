@@ -65,17 +65,20 @@ export function CredentialTile({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="relative flex h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border border-[#0a6b78]/25 bg-white text-left transition-colors hover:border-[#0a6b78]/60 hover:bg-slate-50"
+        className="relative flex h-full min-h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border-2 border-red-600/40 bg-white text-left shadow-sm transition hover:border-red-600 hover:shadow"
       >
-        <span className="flex w-9 flex-shrink-0 items-center justify-center bg-[#0a6b78]/10 text-[#0a6b78]">
+        {/* Mismo formato que los Links compartidos, en rojo por ser un dato de seguridad (pedido del usuario). */}
+        <span className="flex w-9 flex-shrink-0 items-center justify-center bg-red-600 text-white">
           <KeyIcon className="h-4 w-4" />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2.5">
-          <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
-          {/* La llave y la sección ya dicen que es una contraseña: debajo va su URL (pedido del usuario). */}
-          <span className="truncate text-[11px] text-slate-400" title={subtitle}>
-            {subtitle ?? "Contraseña"}
-          </span>
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pl-2.5 pr-7">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-red-700">Contraseña</span>
+          <span className="line-clamp-2 break-words text-sm leading-snug font-medium text-slate-800">{name}</span>
+          {subtitle && (
+            <span className="truncate text-[11px] text-slate-400" title={subtitle}>
+              {subtitle}
+            </span>
+          )}
         </span>
       </button>
       {footer}
