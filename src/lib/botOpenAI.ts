@@ -93,6 +93,8 @@ export async function createOpenAICompatMessage(opts: {
   system: string;
   tools: Anthropic.Tool[];
   messages: Anthropic.MessageParam[];
+  /** Hora límite (Date.now()) para responder: no se espera ni se reintenta más allá. */
+  deadline: number;
 }): Promise<{ content: Anthropic.ContentBlock[]; stopReason: "end_turn" | "tool_use" | "refusal" }> {
   const body = JSON.stringify({
     model: opts.model,
@@ -103,15 +105,19 @@ export async function createOpenAICompatMessage(opts: {
   });
   const url = `${opts.baseURL.replace(/\/+$/, "")}/chat/completions`;
 
-  // Mismo criterio que el SDK de Anthropic: hasta 2 reintentos si el servicio está saturado (429/5xx).
+  // Hasta 2 reintentos si el servicio está saturado (429/5xx), solo mientras quede tiempo.
   let res: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+    if (attempt > 0) {
+      const wait = 1000 * 2 ** (attempt - 1);
+      if (opts.deadline - Date.now() < wait + 5_000) break;
+      await new Promise((r) => setTimeout(r, wait));
+    }
     res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
       body,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(Math.max(1_000, opts.deadline - Date.now())),
     });
     if (res.status !== 429 && res.status < 500) break;
   }

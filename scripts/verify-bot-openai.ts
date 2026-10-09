@@ -25,6 +25,7 @@ async function main() {
     apiKey: "k",
     model: "m",
     maxTokens: 100,
+    deadline: Date.now() + 60_000,
     system: "reglas",
     tools: [{ name: "set_test_template", description: "d", input_schema: { type: "object", properties: { templateId: { type: ["string", "null"] } } } }],
     messages: [
@@ -60,10 +61,18 @@ async function main() {
   status = 429;
   calls = 0;
   await assert.rejects(
-    createOpenAICompatMessage({ baseURL: "https://x.test", apiKey: "k", model: "m", maxTokens: 1, system: "", tools: [], messages: [] }),
+    createOpenAICompatMessage({ baseURL: "https://x.test", apiKey: "k", model: "m", maxTokens: 1, deadline: Date.now() + 60_000, system: "", tools: [], messages: [] }),
     (e: unknown) => e instanceof OpenAICompatError && e.status === 429
   );
   assert.equal(calls, 3);
+
+  // Sin tiempo para esperar el reintento: no reintenta (el chat nunca pasa el corte de ~60 s del servidor web).
+  calls = 0;
+  await assert.rejects(
+    createOpenAICompatMessage({ baseURL: "https://x.test", apiKey: "k", model: "m", maxTokens: 1, deadline: Date.now() + 3_000, system: "", tools: [], messages: [] }),
+    (e: unknown) => e instanceof OpenAICompatError && e.status === 429
+  );
+  assert.equal(calls, 1);
 
   console.log("OK — traducción Anthropic ⇄ OpenAI del chat");
 }

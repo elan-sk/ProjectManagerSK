@@ -49,9 +49,26 @@ const LIMIT_REACHED_TEXT =
 const invalidKeyText = (service: string) =>
   `La clave de ${service} que tienen configurada no funciona — decile a un admin que revise o cambie la clave en Configuración, melo.`;
 const apiErrorText = (service: string) => `Tuve un problema hablando con ${service} — probá de nuevo en un rato, vea pues.`;
+// Mensajes según lo que respondió el servicio (código HTTP), para no tener que leer el registro.
+const busyText = (service: string) =>
+  `${service} está muy ocupado o llegó a su límite de consultas por minuto (pasa seguido en los planes gratis) — esperá un minuto y probá de nuevo, melo.`;
+const noBalanceText = (service: string) => `La cuenta de ${service} se quedó sin saldo — decile a un admin que la recargue o cambie de servicio en Configuración.`;
+
+function errorTextFor(err: unknown, service: string) {
+  if (err instanceof Anthropic.APIConnectionTimeoutError || (err as Error)?.name === "TimeoutError") return SLOW_TEXT;
+  const status = (err as { status?: number })?.status;
+  if (status === 401) return invalidKeyText(service);
+  if (status === 402) return noBalanceText(service);
+  if (status === 429 || status === 503 || status === 529) return busyText(service);
+  return apiErrorText(service);
+}
 const SCANNED_PDF_TEXT = JSON.stringify({ error: "Este PDF es escaneado (sin texto) y el servicio de IA configurado no puede leerlo. Pedir el archivo con texto o una imagen de las páginas." });
 const REFUSAL_TEXT = "Uy, esa la tengo que dejar pasar — probá preguntando de otra forma.";
 const PENDING_ACTION_TEXT = "Todavía tenés una acción pendiente de confirmar arriba — confirmala o cancelala antes de seguir, melo.";
+const SLOW_TEXT = "Me está tomando demasiado tiempo responder — probá de nuevo en un momento, o preguntame algo más puntual, melo.";
+// El servidor web de Hostinger corta un pedido a los ~60 s (504 Gateway Time-out): la respuesta del
+// chat completa (todas las consultas al servicio de IA) tiene que terminar antes, aunque sea con un aviso.
+const LOOP_BUDGET_MS = 50_000;
 const LOOP_LIMIT_TEXT = "Me enredé consultando datos — probá preguntando de nuevo, más puntual.";
 
 const MAX_TOOL_ITERATIONS = 8;
@@ -242,8 +259,14 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
 
   const [settings, persona, tools, me] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), getToolsForUser(userId), loadMe(userId)]);
   let messages = await loadHistory(userId);
+  const deadline = Date.now() + LOOP_BUDGET_MS;
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+    if (deadline - Date.now() < 5_000) {
+      console.warn(`[chontatec] respuesta cortada por tiempo con ${conn.label} (${i} consultas)`);
+      await persistRow(userId, "assistant", [{ type: "text", text: SLOW_TEXT }]);
+      return;
+    }
     let response: { content: Anthropic.ContentBlock[]; stop_reason: string | null };
     const system = buildSystemBlocks(settings.name, persona, pathname, me);
     // Solo Claude lee PDF escaneados; los servicios OpenAI tampoco aceptan el bloque "document".
@@ -257,7 +280,7 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
           tools,
           tool_choice: { type: "auto" },
           messages: conn.provider === "anthropic" ? withCacheOnLast(withoutOpenAIExtras(sendable)) : withoutOpenAIExtras(sendable),
-        });
+        }, { timeout: deadline - Date.now(), maxRetries: deadline - Date.now() > 30_000 ? 1 : 0 });
       } else {
         // ponytail: 8192 porque los modelos con razonamiento (Gemini 3) gastan parte del tope pensando.
         const r = await createOpenAICompatMessage({
@@ -268,13 +291,13 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
           system: system.map((b) => b.text).join("\n\n"),
           tools,
           messages: sendable,
+          deadline,
         });
         response = { content: r.content, stop_reason: r.stopReason };
       }
     } catch (err) {
       console.error(`[chontatec] falló la llamada a ${conn.label}:`, err);
-      const text = (err as { status?: number }).status === 401 ? invalidKeyText(conn.label) : apiErrorText(conn.label);
-      await persistRow(userId, "assistant", [{ type: "text", text }]);
+      await persistRow(userId, "assistant", [{ type: "text", text: errorTextFor(err, conn.label) }]);
       return;
     }
 
