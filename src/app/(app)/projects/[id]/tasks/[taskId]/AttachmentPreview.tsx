@@ -10,6 +10,7 @@ import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, documentStyl
 import { CredentialTile } from "../../../../credentials/CredentialTile";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 import { useConfirm } from "@/components/Confirm";
+import { LinkFavicon } from "@/components/LinkFavicon";
 
 /**
  * Solo la miniatura — un documento/link abre en pestaña nueva, una imagen
@@ -127,7 +128,10 @@ export function AttachmentPreview({
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2.5">
           <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
-          <span className="truncate text-[11px] text-slate-400">{linkHostname(url)} ↗</span>
+          <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
+            <LinkFavicon url={url} />
+            <span className="truncate">{linkHostname(url)} ↗</span>
+          </span>
         </span>
       </>
     );

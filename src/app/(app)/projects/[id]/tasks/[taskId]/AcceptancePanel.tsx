@@ -30,6 +30,7 @@ import {
 import type { TaskStatus } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { useToast } from "@/components/Toast";
+import { LinkFavicon } from "@/components/LinkFavicon";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Item = {
@@ -65,7 +66,14 @@ function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
   const className = "flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[17px] text-slate-600 hover:bg-slate-50";
   const content = (
     <>
-      {isLink ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
+      {isLink ? (
+        <span className="flex items-center gap-1">
+          <LinkIcon className="h-3.5 w-3.5 text-slate-400" />
+          <LinkFavicon url={file.url} />
+        </span>
+      ) : (
+        <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />
+      )}
       <span className="max-w-[10rem] truncate">{file.name}</span>
     </>
   );

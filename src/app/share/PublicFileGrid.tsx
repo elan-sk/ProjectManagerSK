@@ -7,6 +7,7 @@ import { AttachmentLightbox } from "@/app/(app)/projects/[id]/tasks/[taskId]/Att
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { normalizeSearchText } from "@/lib/search";
 import type { PublicFile } from "@/lib/publicView";
+import { LinkFavicon } from "@/components/LinkFavicon";
 
 // Grilla de archivos compartida entre el "Archivos" del proyecto y los
 // insumos/evidencia/antes-después de una tarea (puntos 15/16) — mismos
@@ -64,7 +65,14 @@ export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; seque
 
           const content = (
             <div className="flex h-16 w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-200 p-1 text-center text-[10px] text-slate-500">
-              {isLink ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
+              {isLink ? (
+                <span className="flex items-center gap-1">
+                  <LinkIcon className="h-3.5 w-3.5 text-slate-400" />
+                  <LinkFavicon url={f.url} />
+                </span>
+              ) : (
+                <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />
+              )}
               <span className="line-clamp-2 w-full break-words">{f.name}</span>
             </div>
           );

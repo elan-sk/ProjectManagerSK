@@ -30,6 +30,7 @@ import { TeamShareThread, type TeamThreadComment } from "./TeamShareThread";
 import { reopenAdjustmentReview } from "./shareThreadActions";
 import type { AdjustmentAttachmentKind } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { LinkFavicon } from "@/components/LinkFavicon";
 
 type AdjustmentAttachment = { id: string; url: string; name: string; mimeType: string };
 type AdjustmentItemData = {
@@ -426,7 +427,14 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, credentials 
                   <img src={a.url} alt={a.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
                 ) : (
                   <div className="flex h-16 w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-200 p-1 text-center text-[13px] text-slate-500">
-                    {isLink ? <LinkIcon className="h-3.5 w-3.5 text-slate-400" /> : <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />}
+                    {isLink ? (
+                      <span className="flex items-center gap-1">
+                        <LinkIcon className="h-3.5 w-3.5 text-slate-400" />
+                        <LinkFavicon url={a.url} />
+                      </span>
+                    ) : (
+                      <DocumentIcon className="h-3.5 w-3.5 text-slate-400" />
+                    )}
                     <span className="line-clamp-2 w-full break-words">{a.name}</span>
                   </div>
                 )}
