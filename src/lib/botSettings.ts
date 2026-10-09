@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { findUploadPath } from "@/lib/persistentUploads";
 import { prisma } from "@/lib/prisma";
 import { APP_SETTING_ID } from "@/lib/appSettings";
-import { BOT_PROVIDERS, isBotProvider, type BotProvider } from "@/lib/botProviders";
+import { BOT_PROVIDERS, isBotProvider, providerNeedsUrl, type BotProvider } from "@/lib/botProviders";
 
 // Tono/personalidad de fábrica — se usa cuando nadie configuró uno propio
 // desde Configuración (botPersonaPrompt null/vacío). Las reglas operativas
@@ -89,8 +89,9 @@ export async function getBotConnection() {
   return {
     provider,
     label: def.label,
+    format: def.format,
     apiKey: s.botApiKey,
-    baseURL: provider === "custom" ? s.botBaseUrl : def.baseURL,
+    baseURL: providerNeedsUrl(provider) ? s.botBaseUrl : def.baseURL,
     model: s.botModel?.trim() || def.defaultModel,
   };
 }

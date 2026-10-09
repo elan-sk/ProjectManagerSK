@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getBotSettings, setBotProfile, setBotApiKey, setBotConnection, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage } from "@/lib/botSettings";
-import { isBotProvider } from "@/lib/botProviders";
+import { isBotProvider, providerNeedsUrl } from "@/lib/botProviders";
 
 async function requireAdmin() {
   const session = await auth();
@@ -35,14 +35,15 @@ export async function updateBotConnection(input: { provider: string; baseUrl: st
   const baseUrl = input.baseUrl.trim();
   const model = input.model.trim();
   const apiKey = input.apiKey.trim();
-  if (input.provider === "custom") {
+  const needsUrl = providerNeedsUrl(input.provider);
+  if (needsUrl) {
     if (!/^https:\/\/\S+$/i.test(baseUrl)) return { ok: false as const, error: "Falta la dirección del servicio (debe empezar por https://)." };
     if (!model) return { ok: false as const, error: "Falta indicar el modelo del servicio." };
   }
   if (!apiKey && (!current.apiKeyConfigured || current.provider !== input.provider)) {
     return { ok: false as const, error: "Falta la clave de ese servicio." };
   }
-  await setBotConnection(input.provider, input.provider === "custom" ? baseUrl : null, model || null, apiKey || null);
+  await setBotConnection(input.provider, needsUrl ? baseUrl : null, model || null, apiKey || null);
   revalidatePath("/settings");
   return { ok: true as const };
 }

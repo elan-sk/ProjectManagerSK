@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getBotConnection, getBotSettings, getBotPersonaPrompt, checkAndConsumeBotQuestion } from "@/lib/botSettings";
+import { createOpenAICompatMessage, withoutOpenAIExtras } from "@/lib/botOpenAI";
 import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeWriteTool } from "@/lib/chontatecTools";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
@@ -236,31 +237,54 @@ function withoutDocuments(messages: Anthropic.MessageParam[]): Anthropic.Message
 async function runConversationLoop(userId: string, pathname: string): Promise<void> {
   const conn = await getBotConnection();
   if (!conn) return; // no debería llamarse sin key configurada, defensa en profundidad
-  const client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined });
+  const client = conn.format === "anthropic" ? new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined }) : null;
 
   const [settings, persona, tools, me] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), getToolsForUser(userId), loadMe(userId)]);
   let messages = await loadHistory(userId);
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-    let response: Anthropic.Message;
+    let response: { content: Anthropic.ContentBlock[]; stop_reason: string | null };
+    const system = buildSystemBlocks(settings.name, persona, pathname, me);
+    // Solo Claude lee PDF escaneados; los servicios OpenAI tampoco aceptan el bloque "document".
+    const sendable = conn.provider === "anthropic" ? messages : withoutDocuments(messages);
     try {
-      response = await client.messages.create({
-        model: conn.model,
-        max_tokens: 4096,
-        system: buildSystemBlocks(settings.name, persona, pathname, me),
-        tools,
-        tool_choice: { type: "auto" },
-        messages: conn.provider === "anthropic" ? messages : withoutDocuments(messages),
-      });
+      if (client) {
+        response = await client.messages.create({
+          model: conn.model,
+          max_tokens: 4096,
+          system,
+          tools,
+          tool_choice: { type: "auto" },
+          messages: withoutOpenAIExtras(sendable),
+        });
+      } else {
+        // ponytail: 8192 porque los modelos con razonamiento (Gemini 3) gastan parte del tope pensando.
+        const r = await createOpenAICompatMessage({
+          baseURL: conn.baseURL ?? "",
+          apiKey: conn.apiKey,
+          model: conn.model,
+          maxTokens: 8192,
+          system: system.map((b) => b.text).join("\n\n"),
+          tools,
+          messages: sendable,
+        });
+        response = { content: r.content, stop_reason: r.stopReason };
+      }
     } catch (err) {
       console.error(`[chontatec] falló la llamada a ${conn.label}:`, err);
-      const text = err instanceof Anthropic.AuthenticationError ? invalidKeyText(conn.label) : apiErrorText(conn.label);
+      const text = (err as { status?: number }).status === 401 ? invalidKeyText(conn.label) : apiErrorText(conn.label);
       await persistRow(userId, "assistant", [{ type: "text", text }]);
       return;
     }
 
     if (response.stop_reason === "refusal") {
       await persistRow(userId, "assistant", [{ type: "text", text: REFUSAL_TEXT }]);
+      return;
+    }
+
+    // Respuesta vacía (ej. un modelo con razonamiento que gastó todo el tope pensando): se avisa en vez de no mostrar nada.
+    if (response.content.length === 0) {
+      await persistRow(userId, "assistant", [{ type: "text", text: apiErrorText(conn.label) }]);
       return;
     }
 

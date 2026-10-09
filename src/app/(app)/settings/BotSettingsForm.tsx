@@ -13,7 +13,7 @@ import {
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
-import { BOT_PROVIDERS, type BotProvider } from "@/lib/botProviders";
+import { BOT_PROVIDERS, providerNeedsUrl, type BotProvider } from "@/lib/botProviders";
 
 export function BotSettingsForm({
   name,
@@ -219,7 +219,7 @@ export function BotSettingsForm({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-emerald-600">
               {BOT_PROVIDERS[provider].label}
-              {provider === "custom" && baseUrl ? ` (${baseUrl})` : ""} · modelo {model || BOT_PROVIDERS[provider].defaultModel} · clave …{apiKeyLast4} ✓
+              {providerNeedsUrl(provider) && baseUrl ? ` (${baseUrl})` : ""} · modelo {model || BOT_PROVIDERS[provider].defaultModel} · clave …{apiKeyLast4} ✓
             </span>
             <button type="button" onClick={() => setChangingKey(true)} className="text-xs font-medium text-slate-500 hover:underline">
               Cambiar
@@ -265,20 +265,21 @@ export function BotSettingsForm({
                 </option>
               ))}
             </select>
-            {draftProvider === "custom" && (
+            {providerNeedsUrl(draftProvider) && (
               <input
+                key={`url-${draftProvider}`}
                 name="baseUrl"
                 type="url"
                 required
-                defaultValue={provider === "custom" ? baseUrl ?? "" : ""}
-                placeholder="https://… (dirección compatible con Anthropic)"
+                defaultValue={draftProvider === provider ? baseUrl ?? "" : ""}
+                placeholder={`https://… (dirección compatible con ${draft.format === "openai" ? "OpenAI" : "Anthropic"})`}
                 className="block w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             )}
             <input
               key={draftProvider}
               name="model"
-              required={draftProvider === "custom"}
+              required={providerNeedsUrl(draftProvider)}
               defaultValue={draftProvider === provider ? model ?? "" : ""}
               placeholder={draft.defaultModel ? `Modelo (por defecto ${draft.defaultModel})` : "Modelo"}
               className="block w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"

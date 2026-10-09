@@ -18,6 +18,7 @@
     "verify:credentials": "tsx --env-file=.env scripts/verify-credentials.ts",
     "verify:on-time-rate": "tsx scripts/verify-on-time-rate.ts",
     "verify:bot-file-prep": "tsx scripts/verify-bot-file-prep.ts",
+    "verify:bot-openai": "tsx scripts/verify-bot-openai.ts",
     "verify:schedule-cascade": "tsx scripts/verify-schedule-cascade.ts",
     "verify:schedule-forecast": "tsx scripts/verify-schedule-forecast.ts",
     "verify:file-dedup": "tsx scripts/verify-file-dedup.ts",
