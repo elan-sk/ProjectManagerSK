@@ -76,11 +76,19 @@ const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 // diferencia de la UI de la app hoy (que no filtra lectura por rol), acá sí
 // se restringe explícitamente: el chat no muestra info de un proyecto
 // donde la persona no es PM, asignada ni revisora de ninguna tarea.
+// Campo de archivos compartido por varias herramientas; qué va en `url` lo dicen las reglas del chat
+// (chontatec.ts), una sola vez, para no repetirlo en cada herramienta (ahorra tokens en cada pedido).
+const FILE_REFS = {
+  type: "array",
+  description: "Archivos o links { url, name }.",
+  items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] },
+};
+
 export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "read_uploaded_file",
     description:
-      "Lee AL INSTANTE el contenido de un archivo que la persona subió en este chat (aparece en su mensaje como «Archivos subidos en el chat: \"nombre\" → /uploads/…»). No hace falta adjuntarlo a ninguna tarea antes. Usala apenas la persona suba un archivo y pregunte por él (resumir, describir, extraer datos).",
+      "Lee AL INSTANTE un archivo que la persona subió en este chat (su mensaje trae «Archivos subidos en el chat: \"nombre\" → /uploads/…»), sin adjuntarlo antes a una tarea.",
     input_schema: {
       type: "object",
       properties: { fileUrl: { type: "string", description: "Ruta /uploads/… tal cual aparece en el mensaje." }, fileName: { type: "string" } },
@@ -90,7 +98,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "read_attachment",
     description:
-      "Lee el CONTENIDO de un adjunto de una tarea o del proyecto (no solo su nombre): texto/CSV, Excel (.xlsx), Word (.docx), PDF e imágenes (se convierten a texto o se comprimen antes de leerlos). PowerPoint no se puede leer. Necesitás el attachmentId que devuelve get_task_details. Solo funciona si la persona tiene acceso a los archivos de esa tarea.",
+      "Lee el CONTENIDO de un adjunto de una tarea o del proyecto (formatos: ver reglas). attachmentId de get_task_details; requiere acceso a esa tarea.",
     input_schema: {
       type: "object",
       properties: { attachmentId: { type: "string" } },
@@ -175,7 +183,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "search_tasks",
     description:
-      "Busca tareas por texto en el título, la descripción o el nombre de los archivos adjuntos (mismo buscador tolerante a mayúsculas/tildes que usa el resto de la app) — sirve tanto para encontrar una tarea como para encontrar en qué tarea está un archivo. Opcionalmente dentro de un proyecto puntual; sin projectId busca en todos los proyectos accesibles.",
+      "Busca tareas por texto en título, descripción o nombre de adjuntos (sin distinguir mayúsculas ni tildes); también sirve para saber en qué tarea está un archivo. projectId opcional (sin él, en todos los accesibles).",
     input_schema: {
       type: "object",
       properties: {
@@ -194,7 +202,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "get_task_threads",
     description:
-      "Devuelve TODOS los hilos de una tarea: comentarios generales (los que ve el cliente por su link), el hilo de cada cambio de un Ajuste, de cada característica de una Aceptación, de cada prueba y de cada ronda, y la conversación interna. Incluye las preguntas de selección con su estadística (cuántas personas eligieron cada opción y quién).",
+      "TODOS los hilos de una tarea: comentarios generales (los ve el cliente por su link), los de cada cambio, característica, prueba y ronda, y la conversación interna; con las preguntas de selección y su estadística (quién eligió cada opción).",
     input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
   },
   {
@@ -221,8 +229,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "add_task_comment",
     description:
-      "Deja un comentario/nota (bitácora) interno en una tarea, o en el proyecto si no se indica taskId. Queda a nombre de la persona que conversa. " +
-      "Si el texto que te dictaron nombra a alguien con \"@Nombre\" (ej. \"avisale a @Max\"), es SIEMPRE una mención real: resolvé ese nombre contra list_team_members y pasá su id en mentionUserIds antes de llamar a esta tool — la mención (\"@Nombre\") se agrega sola al final del comentario, así que NO escribas tú \"@Nombre\" dentro de body (queda duplicado). Sin mentionUserIds esa persona NO recibe ningún aviso (el comentario le llega solo al PM/asignados como comentario genérico, no a quien nombraste).",
+      "Comentario/nota interna en una tarea, o en el proyecto si falta taskId, a nombre de quien conversa. @menciones: ver reglas (mentionUserIds).",
     input_schema: {
       type: "object",
       properties: {
@@ -344,10 +351,10 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         taskId: { type: "string" },
-        items: { type: "array", items: { type: "object", properties: { description: { type: "string" }, note: { type: "string" }, before: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } }, after: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } }, required: ["description"] } },
-        deliverables: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+        items: { type: "array", items: { type: "object", properties: { description: { type: "string" }, note: { type: "string" }, before: FILE_REFS, after: FILE_REFS }, required: ["description"] } },
+        deliverables: FILE_REFS,
         templateId: { type: "string" },
-        checks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, criteria: { type: "string" }, category: { type: "string" }, evidence: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } }, required: ["title"] } },
+        checks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, criteria: { type: "string" }, category: { type: "string" }, evidence: FILE_REFS }, required: ["title"] } },
       },
       required: ["taskId"],
     },
@@ -366,7 +373,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         description: { type: "string" },
         note: { type: "string" },
         kind: { type: "string", description: "BEFORE o AFTER" },
-        files: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+        files: FILE_REFS,
       },
       required: ["action"],
     },
@@ -374,8 +381,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "post_thread_comment",
     description:
-      "Publica un comentario o una PREGUNTA de selección (única o múltiple) en un hilo, a nombre de la persona que conversa. scope de tarea (taskId): task = comentario general que ve el cliente por su link (admite archivos, que quedan como Insumos); adjustment_item = hilo de un cambio (targetId = itemId); acceptance_check = hilo de una característica (targetId = checkId); qa_check = hilo interno de una prueba (targetId = checkId; admite @menciones); round = hilo interno de una ronda (targetId = roundId); conversation = conversación interna de la tarea. scope de proyecto (projectId): project_conversation = conversación interna del proyecto; project_definition = hilo de la Definición que ve el cliente. " +
-      "Si el texto que te dictaron nombra a alguien con \"@Nombre\" (ej. \"avisale a @Max\"), es SIEMPRE una mención real: resolvé ese nombre contra list_team_members y pasá su id en mentionUserIds — nunca lo dejes como texto suelto \"@Nombre\" dentro de body. Sin mentionUserIds esa persona NO recibe ningún aviso (el comentario le llega solo al PM/asignados/revisores como comentario genérico, no a quien nombraste).",
+      "Publica un comentario o una PREGUNTA de selección (única o múltiple) en un hilo, a nombre de la persona que conversa. scope de tarea (taskId): task = comentario general que ve el cliente por su link (admite archivos, que quedan como Insumos); adjustment_item = hilo de un cambio (targetId = itemId); acceptance_check = hilo de una característica (targetId = checkId); qa_check = hilo interno de una prueba (targetId = checkId; admite @menciones); round = hilo interno de una ronda (targetId = roundId); conversation = conversación interna de la tarea. scope de proyecto (projectId): project_conversation = conversación interna del proyecto; project_definition = hilo de la Definición que ve el cliente. @menciones: ver reglas (mentionUserIds).",
     input_schema: {
       type: "object",
       properties: {
@@ -386,7 +392,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         body: { type: "string", description: "El texto del comentario, o el enunciado de la pregunta." },
         parentId: { type: "string", description: "Opcional: id del comentario al que se responde." },
         mentionUserIds: { type: "array", items: { type: "string" } },
-        attachments: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } },
+        attachments: FILE_REFS,
         poll: { type: "object", description: "Si viene, el comentario es una PREGUNTA de selección y `body` es el enunciado.", properties: { multiple: { type: "boolean", description: "true = selección múltiple (casillas); false = selección única." }, options: { type: "array", items: { type: "string" }, description: "De 2 a 10 opciones." } }, required: ["options"] },
       },
       required: ["scope", "body"],
@@ -405,7 +411,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "manage_share_link",
     description:
-      "Consulta, crea o revoca el link público (sin cuenta) de una tarea o del proyecto, para que el cliente comente, responda preguntas, califique ajustes y acepte o devuelva características. action: get | create | revoke. Con taskId es el de la tarea; con projectId, el del proyecto (solo PM/administrador). Devuelve `path` (/share/<token>): al mostrarlo, anteponé la URL del sitio.",
+      "Consulta, crea o revoca (action: get | create | revoke) el link público, sin cuenta, de una tarea (taskId) o del proyecto (projectId, solo PM/administrador): el cliente comenta, responde preguntas, califica ajustes y acepta o devuelve características. Devuelve `path` (/share/<token>).",
     input_schema: {
       type: "object",
       properties: { action: { type: "string", description: "get | create | revoke" }, taskId: { type: "string" }, projectId: { type: "string" } },
@@ -417,7 +423,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
     description: "Sube varios archivos o links de una vez como Insumos (INSUMO) o Evidencias (RESULTADO) de una tarea. Para uno solo también sirven attach_uploaded_file y attach_link_to_task.",
     input_schema: {
       type: "object",
-      properties: { taskId: { type: "string" }, kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO" }, files: { type: "array", description: "Archivos o links: { url, name, mimeType? }. url = la ruta /uploads/… de un archivo subido en este chat, o un link https://.", items: { type: "object", properties: { url: { type: "string" }, name: { type: "string" }, mimeType: { type: "string" } }, required: ["url", "name"] } } },
+      properties: { taskId: { type: "string" }, kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO" }, files: FILE_REFS },
       required: ["taskId", "files"],
     },
   },
