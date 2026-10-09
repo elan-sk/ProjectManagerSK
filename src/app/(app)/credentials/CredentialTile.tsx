@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
 import { KeyIcon } from "@/components/icons";
+import { LinkFavicon } from "@/components/LinkFavicon";
 import { useConfirm } from "@/components/Confirm";
 import { useToast } from "@/components/Toast";
 import { CredentialLoader } from "./CredentialView";
@@ -25,6 +26,7 @@ export function CredentialTile({
   canRemove,
   canDelete = false,
   footer,
+  layout = "tile",
 }: {
   credentialId: string;
   name: string;
@@ -36,6 +38,8 @@ export function CredentialTile({
   /** Se creó en este lugar y la persona puede eliminarla: al quitarla se ofrece eliminarla del todo. */
   canDelete?: boolean;
   footer?: React.ReactNode;
+  /** «tile»: como la ficha de un documento (grillas mezcladas). «card»: horizontal, como los Links compartidos (sección Contraseñas de Archivos). */
+  layout?: "tile" | "card";
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -60,27 +64,47 @@ export function CredentialTile({
     const ok = await confirm(`¿${removeLabel} "${name}"? La contraseña sigue disponible en el proyecto.`, { confirmLabel: "Quitar" });
     if (ok) await unlink();
   }
+  // URL de la contraseña con el ícono de su página al lado.
+  const urlLine = subtitle && (
+    <span className="flex min-w-0 max-w-full items-center gap-1 text-[11px] text-slate-400" title={subtitle}>
+      <LinkFavicon url={`https://${subtitle}`} className="h-3 w-3" />
+      <span className="truncate">{subtitle}</span>
+    </span>
+  );
   return (
     <div className="group relative min-w-0">
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="relative flex h-full min-h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border-2 border-red-600/40 bg-white text-left shadow-sm transition hover:border-red-600 hover:shadow"
-      >
-        {/* Mismo formato que los Links compartidos, en rojo por ser un dato de seguridad (pedido del usuario). */}
-        <span className="flex w-9 flex-shrink-0 items-center justify-center bg-red-600 text-white">
-          <KeyIcon className="h-4 w-4" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pl-2.5 pr-7">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-red-700">Contraseña</span>
-          <span className="line-clamp-2 break-words text-sm leading-snug font-medium text-slate-800">{name}</span>
-          {subtitle && (
-            <span className="truncate text-[11px] text-slate-400" title={subtitle}>
-              {subtitle}
-            </span>
-          )}
-        </span>
-      </button>
+      {layout === "card" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="relative flex h-24 w-full min-w-0 items-stretch overflow-hidden rounded-xl border-2 border-red-600/40 bg-white text-left shadow-sm transition hover:border-red-600 hover:shadow"
+        >
+          {/* Mismo formato que los Links compartidos, en rojo por ser un dato de seguridad (pedido del usuario). */}
+          <span className="flex w-9 flex-shrink-0 items-center justify-center bg-red-600 text-white">
+            <KeyIcon className="h-4 w-4" />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pl-2.5 pr-7">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-700">Contraseña</span>
+            <span className="line-clamp-2 break-words text-xs font-medium text-slate-800">{name}</span>
+            {urlLine}
+          </span>
+        </button>
+      ) : (
+        // Entre documentos: mismo formato que la ficha de un documento (ícono, etiqueta y nombre), con la llave y en rojo.
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title={name}
+          className="flex h-24 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-red-600/30 bg-red-600/10 px-2 py-1.5 text-center text-xs text-red-700 transition-colors duration-150 hover:border-red-600 hover:bg-red-600/20"
+        >
+          <span className="flex flex-shrink-0 flex-col items-center gap-0.5">
+            <KeyIcon className="h-6 w-6" />
+            <span className="rounded bg-current/10 px-1 text-[10px] leading-4 font-bold tracking-wide">CONTRASEÑA</span>
+          </span>
+          <span className="line-clamp-1 w-full break-words font-medium text-red-900">{name}</span>
+          {urlLine}
+        </button>
+      )}
       {footer}
       {removeLabel && (
         <button

@@ -34,6 +34,7 @@ export function AttachmentPreview({
   credentialCanRemove,
   credentialCanDelete,
   subtitle,
+  credentialLayout,
 }: {
   id: string;
   url: string;
@@ -57,6 +58,7 @@ export function AttachmentPreview({
   credentialCanDelete?: boolean;
   /** Segunda línea de la ficha (URL de la contraseña). */
   subtitle?: string;
+  credentialLayout?: "tile" | "card";
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -90,6 +92,7 @@ export function AttachmentPreview({
         credentialId={credentialId}
         name={name}
         subtitle={subtitle}
+        layout={credentialLayout}
         place={credentialPlace}
         canRemove={credentialCanRemove}
         canDelete={credentialCanDelete}

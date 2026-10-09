@@ -3,6 +3,7 @@ import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentSections } from "./[id]/tasks/[taskId]/AttachmentSections";
+import type { SharedLinkItem } from "@/components/SharedLinkTiles";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -40,7 +41,7 @@ export function AllProjectsFilesView({
   files: { id: string; projectId: string; projectName: string; taskId: string | null; taskTitle: string | null; fileUrl: string; fileName: string; mimeType: string; section?: string; subtitle?: string }[];
   projects: { id: string; label: string }[];
   // Ver mismo comentario en ProjectFilesView.
-  sharedLinks: { id: string; label: string; token: string; href: string }[];
+  sharedLinks: SharedLinkItem[];
   fileKind?: "INSUMO" | "RESULTADO";
   fileType?: string;
   fileProject?: string;

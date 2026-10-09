@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canEditTask, resolveActor } from "@/lib/permissions";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { linkCredential } from "../../../../credentials/actions";
-import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, credentialRef, linkKey } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, credentialRef, linkKey, repoLinkName } from "@/lib/attachments";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
@@ -19,14 +19,17 @@ export async function listReusableMedia(taskId: string): Promise<{ ok: true; ite
   const { projectId } = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   const fileSelect = { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } as const;
   // Spec 001 (RF-7): también los archivos de Ajustes y de las rondas de Prueba/Aceptación.
-  const [attachments, projectAttachments, links, adjustmentFiles, deliverables, evidence] = await Promise.all([
+  const [attachments, projectAttachments, links, adjustmentFiles, deliverables, evidence, project] = await Promise.all([
     prisma.attachment.findMany({ where: { task: { projectId } }, select: fileSelect }),
     prisma.projectAttachment.findMany({ where: { projectId }, select: fileSelect }),
     prisma.projectLink.findMany({ where: { projectId }, select: { url: true, title: true, createdAt: true } }),
     prisma.adjustmentAttachment.findMany({ where: { adjustmentItem: { task: { projectId } } }, select: fileSelect }),
     prisma.reviewDeliverable.findMany({ where: { reviewRound: { task: { projectId } } }, select: fileSelect }),
     prisma.reviewCheckEvidence.findMany({ where: { reviewCheck: { reviewRound: { task: { projectId } } } }, select: fileSelect }),
+    prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { repoUrl: true, createdAt: true, repos: { select: { url: true, createdAt: true } } } }),
   ]);
+  // Repositorios (principal + adicionales), con el mismo nombre que en la vista Archivos.
+  const repos = [...(project.repoUrl ? [{ url: project.repoUrl, createdAt: project.createdAt }] : []), ...project.repos].filter((r, i, all) => all.findIndex((x) => x.url === r.url) === i);
   // Siempre de lo más reciente a lo más antiguo, mezclando archivos y links; un archivo
   // usado en varios lugares aparece una vez, en la posición de su uso más reciente.
   // Credenciales del proyecto que esta persona puede ver (nunca las ajenas): se agregan como insumo.
@@ -41,6 +44,7 @@ export async function listReusableMedia(taskId: string): Promise<{ ok: true; ite
     ...deliverables,
     ...evidence,
     ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt })),
+    ...repos.map((r, i) => ({ fileUrl: r.url, fileName: repoLinkName(r.url, i, repos.length), mimeType: LINK_MIME_TYPE, uploadedAt: r.createdAt })),
     ...credentials.map((c) => ({ fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, uploadedAt: c.createdAt })),
   ]
     .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());

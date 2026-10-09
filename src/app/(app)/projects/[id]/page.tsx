@@ -17,7 +17,7 @@ import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
 import { getActiveClaudeLink } from "@/lib/apiAuth";
 import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
-import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE } from "@/lib/attachments";
+import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE, repoLinkName } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
@@ -478,7 +478,7 @@ export default async function ProjectPage({
           ...project.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null })),
           ...project.links.map((l) => ({ id: l.id, fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null, uploadedAt: l.createdAt })),
           // Los repositorios vinculados también se listan como enlaces del proyecto.
-          ...repoUrls.map((url, i) => ({ id: `repo-${i}`, fileUrl: url, fileName: `Repositorio${repoUrls.length > 1 ? ` ${i + 1}` : ""} — ${url.replace(/^https?:\/\/(www\.)?/, "")}`, mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
+          ...repoUrls.map((url, i) => ({ id: `repo-${i}`, fileUrl: url, fileName: repoLinkName(url, i, repoUrls.length), mimeType: LINK_MIME_TYPE, taskId: null, taskTitle: null })),
         ]
       : [];
   // Credenciales: una fila del proyecto (Definición) y una por tarea donde está como insumo — la
@@ -520,15 +520,15 @@ export default async function ProjectPage({
   // grilla de AttachmentGrid.
   const projectSharedLinks = [
     ...(activeShareLink && !fileTask
-      ? [{ id: activeShareLink.id, label: `Proyecto — ${project.name}`, token: activeShareLink.token, href: `/projects/${project.id}` }]
+      ? [{ id: activeShareLink.id, label: `Proyecto — ${project.name}`, token: activeShareLink.token, href: `/projects/${project.id}`, project: { name: project.name, iconUrl: project.iconUrl } }]
       : []),
     ...taskShareLinks
       .filter((l) => !fileTask || l.taskId === fileTask)
       .map((l) => {
         const task = project.tasks.find((t) => t.id === l.taskId);
-        return task ? { id: l.id, label: `Tarea — ${task.title}`, token: l.token, href: `/projects/${project.id}/tasks/${l.taskId}` } : null;
+        return task ? { id: l.id, label: `Tarea — ${task.title}`, token: l.token, href: `/projects/${project.id}/tasks/${l.taskId}`, project: { name: project.name, iconUrl: project.iconUrl } } : null;
       })
-      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+      .filter((l): l is { id: string; label: string; token: string; href: string; project: { name: string; iconUrl: string | null } } => l !== null),
   ].filter((l) => !fileQ || normalizeSearchText(l.label).includes(normalizeSearchText(fileQ)));
 
   return (

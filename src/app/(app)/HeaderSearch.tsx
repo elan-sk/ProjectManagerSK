@@ -47,7 +47,7 @@ const KIND_COLOR: Record<SearchHit["kind"], string> = {
   comment: "bg-amber-50 text-amber-700",
   file: "bg-sky-50 text-sky-700",
   link: "bg-violet-50 text-violet-700",
-  credential: "bg-teal-50 text-teal-700",
+  credential: "bg-red-50 text-red-700", // rojo de seguridad, como sus fichas
 };
 
 /**

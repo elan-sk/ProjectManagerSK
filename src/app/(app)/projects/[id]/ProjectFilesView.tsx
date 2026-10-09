@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
 import { AddCredentialButton } from "../../credentials/AddCredentialButton";
+import type { SharedLinkItem } from "@/components/SharedLinkTiles";
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -41,7 +42,7 @@ export function ProjectFilesView({
   // Links de "Compartir" (acceso público al proyecto/tarea) activos —
   // distintos de un adjunto tipo link (recurso externo pegado a mano),
   // por eso van en su propia sección en vez de la grilla de AttachmentGrid.
-  sharedLinks: { id: string; label: string; token: string; href: string }[];
+  sharedLinks: SharedLinkItem[];
   fileKind?: "INSUMO" | "RESULTADO";
   fileType?: string;
   fileTask?: string;

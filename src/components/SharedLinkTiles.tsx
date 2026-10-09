@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { CheckIcon, ShareIcon } from "@/components/icons";
+import { ProjectIcon } from "@/components/ProjectIcon";
 
-export type SharedLinkItem = { id: string; label: string; token: string; href: string };
+export type SharedLinkItem = { id: string; label: string; token: string; href: string; /** Proyecto del link: su logo (o inicial) va junto a la dirección. */ project: { name: string; iconUrl: string | null } };
 
 /**
  * Links compartidos (proyecto y tareas) como una sección más de la vista. Cada tarjeta ocupa una columna de la
@@ -13,6 +14,12 @@ export type SharedLinkItem = { id: string; label: string; token: string; href: s
  */
 export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[]; /** Misma grilla que las demás secciones de la vista. */ className?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Dominio de la app (donde vive el link compartido); en el servidor queda vacío y se completa al cargar.
+  const host = useSyncExternalStore(
+    () => () => {},
+    () => window.location.hostname,
+    () => ""
+  );
 
   function copy(l: SharedLinkItem) {
     navigator.clipboard.writeText(`${window.location.origin}/share/${l.token}`);
@@ -49,6 +56,13 @@ export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[];
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-[#0a6b78]">{copied ? "¡Link copiado!" : rest.length > 0 ? kind : "Link"}</span>
                   {/* Completo: un nombre largo baja de línea y la ficha crece en alto (pedido del usuario). */}
                   <span className="break-words text-sm leading-snug font-medium text-slate-800">{name}</span>
+                  {/* Igual que el link externo y la contraseña: ícono y dirección; acá, el logo del proyecto (o su inicial). */}
+                  {host && (
+                    <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">
+                      <ProjectIcon name={l.project.name} iconUrl={l.project.iconUrl} size="h-3.5 w-3.5 text-[8px]" />
+                      <span className="truncate">{host}</span>
+                    </span>
+                  )}
                 </span>
               </button>
               <Link

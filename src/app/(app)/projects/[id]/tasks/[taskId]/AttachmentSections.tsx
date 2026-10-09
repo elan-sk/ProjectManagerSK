@@ -49,7 +49,7 @@ export function AttachmentSections({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{group.length}</span>
         </h3>
       )}
-      <AttachmentGrid items={group} canDelete={canDelete} className={className} />
+      <AttachmentGrid items={group} canDelete={canDelete} className={className} credentialLayout="card" />
     </section>
   );
 

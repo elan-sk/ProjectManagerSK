@@ -14,6 +14,9 @@ export const credentialIdFromRef = (url: string) => (url.startsWith("credential:
 /** URL de una contraseña para mostrar bajo su ficha: sin protocolo ni barra final. */
 export const credentialUrlLabel = (url: string | null | undefined) => (url ? url.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "") || undefined : undefined);
 
+// Nombre con que se muestra un repositorio del proyecto entre los links (vista Archivos y Galería).
+export const repoLinkName = (url: string, i: number, total: number) => `Repositorio${total > 1 ? ` ${i + 1}` : ""} — ${url.replace(/^https?:\/\/(www\.)?/, "")}`;
+
 export type AttachmentFileType = "image" | "document" | "link" | "credential";
 
 export function attachmentFileType(mimeType: string): AttachmentFileType {

@@ -530,18 +530,18 @@ export default async function ProjectsPage({
       .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProject || p.id === fileProject))
       .map((p) => {
         const token = projectShareTokenById.get(p.id);
-        return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}` } : null;
+        return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}`, project: { name: p.name, iconUrl: p.iconUrl } } : null;
       })
-      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+      .filter((l): l is { id: string; label: string; token: string; href: string; project: { name: string; iconUrl: string | null } } => l !== null),
     ...boardTasksRaw
       .filter((t) => !fileProject || t.projectId === fileProject)
       .map((t) => {
         const token = taskShareTokenById.get(t.id);
         return token
-          ? { id: `task:${t.id}`, label: `Tarea — ${t.title} (${t.project.name})`, token, href: `/projects/${t.projectId}/tasks/${t.id}` }
+          ? { id: `task:${t.id}`, label: `Tarea — ${t.title} (${t.project.name})`, token, href: `/projects/${t.projectId}/tasks/${t.id}`, project: { name: t.project.name, iconUrl: t.project.iconUrl } }
           : null;
       })
-      .filter((l): l is { id: string; label: string; token: string; href: string } => l !== null),
+      .filter((l): l is { id: string; label: string; token: string; href: string; project: { name: string; iconUrl: string | null } } => l !== null),
   ].filter((l) => !fileQ || normalizeSearchText(l.label).includes(normalizeSearchText(fileQ)));
   const boardFileProjectOptions = Array.from(new Map(boardTasksRaw.map((t) => [t.projectId, t.project.name])).entries()).map(
     ([id, label]) => ({ id, label })

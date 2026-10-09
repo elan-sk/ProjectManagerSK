@@ -6,11 +6,12 @@ import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/Modal";
-import { attachmentFileType, documentStyle, youtubeVideoId } from "@/lib/attachments";
+import { attachmentFileType, credentialIdFromRef, documentStyle, youtubeVideoId } from "@/lib/attachments";
 import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, KeyIcon, LinkIcon } from "@/components/icons";
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { YouTubeModal } from "@/components/YouTubeModal";
+import { CredentialLoader } from "../../../../credentials/CredentialView";
 import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, reuseMediaForStep, type MediaItem } from "./mediaGallery";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
@@ -125,7 +126,11 @@ export function MediaGalleryButton(props: Props) {
                     )}
                     <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
                   </button>
-                  {type === "credential" ? null : type === "link" && !videoId ? (
+                  {type === "credential" ? (
+                    <button type="button" onClick={() => setViewing(item)} title="Ver contraseña" aria-label={`Ver ${item.name}`} className={actionClass}>
+                      <EyeIcon className="h-4 w-4" />
+                    </button>
+                  ) : type === "link" && !videoId ? (
                     <a href={item.url} target="_blank" rel="noopener noreferrer" title="Abrir enlace en otra pestaña" aria-label={`Abrir ${item.name}`} className={actionClass}>
                       <ExternalLinkIcon className="h-4 w-4" />
                     </a>
@@ -153,6 +158,12 @@ export function MediaGalleryButton(props: Props) {
       )}
       {viewing && attachmentFileType(viewing.mimeType) === "document" && (
         <AttachmentPreviewModal file={{ id: viewing.url, url: viewing.url, name: viewing.name, mimeType: viewing.mimeType }} onClose={() => setViewing(null)} />
+      )}
+      {/* Contraseña: su visor de siempre (pide los datos al servidor y respeta quién puede verla), sin agregarla. */}
+      {viewing && attachmentFileType(viewing.mimeType) === "credential" && credentialIdFromRef(viewing.url) && (
+        <ModalShell open onClose={() => setViewing(null)} title="Contraseña">
+          <CredentialLoader credentialId={credentialIdFromRef(viewing.url)!} onClose={() => setViewing(null)} />
+        </ModalShell>
       )}
     </>
   );

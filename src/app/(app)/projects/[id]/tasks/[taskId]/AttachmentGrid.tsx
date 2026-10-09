@@ -40,10 +40,13 @@ export function AttachmentGrid({
   items,
   canDelete,
   className,
+  credentialLayout,
 }: {
   items: AttachmentGridItem[];
   canDelete: boolean;
   className?: string;
+  /** Formato de las fichas de contraseña: «card» en la sección propia de Archivos; si no, como documento. */
+  credentialLayout?: "tile" | "card";
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -69,6 +72,7 @@ export function AttachmentGrid({
             credentialPlace={a.credentialPlace}
             credentialCanRemove={a.credentialCanRemove}
             credentialCanDelete={a.credentialCanDelete}
+            credentialLayout={credentialLayout}
             onOpenImage={a.mimeType.startsWith("image/") ? () => setOpenId(a.id) : undefined}
             onOpenPreview={isPreviewable(a.mimeType) ? () => setOpenPreview(a) : undefined}
             onOpenVideo={
