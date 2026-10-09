@@ -12,6 +12,8 @@ import { useRef, useState } from "react";
 import { addAttachmentRecord, addLinkAttachment } from "./actions";
 import { MediaGalleryButton } from "./MediaGalleryButton";
 import type { AttachmentKind } from "@prisma/client";
+import type { CredentialPlace } from "@/lib/credentialPlace";
+import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 
 const ACCEPT = UPLOAD_ACCEPT;
 
@@ -20,11 +22,14 @@ export function AttachmentUploader({
   userId,
   kind,
   label,
+  credentialPlace,
 }: {
   taskId: string;
   userId: string;
   kind: AttachmentKind;
   label: string;
+  /** Si se pasa, muestra «+ Contraseña» junto a Galería (Insumos de la tarea). */
+  credentialPlace?: CredentialPlace;
 }) {
   const router = useRouter();
   const notifyDuplicate = useDuplicateNotice();
@@ -34,7 +39,6 @@ export function AttachmentUploader({
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [addingLink, setAddingLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
 
@@ -85,7 +89,6 @@ export function AttachmentUploader({
       if (isDuplicate(await addLinkAttachment(taskId, kind, linkUrl.trim(), linkName.trim(), userId))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
-      setAddingLink(false);
       router.refresh();
     } catch (err) {
       setError((err as Error).message || "Link inválido");
@@ -96,53 +99,11 @@ export function AttachmentUploader({
 
   const canSaveLink = linkUrl.trim() !== "";
 
-  if (addingLink) {
-    return (
-      <div className="flex flex-col gap-2">
-        <input
-          type="url"
-          autoFocus
-          value={linkUrl}
-          onChange={(e) => setLinkUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && canSaveLink && saveLink()}
-          placeholder="https://…"
-          className="min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-xs"
-        />
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={linkName}
-            onChange={(e) => setLinkName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && canSaveLink && saveLink()}
-            placeholder="Nombre (opcional)"
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs"
-          />
-          <button
-            type="button"
-            disabled={uploading || !canSaveLink}
-            onClick={saveLink}
-            className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            Guardar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAddingLink(false);
-              setError(null);
-            }}
-            className="flex-shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-500 hover:border-slate-400"
-          >
-            Cancelar
-          </button>
-        </div>
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      </div>
-    );
-  }
-
+  // Fila de arriba: subir, «+ Contraseña» (solo en Insumos) y Galería. Abajo, el link siempre a mano:
+  // se pega la dirección, opcionalmente un nombre, y se agrega con Enter o con «Agregar».
+  const addOnEnter = (e: React.KeyboardEvent) => e.key === "Enter" && canSaveLink && !uploading && saveLink();
   return (
-    <div>
+    <div className="space-y-2">
       <div className="flex gap-2">
         <label
           onDragOver={(e) => {
@@ -158,16 +119,43 @@ export function AttachmentUploader({
           <UploadZoneLabel uploading={uploading} dragOver={dragOver} label={label} progress={progress} />
           <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleChange} />
         </label>
-        <button
-          type="button"
-          onClick={() => setAddingLink(true)}
-          className="flex-shrink-0 rounded-lg border border-dashed border-slate-300 px-3 text-xs text-slate-500 hover:border-slate-400"
-        >
-          + Link
-        </button>
+        {credentialPlace && (
+          <AddCredentialButton
+            place={credentialPlace}
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 text-xs text-slate-500 hover:border-slate-400"
+          />
+        )}
         <MediaGalleryButton taskId={taskId} userId={userId} kind={kind} />
       </div>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
+          onKeyDown={addOnEnter}
+          placeholder="Pegar link https://…"
+          aria-label="Dirección del link"
+          className="min-w-0 flex-[2] rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs hover:border-slate-400 focus:border-solid focus:border-slate-500 focus:outline-none"
+        />
+        <input
+          type="text"
+          value={linkName}
+          onChange={(e) => setLinkName(e.target.value)}
+          onKeyDown={addOnEnter}
+          placeholder="Nombre (opcional)"
+          aria-label="Nombre del link"
+          className="min-w-0 flex-1 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs hover:border-slate-400 focus:border-solid focus:border-slate-500 focus:outline-none"
+        />
+        <button
+          type="button"
+          disabled={uploading || !canSaveLink}
+          onClick={saveLink}
+          className="flex-shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          Agregar
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

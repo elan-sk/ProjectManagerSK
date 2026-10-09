@@ -1,7 +1,6 @@
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
-import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 import Link from "next/link";
 import { canSeeProject } from "@/lib/permissions";
 import { notFound } from "next/navigation";
@@ -585,15 +584,13 @@ export default async function TaskDetailPage({
               canDelete={canManage}
             />
             {canEdit && session?.user && task.status !== "COMPLETED" && (
-              <>
-                <AttachmentUploader
-                  taskId={taskId}
-                  userId={session.user.id}
-                  kind="INSUMO"
-                  label="+ Subir insumo"
-                />
-                <AddCredentialButton place={{ taskId }} />
-              </>
+              <AttachmentUploader
+                taskId={taskId}
+                userId={session.user.id}
+                kind="INSUMO"
+                label="+ Subir insumo"
+                credentialPlace={{ taskId }}
+              />
             )}
             {task.status === "COMPLETED" && (
               <p className="text-xs text-slate-400">La tarea ya está completada — no se pueden subir más insumos.</p>
@@ -630,10 +627,7 @@ export default async function TaskDetailPage({
             canDelete={canManage}
           />
           {canEdit && session?.user && task.status !== "COMPLETED" && (
-            <>
-              <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" />
-              <AddCredentialButton place={{ taskId }} />
-            </>
+            <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" credentialPlace={{ taskId }} />
           )}
         </section>
       )}
