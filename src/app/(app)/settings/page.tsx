@@ -101,13 +101,16 @@ export default async function SettingsPage({
         <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">{botSettings.name} (bot asistente)</h2>
           <p className="text-sm text-slate-500">
-            Nombre, foto, tono, clave de Anthropic y tope mensual de preguntas — compartido por todo el equipo.
+            Nombre, foto, tono, servicio de IA con su clave y tope mensual de preguntas — compartido por todo el equipo.
           </p>
           <BotSettingsForm
             name={botSettings.name}
             avatarUrl={botSettings.avatarUrl}
             apiKeyConfigured={botSettings.apiKeyConfigured}
             apiKeyLast4={botSettings.apiKeyLast4}
+            provider={botSettings.provider}
+            baseUrl={botSettings.baseUrl}
+            model={botSettings.model}
             monthlyLimit={botSettings.monthlyLimit}
             usedThisPeriod={botSettings.usedThisPeriod}
             personaPrompt={botSettings.personaPrompt}

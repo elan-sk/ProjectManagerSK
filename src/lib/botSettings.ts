@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { findUploadPath } from "@/lib/persistentUploads";
 import { prisma } from "@/lib/prisma";
 import { APP_SETTING_ID } from "@/lib/appSettings";
+import { BOT_PROVIDERS, isBotProvider, type BotProvider } from "@/lib/botProviders";
 
 // Tono/personalidad de fábrica — se usa cuando nadie configuró uno propio
 // desde Configuración (botPersonaPrompt null/vacío). Las reglas operativas
@@ -27,6 +28,9 @@ export async function getBotSettings() {
     avatarUrl: s?.botAvatarUrl ?? null,
     apiKeyConfigured: Boolean(s?.botApiKey),
     apiKeyLast4: s?.botApiKey ? s.botApiKey.slice(-4) : null,
+    provider: (isBotProvider(s?.botProvider) ? s.botProvider : "anthropic") as BotProvider,
+    baseUrl: s?.botBaseUrl ?? null,
+    model: s?.botModel ?? null,
     monthlyLimit: s?.botMonthlyQuestionLimit ?? 300,
     usedThisPeriod: s?.botQuestionsUsedThisPeriod ?? 0,
     personaPrompt: s?.botPersonaPrompt?.trim() || DEFAULT_BOT_PERSONA,
@@ -74,6 +78,28 @@ export async function setBotIntroMessage(text: string | null) {
 export async function getBotApiKey(): Promise<string | null> {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
   return s?.botApiKey ?? null;
+}
+
+// Server-only: con qué servicio, dirección, modelo y clave habla el chat. null = sin clave.
+export async function getBotConnection() {
+  const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
+  if (!s?.botApiKey) return null;
+  const provider: BotProvider = isBotProvider(s.botProvider) ? s.botProvider : "anthropic";
+  const def = BOT_PROVIDERS[provider];
+  return {
+    provider,
+    label: def.label,
+    apiKey: s.botApiKey,
+    baseURL: provider === "custom" ? s.botBaseUrl : def.baseURL,
+    model: s.botModel?.trim() || def.defaultModel,
+  };
+}
+
+// Servicio + clave se guardan juntos: con una sola clave, cambiar de servicio sin la clave nueva
+// dejaría guardada una que no sirve. rawKey null = conservar la actual (mismo servicio).
+export async function setBotConnection(provider: BotProvider, baseUrl: string | null, model: string | null, rawKey: string | null) {
+  const data = { botProvider: provider, botBaseUrl: baseUrl, botModel: model, ...(rawKey ? { botApiKey: rawKey } : {}) };
+  await prisma.appSetting.upsert({ where: { id: APP_SETTING_ID }, create: { id: APP_SETTING_ID, ...data }, update: data });
 }
 
 export async function getBotName(): Promise<string> {

@@ -73,7 +73,7 @@ async function pdfToText(buffer: Buffer) {
 }
 
 /**
- * Devuelve el contenido del archivo listo para mandar a Anthropic, lo más
+ * Devuelve el contenido del archivo listo para mandar al servicio de IA, lo más
  * liviano posible. Si una conversión falla o no aplica, cae al archivo tal cual
  * (PDF nativo / imagen original) para no perder información.
  */
@@ -90,7 +90,8 @@ export async function prepareFileForBot(buffer: Buffer, fileName: string, mimeTy
   if (mimeType === "application/pdf") {
     const text = await pdfToText(buffer).catch(() => "");
     if (text.trim()) return capText(text);
-    // Sin capa de texto (escaneado): se manda el PDF nativo para que Claude lo vea.
+    // Sin capa de texto (escaneado): se manda el PDF nativo para que Claude lo vea (los demás
+    // servicios no lo leen: chontatec.ts lo cambia por un aviso, ver withoutDocuments).
     return [{ type: "document", title: fileName, source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } }];
   }
 

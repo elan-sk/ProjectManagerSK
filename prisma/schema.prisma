@@ -812,6 +812,12 @@ model AppSetting {
   botName                    String    @default("Chontatec")
   botAvatarUrl               String?
   botApiKey                  String?
+  // Servicio de IA del chat (ver src/lib/botProviders.ts): "anthropic", "deepseek" o "custom"
+  // (cualquier servicio compatible con la API de Anthropic). Una sola clave (botApiKey) para el
+  // servicio elegido. botBaseUrl solo para "custom"; botModel null = modelo por defecto del servicio.
+  botProvider                String    @default("anthropic")
+  botBaseUrl                 String?
+  botModel                   String?
   // Tono/personalidad editable desde Configuración (ver DEFAULT_BOT_PERSONA
   // en src/lib/botSettings.ts) — null significa "usar el default de fábrica".
   // Las reglas operativas no negociables (usar las tools, nunca inventar

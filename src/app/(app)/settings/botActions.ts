@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { getBotSettings, setBotProfile, setBotApiKey, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage } from "@/lib/botSettings";
+import { getBotSettings, setBotProfile, setBotApiKey, setBotConnection, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage } from "@/lib/botSettings";
+import { isBotProvider } from "@/lib/botProviders";
 
 async function requireAdmin() {
   const session = await auth();
@@ -26,10 +27,22 @@ export async function updateBotAvatar(url: string) {
   return { ok: true as const };
 }
 
-export async function updateBotApiKey(rawKey: string) {
+/** Servicio de IA del chat. La clave es obligatoria si no hay una o si cambia el servicio. */
+export async function updateBotConnection(input: { provider: string; baseUrl: string; model: string; apiKey: string }) {
   await requireAdmin();
-  if (!rawKey.trim()) return { ok: false as const, error: "La clave no puede estar vacía." };
-  await setBotApiKey(rawKey.trim());
+  if (!isBotProvider(input.provider)) return { ok: false as const, error: "Elija un servicio de la lista." };
+  const current = await getBotSettings();
+  const baseUrl = input.baseUrl.trim();
+  const model = input.model.trim();
+  const apiKey = input.apiKey.trim();
+  if (input.provider === "custom") {
+    if (!/^https:\/\/\S+$/i.test(baseUrl)) return { ok: false as const, error: "Falta la dirección del servicio (debe empezar por https://)." };
+    if (!model) return { ok: false as const, error: "Falta indicar el modelo del servicio." };
+  }
+  if (!apiKey && (!current.apiKeyConfigured || current.provider !== input.provider)) {
+    return { ok: false as const, error: "Falta la clave de ese servicio." };
+  }
+  await setBotConnection(input.provider, input.provider === "custom" ? baseUrl : null, model || null, apiKey || null);
   revalidatePath("/settings");
   return { ok: true as const };
 }

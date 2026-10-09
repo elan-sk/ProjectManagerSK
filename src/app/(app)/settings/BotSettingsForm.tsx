@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   updateBotProfile,
   updateBotAvatar,
-  updateBotApiKey,
+  updateBotConnection,
   clearBotApiKey,
   updateBotMonthlyLimit,
   updateBotPersonaPrompt,
@@ -13,12 +13,16 @@ import {
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { BOT_PROVIDERS, type BotProvider } from "@/lib/botProviders";
 
 export function BotSettingsForm({
   name,
   avatarUrl,
   apiKeyConfigured,
   apiKeyLast4,
+  provider,
+  baseUrl,
+  model,
   monthlyLimit,
   usedThisPeriod,
   personaPrompt,
@@ -30,6 +34,9 @@ export function BotSettingsForm({
   avatarUrl: string | null;
   apiKeyConfigured: boolean;
   apiKeyLast4: string | null;
+  provider: BotProvider;
+  baseUrl: string | null;
+  model: string | null;
   monthlyLimit: number;
   usedThisPeriod: number;
   personaPrompt: string;
@@ -44,6 +51,10 @@ export function BotSettingsForm({
   const [success, setSuccess] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [changingKey, setChangingKey] = useState(!apiKeyConfigured);
+  const [draftProvider, setDraftProvider] = useState<BotProvider>(provider);
+  const draft = BOT_PROVIDERS[draftProvider];
+  // Una sola clave guardada: si cambia el servicio, hay que poner la de ese servicio.
+  const keyRequired = !apiKeyConfigured || draftProvider !== provider;
 
   async function handleAvatarChange() {
     const file = inputRef.current?.files?.[0];
@@ -203,19 +214,22 @@ export function BotSettingsForm({
       </div>
 
       <div className="space-y-1.5 border-t border-slate-100 pt-4">
-        <label className="block text-sm text-slate-600">Clave de API de Anthropic</label>
+        <label className="block text-sm text-slate-600">Servicio de IA del chat</label>
         {!changingKey && apiKeyConfigured && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-emerald-600">Configurada ✓ (termina en …{apiKeyLast4})</span>
+            <span className="text-sm text-emerald-600">
+              {BOT_PROVIDERS[provider].label}
+              {provider === "custom" && baseUrl ? ` (${baseUrl})` : ""} · modelo {model || BOT_PROVIDERS[provider].defaultModel} · clave …{apiKeyLast4} ✓
+            </span>
             <button type="button" onClick={() => setChangingKey(true)} className="text-xs font-medium text-slate-500 hover:underline">
-              Cambiar clave
+              Cambiar
             </button>
             <button
               type="button"
               onClick={() => startTransition(async () => { await clearBotApiKey(); router.refresh(); })}
               className="text-xs font-medium text-red-600 hover:underline"
             >
-              Quitar
+              Quitar clave
             </button>
           </div>
         )}
@@ -224,34 +238,83 @@ export function BotSettingsForm({
             action={(formData: FormData) => {
               setError(null);
               startTransition(async () => {
-                const key = (formData.get("apiKey") as string) ?? "";
-                const result = await updateBotApiKey(key);
+                const result = await updateBotConnection({
+                  provider: draftProvider,
+                  baseUrl: (formData.get("baseUrl") as string) ?? "",
+                  model: (formData.get("model") as string) ?? "",
+                  apiKey: (formData.get("apiKey") as string) ?? "",
+                });
                 if (result.ok) {
                   setChangingKey(false);
                   router.refresh();
                 } else {
-                  setError(result.error ?? "No se pudo guardar la clave.");
+                  setError(result.error);
                 }
               });
             }}
-            className="flex flex-wrap items-center gap-2"
+            className="space-y-2"
           >
-            <input
-              type="password"
-              name="apiKey"
-              placeholder="sk-ant-…"
-              required
+            <select
+              value={draftProvider}
+              onChange={(e) => setDraftProvider(e.target.value as BotProvider)}
               className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              disabled={isPending}
-              className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              {isPending ? "Guardando…" : "Guardar clave"}
-            </button>
+              {(Object.keys(BOT_PROVIDERS) as BotProvider[]).map((p) => (
+                <option key={p} value={p}>
+                  {BOT_PROVIDERS[p].label}
+                </option>
+              ))}
+            </select>
+            {draftProvider === "custom" && (
+              <input
+                name="baseUrl"
+                type="url"
+                required
+                defaultValue={provider === "custom" ? baseUrl ?? "" : ""}
+                placeholder="https://… (dirección compatible con Anthropic)"
+                className="block w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            )}
+            <input
+              key={draftProvider}
+              name="model"
+              required={draftProvider === "custom"}
+              defaultValue={draftProvider === provider ? model ?? "" : ""}
+              placeholder={draft.defaultModel ? `Modelo (por defecto ${draft.defaultModel})` : "Modelo"}
+              className="block w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="password"
+                name="apiKey"
+                required={keyRequired}
+                placeholder={keyRequired ? draft.keyPlaceholder : "Clave (vacío = conservar la actual)"}
+                className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button
+                disabled={isPending}
+                className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {isPending ? "Guardando…" : "Guardar"}
+              </button>
+              {apiKeyConfigured && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftProvider(provider);
+                    setChangingKey(false);
+                  }}
+                  className="text-xs font-medium text-slate-500 hover:underline"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
           </form>
         )}
-        <p className="text-xs text-slate-400">No tiene que ser la misma cuenta que uses para otra cosa — queda guardada en la base de datos.</p>
+        <p className="text-xs text-slate-400">
+          Se guarda una sola clave, la del servicio elegido. No tiene que ser la misma cuenta que se use para otra cosa; queda guardada en la base de datos.
+        </p>
       </div>
 
       <div className="space-y-1.5 border-t border-slate-100 pt-4">
