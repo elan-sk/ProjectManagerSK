@@ -8,13 +8,14 @@ async function main() {
   let sent: Sent | null = null;
   let status = 200;
   let calls = 0;
+  let cutOff = false;
   globalThis.fetch = (async (_url: string, init: { body: string }) => {
     calls++;
     sent = JSON.parse(init.body);
     if (status !== 200) return new Response("saturado", { status });
     return new Response(
       JSON.stringify({
-        choices: [{ finish_reason: "tool_calls", message: { content: "Reviso.", tool_calls: [{ id: "c2", type: "function", function: { name: "list_projects", arguments: "{}" }, extra_content: { google: { thought_signature: "sig2" } } }] } }],
+        choices: [{ finish_reason: cutOff ? "length" : "tool_calls", message: { content: "Reviso.", tool_calls: [{ id: "c2", type: "function", function: { name: "list_projects", arguments: cutOff ? '{"fileName":"a.docx","content":"tex' : "{}" }, extra_content: { google: { thought_signature: "sig2" } } }] } }],
       }),
       { status: 200 }
     );
@@ -56,6 +57,12 @@ async function main() {
   assert.deepEqual(use._extra, { google: { thought_signature: "sig2" } });
   const clean = withoutOpenAIExtras([{ role: "assistant", content: r.content }]);
   assert.ok(!JSON.stringify(clean).includes("_extra"), "a un servicio Anthropic no le llega _extra");
+
+  cutOff = true;
+  const cut = await createOpenAICompatMessage({ baseURL: "https://x.test", apiKey: "k", model: "m", maxTokens: 1, deadline: Date.now() + 60_000, system: "", tools: [], messages: [] });
+  assert.equal(cut.stopReason, "max_tokens");
+  assert.deepEqual((cut.content[1] as { input: unknown }).input, {});
+  cutOff = false;
 
   // Saturado (429): 2 reintentos y luego error con su código.
   status = 429;

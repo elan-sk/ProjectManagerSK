@@ -2,7 +2,8 @@ import { credentialVisibleWhere } from "@/lib/credentials";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { mimeFromFileName } from "@/lib/uploadFile";
+import { mimeFromFileName, saveUploadedFile } from "@/lib/uploadFile";
+import { buildFile } from "@/lib/botFileCreate";
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -95,6 +96,16 @@ export const READ_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { fileUrl: { type: "string", description: "Ruta /uploads/… tal cual aparece en el mensaje." }, fileName: { type: "string" } },
       required: ["fileUrl", "fileName"],
+    },
+  },
+  {
+    name: "create_file",
+    description:
+      "Crea un archivo descargable y devuelve su enlace. El formato sale de la extensión de fileName: .docx, .pdf, .xlsx, .pptx, .md, .txt, .csv o .html. content va en Markdown (# título del documento; ## sección, hoja de Excel o diapositiva; listas; tablas); en .txt, .csv y .html, el contenido final tal cual.",
+    input_schema: {
+      type: "object",
+      properties: { fileName: { type: "string" }, content: { type: "string" } },
+      required: ["fileName", "content"],
     },
   },
   {
@@ -681,10 +692,12 @@ const MEMBER_WRITE_TOOLS = WRITE_TOOLS.filter(
 // miembros, la única comunicación individual automática es el resumen diario;
 // por eso ni siquiera reciben esta tool en el chat.
 export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const isAdmin = user.role === "ADMIN";
-  const isPM = isAdmin || (await prisma.project.count({ where: { pmId: userId } })) > 0;
-  return isPM ? ALL_TOOLS : [...READ_TOOLS, ...MEMBER_WRITE_TOOLS];
+  return (await isAdminOrPm(userId)) ? ALL_TOOLS : [...READ_TOOLS, ...MEMBER_WRITE_TOOLS];
+}
+
+async function isAdminOrPm(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  return user.role === "ADMIN" || (await prisma.project.count({ where: { pmId: userId } })) > 0;
 }
 
 // Quien conversa, con su rol real: los servicios de diseño y de hilos aplican el mismo permiso que la app.
@@ -1049,6 +1062,17 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!mine) return JSON.stringify({ error: "Ese archivo no fue subido desde tu chat." });
       const { mimeFromFileName } = await import("@/lib/uploadFile");
       return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName) });
+    }
+    case "create_file": {
+      const parsed = z.object({ fileName: z.string(), content: z.string() }).safeParse(input);
+      if (!parsed.success) return JSON.stringify({ error: "Faltan el nombre o el contenido del archivo." });
+      const isHtml = /\.html?$/i.test(parsed.data.fileName.trim());
+      if (isHtml && !(await isAdminOrPm(userId))) return JSON.stringify({ error: "Los archivos HTML solo los pueden crear administradores y PM. Ofrecer otro formato." });
+      const built = await buildFile(parsed.data.fileName, parsed.data.content);
+      if (!built.ok) return JSON.stringify({ error: built.error });
+      const saved = await saveUploadedFile(new File([new Uint8Array(built.buffer)], built.name), { allowHtml: isHtml });
+      if (!saved.ok) return JSON.stringify({ error: saved.error });
+      return JSON.stringify({ link: `[${built.name}](${saved.url})`, nota: "Mostrar este link tal cual, con el nombre y su extensión. Adjuntarlo a una tarea solo si la persona lo pide." });
     }
     case "read_attachment": {
       const { attachmentId } = z.object({ attachmentId: z.string() }).parse(input);

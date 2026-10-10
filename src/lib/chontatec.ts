@@ -31,7 +31,7 @@ Reglas:
 - Links Markdown [texto](url) con ids reales de las herramientas: proyecto /projects/{projectId}; tarea /projects/{projectId}/tasks/{taskId}; archivo de una tarea /projects/{projectId}?view=files&fileTask={taskId}.
 - Al CREAR algo (create_task, create_project…), confirmá en una frase que quedó creado, con su nombre como link (ids del comentario oculto <!--ids:…--> del resultado), sin repetir datos técnicos. NUNCA escribas un id como texto.
 - Listas que la persona quiere como checklist: add_checklist_steps (un paso por ítem). Notas o bitácora: add_task_comment.
-- Archivos: en todo campo de archivos { url, name }, url es la ruta /uploads/… que la persona subió en este chat, o un link https://. Si sube un archivo, leelo DE INMEDIATO con read_uploaded_file (no le pidas adjuntarlo antes); adjuntarlo (attach_uploaded_file) es aparte y solo si lo pide. Para un archivo ya adjunto a una tarea, read_attachment. Leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint).
+- Archivos: en todo campo de archivos { url, name }, url es la ruta /uploads/… que la persona subió en este chat, o un link https://. Si sube un archivo, leelo DE INMEDIATO con read_uploaded_file (no le pidas adjuntarlo antes); adjuntarlo (attach_uploaded_file) es aparte y solo si lo pide. Para un archivo ya adjunto a una tarea, read_attachment. Leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint). Crear un archivo: create_file (Word, Excel, PDF, PowerPoint, .md, .txt, .csv; .html solo admin o PM), con datos reales consultados antes; mostrá el link que devuelve, tal cual. Máximo ~1.200 palabras por archivo: si pide más, proponé dividirlo en partes ANTES de crearlo.
 - @menciones: si el texto dictado nombra a alguien con "@Nombre", es una mención real: buscá su id con list_team_members y pasalo en mentionUserIds (add_task_comment, post_thread_comment). No escribas "@Nombre" en body (se agrega solo). Sin mentionUserIds, esa persona no recibe aviso.
 - Diseño de Ajustes, Pruebas (QA) y Aceptaciones: tras confirmar con la persona la lista completa, cargala con design_task en UN paso (Ajuste: "items"; Prueba/Aceptación: "checks" y, opcional, "deliverables"; Prueba también "templateId"). Ids y estado: get_task_design; editar un ítem: manage_design_item. La plantilla de pruebas se elige al crear (create_task con defaultTestTemplateId) o con set_test_template (ids de list_test_templates). Cada acción exige su rol: no prometas saltarte un permiso.
 - Comentarios y preguntas: post_thread_comment publica un comentario o una PREGUNTA de selección única o múltiple ("poll", 2 a 10 opciones; "body" es el enunciado) en cualquier hilo (scopes en la herramienta). Hilos y estadística: get_task_threads; responder: answer_poll; cerrar: close_poll. En selección múltiple el % es sobre quienes respondieron (puede sumar más de 100 %).
@@ -66,6 +66,7 @@ function errorTextFor(err: unknown, service: string) {
 const SCANNED_PDF_TEXT = JSON.stringify({ error: "Este PDF es escaneado (sin texto) y el servicio de IA configurado no puede leerlo. Pedir el archivo con texto o una imagen de las páginas." });
 const REFUSAL_TEXT = "Uy, esa la tengo que dejar pasar — probá preguntando de otra forma.";
 const PENDING_ACTION_TEXT = "Todavía tenés una acción pendiente de confirmar arriba — confirmala o cancelala antes de seguir, melo.";
+const FILE_TOO_LONG_TEXT = JSON.stringify({ error: "El archivo no se creó: el contenido es demasiado largo para una sola respuesta. Avisar a la persona y proponer dividirlo en partes más cortas." });
 const SLOW_TEXT = "Me está tomando demasiado tiempo responder — probá de nuevo en un momento, o preguntame algo más puntual, melo.";
 // El servidor web de Hostinger corta un pedido a los ~60 s (504 Gateway Time-out): la respuesta del
 // chat completa (todas las consultas al servicio de IA) tiene que terminar antes, aunque sea con un aviso.
@@ -318,6 +319,12 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
     if (toolUses.length === 0) {
       await persistRow(userId, "assistant", response.content);
       return;
+    }
+
+    if (response.stop_reason === "max_tokens" && toolUses.some((t) => t.name === "create_file")) {
+      const cut = toolUses.map((t): Anthropic.ToolResultBlockParam => ({ type: "tool_result", tool_use_id: t.id, content: FILE_TOO_LONG_TEXT }));
+      messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: cut }];
+      continue;
     }
 
     // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola

@@ -95,7 +95,7 @@ export async function createOpenAICompatMessage(opts: {
   messages: Anthropic.MessageParam[];
   /** Hora límite (Date.now()) para responder: no se espera ni se reintenta más allá. */
   deadline: number;
-}): Promise<{ content: Anthropic.ContentBlock[]; stopReason: "end_turn" | "tool_use" | "refusal" }> {
+}): Promise<{ content: Anthropic.ContentBlock[]; stopReason: "end_turn" | "tool_use" | "refusal" | "max_tokens" }> {
   const body = JSON.stringify({
     model: opts.model,
     max_tokens: opts.maxTokens,
@@ -145,6 +145,7 @@ export async function createOpenAICompatMessage(opts: {
       ...(c.extra_content !== undefined ? { _extra: c.extra_content } : {}),
     } as Anthropic.ToolUseBlock & { _extra?: unknown });
   }
+  if (choice.finish_reason === "length") return { content, stopReason: "max_tokens" };
   return { content, stopReason: content.some((b) => b.type === "tool_use") ? "tool_use" : "end_turn" };
 }
 
