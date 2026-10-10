@@ -106,8 +106,6 @@ export function HeaderSearch() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  // Alt+B lleva al buscador desde cualquier lugar, también desde un campo de texto (ahí Ctrl+B es negrita).
-  // e.code y no e.key: en Mac Alt+B escribe «∫». Oculto (móvil): no se intercepta.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const input = inputRef.current;

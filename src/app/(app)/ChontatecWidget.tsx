@@ -7,9 +7,9 @@ import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChat
 import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { ALERT_STYLE, ALERT_LEVEL_LABEL } from "@/components/AlertBadge";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import { useConfirm } from "@/components/Confirm";
-import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon } from "@/components/icons";
+import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon } from "@/components/icons";
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -33,7 +33,7 @@ const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|\[\[[a-z]+:[^\]]*\]\
 function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
   return text.split(INLINE_MARKDOWN).map((part, i) => {
     const bold = part.match(/^\*\*([^*]+)\*\*$/);
-    if (bold) return <strong key={i}>{bold[1]}</strong>;
+    if (bold) return <strong key={i}>{renderInlineMarkdown(bold[1], openFile)}</strong>;
 
     const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     // Link a un archivo (subido a la app o con extensión conocida): se abre en su visor, no se descarga.
@@ -63,6 +63,74 @@ function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
     return <Fragment key={i}>{part}</Fragment>;
   });
 }
+
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+const TABLE_SEPARATOR = /^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{0,}:?\s*\|?\s*$/;
+
+function tableCells(line: string) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+}
+
+function renderMessage(text: string, openFile: (f: ViewFile) => void) {
+  const lines = text.split("\n");
+  const blocks: ({ kind: "text"; lines: string[] } | { kind: "table"; header: string[]; rows: string[][] })[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (TABLE_ROW.test(lines[i]) && TABLE_SEPARATOR.test(lines[i + 1] ?? "")) {
+      const header = tableCells(lines[i]);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && TABLE_ROW.test(lines[i])) rows.push(tableCells(lines[i++]));
+      i--;
+      blocks.push({ kind: "table", header, rows });
+      continue;
+    }
+    const last = blocks[blocks.length - 1];
+    if (last?.kind === "text") last.lines.push(lines[i]);
+    else blocks.push({ kind: "text", lines: [lines[i]] });
+  }
+  return blocks.map((b, i) => {
+    if (b.kind === "text") {
+      const body = b.lines.join("\n").replace(/^\n+|\n+$/g, "");
+      return body ? (
+        <span key={i} className="block whitespace-pre-wrap">
+          {renderInlineMarkdown(body, openFile)}
+        </span>
+      ) : null;
+    }
+    return (
+      <div key={i} className="my-1.5 overflow-x-auto">
+        <table className="w-full border-collapse text-xs leading-snug">
+          <thead>
+            <tr>
+              {b.header.map((h, j) => (
+                <th key={j} className="border-b border-slate-300 px-1.5 py-1 text-left align-bottom font-semibold">
+                  {renderInlineMarkdown(h, openFile)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {b.rows.map((r, j) => (
+              <tr key={j}>
+                {b.header.map((_, k) => (
+                  <td key={k} className="border-b border-slate-200 px-1.5 py-1 align-top">
+                    {renderInlineMarkdown(r[k] ?? "", openFile)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  });
+}
+
+const PROJECT_PHASE_STATUS: Record<keyof typeof PROJECT_PHASE_LABEL, TaskStatus> = {
+  PLANNING: "NOT_STARTED",
+  ACTIVE: "IN_PROGRESS",
+  COMPLETED: "COMPLETED",
+};
 
 function renderChip(key: number, type: string, args: string[]) {
   if (type === "person") {
@@ -95,9 +163,10 @@ function renderChip(key: number, type: string, args: string[]) {
   }
 
   if (type === "status") {
-    const code = args[0] as TaskStatus;
+    const phase = args[0] as keyof typeof PROJECT_PHASE_LABEL;
+    const code = (PROJECT_PHASE_STATUS[phase] && !(args[0] in TASK_STATUS_LABEL) ? PROJECT_PHASE_STATUS[phase] : args[0]) as TaskStatus;
     const color = TASK_STATUS_COLOR[code];
-    const label = TASK_STATUS_LABEL[code];
+    const label = args[0] in TASK_STATUS_LABEL ? TASK_STATUS_LABEL[code] : PROJECT_PHASE_LABEL[phase];
     if (!color || !label) return null;
     return (
       <span key={key} className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${color.badge}`}>
@@ -128,10 +197,12 @@ function stripMarkdownForSpeech(text: string): string {
   return text
     .replace(/\[\[([a-z]+):([^\]]*)\]\]/g, (_match, type: string, rawArgs: string) => {
       const [first] = rawArgs.split("|");
-      if (type === "status") return TASK_STATUS_LABEL[first as TaskStatus] ?? first;
+      if (type === "status") return TASK_STATUS_LABEL[first as TaskStatus] ?? PROJECT_PHASE_LABEL[first as keyof typeof PROJECT_PHASE_LABEL] ?? first;
       if (type === "alert") return ALERT_LEVEL_LABEL[first as TaskAlert["level"]] ?? first;
       return first ?? "";
     })
+    .replace(/^\s*\|?(\s*:?-{3,}:?\s*\|?)+\s*$/gm, "")
+    .replace(/^\s*\|(.*)\|\s*$/gm, (_m, row: string) => row.split("|").map((c) => c.trim()).join(", ") + ".")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/[*_#`]/g, "");
@@ -143,6 +214,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
@@ -363,13 +435,16 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         </span>
       </div>
 
+      {open && expanded && <div className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setExpanded(false)} />}
       {open && (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onPaste={handlePaste}
-          className="fixed right-3 bottom-[4.5rem] z-40 flex h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)]"
+          className={`fixed z-50 flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)] ${
+            expanded ? "inset-3 md:inset-x-[8%] md:inset-y-6" : "right-3 bottom-[4.5rem] h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)]"
+          }`}
         >
           {dragOver && (
             <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-[#0a6b78] bg-white/90 text-sm font-medium text-[#0a6b78]">
@@ -382,6 +457,16 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
               <span className="text-sm font-medium text-slate-900">{botName}</span>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                aria-label={expanded ? "Tamaño normal" : "Pantalla completa"}
+                aria-pressed={expanded}
+                title={expanded ? "Tamaño normal" : "Pantalla completa"}
+                className={`rounded-full p-1 hover:bg-slate-100 hover:text-slate-700 ${expanded ? "text-slate-700" : "text-slate-400"}`}
+              >
+                <ExpandIcon className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={handleClearChat}
@@ -421,7 +506,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                     }`}
                   >
                     <div className="flex items-start gap-1.5">
-                      <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{renderInlineMarkdown(m.text, fileViewer.open)}</span>
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">{renderMessage(m.text, fileViewer.open)}</div>
                       {m.role === "assistant" && canSpeak && m.text && (
                         <button
                           type="button"
