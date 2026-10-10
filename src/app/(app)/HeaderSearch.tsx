@@ -6,6 +6,14 @@ import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
+import { Hotkey, isAppShortcut } from "@/components/Hotkey";
+import { createPortal } from "react-dom";
+import { ModalShell } from "@/components/Modal";
+import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
+import { YouTubeModal } from "@/components/YouTubeModal";
+import { AttachmentLightbox } from "./projects/[id]/tasks/[taskId]/AttachmentLightbox";
+import { CredentialLoader } from "./credentials/CredentialView";
+import { LINK_MIME_TYPE, credentialIdFromRef, youtubeVideoId } from "@/lib/attachments";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
 // Tareas → Comentarios → Archivos. Cada grupo lleva su título.
@@ -67,6 +75,9 @@ export function HeaderSearch() {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Archivo, link o contraseña abierto en su visor (mismos que AttachmentGrid).
+  const [preview, setPreview] = useState<SearchHit | null>(null);
   const trimmed = query.trim();
   const hits = result.q === trimmed ? result.hits : [];
   const loading = trimmed.length >= 2 && result.q !== trimmed;
@@ -102,14 +113,63 @@ export function HeaderSearch() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  // Ctrl+B lleva al buscador. Oculto (móvil): no se intercepta.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const input = inputRef.current;
+      if (!input?.offsetParent || !isAppShortcut(e, "b")) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Archivos, links y contraseñas se abren en su visor; un archivo sin vista
+  // previa se descarga y un link común abre en pestaña nueva (como sus fichas).
   function go(hit: SearchHit) {
     setOpen(false);
     setQuery("");
-    router.push(hit.href);
+    const p = hit.preview;
+    if (!p) return router.push(hit.href);
+    const opensViewer =
+      credentialIdFromRef(p.url) || p.mimeType.startsWith("image/") || isPreviewable(p.mimeType) || (p.mimeType === LINK_MIME_TYPE && youtubeVideoId(p.url));
+    if (opensViewer) setPreview(hit);
+    else if (p.mimeType === LINK_MIME_TYPE) window.open(p.url, "_blank", "noopener,noreferrer");
+    else {
+      const a = document.createElement("a");
+      a.href = p.url;
+      a.download = hit.title;
+      a.click();
+    }
   }
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") setOpen(false);
+  function previewViewer(hit: SearchHit) {
+    const { url, mimeType } = hit.preview!;
+    const close = () => setPreview(null);
+    const place = { href: hit.href, title: hit.context ?? hit.title };
+    const credentialId = credentialIdFromRef(url);
+    const videoId = mimeType === LINK_MIME_TYPE ? youtubeVideoId(url) : null;
+    if (credentialId)
+      return (
+        <ModalShell open onClose={close} title="Contraseña">
+          <CredentialLoader credentialId={credentialId} onClose={close} />
+        </ModalShell>
+      );
+    if (videoId) return <YouTubeModal videoId={videoId} title={hit.title} onClose={close} />;
+    if (mimeType.startsWith("image/"))
+      return <AttachmentLightbox images={[{ id: hit.id, url, name: hit.title, taskLink: place }]} openId={hit.id} onClose={close} onNavigate={() => {}} canDelete={false} />;
+    return <AttachmentPreviewModal file={{ id: hit.id, url, name: hit.title, mimeType, taskLink: place }} onClose={close} />;
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Ctrl+B acá es el atajo del buscador, no negrita (data-no-bold frena el
+    // script de ** de layout.tsx, que corre antes que este manejador).
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      e.currentTarget.select();
+    } else if (e.key === "Escape") setOpen(false);
     else if (e.key === "ArrowDown" && hits.length) {
       e.preventDefault();
       setActive((i) => (i + 1) % hits.length);
@@ -128,7 +188,7 @@ export function HeaderSearch() {
     <div className="flex grow px-5">
       <div
         ref={rootRef}
-        className="relative hidden min-w-0 flex-1 md:block md:max-w-sm"
+        className="group relative hidden min-w-0 flex-1 md:block md:max-w-sm"
       >
         <svg
           viewBox="0 0 24 24"
@@ -141,6 +201,8 @@ export function HeaderSearch() {
           <path strokeLinecap="round" d="M20 20l-4-4" />
         </svg>
         <input
+          ref={inputRef}
+          data-no-bold
           type="search"
           value={query}
           onChange={(e) => {
@@ -154,6 +216,7 @@ export function HeaderSearch() {
           autoComplete="off"
           className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-3 pl-8 text-sm text-white outline-none placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
         />
+        {!query && <Hotkey keys="B" className="absolute top-1/2 right-2 z-10 -translate-y-1/2" />}
         {showPanel && (
           <div className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] min-w-[22rem] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             {hits.length === 0 ? (
@@ -228,6 +291,7 @@ export function HeaderSearch() {
           </div>
         )}
       </div>
+      {preview && createPortal(previewViewer(preview), document.body)}
     </div>
   );
 }

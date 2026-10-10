@@ -99,9 +99,10 @@ export function ProjectIcon({
       <ProjectIconImage name={name} iconUrl={iconUrl} size={`${size} ${CHILD_RING}`} />
     </span>
   ) : parent ? (
-    <span className={`relative inline-flex shrink-0 ${size}`} title={`${parent.name} › ${name}`}>
-      <ProjectIconImage name={parent.name} iconUrl={parent.iconUrl} size={`h-full w-full rounded-[inherit] ${PARENT_RING}`} />
-      <ProjectIconImage name={name} iconUrl={iconUrl} size="absolute right-0 bottom-0 h-[55%] w-[55%] text-[0.6em] ring-2! ring-[#0a6b78]/70!" />
+    <span className={`relative mt-1.5 mr-1.5 mb-1.5 inline-flex shrink-0 ${size}`} title={`${parent.name} › ${name}`}>
+      <ProjectIconImage name={parent.name} iconUrl={parent.iconUrl} size="h-full w-full rounded-[inherit] ring-[3px]! ring-slate-500!" />
+      {/* Corrido hacia afuera de la esquina (desfase) y con borde blanco: se lee como «encima de», no «dentro de». */}
+      <ProjectIconImage name={name} iconUrl={iconUrl} size="absolute -right-[5%] -bottom-[5%] h-[75%] w-[75%] text-[0.8em] ring-[3px]! ring-white!" />
     </span>
   ) : (
     <ProjectIconImage name={name} iconUrl={iconUrl} size={size} />

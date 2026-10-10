@@ -13,6 +13,7 @@ import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon } from "@/components/icon
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { Hotkey, isAppShortcut } from "@/components/Hotkey";
 
 type ChatUiMessage = {
   id: string;
@@ -144,13 +145,23 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+  // Ctrl+I con el historial sin cargar: se lee apenas llega.
+  const speakLastOnLoad = useRef(false);
+  const lastAssistant = messages.findLast((m) => m.role === "assistant" && m.text);
 
   useEffect(() => {
     if (!open || loaded) return;
     getChatHistory().then((history) => {
       setMessages(history);
       setLoaded(true);
+      if (speakLastOnLoad.current) {
+        speakLastOnLoad.current = false;
+        const last = history.findLast((m) => m.role === "assistant" && m.text);
+        if (last) toggleSpeak(last.id, last.text);
+      }
     });
+    // toggleSpeak solo se usa una vez al cargar: no debe re-disparar la carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, loaded]);
 
   // Cortar la lectura si se cierra el panel o se desmonta el widget — que no
@@ -163,6 +174,27 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       if (canSpeak) window.speechSynthesis.cancel();
     };
   }, [canSpeak]);
+
+  // Ctrl+C abre/cierra el chat solo sin texto seleccionado (si hay, es copiar).
+  // Ctrl+I lee en voz alta el último mensaje del bot (abre el chat si hace falta);
+  // repetido mientras lee, lo detiene.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isAppShortcut(e, "c") && !window.getSelection()?.toString()) {
+        e.preventDefault();
+        setOpen((v) => !v);
+      } else if (isAppShortcut(e, "i")) {
+        e.preventDefault();
+        setOpen(true);
+        if (!canSpeak) return;
+        if (loaded) {
+          if (lastAssistant) toggleSpeak(lastAssistant.id, lastAssistant.text);
+        } else speakLastOnLoad.current = true;
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -309,6 +341,11 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         >
           <Avatar name={botName} avatarUrl={botAvatarUrl} size="h-12 w-12 text-sm" />
         </button>
+        {/* Con el chat abierto el panel queda justo arriba: las insignias van a la izquierda del botón. */}
+        <span className={`pointer-events-none absolute flex flex-col items-end gap-1 ${open ? "top-1/2 right-full mr-2 -translate-y-1/2" : "right-0 bottom-full mb-1.5"}`}>
+          <Hotkey keys="C" label={open ? "Cerrar chat" : "Abrir chat"} />
+          {canSpeak && <Hotkey keys="I" label="Leer respuesta" />}
+        </span>
       </div>
 
       {open && (
@@ -317,7 +354,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onPaste={handlePaste}
-          className="fixed bottom-24 right-6 z-40 flex h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)]"
+          className="fixed right-3 bottom-[4.5rem] z-40 flex h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)]"
         >
           {dragOver && (
             <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-[#0a6b78] bg-white/90 text-sm font-medium text-[#0a6b78]">
@@ -375,9 +412,10 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                           type="button"
                           onClick={() => toggleSpeak(m.id, m.text)}
                           aria-label={speakingId === m.id ? "Detener lectura" : "Leer en voz alta"}
-                          className="mt-0.5 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                          className="group relative mt-0.5 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                         >
                           {speakingId === m.id ? <SpeakerOffIcon className="h-3.5 w-3.5" /> : <SpeakerIcon className="h-3.5 w-3.5" />}
+                          {m.id === lastAssistant?.id && <Hotkey keys="I" className="absolute top-0 right-full mr-1" />}
                         </button>
                       )}
                     </div>

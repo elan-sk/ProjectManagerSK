@@ -338,6 +338,29 @@ button:not(:disabled):active {
   animation: typing-dot 900ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
+/* Insignia de atajo de teclado (components/Hotkey.tsx): visible al pasar el
+   mouse por su grupo o en toda la app mientras se mantiene Ctrl. La posición
+   la pone cada uso con clases de Tailwind. */
+.hotkey {
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: #0f172a;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.group:hover .hotkey,
+html.show-hotkeys .hotkey {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

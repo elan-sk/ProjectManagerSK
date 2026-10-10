@@ -61,6 +61,7 @@ export function SearchBox({
     >
       {Object.entries(hiddenParams).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
       <input
+        data-no-bold
         type="search"
         name={paramName}
         value={value}

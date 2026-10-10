@@ -16,6 +16,7 @@ import { HeaderAlerts } from "./HeaderAlerts";
 import { ActivityPing } from "./ActivityPing";
 import { WhatsAppHealthAlert } from "./WhatsAppHealthAlert";
 import { HeaderSearch } from "./HeaderSearch";
+import { HotkeyHints } from "@/components/Hotkey";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
@@ -178,6 +179,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <main className="p-4 sm:p-6">{children}</main>
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
+      <HotkeyHints />
     </div>
     </ConfirmProvider>
     </ToastProvider>
