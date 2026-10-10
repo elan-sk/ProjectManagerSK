@@ -108,7 +108,8 @@ export async function setTaskTag(taskId: string, categoryId: string, rawName: st
 }
 
 export async function removeTaskTag(taskTagId: string, actor?: Actor) {
-  const taskTag = await prisma.taskTag.findUniqueOrThrow({ where: { id: taskTagId }, include: { task: true } });
+  const taskTag = await prisma.taskTag.findUnique({ where: { id: taskTagId }, select: { taskId: true, task: { select: { projectId: true } } } });
+  if (!taskTag) return { ok: true as const }; // ya no existe (doble clic u otra pestaña): nada que quitar
   if (!(await canEditTask(taskTag.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }

@@ -2,6 +2,32 @@ import assert from "node:assert/strict";
 import { fuzzyScore } from "../src/lib/fuzzy";
 import { matchesDateRange, parseDayKey } from "../src/lib/dateRange";
 import { progressBar } from "../src/lib/progressBar";
+import { HEADER_SEARCH_OPTIONS, parseHeaderSearch } from "../src/lib/search";
+
+for (const { prefix, kind } of HEADER_SEARCH_OPTIONS) {
+  assert.deepEqual(parseHeaderSearch(`${prefix}:`), { filter: kind, text: "" });
+  assert.deepEqual(parseHeaderSearch(`${prefix}: entrega`), { filter: kind, text: "entrega" });
+}
+
+for (const prefix of ["clave:", "claves:", "contraseñas:", "contraseña:", "CONTRASEÑA:", "contrasena:", " Clave : "]) {
+  assert.deepEqual(parseHeaderSearch(prefix), { filter: "credential", text: "" });
+  assert.deepEqual(parseHeaderSearch(`${prefix} correo `), { filter: "credential", text: "correo" });
+}
+assert.deepEqual(parseHeaderSearch("clave:https://ejemplo.com:8080"), {
+  filter: "credential", text: "https://ejemplo.com:8080",
+}, "conserva los dos puntos del texto buscado");
+for (const text of ["clave", "contraseña", "https://ejemplo.com", "mi clave: correo"]) {
+  assert.deepEqual(parseHeaderSearch(text), { filter: null, text }, "conserva la búsqueda general");
+}
+for (const [prefix, filter] of [["proyecto", "project"], ["tarea", "task"], ["comentario", "comment"], ["archivo", "file"]]) {
+  assert.deepEqual(parseHeaderSearch(`${prefix}:`), { filter, text: "" });
+  assert.deepEqual(parseHeaderSearch(` ${prefix.toUpperCase()} : entrega `), { filter, text: "entrega" });
+  assert.deepEqual(parseHeaderSearch(`${prefix}s: entrega`), { filter, text: "entrega" }, "el plural vale igual");
+  assert.deepEqual(parseHeaderSearch(prefix), { filter: null, text: prefix });
+}
+assert.deepEqual(parseHeaderSearch("constructor: prueba"), { filter: null, text: "constructor: prueba" });
+assert.ok(fuzzyScore(parseHeaderSearch("contraseña: gestion").text, "Gestión correo") > 0);
+assert.equal(fuzzyScore(parseHeaderSearch("clave: correo").text, "Servidor respaldo"), 0);
 
 // Chequeo puro (sin DB) del buscador difuso del header y del filtro de rango
 // de fechas: tildes/mayúsculas, errores de tipeo, orden de palabras y cruce

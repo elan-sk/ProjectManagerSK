@@ -9,6 +9,28 @@ export function normalizeSearchText(s: string): string {
     .toLowerCase();
 }
 
+export const HEADER_SEARCH_OPTIONS = [
+  { prefix: "proyectos", kind: "project", label: "Proyectos" },
+  { prefix: "tareas", kind: "task", label: "Tareas" },
+  { prefix: "comentarios", kind: "comment", label: "Comentarios" },
+  { prefix: "archivos", kind: "file", label: "Archivos" },
+  { prefix: "contraseñas", kind: "credential", label: "Contraseñas" },
+] as const;
+
+export type HeaderSearchFilter = typeof HEADER_SEARCH_OPTIONS[number]["kind"];
+
+// El atajo se escribe en plural («tareas:»), pero el singular («tarea:») vale igual.
+const singular = (s: string) => normalizeSearchText(s.trim()).replace(/s$/, "");
+
+export function parseHeaderSearch(query: string) {
+  const trimmed = query.trim();
+  const colon = trimmed.indexOf(":");
+  const prefix = singular(trimmed.slice(0, colon));
+  const filter: HeaderSearchFilter | null = colon < 0 ? null : prefix === "clave" ? "credential"
+    : HEADER_SEARCH_OPTIONS.find((option) => singular(option.prefix) === prefix)?.kind ?? null;
+  return { filter, text: filter ? trimmed.slice(colon + 1).trim() : trimmed };
+}
+
 // Búsqueda de texto tipo buscador de correo: título + descripción (se le
 // saca el HTML del editor enriquecido) + nombre de los archivos adjuntos.
 // No indexa el CONTENIDO de los archivos (PDF/Word/etc.) — eso requeriría

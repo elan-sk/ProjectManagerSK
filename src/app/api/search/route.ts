@@ -3,6 +3,7 @@ import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { parseHeaderSearch } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { credentialVisibleWhere } from "@/lib/credentials";
@@ -29,6 +30,7 @@ export type SearchHit = {
   taskStatus?: TaskStatus;
   // Archivos, links y contraseñas: el buscador los abre en su visor (como AttachmentGrid) en vez de navegar.
   preview?: { url: string; mimeType: string };
+  siteUrl?: string | null;
 };
 
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -44,11 +46,15 @@ export async function GET(request: Request) {
 
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ hits: [] satisfies SearchHit[] });
+  const { filter, text: searchText } = parseHeaderSearch(q);
+  const credentialsOnly = filter === "credential";
 
   // Buscar «contraseña(s)» o «clave(s)» trae todas las contraseñas que la persona puede ver, primero y sin
   // tope. No hace falta escribirla exacta: desde 4 letras vale el comienzo («contra», «clav») o un error de
   // tipeo («contrasena», «calve»); con dos errores ya no, para no confundirla con «contrato».
-  const allCredentials = q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
+  const allCredentials = credentialsOnly
+    ? !searchText
+    : q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
   const userId = session.user.id;
   const projectWhere: Prisma.ProjectWhereInput =
     session.user.role === "ADMIN"
@@ -62,7 +68,7 @@ export async function GET(request: Request) {
           ],
         };
 
-  const projects = await prisma.project.findMany({
+  const projects = credentialsOnly ? [] : await prisma.project.findMany({
     where: projectWhere,
     select: {
       id: true,
@@ -89,7 +95,7 @@ export async function GET(request: Request) {
     },
   });
   const projectIds = projects.map((p) => p.id);
-  const messages = await prisma.internalMessage.findMany({
+  const messages = filter && filter !== "comment" ? [] : await prisma.internalMessage.findMany({
     where: { projectId: { in: projectIds } },
     select: {
       id: true,
@@ -104,8 +110,9 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview">) => {
-    const score = fuzzyScore(q, text);
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl">) => {
+    if (filter && kind !== filter) return;
+    const score = filter && !searchText ? 1 : fuzzyScore(searchText, text);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" || kind === "credential" ? "file" : kind;
     if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
@@ -133,12 +140,12 @@ export async function GET(request: Request) {
   }
   // Credenciales: solo las que esta persona puede ver; se busca por nombre, URL y usuario (nunca por
   // la contraseña, que además está cifrada).
-  const credentials = await prisma.credential.findMany({
+  const credentials = filter && !credentialsOnly ? [] : await prisma.credential.findMany({
     where: { AND: [credentialVisibleWhere(session.user), { project: LIVE_PROJECT_WHERE }] },
     select: { id: true, name: true, url: true, username: true, project: { select: { name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } } } },
   });
   for (const c of credentials) {
-    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}${allCredentials ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl, parent: c.project.parent }, undefined, { preview: { url: `credential:${c.id}`, mimeType: CREDENTIAL_MIME_TYPE } });
+    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""}${allCredentials && !credentialsOnly ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl, parent: c.project.parent }, undefined, { siteUrl: c.url, preview: { url: `credential:${c.id}`, mimeType: CREDENTIAL_MIME_TYPE } });
   }
   const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {
@@ -163,12 +170,12 @@ export async function GET(request: Request) {
   // luego por coincidencia.
   const LIMIT: Record<SearchGroup, number> = { project: 5, task: 8, comment: 8, file: 8 };
   const secondary = (h: SearchHit) => (allCredentials && h.kind === "credential" ? -1 : h.kind === "step" || h.kind === "link" ? 1 : 0);
-  const credentialHits = allCredentials ? hits.filter((h) => h.kind === "credential").length : 0;
+  const credentialHits = allCredentials || credentialsOnly ? hits.filter((h) => h.kind === "credential").length : 0;
   const ordered = (Object.keys(LIMIT) as SearchGroup[]).flatMap((group) =>
     hits
       .filter((h) => h.group === group)
       .sort((a, b) => secondary(a) - secondary(b) || b.score - a.score)
-      .slice(0, LIMIT[group] + (group === "file" ? credentialHits : 0))
+      .slice(0, filter ? undefined : LIMIT[group] + (group === "file" ? credentialHits : 0))
   );
   return NextResponse.json({ hits: ordered });
 }

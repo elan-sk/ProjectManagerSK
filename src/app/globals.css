@@ -259,6 +259,17 @@ h1, h2 {
   border-top: 2px solid rgba(7, 59, 76, 0.4);
   transform: translateY(0.42rem) rotate(-8deg);
 }
+/* Hover de la marca, distinto al de los links del menú: el nombre pasa a arena, «SK» a coral
+   (sigue destacado) y el sello gana un halo blanco tipo neón. Solo el halo: moverlo, girarlo, escalarlo o
+   aplicarle `filter` deformaba las letras «PM». */
+.pacific-brand,
+.pacific-brand-sk,
+.pacific-brand-mark { transition: color 180ms ease, box-shadow 180ms ease; }
+.pacific-brand-sk { color: var(--sand-warm); }
+.pacific-header .pacific-brand:hover { color: var(--sand-warm); }
+.pacific-brand:hover .pacific-brand-sk { color: #ff8f7e; }
+/* La sombra base va primero y sin cambios: si no, se transformaba en el halo y el efecto se veía en dos tiempos. */
+.pacific-brand:hover .pacific-brand-mark { box-shadow: 0 5px 12px rgba(7, 59, 76, 0.25), 0 0 0 1.5px rgba(255, 255, 255, 0.95), 0 0 4px 2px rgba(255, 255, 255, 0.7); }
 .pacific-nav a {
   position: relative;
   padding: 0.45rem 0.15rem;

@@ -13,7 +13,7 @@ import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon } from "@/com
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
-import { Hotkey, isAppShortcut } from "@/components/Hotkey";
+import { Hotkey, isAltShortcut } from "@/components/Hotkey";
 import { isFileHref, useFileViewer, type ViewFile } from "@/components/FileViewer";
 
 type ChatUiMessage = {
@@ -230,7 +230,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const viewerOpenRef = useRef(false);
   viewerOpenRef.current = fileViewer.isOpen;
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
-  // Ctrl+I con el historial sin cargar: se lee apenas llega.
+  // Alt+L con el historial sin cargar: se lee apenas llega.
   const speakLastOnLoad = useRef(false);
   const lastAssistant = messages.findLast((m) => m.role === "assistant" && m.text);
 
@@ -260,22 +260,25 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     };
   }, [canSpeak]);
 
-  // Ctrl+Espacio abre/cierra el chat desde cualquier lugar, también escribiendo
+  // Alt+C abre/cierra el chat desde cualquier lugar, también escribiendo
   // en un campo (no choca con la edición de texto).
-  // Ctrl+I lee en voz alta el último mensaje del bot (abre el chat si hace falta);
+  // Alt+L lee en voz alta el último mensaje del bot (abre el chat si hace falta);
   // repetido mientras lee, lo detiene.
+  // Esc en pantalla completa vuelve al tamaño normal (con el visor de archivos abierto, Esc es del visor).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "Space") {
+      if (isAltShortcut(e, "KeyC")) {
         e.preventDefault();
         setOpen((v) => !v);
-      } else if (isAppShortcut(e, "i")) {
+      } else if (isAltShortcut(e, "KeyL")) {
         e.preventDefault();
         setOpen(true);
         if (!canSpeak) return;
         if (loaded) {
           if (lastAssistant) toggleSpeak(lastAssistant.id, lastAssistant.text);
         } else speakLastOnLoad.current = true;
+      } else if (e.key === "Escape" && open && expanded && !e.defaultPrevented && !viewerOpenRef.current) {
+        setExpanded(false);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -430,8 +433,8 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         </button>
         {/* Con el chat abierto el panel queda justo arriba: las insignias van a la izquierda del botón. */}
         <span className={`pointer-events-none absolute flex flex-col items-end gap-1 ${open ? "top-1/2 right-full mr-2 -translate-y-1/2" : "right-0 bottom-full mb-1.5"}`}>
-          <Hotkey keys="Espacio" label={open ? "Cerrar chat" : "Abrir chat"} />
-          {canSpeak && <Hotkey keys="I" label="Leer respuesta" />}
+          <Hotkey mod="Alt" keys="C" label={open ? "Cerrar chat" : "Abrir chat"} />
+          {canSpeak && <Hotkey mod="Alt" keys="L" label="Leer respuesta" />}
         </span>
       </div>
 
@@ -515,7 +518,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                           className="group relative mt-0.5 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                         >
                           {speakingId === m.id ? <SpeakerOffIcon className="h-3.5 w-3.5" /> : <SpeakerIcon className="h-3.5 w-3.5" />}
-                          {m.id === lastAssistant?.id && <Hotkey keys="I" className="absolute top-0 right-full mr-1" />}
+                          {m.id === lastAssistant?.id && <Hotkey mod="Alt" keys="L" className="absolute top-0 right-full mr-1" />}
                         </button>
                       )}
                     </div>

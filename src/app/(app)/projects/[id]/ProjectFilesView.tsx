@@ -4,7 +4,6 @@ import { SearchBox } from "@/components/SearchBox";
 import Link from "next/link";
 import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
-import { AddCredentialButton } from "../../credentials/AddCredentialButton";
 import type { SharedLinkItem } from "@/components/SharedLinkTiles";
 import type { PlaceLink } from "./tasks/[taskId]/AttachmentPreview";
 
@@ -73,7 +72,6 @@ export function ProjectFilesView({
         </Link>
         {canDelete && (
           <div className="ml-auto flex flex-shrink-0 gap-2">
-            <AddCredentialButton place={{ projectId }} className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-slate-700 hover:bg-slate-200" />
             <ProjectInsumoUploader projectId={projectId} />
           </div>
         )}

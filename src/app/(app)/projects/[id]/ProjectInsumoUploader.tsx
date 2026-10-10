@@ -6,6 +6,8 @@ import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
 import { ModalTrigger, useModalClose } from "@/components/Modal";
 import { UploadZoneLabel } from "@/components/UploadZoneLabel";
+import { KeyIcon } from "@/components/icons";
+import { CredentialForm } from "../../credentials/CredentialForm";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { useRouter } from "next/navigation";
@@ -16,7 +18,8 @@ const ACCEPT = UPLOAD_ACCEPT;
 
 // Botón de la pestaña Archivos: abre un popup para subir archivos o links
 // directo al proyecto (ProjectAttachment/ProjectLink), que ya cuentan como
-// Insumos en esta vista.
+// Insumos en esta vista. También ofrece guardar una contraseña del proyecto
+// (mismo formulario que «+ Contraseña» de la cabecera).
 export function ProjectInsumoUploader({ projectId }: { projectId: string }) {
   return (
     <ModalTrigger label="+ Agregar insumo" title="Agregar insumo al proyecto" className="ml-auto rounded-lg bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800">
@@ -38,6 +41,7 @@ function UploadForm({ projectId }: { projectId: string }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [credential, setCredential] = useState(false);
 
   async function uploadFiles(files: File[]) {
     setUploading(true);
@@ -83,6 +87,18 @@ function UploadForm({ projectId }: { projectId: string }) {
         close();
       } else setError(result.error ?? "No se pudo agregar el link.");
     });
+  }
+
+  // El formulario de contraseña ocupa el mismo modal (al guardar lo cierra, vía useModalClose).
+  if (credential) {
+    return (
+      <div className="space-y-3">
+        <button type="button" onClick={() => setCredential(false)} className="cursor-pointer text-sm text-slate-400 hover:text-slate-600 hover:underline">
+          ← Volver a archivos y links
+        </button>
+        <CredentialForm place={{ projectId }} />
+      </div>
+    );
   }
 
   return (
@@ -143,6 +159,16 @@ function UploadForm({ projectId }: { projectId: string }) {
           Agregar
         </button>
       </div>
+      <div className="flex items-center gap-2 text-xs text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />o guardar una contraseña<span className="h-px flex-1 bg-slate-200" />
+      </div>
+      <button
+        type="button"
+        onClick={() => setCredential(true)}
+        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+      >
+        <KeyIcon className="h-4 w-4" />+ Contraseña
+      </button>
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

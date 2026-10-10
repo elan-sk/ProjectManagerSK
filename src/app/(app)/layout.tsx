@@ -130,9 +130,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="pacific-header sticky top-0 z-50 relative flex items-center gap-2 px-4 py-1 sm:px-6">
         <div className="flex flex-shrink-0 items-center gap-2 text-sm font-medium">
           <BackButton />
-          <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="mr-1 flex items-center gap-2 text-slate-900">
+          <Link href="/projects" aria-label="ProjectManagerSK — ir a proyectos" className="pacific-brand mr-1 flex items-center gap-2 text-slate-900">
             <span className="pacific-brand-mark" aria-hidden><span className="relative z-10 font-display text-xs font-bold">PM</span></span>
-            <span className="font-display tracking-[-0.02em]">ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span></span>
+            <span className="font-display tracking-[-0.02em]">ProjectManager<span className="pacific-brand-sk">SK</span></span>
           </Link>
         </div>
         <MobileMenuToggle>

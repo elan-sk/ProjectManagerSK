@@ -3,10 +3,13 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { Avatar } from "@/components/Avatar";
+import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
+import { HEADER_SEARCH_OPTIONS } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
+import { KeyIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -52,6 +55,15 @@ const KIND_COLOR: Record<SearchHit["kind"], string> = {
   credential: "bg-red-50 text-red-700", // rojo de seguridad, como sus fichas
 };
 
+// Punto de color de cada tipo en el menú «Buscar por tipo» (mismos tonos que las etiquetas).
+const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> = {
+  project: "bg-[#0a6b78]",
+  task: "bg-indigo-500",
+  comment: "bg-amber-500",
+  file: "bg-sky-500",
+  credential: "bg-red-500",
+};
+
 /**
  * Buscador rápido del header: resultados en un desplegable bajo el campo,
  * mientras se escribe (sin modal). Tolera tildes, mayúsculas y errores de
@@ -67,6 +79,8 @@ export function HeaderSearch() {
     hits: [],
   });
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,8 +113,10 @@ export function HeaderSearch() {
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setFiltersOpen(false);
+      }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -109,7 +125,7 @@ export function HeaderSearch() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const input = inputRef.current;
-      if (!input?.offsetParent || e.defaultPrevented || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== "KeyB") return;
+      if (!input?.offsetParent || e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "Space") return;
       e.preventDefault();
       input.focus();
       input.select();
@@ -127,7 +143,20 @@ export function HeaderSearch() {
     fileViewer.open({ id: hit.id, url: hit.preview.url, name: hit.title, mimeType: hit.preview.mimeType, place: { href: hit.href, title: hit.context ?? hit.title } });
   }
 
+  function selectSearchType(prefix: string) {
+    const shortcut = `${prefix}:`;
+    setQuery(shortcut);
+    setFiltersOpen(false);
+    setOpen(true);
+    setActive(0);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(shortcut.length, shortcut.length);
+    });
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (filtersOpen) return;
     if (e.key === "Escape") setOpen(false);
     else if (e.key === "ArrowDown" && hits.length) {
       e.preventDefault();
@@ -141,15 +170,48 @@ export function HeaderSearch() {
     }
   }
 
-  const showPanel = open && trimmed.length >= 2;
+  const showPanel = !filtersOpen && open && trimmed.length >= 2;
 
   return (
     <div className="flex grow px-5">
       <div
         ref={rootRef}
+        // Safari y Firefox en Mac no le dan el foco a un botón al pulsarlo: sin esto el campo perdía el
+        // foco y el menú o los resultados se cerraban antes de registrar el clic.
+        onMouseDown={(e) => {
+          if (e.target !== inputRef.current) e.preventDefault();
+        }}
+        onFocusCapture={() => setFocused(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setFocused(false);
+            setFiltersOpen(false);
+            setOpen(false);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setFiltersOpen(false);
+            setOpen(false);
+          }
+        }}
         className="group relative hidden min-w-0 flex-1 md:block md:max-w-sm"
       >
-        <svg
+        {focused ? (
+          <button
+            type="button"
+            title="Tipos de búsqueda"
+            aria-label="Tipos de búsqueda"
+            aria-expanded={filtersOpen}
+            aria-controls="header-search-types"
+            onClick={() => setFiltersOpen((value) => !value)}
+            className="absolute top-1/2 left-1 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M4 5h16l-6 7v6l-4 2v-8Z" />
+            </svg>
+          </button>
+        ) : <svg
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -158,7 +220,7 @@ export function HeaderSearch() {
         >
           <circle cx="11" cy="11" r="6.5" />
           <path strokeLinecap="round" d="M20 20l-4-4" />
-        </svg>
+        </svg>}
         <input
           ref={inputRef}
           data-no-bold
@@ -166,6 +228,7 @@ export function HeaderSearch() {
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
+            setFiltersOpen(false);
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
@@ -173,9 +236,30 @@ export function HeaderSearch() {
           placeholder="Buscar proyectos, tareas, comentarios, archivos…"
           aria-label="Buscador rápido"
           autoComplete="off"
-          className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-3 pl-8 text-sm text-white outline-none placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
+          className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-9 pl-8 text-sm text-white outline-none [&::-webkit-search-cancel-button]:hidden placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
         />
-        {!query && <Hotkey mod="Alt" keys="B" className="absolute top-1/2 right-2 z-10 -translate-y-1/2" />}
+        {!query && <Hotkey keys="Espacio" className="absolute top-1/2 right-10 z-10 -translate-y-1/2" />}
+        <button
+          type="button"
+          title="Buscar contraseñas"
+          aria-label="Buscar contraseñas"
+          onClick={() => selectSearchType("contraseñas")}
+          className="absolute top-1/2 right-1 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+        >
+          <KeyIcon className="h-4 w-4" />
+        </button>
+        {filtersOpen && (
+          <div id="header-search-types" className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+            <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">Buscar por tipo</p>
+            {HEADER_SEARCH_OPTIONS.map(({ prefix, kind, label }) => (
+              <button key={prefix} type="button" onClick={() => selectSearchType(prefix)} className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-slate-900 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none">
+                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${KIND_DOT[kind]}`} aria-hidden />
+                <span className="flex-1">{label}</span>
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[kind]}`}>{prefix}:</span>
+              </button>
+            ))}
+          </div>
+        )}
         {showPanel && (
           <div className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] min-w-[22rem] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             {hits.length === 0 ? (
@@ -207,6 +291,9 @@ export function HeaderSearch() {
                       )}
                       <span className="min-w-0 flex-1">
                         <span className={`block truncate text-slate-900 ${h.kind === "project" ? "text-base font-semibold" : "text-sm"}`}>
+                          {(h.kind === "link" || h.kind === "credential") && (
+                            <LinkFavicon url={(h.kind === "credential" ? h.siteUrl : h.preview?.url) ?? ""} className="mr-1.5 inline-block h-3.5 w-3.5 align-middle" />
+                          )}
                           {h.title}
                         </span>
                         {h.context && (

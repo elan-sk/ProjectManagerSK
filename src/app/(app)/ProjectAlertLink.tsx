@@ -3,6 +3,8 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { ReferencePopover, type ReferenceItem } from "@/components/ReferencePopover";
 
+const RISK_TONE = { overdue: "red", warning: "amber", lateStart: "blue" } as const;
+
 function subscribe() {
   return () => {};
 }
@@ -55,6 +57,7 @@ export function ProjectAlertLink({
       filteredHref={`/projects/${projectId}?${params.toString()}`}
       filteredLabel="Ver en el tablero del proyecto"
       className={className}
+      tone={RISK_TONE[risk]}
     />
   );
 }

@@ -3,11 +3,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "@/lib/useAppRouter";
+import { ArrowLeftIcon } from "@/components/icons";
 
 /** `content` (opcional): fila enriquecida en vez del texto (ej. subproyectos con ícono y avance). */
 export type ReferenceItem = { id: string; label: string; href: string; content?: React.ReactNode };
 
 const POPOVER_WIDTH = 256; // w-64 por defecto; `width` lo cambia
+
+// Color del punto de cada fila: el de la alerta que abrió el popup; sin alerta, el teal de la app.
+const TONE_DOT = {
+  teal: "bg-[#0a6b78]",
+  red: "bg-red-500",
+  amber: "bg-amber-500",
+  blue: "bg-blue-500",
+} as const;
+export type ReferenceTone = keyof typeof TONE_DOT;
 
 // Todo el interior usa spans con role+router.push (nunca <a>/<button> reales)
 // a propósito: este componente se usa DENTRO de cards que ya son un <Link>
@@ -68,6 +78,7 @@ export function ReferencePopover({
   align = "left",
   className,
   width = POPOVER_WIDTH,
+  tone = "teal",
 }: {
   trigger: React.ReactNode;
   hoverText?: string;
@@ -80,6 +91,7 @@ export function ReferencePopover({
   align?: "left" | "right";
   className?: string;
   width?: number;
+  tone?: ReferenceTone;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -157,40 +169,51 @@ export function ReferencePopover({
           <div
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-[70] max-w-[calc(100vw-16px)] rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
+            className="fixed z-[70] max-w-[calc(100vw-16px)] rounded-2xl bg-white p-1.5 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-[color:var(--pacific-foam-pale)]"
             style={{ top: pos.top, left: pos.left, width }}
           >
-            {filteredHref && (
-              <InteractiveSpan
-                role="link"
-                onActivate={() => go(filteredHref)}
-                className="mb-1 block rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-              >
-                {filteredLabel}
-              </InteractiveSpan>
-            )}
-            {extraHref && (
-              <InteractiveSpan
-                role="link"
-                onActivate={() => go(extraHref)}
-                className="mb-1 block rounded-lg px-2 py-1.5 text-xs font-medium text-indigo-600 hover:bg-slate-50"
-              >
-                {extraLabel}
-              </InteractiveSpan>
-            )}
-            <ul className="max-h-56 space-y-0.5 overflow-y-auto">
+            <ul className="max-h-56 space-y-0.5 overflow-x-hidden overflow-y-auto">
               {items.map((item) => (
                 <li key={item.id}>
                   <InteractiveSpan
                     role="link"
+                    title={item.content ? undefined : item.label}
                     onActivate={() => go(item.href)}
-                    className="block truncate rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-slate-900 hover:bg-slate-100 focus-visible:bg-slate-100"
                   >
-                    {item.content ?? item.label}
+                    {item.content ? (
+                      <span className="min-w-0 flex-1">{item.content}</span>
+                    ) : (
+                      <>
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      </>
+                    )}
                   </InteractiveSpan>
                 </li>
               ))}
             </ul>
+            {(filteredHref || extraHref) && (
+              <div className="mt-1 border-t border-slate-100 pt-1">
+                {[
+                  { href: filteredHref, label: filteredLabel },
+                  { href: extraHref, label: extraLabel },
+                ].map(
+                  ({ href, label }) =>
+                    href && (
+                      <InteractiveSpan
+                        key={href}
+                        role="link"
+                        onActivate={() => go(href)}
+                        className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[color:var(--pacific-tide)] hover:bg-[color:var(--pacific-foam)] focus-visible:bg-[color:var(--pacific-foam)]"
+                      >
+                        {label}
+                        <ArrowLeftIcon className="h-3.5 w-3.5 flex-shrink-0 rotate-180" />
+                      </InteractiveSpan>
+                    ),
+                )}
+              </div>
+            )}
           </div>,
           document.body
         )}

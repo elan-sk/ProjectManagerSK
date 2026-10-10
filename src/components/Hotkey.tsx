@@ -3,14 +3,17 @@
 import { useEffect } from "react";
 
 /**
- * Atajo Ctrl/Cmd + letra fuera de campos de texto (ahí Ctrl+B es negrita, ver
- * layout.tsx y BoldButton) y sin Shift/Alt. Si otro manejador ya lo atendió, no aplica.
+ * Atajo Alt + tecla (sin Ctrl/Cmd/Shift), también escribiendo en un campo: no choca con la edición
+ * de texto. `code` es la tecla física («KeyC»), porque en Mac Alt+letra escribe otro carácter.
+ * AltGr vale igual que Alt: en Linux y Mac no marca `altKey`, y en Windows llega como Ctrl+Alt.
+ * Si otro manejador ya lo atendió, no aplica.
  */
-export function isAppShortcut(e: KeyboardEvent, key: string) {
-  if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== key) return false;
-  const t = e.target;
-  return !(t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT"));
+export function isAltShortcut(e: KeyboardEvent, code: string) {
+  const alt = e.getModifierState("AltGraph") || (e.altKey && !e.ctrlKey);
+  return !e.defaultPrevented && alt && !e.metaKey && !e.shiftKey && e.code === code;
 }
+
+const isHintKey = (e: KeyboardEvent) => e.key === "Control" || e.key === "Meta" || e.key === "Alt" || e.key === "AltGraph";
 
 /**
  * Insignia con la combinación del atajo (y su acción en `label`, cuando varias
@@ -28,7 +31,7 @@ export function Hotkey({ keys, label, mod = "Ctrl", className = "" }: { keys: st
 }
 
 /**
- * Mantener Ctrl, Cmd o Alt ~0,4 s revela todas las insignias, como Lens-SK con Shift.
+ * Mantener Ctrl, Cmd, Alt o AltGr ~0,4 s revela todas las insignias, como Lens-SK con Shift.
  * La espera evita que parpadeen con cada Ctrl+C / Ctrl+V rápido.
  */
 export function HotkeyHints() {
@@ -41,12 +44,12 @@ export function HotkeyHints() {
       root.classList.remove("show-hotkeys");
     };
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+      if (isHintKey(e)) {
         if (!timer && !root.classList.contains("show-hotkeys")) timer = setTimeout(() => root.classList.add("show-hotkeys"), 400);
       } else hide(); // se usó la combinación: no hace falta seguir mostrándolas
     }
     function onKeyUp(e: KeyboardEvent) {
-      if (e.key === "Control" || e.key === "Meta" || e.key === "Alt") hide();
+      if (isHintKey(e)) hide();
     }
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);

@@ -9,8 +9,8 @@ import { categoryFilterValue } from "@/lib/tagFilter";
 // color es un hex arbitrario de la paleta de proyectos, no una clase de
 // Tailwind fija, así que el tinte de fondo se arma en línea (mismo hex con
 // alfa bajo) en vez de mapear cada hex a una clase.
-// Formato «Categoría | etiqueta» (pedido del usuario): la categoría en tono
-// suave, una barra fina y la etiqueta en negrita. Sin nombre de etiqueta,
+// Formato «Categoría | etiqueta» (pedido del usuario): la categoría en negrita,
+// una barra fina y la etiqueta en tono suave. Sin nombre de etiqueta,
 // solo la categoría.
 export function TagChip({
   colorHex,
@@ -19,6 +19,7 @@ export function TagChip({
   name,
   onRemove,
   filter,
+  size = "sm",
 }: {
   colorHex: string;
   emoji?: string | null;
@@ -30,7 +31,10 @@ export function TagChip({
    * y clic en el nombre filtra por esa etiqueta puntual (mismo valor que el ComboFilter, `?tag=`).
    */
   filter?: { tagId: string; categoryId: string };
+  /** `md`: más grande y con borde, para donde la etiqueta es protagonista (detalle y formulario de la tarea); `sm` en tarjetas. */
+  size?: "sm" | "md";
 }) {
+  const md = size === "md";
   const router = useRouter();
   const fullLabel = name ? `${categoryName} | ${name}` : categoryName;
   // Dentro de una tarjeta (arrastrable y con link a la tarea): el clic solo filtra.
@@ -52,21 +56,21 @@ export function TagChip({
   return (
     <span
       title={fullLabel}
-      className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-      style={{ backgroundColor: `${colorHex}1f`, color: colorHex }}
+      className={`inline-flex max-w-full items-center rounded-full font-medium ${md ? "gap-1.5 px-3 py-1 text-sm" : "gap-1 px-2 py-0.5 text-[11px]"}`}
+      style={{ backgroundColor: `${colorHex}${md ? "33" : "1f"}`, color: colorHex, boxShadow: md ? `inset 0 0 0 1.5px ${colorHex}99` : undefined }}
     >
-      {emoji ? <span aria-hidden>{emoji}</span> : <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: colorHex }} aria-hidden />}
+      {emoji ? <span aria-hidden>{emoji}</span> : <span className={`flex-shrink-0 rounded-full ${md ? "h-2 w-2" : "h-1.5 w-1.5"}`} style={{ backgroundColor: colorHex }} aria-hidden />}
       {filter
-        ? part(categoryFilterValue(filter.categoryId), `Filtrar por la categoría ${categoryName}`, name ? "flex-shrink-0 opacity-80" : "truncate", categoryName)
-        : <span className={name ? "flex-shrink-0 opacity-80" : "truncate"}>{categoryName}</span>}
+        ? part(categoryFilterValue(filter.categoryId), `Filtrar por la categoría ${categoryName}`, name ? "flex-shrink-0 font-semibold" : "truncate font-semibold", categoryName)
+        : <span className={name ? "flex-shrink-0 font-semibold" : "truncate font-semibold"}>{categoryName}</span>}
       {name && (
         <>
-          <span className="h-2.5 w-px flex-shrink-0 opacity-40" style={{ backgroundColor: colorHex }} aria-hidden />
-          {part(filter?.tagId ?? "", `Filtrar por la etiqueta ${fullLabel}`, "truncate font-semibold", name)}
+          <span className={`w-px flex-shrink-0 opacity-40 ${md ? "h-3.5" : "h-2.5"}`} style={{ backgroundColor: colorHex }} aria-hidden />
+          {part(filter?.tagId ?? "", `Filtrar por la etiqueta ${fullLabel}`, "truncate opacity-80", name)}
         </>
       )}
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label={`Quitar etiqueta ${fullLabel}`} className="flex-shrink-0 opacity-60 hover:opacity-100">
+        <button type="button" onClick={onRemove} aria-label={`Quitar etiqueta ${fullLabel}`} className="flex-shrink-0 cursor-pointer opacity-60 hover:opacity-100">
           ✕
         </button>
       )}

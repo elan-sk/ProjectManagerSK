@@ -325,5 +325,5 @@ const APP_FEATURES = [
   { icon: "🤖", title: "Asistente con IA", text: "Responde sobre proyectos y tiempos, y hace cambios con confirmación; también se conecta con Claude." },
   { icon: "📁", title: "Archivos en orden", text: "Galería por proyecto, sin archivos repetidos y con el detalle de dónde se usa cada uno." },
   { icon: "🔐", title: "Contraseñas seguras", text: "Accesos guardados cifrados, visibles solo para quien corresponda, con botón de copiar e historial de quién los vio." },
-  { icon: "⌨️", title: "Atajos de teclado", text: "Alt + B: buscar\nCtrl + Espacio: chat\nCtrl + I: leer respuesta" },
+  { icon: "⌨️", title: "Atajos de teclado", text: "Ctrl + Espacio: buscar\nAlt + C: chat\nAlt + L: leer respuesta" },
 ];
