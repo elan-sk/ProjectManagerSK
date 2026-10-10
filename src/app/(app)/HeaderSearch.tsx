@@ -6,7 +6,7 @@ import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
-import { Hotkey, isAppShortcut } from "@/components/Hotkey";
+import { Hotkey } from "@/components/Hotkey";
 import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -106,11 +106,12 @@ export function HeaderSearch() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  // Ctrl+B lleva al buscador. Oculto (móvil): no se intercepta.
+  // Alt+B lleva al buscador desde cualquier lugar, también desde un campo de texto (ahí Ctrl+B es negrita).
+  // e.code y no e.key: en Mac Alt+B escribe «∫». Oculto (móvil): no se intercepta.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const input = inputRef.current;
-      if (!input?.offsetParent || !isAppShortcut(e, "b")) return;
+      if (!input?.offsetParent || e.defaultPrevented || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== "KeyB") return;
       e.preventDefault();
       input.focus();
       input.select();
@@ -129,12 +130,7 @@ export function HeaderSearch() {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    // Ctrl+B acá es el atajo del buscador, no negrita (data-no-bold frena el
-    // script de ** de layout.tsx, que corre antes que este manejador).
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      e.currentTarget.select();
-    } else if (e.key === "Escape") setOpen(false);
+    if (e.key === "Escape") setOpen(false);
     else if (e.key === "ArrowDown" && hits.length) {
       e.preventDefault();
       setActive((i) => (i + 1) % hits.length);
@@ -181,7 +177,7 @@ export function HeaderSearch() {
           autoComplete="off"
           className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-3 pl-8 text-sm text-white outline-none placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
         />
-        {!query && <Hotkey keys="B" className="absolute top-1/2 right-2 z-10 -translate-y-1/2" />}
+        {!query && <Hotkey mod="Alt" keys="B" className="absolute top-1/2 right-2 z-10 -translate-y-1/2" />}
         {showPanel && (
           <div className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] min-w-[22rem] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             {hits.length === 0 ? (

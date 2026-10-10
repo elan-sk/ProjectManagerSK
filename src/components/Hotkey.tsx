@@ -18,17 +18,17 @@ export function isAppShortcut(e: KeyboardEvent, key: string) {
  * ancestro con `group`, o en toda la app mientras se mantiene Ctrl
  * (`html.show-hotkeys`, ver HotkeyHints). Estilos en globals.css (.hotkey).
  */
-export function Hotkey({ keys, label, className = "" }: { keys: string; label?: string; className?: string }) {
+export function Hotkey({ keys, label, mod = "Ctrl", className = "" }: { keys: string; label?: string; mod?: "Ctrl" | "Alt"; className?: string }) {
   return (
     <kbd className={`hotkey ${className}`}>
-      Ctrl + {keys}
+      {mod} + {keys}
       {label && <span className="ml-1.5 font-normal text-white/75">{label}</span>}
     </kbd>
   );
 }
 
 /**
- * Mantener Ctrl (o Cmd) ~0,4 s revela todas las insignias, como Lens-SK con Shift.
+ * Mantener Ctrl, Cmd o Alt ~0,4 s revela todas las insignias, como Lens-SK con Shift.
  * La espera evita que parpadeen con cada Ctrl+C / Ctrl+V rápido.
  */
 export function HotkeyHints() {
@@ -41,12 +41,12 @@ export function HotkeyHints() {
       root.classList.remove("show-hotkeys");
     };
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Control" || e.key === "Meta") {
+      if (e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
         if (!timer && !root.classList.contains("show-hotkeys")) timer = setTimeout(() => root.classList.add("show-hotkeys"), 400);
       } else hide(); // se usó la combinación: no hace falta seguir mostrándolas
     }
     function onKeyUp(e: KeyboardEvent) {
-      if (e.key === "Control" || e.key === "Meta") hide();
+      if (e.key === "Control" || e.key === "Meta" || e.key === "Alt") hide();
     }
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);

@@ -421,7 +421,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                     }`}
                   >
                     <div className="flex items-start gap-1.5">
-                      <span className="flex-1 whitespace-pre-wrap">{renderInlineMarkdown(m.text, fileViewer.open)}</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{renderInlineMarkdown(m.text, fileViewer.open)}</span>
                       {m.role === "assistant" && canSpeak && m.text && (
                         <button
                           type="button"
@@ -440,7 +440,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                           m.pendingAction.destructive ? "border-red-200 bg-red-50" : "border-transparent bg-white"
                         }`}
                       >
-                        <p className={`whitespace-pre-line text-xs font-medium ${m.pendingAction.destructive ? "text-red-700" : ""}`}>{m.pendingAction.label}</p>
+                        <p className={`whitespace-pre-line text-xs font-medium [overflow-wrap:anywhere] ${m.pendingAction.destructive ? "text-red-700" : ""}`}>{m.pendingAction.label}</p>
                         {m.pendingAction.destructive && (
                           <p className="text-[11px] text-red-600">Esta acción no se puede deshacer — confirmá con cuidado.</p>
                         )}
