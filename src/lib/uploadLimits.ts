@@ -31,3 +31,31 @@ export const ARCHIVE_ACCEPT = ".zip,.rar,.7z,.tar,.gz,.tgz,.bz2,.tbz2,.xz,.txz";
 export const UPLOAD_ACCEPT_PUBLIC = `image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,${ARCHIVE_ACCEPT}`;
 /** Zonas internas (el servidor igual rechaza HTML si quien sube no es PM ni administrador). */
 export const UPLOAD_ACCEPT = `${UPLOAD_ACCEPT_PUBLIC},.html`;
+
+/** Extensión → tipo de los archivos admitidos. Fuente única para la subida (uploadFile) y el navegador (visores). */
+export const EXTENSION_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".txt": "text/plain",
+  ".csv": "text/csv",
+  ".md": "text/markdown",
+  // Comprimidos (zip, rar, 7z, tar, gz…): se guardan y se descargan; nunca se abren ni se ejecutan.
+  ...ARCHIVE_MIME,
+};
+
+/** Tipo por la extensión del nombre o la ruta (sin node:path: también corre en el navegador). */
+export function mimeFromFileName(name: string) {
+  const ext = name.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0].toLowerCase() ?? "";
+  return EXTENSION_MIME[ext] ?? "application/octet-stream";
+}

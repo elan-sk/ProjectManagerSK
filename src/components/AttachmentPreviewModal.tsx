@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { useConfirm } from "@/components/Confirm";
 import { HTML_SANDBOX } from "@/lib/htmlShell";
@@ -236,7 +237,8 @@ export function AttachmentPreviewModal({
     });
   }
 
-  return (
+  // Portal a <body>: se abre por encima de cualquier ventana (ej. la Galería, que también va en portal).
+  return createPortal(
     // Márgenes chicos y sin límite de ancho fijo (solo un tope generoso en monitores muy anchos): aprovecha
     // casi toda la pantalla — un instructivo HTML se ve como una página, no como una ventanita en el medio.
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2" onClick={onClose}>
@@ -323,6 +325,7 @@ export function AttachmentPreviewModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

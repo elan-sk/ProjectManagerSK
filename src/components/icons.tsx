@@ -155,6 +155,26 @@ export function DocumentIcon({ className }: IconProps) {
   );
 }
 
+export function GalleryIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
+      <rect x="3" y="4.5" width="18" height="15" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m21 15.5-5-5L5 19.5" />
+    </svg>
+  );
+}
+
+export function SmileIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" d="M8.5 14.5a4.5 4.5 0 0 0 7 0" />
+      <path strokeLinecap="round" strokeWidth={2.2} d="M9 9.75h.01M15 9.75h.01" />
+    </svg>
+  );
+}
+
 export function LinkIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>

@@ -148,7 +148,9 @@ export async function getProjectSummaryRows(
  * subproyectos no salen en tarjeta propia si el principal está en la lista (van en el grupito de logos).
  * Un subproyecto cuyo principal no está en la lista sale suelto (con el ícono del principal).
  */
-export type GroupedSummaryRow = ProjectSummaryRow & { subprojects: { id: string; name: string; iconUrl: string | null }[] };
+export type GroupedSummaryRow = ProjectSummaryRow & {
+  subprojects: { id: string; name: string; iconUrl: string | null; pmName: string; pmAvatarUrl: string | null; pct: number }[];
+};
 export function groupSummaryRows(rows: ProjectSummaryRow[]): GroupedSummaryRow[] {
   const { visible, childrenOf } = groupRows(rows.map((r) => ({ id: r.project.id, parentId: r.project.parentId, row: r })));
   return visible.map(({ id, row }) => {
@@ -162,7 +164,15 @@ export function groupSummaryRows(rows: ProjectSummaryRow[]): GroupedSummaryRow[]
     const slack = all.map((x) => x.openSlackDays).filter((v): v is number => v !== null);
     return {
       project: row.project,
-      subprojects: kids.map((k) => ({ id: k.project.id, name: k.project.name, iconUrl: k.project.iconUrl })),
+      // Mismo % que la lista «Subproyectos» de la Definición (tareas completadas / total, redondeado).
+      subprojects: kids.map((k) => ({
+        id: k.project.id,
+        name: k.project.name,
+        iconUrl: k.project.iconUrl,
+        pmName: k.project.pm.name,
+        pmAvatarUrl: k.project.pm.avatarUrl,
+        pct: k.summary.total > 0 ? Math.round((k.summary.completed / k.summary.total) * 100) : 0,
+      })),
       summary: {
         overdueCount,
         warningCount: sum((x) => x.warningCount),

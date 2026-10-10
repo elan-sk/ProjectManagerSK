@@ -9,6 +9,7 @@ import { COMMENT_MAX_LENGTH, commentEditError, commentAttachments, commentMentio
 import { notifyInternalComment } from "@/lib/notifications";
 import { mimeFromFileName } from "@/lib/uploadFile";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { projectMedia, type MediaItem } from "@/lib/projectMedia";
 
 async function allowed(projectId: string, taskId?: string | null, actor?: Actor) {
   const user = await getActingUser(actor);
@@ -46,6 +47,23 @@ async function validMentionIds(body: string, authorId: string) {
   if (ids.length === 0) return [];
   const users = await prisma.user.findMany({ where: { id: { in: ids }, active: true }, select: { id: true } });
   return users.map((u) => u.id);
+}
+
+/**
+ * Galería para adjuntar en un comentario: archivos y links ya subidos en el proyecto y su grupo de
+ * subproyectos. Mismo permiso que comentar. Sin contraseñas: un comentario lo lee todo el hilo.
+ */
+export async function listCommentMedia(projectId: string, taskId: string | null): Promise<{ ok: true; items: MediaItem[] } | { ok: false; error: string }> {
+  try {
+    await allowed(projectId, taskId);
+    // allowed() valida la tarea, no que sea de este proyecto: sin esto se podría listar la galería de otro.
+    if (taskId && !(await prisma.task.findFirst({ where: { id: taskId, projectId }, select: { id: true } }))) throw new Error();
+    const actor = await resolveActor();
+    if (!actor) return { ok: false, error: "No tiene acceso a esta conversación." };
+    return { ok: true, items: await projectMedia(projectId, actor, { withCredentials: false }) };
+  } catch {
+    return { ok: false, error: "No tiene acceso a esta conversación." };
+  }
 }
 
 export async function postInternalMessage(

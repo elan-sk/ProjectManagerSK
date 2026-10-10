@@ -7,13 +7,7 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
 import { Hotkey, isAppShortcut } from "@/components/Hotkey";
-import { createPortal } from "react-dom";
-import { ModalShell } from "@/components/Modal";
-import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
-import { YouTubeModal } from "@/components/YouTubeModal";
-import { AttachmentLightbox } from "./projects/[id]/tasks/[taskId]/AttachmentLightbox";
-import { CredentialLoader } from "./credentials/CredentialView";
-import { LINK_MIME_TYPE, credentialIdFromRef, youtubeVideoId } from "@/lib/attachments";
+import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
 // Tareas → Comentarios → Archivos. Cada grupo lleva su título.
@@ -76,8 +70,7 @@ export function HeaderSearch() {
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Archivo, link o contraseña abierto en su visor (mismos que AttachmentGrid).
-  const [preview, setPreview] = useState<SearchHit | null>(null);
+  const fileViewer = useFileViewer();
   const trimmed = query.trim();
   const hits = result.q === trimmed ? result.hits : [];
   const loading = trimmed.length >= 2 && result.q !== trimmed;
@@ -126,41 +119,13 @@ export function HeaderSearch() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Archivos, links y contraseñas se abren en su visor; un archivo sin vista
-  // previa se descarga y un link común abre en pestaña nueva (como sus fichas).
+  // Archivos, links y contraseñas se abren en su visor (useFileViewer: mismo criterio que las fichas
+  // de archivos); un archivo sin vista previa se descarga y un link común abre en pestaña nueva.
   function go(hit: SearchHit) {
     setOpen(false);
     setQuery("");
-    const p = hit.preview;
-    if (!p) return router.push(hit.href);
-    const opensViewer =
-      credentialIdFromRef(p.url) || p.mimeType.startsWith("image/") || isPreviewable(p.mimeType) || (p.mimeType === LINK_MIME_TYPE && youtubeVideoId(p.url));
-    if (opensViewer) setPreview(hit);
-    else if (p.mimeType === LINK_MIME_TYPE) window.open(p.url, "_blank", "noopener,noreferrer");
-    else {
-      const a = document.createElement("a");
-      a.href = p.url;
-      a.download = hit.title;
-      a.click();
-    }
-  }
-
-  function previewViewer(hit: SearchHit) {
-    const { url, mimeType } = hit.preview!;
-    const close = () => setPreview(null);
-    const place = { href: hit.href, title: hit.context ?? hit.title };
-    const credentialId = credentialIdFromRef(url);
-    const videoId = mimeType === LINK_MIME_TYPE ? youtubeVideoId(url) : null;
-    if (credentialId)
-      return (
-        <ModalShell open onClose={close} title="Contraseña">
-          <CredentialLoader credentialId={credentialId} onClose={close} />
-        </ModalShell>
-      );
-    if (videoId) return <YouTubeModal videoId={videoId} title={hit.title} onClose={close} />;
-    if (mimeType.startsWith("image/"))
-      return <AttachmentLightbox images={[{ id: hit.id, url, name: hit.title, taskLink: place }]} openId={hit.id} onClose={close} onNavigate={() => {}} canDelete={false} />;
-    return <AttachmentPreviewModal file={{ id: hit.id, url, name: hit.title, mimeType, taskLink: place }} onClose={close} />;
+    if (!hit.preview) return router.push(hit.href);
+    fileViewer.open({ id: hit.id, url: hit.preview.url, name: hit.title, mimeType: hit.preview.mimeType, place: { href: hit.href, title: hit.context ?? hit.title } });
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -291,7 +256,7 @@ export function HeaderSearch() {
           </div>
         )}
       </div>
-      {preview && createPortal(previewViewer(preview), document.body)}
+      {fileViewer.viewer}
     </div>
   );
 }

@@ -37,6 +37,7 @@ async function main() {
     data: { name: `__verify-credentials-${stamp}__`, startDate: new Date("2026-10-07"), pmId: pm.id, phases: { create: [{ name: "F1", order: 0 }] } },
     include: { phases: true },
   });
+  const childIds: string[] = [];
   try {
     const task = await prisma.task.create({
       data: {
@@ -124,8 +125,32 @@ async function main() {
     assert.ok(log.ok && log.entries.some((e) => e.event === "VIEW") && log.entries.some((e) => e.event === "COPY_PASSWORD" && e.userName === picked.name), "historial con abrió y copió");
     assert.ok(!(await getCredentialAccessLog(credId, trustedActor({ id: picked.id, role: picked.role }))).ok, "el historial solo lo ve quien administra");
 
-    console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial)");
+    // 3) Subproyectos (spec 004): un hijo usa las contraseñas del principal; no las de un hermano, ni el principal las del hijo.
+    const { projectMedia } = await import("../src/lib/projectMedia");
+    const mkChild = async (name: string) => {
+      const c = await prisma.project.create({
+        data: { name: `__verify-credentials-${name}-${stamp}__`, startDate: new Date("2026-10-07"), pmId: pm.id, parentId: project.id, phases: { create: [{ name: "F1", order: 0 }] } },
+        include: { phases: true },
+      });
+      childIds.push(c.id);
+      return c;
+    };
+    const [child, sibling] = [await mkChild("hijo"), await mkChild("hermano")];
+    const childTask = await prisma.task.create({ data: { projectId: child.id, phaseId: child.phases[0].id, title: "TH", plannedStart: new Date("2026-10-07"), plannedEnd: new Date("2026-10-08") } });
+    const parentCred = await mkCred("ALL");
+    const siblingCred = await prisma.credential.create({ data: { projectId: sibling.id, name: "hermano", passwordEnc: encryptPassword("p"), visibility: "ALL", createdById: creator.id } });
+    const childCred = await prisma.credential.create({ data: { projectId: child.id, name: "hijo", passwordEnc: encryptPassword("p"), visibility: "ALL", createdById: creator.id } });
+    assert.ok((await linkCredential(parentCred.id, { taskId: childTask.id }, pmActor)).ok, "el hijo recibe una contraseña del principal");
+    assert.ok(!(await linkCredential(siblingCred.id, { taskId: childTask.id }, pmActor)).ok, "no la de un hermano");
+    assert.ok(!(await linkCredential(childCred.id, { taskId: otherTask.id }, pmActor)).ok, "el principal no recibe las del hijo");
+    const childMedia = (await projectMedia(child.id, pmActor)).map((i) => i.url);
+    assert.ok(childMedia.includes(`credential:${parentCred.id}`) && !childMedia.includes(`credential:${siblingCred.id}`), "galería del hijo: principal sí, hermano no");
+    assert.ok(!(await projectMedia(project.id, pmActor)).some((i) => i.url === `credential:${childCred.id}`), "galería del principal: sin las del hijo");
+    assert.ok(!(await projectMedia(child.id, pmActor, { withCredentials: false })).some((i) => i.mimeType.includes("credential")), "comentarios: sin contraseñas");
+
+    console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial, subproyectos)");
   } finally {
+    for (const id of childIds) await deleteTestProject(id);
     await deleteTestProject(project.id);
     await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
   }

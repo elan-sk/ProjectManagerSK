@@ -10,7 +10,8 @@ import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
-import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
@@ -370,7 +371,7 @@ export default async function AgendaPage({
                       <span className="max-w-[110px] truncate text-sm font-medium text-slate-800">{p.name}</span>
                     </Link>
                     {/* Principal: grupito de logos de sus subproyectos (como los asignados de una tarea). */}
-                    {p.subprojects && p.subprojects.length > 0 && <ProjectIconGroup projects={p.subprojects} size="h-4 w-4 text-[7px]" max={3} />}
+                    {p.subprojects && <SubprojectsPopover subprojects={p.subprojects} size="h-4 w-4 text-[7px]" max={3} />}
                     <div className="flex flex-shrink-0 items-center gap-1.5">
                       <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden bg-slate-100">
                         <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />

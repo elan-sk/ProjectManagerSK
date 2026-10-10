@@ -2,7 +2,9 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { uploadWriteDir } from "@/lib/persistentUploads";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { ARCHIVE_MIME, isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
+import { EXTENSION_MIME, isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits";
+// mimeFromFileName vive en uploadLimits (también lo usa el navegador); se re-exporta por los imports existentes.
+export { mimeFromFileName } from "@/lib/uploadLimits";
 
 // El navegador a veces reporta un mimetype no estándar según cómo el sistema
 // operativo asocie la extensión — ej. con WPS Office instalado, un .xlsx
@@ -12,26 +14,6 @@ import { ARCHIVE_MIME, isTooLarge, TOO_LARGE_MESSAGE } from "@/lib/uploadLimits"
 // extensión reconocida. Whitelist deliberada: nada ejecutable. El SVG entra
 // solo si pasa unsafeSvgReason() y se sirve con CSP sandbox (next.config.ts y
 // /uploads/[name]), porque puede llevar <script> — vector de XSS almacenado.
-const EXTENSION_MIME: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".pdf": "application/pdf",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".ppt": "application/vnd.ms-powerpoint",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".txt": "text/plain",
-  ".csv": "text/csv",
-  ".md": "text/markdown",
-  // Comprimidos (zip, rar, 7z, tar, gz…): se guardan y se descargan; nunca se abren ni se ejecutan.
-  ...ARCHIVE_MIME,
-};
 const ALLOWED_MIME_TYPES = new Set(Object.values(EXTENSION_MIME));
 
 // HTML (prototipos): solo lo sube quien pasa allowHtml (admin o PM). Es el único
@@ -62,10 +44,6 @@ export function unsafeSvgReason(buffer: Buffer): string | null {
 }
 
 /** Tipo MIME a partir de la extensión del nombre (mismo criterio que la subida). */
-export function mimeFromFileName(name: string) {
-  return EXTENSION_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
-}
-
 export type UploadResult =
   | { ok: true; url: string; name: string; mimeType: string }
   | { ok: false; status: number; error: string };

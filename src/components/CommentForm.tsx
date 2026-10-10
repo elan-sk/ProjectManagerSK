@@ -1,13 +1,16 @@
 "use client";
 
 import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
+import { EmojiButton, insertAtCaret } from "@/components/EmojiButton";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { COMMENT_MAX_LENGTH, fileMarker, imageMarker, linkMarker, mentionMarker, splitCommentBody } from "@/lib/commentBody";
 import { pastedImageName, pickPastedImage } from "@/lib/pasteImage";
 import { normalizeSearchText } from "@/lib/search";
-import { LinkIcon, PaperclipIcon } from "@/components/icons";
+import { GalleryIcon, LinkIcon, PaperclipIcon } from "@/components/icons";
+import { MediaGalleryButton } from "@/app/(app)/projects/[id]/tasks/[taskId]/MediaGalleryButton";
+import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { PollFields } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
@@ -42,6 +45,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
   // Persona resaltada en la lista de menciones (flechas ↑/↓, Enter o Tab para elegirla).
   const [active, setActive] = useState(0);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkName, setLinkName] = useState("");
   const [asPoll, setAsPoll] = useState(false);
@@ -165,6 +169,12 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             onChange={onChange}
             onKeyDown={(e) => {
               if (boldOnKeyDown(e)) return;
+              // Ctrl+Enter (⌘ en Mac) = botón Enviar (respeta las mismas condiciones del formulario).
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+                return;
+              }
               if (e.key === "Escape") setQuery(null);
               if (suggestions.length > 0) {
                 if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -180,7 +190,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             maxLength={COMMENT_MAX_LENGTH}
             placeholder={asPoll ? "Enunciado de la pregunta… (@ para mencionar)" : "Escribir comentario interno… (@ para mencionar)"}
             aria-label="Comentario interno"
-            className="block min-h-10 w-full resize-y rounded-lg bg-transparent px-3 py-2 text-sm outline-none"
+            className="block min-h-24 w-full resize-y rounded-lg bg-transparent px-3 py-2 text-sm outline-none"
           />
           {suggestions.length > 0 && (
             <ul role="listbox" aria-label="Personas del equipo" className="absolute bottom-full left-0 z-20 mb-1 max-h-48 w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
@@ -200,6 +210,23 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
             <button type="button" onClick={() => setLinkOpen((v) => !v)} title="Agregar enlace" aria-label="Agregar enlace" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
               <LinkIcon className="h-4 w-4" />
             </button>
+            {/* Galería: archivos y links ya subidos en el proyecto (y su grupo): se insertan como si se hubieran subido. */}
+            <button type="button" onClick={() => setGalleryOpen(true)} title="Elegir de la galería del proyecto" aria-label="Elegir de la galería del proyecto" className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+              <GalleryIcon className="h-4 w-4" />
+            </button>
+            <MediaGalleryButton
+              open={galleryOpen}
+              onClose={() => setGalleryOpen(false)}
+              comment={{
+                projectId,
+                taskId,
+                onPick: (item) =>
+                  insert(
+                    item.mimeType.startsWith("image/") ? imageMarker(item.url) : item.mimeType === LINK_MIME_TYPE ? linkMarker(item.url, item.name) : fileMarker(item.url, item.name)
+                  ),
+              }}
+            />
+            <EmojiButton onPick={(emoji) => areaRef.current && insertAtCaret(areaRef.current, emoji)} />
             {/* La negrita da formato al texto: va aparte de los adjuntos, a la derecha. */}
             <span className="ml-auto flex items-center gap-1">
               <BoldButton targetRef={areaRef} />

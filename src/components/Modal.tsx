@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 // Los formularios que viven dentro del modal se renderizan como children
 // desde Server Components (la página del proyecto, settings, etc.), así que
@@ -78,8 +79,8 @@ export function ModalShell({
   title: string;
   children: ReactNode;
 }) {
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       // El modal puede quedar anidado dentro de un elemento arrastrable
@@ -106,6 +107,7 @@ export function ModalShell({
         </div>
         <ModalCloseContext.Provider value={onClose}>{children}</ModalCloseContext.Provider>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

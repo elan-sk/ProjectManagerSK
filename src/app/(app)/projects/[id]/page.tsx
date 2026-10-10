@@ -10,7 +10,8 @@ import { MobileFiltersToggle } from "@/components/MobileFiltersToggle";
 import { MobileCalendarDayEnforcer } from "@/components/MobileCalendarDayEnforcer";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
-import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { InternalConversation } from "@/components/InternalConversation";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
@@ -677,7 +678,7 @@ export default async function ProjectPage({
                   <EyeOffIcon className="h-5 w-5" />
                 </span>
               )}
-              {isParent && <ProjectIconGroup projects={children} size="h-6 w-6 text-[10px]" />}
+              {isParent && <SubprojectsPopover subprojects={children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) }))} size="h-6 w-6 text-[10px]" />}
             </h1>
             {project.parent && (
               <p className="text-sm text-slate-500">

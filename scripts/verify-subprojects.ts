@@ -56,7 +56,7 @@ assert.equal(worstVariance([null]), null);
 
 // RF-23 / RF-24: la fila del principal suma su grupo; el subproyecto no sale aparte.
 const row = (id: string, parentId: string | null, total: number, completed: number, overdue: number, variance: number | null): PmProjectSummary => ({
-  id, name: id, iconUrl: null, parentId, parent: parentId ? { name: parentId, iconUrl: null } : null,
+  id, name: id, iconUrl: null, parentId, parent: parentId ? { name: parentId, iconUrl: null } : null, pm: { name: "PM", avatarUrl: null },
   total, completed, blockedCount: 0, health: "ok", lateStartCount: 0, overdueCount: overdue, warningCount: 0, startingSoonCount: 0, scheduleVarianceDays: variance,
 });
 const pm = groupPmSummaries([row("p", null, 4, 2, 0, 3), row("h1", "p", 6, 1, 2, -4), row("suelto", "otro", 2, 2, 0, null)]);

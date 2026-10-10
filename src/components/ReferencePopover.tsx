@@ -4,9 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "@/lib/useAppRouter";
 
-export type ReferenceItem = { id: string; label: string; href: string };
+/** `content` (opcional): fila enriquecida en vez del texto (ej. subproyectos con ícono y avance). */
+export type ReferenceItem = { id: string; label: string; href: string; content?: React.ReactNode };
 
-const POPOVER_WIDTH = 256; // w-64
+const POPOVER_WIDTH = 256; // w-64 por defecto; `width` lo cambia
 
 // Todo el interior usa spans con role+router.push (nunca <a>/<button> reales)
 // a propósito: este componente se usa DENTRO de cards que ya son un <Link>
@@ -66,6 +67,7 @@ export function ReferencePopover({
   extraLabel,
   align = "left",
   className,
+  width = POPOVER_WIDTH,
 }: {
   trigger: React.ReactNode;
   hoverText?: string;
@@ -77,6 +79,7 @@ export function ReferencePopover({
   extraLabel?: string;
   align?: "left" | "right";
   className?: string;
+  width?: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -124,11 +127,11 @@ export function ReferencePopover({
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const left =
-      align === "right" || rect.left + POPOVER_WIDTH > window.innerWidth
-        ? Math.max(8, rect.right - POPOVER_WIDTH)
+      align === "right" || rect.left + width > window.innerWidth
+        ? Math.max(8, rect.right - width)
         : rect.left;
     setPos({ top: rect.bottom + 4, left });
-  }, [open, align]);
+  }, [open, align, width]);
 
   if (items.length === 0) return <span title={hoverText}>{trigger}</span>;
 
@@ -154,8 +157,8 @@ export function ReferencePopover({
           <div
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-[70] w-64 rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
-            style={{ top: pos.top, left: pos.left }}
+            className="fixed z-[70] max-w-[calc(100vw-16px)] rounded-xl bg-white p-2 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
+            style={{ top: pos.top, left: pos.left, width }}
           >
             {filteredHref && (
               <InteractiveSpan
@@ -183,7 +186,7 @@ export function ReferencePopover({
                     onActivate={() => go(item.href)}
                     className="block truncate rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   >
-                    {item.label}
+                    {item.content ?? item.label}
                   </InteractiveSpan>
                 </li>
               ))}

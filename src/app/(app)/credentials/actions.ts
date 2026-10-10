@@ -184,7 +184,9 @@ export async function linkCredential(credentialId: string, place: CredentialPlac
   const where = await resolvePlace(place, actor);
   if ("error" in where) return { ok: false, error: where.error };
   const credential = await prisma.credential.findUniqueOrThrow({ where: { id: credentialId }, select: { projectId: true } });
-  if (credential.projectId !== where.projectId) return { ok: false, error: "La contraseña es de otro proyecto." };
+  // Spec 004: una tarea de un subproyecto también puede recibir las contraseñas de su principal (no al revés).
+  const { parentId } = await prisma.project.findUniqueOrThrow({ where: { id: where.projectId }, select: { parentId: true } });
+  if (credential.projectId !== where.projectId && credential.projectId !== parentId) return { ok: false, error: "La contraseña es de otro proyecto." };
   const taskId = where.taskId!;
   const [taskLink, stepLink, itemLink] = await Promise.all([
     prisma.credentialTask.findUnique({ where: { credentialId_taskId: { credentialId, taskId } } }),

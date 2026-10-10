@@ -1,7 +1,9 @@
 "use client";
 
 import { Linkify } from "@/lib/linkify";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { EmojiButton, insertAtCaret } from "@/components/EmojiButton";
+import { useFileViewer } from "@/components/FileViewer";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
@@ -64,11 +66,13 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(body);
+  const editRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [openImage, setOpenImage] = useState<string | null>(null);
   // Los enlaces de YouTube se ven en el visor integrado en vez de abrir otra pestaña.
   const [openVideo, setOpenVideo] = useState<{ id: string; name: string } | null>(null);
+  const fileViewer = useFileViewer();
 
   // Imágenes de ESTE comentario: el visor navega entre ellas con ‹ › o las flechas.
   const parts = splitCommentBody(body);
@@ -121,12 +125,20 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
         {editing ? (
           <div className="mt-1 space-y-1.5">
             <textarea
+              ref={editRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Ctrl+Enter (⌘ en Mac) = Guardar, igual que en el formulario de comentario nuevo.
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !pending && draft.trim()) {
+                  e.preventDefault();
+                  save();
+                }
+              }}
               maxLength={COMMENT_MAX_LENGTH}
               aria-label="Editar comentario"
               autoFocus
-              className="block min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-[18px] outline-none focus:border-[#0a6b78] focus:ring-2 focus:ring-[#0a6b78]/40"
+              className="block min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-[18px] outline-none focus:border-[#0a6b78] focus:ring-2 focus:ring-[#0a6b78]/40"
             />
             <div className="flex gap-2">
               <button type="button" onClick={save} disabled={pending || !draft.trim()} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[17px] font-medium text-white hover:bg-slate-800 disabled:opacity-50">
@@ -135,6 +147,10 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
               <button type="button" onClick={() => { setEditing(false); setError(null); }} disabled={pending} className="rounded-lg border border-slate-300 px-3 py-1.5 text-[17px] font-medium text-slate-700 hover:bg-slate-50">
                 Cancelar
               </button>
+              <EmojiButton
+                onPick={(emoji) => editRef.current && insertAtCaret(editRef.current, emoji)}
+                className="ml-auto cursor-pointer rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              />
             </div>
           </div>
         ) : (
@@ -151,10 +167,18 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
                     <span className="truncate">{part.name}</span>
                   </button>
                 );
-              if (part.type === "file" || part.type === "link")
+              // Archivo: se abre en su visor (o se descarga si no tiene vista previa), como en las fichas.
+              if (part.type === "file")
+                return (
+                  <button key={i} type="button" onClick={() => fileViewer.open({ url: part.url, name: part.name })} title="Ver archivo" className="mx-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[17px] font-medium text-slate-700 hover:bg-slate-100">
+                    <DocumentIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{part.name}</span>
+                  </button>
+                );
+              if (part.type === "link")
                 return (
                   <a key={i} href={part.url} target="_blank" rel="noreferrer" className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[17px] font-medium text-slate-700 hover:bg-slate-100">
-                    {part.type === "file" ? <DocumentIcon className="h-3.5 w-3.5 shrink-0" /> : <LinkIcon className="h-3.5 w-3.5 shrink-0" />}
+                    <LinkIcon className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{part.name}</span>
                   </a>
                 );
@@ -173,6 +197,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
             })}
           </div>
         )}
+        {fileViewer.viewer}
         {openImage && <AttachmentLightbox images={images} openId={openImage} onClose={() => setOpenImage(null)} onNavigate={setOpenImage} canDelete={false} />}
         {openVideo && <YouTubeModal videoId={openVideo.id} title={openVideo.name} onClose={() => setOpenVideo(null)} />}
         {error && <p className="mt-1 text-[17px] text-red-600">{error}</p>}

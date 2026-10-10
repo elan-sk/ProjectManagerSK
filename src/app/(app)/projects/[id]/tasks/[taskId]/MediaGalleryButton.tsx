@@ -12,6 +12,7 @@ import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPr
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { YouTubeModal } from "@/components/YouTubeModal";
 import { CredentialLoader } from "../../../../credentials/CredentialView";
+import { listCommentMedia } from "@/app/(app)/internalMessageActions";
 import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, reuseMediaForStep, type MediaItem } from "./mediaGallery";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
@@ -19,15 +20,18 @@ import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 // Con `adjustmentItemId`, el elemento elegido se adjunta a ese ajuste (ej.
 // Insumos) en vez de a la tarea directamente; con `stepId`, a ese paso del checklist.
 // Con `open`/`onClose` se abre desde afuera (ej. el menú del clip de un paso) y no
-// pinta su propio botón.
+// pinta su propio botón. Con `comment`, no adjunta nada: entrega el elemento elegido
+// (el formulario de comentario lo inserta en el texto) y no ofrece contraseñas.
+type None = { userId?: undefined; kind?: undefined; adjustmentItemId?: undefined; stepId?: undefined; comment?: undefined };
 type Target =
-  | { userId: string; kind: AttachmentKind; adjustmentItemId?: undefined; stepId?: undefined }
-  | { userId: string; kind: AdjustmentAttachmentKind; adjustmentItemId: string; stepId?: undefined }
-  | { stepId: string; userId?: undefined; kind?: undefined; adjustmentItemId?: undefined };
-type Props = Target & { taskId: string; open?: boolean; onClose?: () => void };
+  | (Omit<None, "userId" | "kind"> & { taskId: string; userId: string; kind: AttachmentKind })
+  | (Omit<None, "userId" | "kind" | "adjustmentItemId"> & { taskId: string; userId: string; kind: AdjustmentAttachmentKind; adjustmentItemId: string })
+  | (Omit<None, "stepId"> & { taskId: string; stepId: string })
+  | (Omit<None, "comment"> & { taskId?: undefined; comment: { projectId: string; taskId: string | null; onPick: (item: MediaItem) => void } });
+type Props = Target & { open?: boolean; onClose?: () => void };
 
 export function MediaGalleryButton(props: Props) {
-  const { taskId } = props;
+  const { taskId, comment } = props;
   const router = useRouter();
   const notifyDuplicate = useDuplicateNotice();
   const [ownOpen, setOwnOpen] = useState(false);
@@ -44,20 +48,25 @@ export function MediaGalleryButton(props: Props) {
   // Se recarga cada vez que se abre (puede haber archivos nuevos desde la última vez).
   useEffect(() => {
     if (!open) return;
-    listReusableMedia(taskId).then((result) => {
+    (comment ? listCommentMedia(comment.projectId, comment.taskId) : listReusableMedia(taskId!)).then((result) => {
       setError(result.ok ? null : result.error);
       if (result.ok) setItems(result.items);
     });
-  }, [open, taskId]);
+  }, [open, taskId, comment?.projectId, comment?.taskId]); // eslint-disable-line react-hooks/exhaustive-deps -- `comment` es un objeto nuevo en cada render
 
   async function pick(item: MediaItem) {
+    if (comment) {
+      comment.onPick(item);
+      setOpen(false);
+      return;
+    }
     setBusy(item.url);
     setError(null);
     const result = props.stepId !== undefined
       ? await reuseMediaForStep(props.stepId, item.url)
       : props.adjustmentItemId !== undefined
         ? await reuseMediaForAdjustment(props.adjustmentItemId, props.kind, item.url, props.userId)
-        : await reuseMedia(taskId, props.kind, item.url, props.userId);
+        : await reuseMedia(taskId!, props.kind!, item.url, props.userId!);
     setBusy(null);
     if (!result.ok) return setError(result.error);
     if (isDuplicate(result)) notifyDuplicate([item.name]);

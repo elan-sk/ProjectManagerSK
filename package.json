@@ -54,6 +54,7 @@
     "date-fns": "^4.4.0",
     "docx-preview": "^0.4.0",
     "dotenv": "^17.4.2",
+    "emoji-picker-react": "^4.22.3",
     "exceljs": "^4.4.0",
     "mariadb": "^3.5.4",
     "marked": "^18.0.14",

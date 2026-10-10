@@ -4,7 +4,7 @@ import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { EyeOffIcon, OverlapIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ModalTrigger } from "@/components/Modal";
-import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
@@ -13,6 +13,7 @@ import { PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
 import { CreateProjectForm } from "./CreateProjectForm";
+import { SubprojectsPopover } from "./[id]/SubprojectsPanel";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
 import { projectStatus } from "@/lib/scheduleVarianceLabel";
 
@@ -164,7 +165,7 @@ export async function ProjectSummaryGrid({
                             />
                           )}
                           {projectShareTokenById.get(p.id) && <CopyLinkButton token={projectShareTokenById.get(p.id)!} />}
-                          <ProjectIconGroup projects={subprojects} size="h-5 w-5 text-[9px]" />
+                          <SubprojectsPopover subprojects={subprojects} size="h-5 w-5 text-[9px]" />
                         </p>
                         <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
                       </div>
@@ -185,9 +186,14 @@ export async function ProjectSummaryGrid({
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{PROJECT_PHASE_LABEL[phase]}</span>
                       {/* Spec 004: los números de esta tarjeta son del grupo completo. */}
                       {subprojects.length > 0 && (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                          Grupo: {subprojects.length} {subprojects.length === 1 ? "subproyecto" : "subproyectos"}
-                        </span>
+                        <SubprojectsPopover
+                          subprojects={subprojects}
+                          trigger={
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                              Grupo: {subprojects.length} {subprojects.length === 1 ? "subproyecto" : "subproyectos"}
+                            </span>
+                          }
+                        />
                       )}
                       <Avatar name={p.pm.name} avatarUrl={p.pm.avatarUrl} size="h-7 w-7 text-[11px]" />
                     </div>

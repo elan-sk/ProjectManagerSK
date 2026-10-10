@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect } from "react";
 import { ToolbarButton, toolbarButtonClass } from "@/components/ToolbarButton";
 import { ExternalLinkIcon, XIcon } from "@/components/icons";
@@ -14,7 +15,8 @@ export function YouTubeModal({ videoId, title, onClose }: { videoId: string; tit
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  return (
+  // Portal a <body>: se abre por encima de cualquier ventana (ej. la Galería, que también va en portal).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/70" />
       <div className="relative flex max-h-full w-full max-w-4xl flex-col gap-2" onClick={(e) => e.stopPropagation()}>
@@ -38,6 +40,7 @@ export function YouTubeModal({ videoId, title, onClose }: { videoId: string; tit
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

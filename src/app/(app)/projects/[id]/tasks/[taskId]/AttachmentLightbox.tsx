@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { removeAttachment } from "./actions";
@@ -142,7 +143,8 @@ export function AttachmentLightbox({
 
   const zoomed = view.scale > MIN_ZOOM;
 
-  return (
+  // Portal a <body>: se abre por encima de cualquier ventana (ej. la Galería, que también va en portal).
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-slate-900/70" onClick={onClose}>
       {/* Barra superior: siempre en el mismo lugar. */}
       <div
@@ -240,7 +242,8 @@ export function AttachmentLightbox({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

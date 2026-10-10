@@ -21,7 +21,7 @@ export function isAppShortcut(e: KeyboardEvent, key: string) {
 export function Hotkey({ keys, label, className = "" }: { keys: string; label?: string; className?: string }) {
   return (
     <kbd className={`hotkey ${className}`}>
-      Ctrl {keys}
+      Ctrl + {keys}
       {label && <span className="ml-1.5 font-normal text-white/75">{label}</span>}
     </kbd>
   );

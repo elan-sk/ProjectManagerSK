@@ -43,6 +43,7 @@ export function toggleBold(el: Field) {
 export function boldOnKeyDown(e: KeyboardEvent<Field>) {
   const key = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (key === "b" || key === "n")) {
+    if (e.nativeEvent.defaultPrevented) return true;
     e.preventDefault();
     toggleBold(e.currentTarget);
     return true;

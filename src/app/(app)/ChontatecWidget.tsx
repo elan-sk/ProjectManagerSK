@@ -14,6 +14,7 @@ import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { Hotkey, isAppShortcut } from "@/components/Hotkey";
+import { isFileHref, useFileViewer, type ViewFile } from "@/components/FileViewer";
 
 type ChatUiMessage = {
   id: string;
@@ -29,12 +30,20 @@ type ChatUiMessage = {
 // resuelven aparte con whitespace-pre-wrap.
 const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|\[\[[a-z]+:[^\]]*\]\])/g;
 
-function renderInlineMarkdown(text: string) {
+function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
   return text.split(INLINE_MARKDOWN).map((part, i) => {
     const bold = part.match(/^\*\*([^*]+)\*\*$/);
     if (bold) return <strong key={i}>{bold[1]}</strong>;
 
     const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    // Link a un archivo (subido a la app o con extensión conocida): se abre en su visor, no se descarga.
+    if (link && isFileHref(link[2])) {
+      return (
+        <button key={i} type="button" onClick={() => openFile({ url: link[2], name: link[1] })} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-slate-950">
+          {link[1]}
+        </button>
+      );
+    }
     if (link) {
       return (
         <Link key={i} href={link[2]} className="underline decoration-dotted underline-offset-2 hover:text-slate-950">
@@ -144,6 +153,10 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [dragOver, setDragOver] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const fileViewer = useFileViewer();
+  // Clics dentro del visor de archivos (va en portal, fuera del panel) no deben cerrar el chat.
+  const viewerOpenRef = useRef(false);
+  viewerOpenRef.current = fileViewer.isOpen;
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
   // Ctrl+I con el historial sin cargar: se lee apenas llega.
   const speakLastOnLoad = useRef(false);
@@ -175,12 +188,13 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     };
   }, [canSpeak]);
 
-  // Ctrl+C abre/cierra el chat solo sin texto seleccionado (si hay, es copiar).
+  // Ctrl+Espacio abre/cierra el chat desde cualquier lugar, también escribiendo
+  // en un campo (no choca con la edición de texto).
   // Ctrl+I lee en voz alta el último mensaje del bot (abre el chat si hace falta);
   // repetido mientras lee, lo detiene.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (isAppShortcut(e, "c") && !window.getSelection()?.toString()) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "Space") {
         e.preventDefault();
         setOpen((v) => !v);
       } else if (isAppShortcut(e, "i")) {
@@ -204,7 +218,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node) && !viewerOpenRef.current) {
         setOpen(false);
       }
     }
@@ -325,6 +339,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
 
   return (
     <div ref={containerRef}>
+      {fileViewer.viewer}
       <div className="group fixed bottom-3 right-3 z-40">
         {!open && (
           <span className="pointer-events-none absolute right-full top-1/2 mr-4 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 opacity-0 shadow-[0_12px_30px_rgba(15,23,42,0.2)] transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100">
@@ -343,7 +358,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         </button>
         {/* Con el chat abierto el panel queda justo arriba: las insignias van a la izquierda del botón. */}
         <span className={`pointer-events-none absolute flex flex-col items-end gap-1 ${open ? "top-1/2 right-full mr-2 -translate-y-1/2" : "right-0 bottom-full mb-1.5"}`}>
-          <Hotkey keys="C" label={open ? "Cerrar chat" : "Abrir chat"} />
+          <Hotkey keys="Espacio" label={open ? "Cerrar chat" : "Abrir chat"} />
           {canSpeak && <Hotkey keys="I" label="Leer respuesta" />}
         </span>
       </div>
@@ -406,7 +421,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                     }`}
                   >
                     <div className="flex items-start gap-1.5">
-                      <span className="flex-1 whitespace-pre-wrap">{renderInlineMarkdown(m.text)}</span>
+                      <span className="flex-1 whitespace-pre-wrap">{renderInlineMarkdown(m.text, fileViewer.open)}</span>
                       {m.role === "assistant" && canSpeak && m.text && (
                         <button
                           type="button"
@@ -496,6 +511,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
                 <input
+                  autoFocus
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => {

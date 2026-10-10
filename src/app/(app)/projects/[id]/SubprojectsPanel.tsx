@@ -6,12 +6,14 @@ import { useRouter } from "@/lib/useAppRouter";
 import { Avatar } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
 import { ModalTrigger, useModalClose } from "@/components/Modal";
-import { ProjectIcon } from "@/components/ProjectIcon";
+import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
+import { ReferencePopover } from "@/components/ReferencePopover";
 import { DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import { CreateProjectForm } from "../CreateProjectForm";
 import { setProjectParent } from "./subprojectActions";
 
-type Sub = { id: string; name: string; iconUrl: string | null; pmName: string; pmAvatarUrl: string | null; pct: number };
+export type SubprojectSummary = { id: string; name: string; iconUrl: string | null; pmName: string; pmAvatarUrl: string | null; pct: number };
+type Sub = SubprojectSummary;
 
 // Spec 004: bloque «Subproyectos» de la Definición — compacto a propósito (RF-9).
 // En un subproyecto se reduce a «Subproyecto de <principal>».
@@ -86,12 +88,7 @@ export function SubprojectsPanel({
                 <span className="truncate font-medium text-slate-900 hover:underline">{s.name}</span>
               </Link>
               <Avatar name={s.pmName} avatarUrl={s.pmAvatarUrl} size="h-6 w-6 text-[10px]" />
-              <div className="flex flex-shrink-0 items-center gap-1.5">
-                <div className="h-1.5 w-16 overflow-hidden bg-slate-100">
-                  <div className="progress-fill-emerald h-full" style={{ width: `${s.pct}%` }} />
-                </div>
-                <span className="w-9 text-right text-xs text-slate-500">{s.pct}%</span>
-              </div>
+              <SubprojectProgress pct={s.pct} />
               {canManage && (
                 <button type="button" disabled={isPending} onClick={() => handleUnlink(s)} className={DEFINITION_ACTION_BTN_DANGER}>
                   Quitar del grupo
@@ -102,6 +99,58 @@ export function SubprojectsPanel({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Grupito de logos de subproyectos que, al hacer clic, abre un popup con la misma fila de la lista
+ * «Subproyectos» (ícono, nombre, PM y avance); cada fila lleva a su subproyecto. Funciona dentro de
+ * tarjetas que ya son un link (ReferencePopover). `trigger` reemplaza al grupito (ej. píldora «Grupo»).
+ */
+export function SubprojectsPopover({ subprojects, size, max, trigger }: { subprojects: Sub[]; size?: string; max?: number; trigger?: React.ReactNode }) {
+  if (subprojects.length === 0) return null;
+  return (
+    <ReferencePopover
+      trigger={trigger ?? <ProjectIconGroup projects={subprojects} size={size} max={max} />}
+      hoverText="Ver subproyectos"
+      width={380}
+      items={subprojects.map((s) => ({
+        id: s.id,
+        label: s.name,
+        href: `/projects/${s.id}`,
+        content: (
+          <span className="flex items-center gap-2">
+            <IconWithPm sub={s} />
+            <span className="min-w-0 flex-1 truncate font-medium text-slate-900">{s.name}</span>
+            <SubprojectProgress pct={s.pct} />
+          </span>
+        ),
+      }))}
+    />
+  );
+}
+
+/** Popup de subproyectos: ícono con el avatar de su PM encimado (la lista de la Definición lo deja a la derecha). */
+function IconWithPm({ sub }: { sub: Sub }) {
+  return (
+    <span className="relative mr-2 mb-1.5 inline-flex shrink-0" title={`PM: ${sub.pmName}`}>
+      <ProjectIcon name={sub.name} iconUrl={sub.iconUrl} size="h-7 w-7 text-[11px]" />
+      <span className="absolute -right-2 -bottom-1.5 rounded-full ring-2 ring-white">
+        <Avatar name={sub.pmName} avatarUrl={sub.pmAvatarUrl} size="h-5 w-5 text-[8px]" />
+      </span>
+    </span>
+  );
+}
+
+/** Barra + % de avance de un subproyecto (lista de la Definición y popup de la tarjeta del principal). */
+export function SubprojectProgress({ pct }: { pct: number }) {
+  return (
+    <span className="flex flex-shrink-0 items-center gap-1.5">
+      <span className="block h-1.5 w-16 overflow-hidden bg-slate-100">
+        <span className="progress-fill-emerald block h-full" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="w-9 text-right text-xs text-slate-500">{pct}%</span>
+    </span>
   );
 }
 

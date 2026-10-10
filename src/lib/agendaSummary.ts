@@ -60,7 +60,8 @@ export type PmProjectSummary = {
   /** Spec 004: principal (si es subproyecto) y subproyectos agrupados en esta fila (solo «Mis proyectos» de Agenda). */
   parentId?: string | null;
   parent?: { name: string; iconUrl: string | null } | null;
-  subprojects?: { id: string; name: string; iconUrl: string | null }[];
+  subprojects?: { id: string; name: string; iconUrl: string | null; pmName: string; pmAvatarUrl: string | null; pct: number }[];
+  pm: { name: string; avatarUrl: string | null };
   iconUrl: string | null;
   total: number;
   completed: number;
@@ -92,6 +93,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSu
       iconUrl: true,
       parentId: true,
       parent: { select: { name: true, iconUrl: true } },
+      pm: { select: { name: true, avatarUrl: true } },
       countryCode: true,
       tasks: { select: { status: true, plannedStart: true, plannedEnd: true } },
     },
@@ -111,6 +113,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSu
       name: p.name,
       parentId: p.parentId,
       parent: p.parent,
+      pm: p.pm,
       iconUrl: p.iconUrl,
       total: p.tasks.length,
       completed,
@@ -144,7 +147,15 @@ export function groupPmSummaries(rows: PmProjectSummary[]): PmProjectSummary[] {
     const overdueCount = sum((x) => x.overdueCount);
     return {
       ...r,
-      subprojects: kids.map((k) => ({ id: k.id, name: k.name, iconUrl: k.iconUrl })),
+      // Mismo % que la lista «Subproyectos» de la Definición (completadas / total, redondeado).
+      subprojects: kids.map((k) => ({
+        id: k.id,
+        name: k.name,
+        iconUrl: k.iconUrl,
+        pmName: k.pm.name,
+        pmAvatarUrl: k.pm.avatarUrl,
+        pct: k.total > 0 ? Math.round((k.completed / k.total) * 100) : 0,
+      })),
       total,
       completed: sum((x) => x.completed),
       blockedCount: sum((x) => x.blockedCount),

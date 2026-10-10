@@ -2,60 +2,23 @@
 
 import { prisma } from "@/lib/prisma";
 import { canEditTask, resolveActor } from "@/lib/permissions";
-import { credentialVisibleWhere } from "@/lib/credentials";
+import { projectMedia, type MediaItem } from "@/lib/projectMedia";
 import { linkCredential } from "../../../../credentials/actions";
-import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef, credentialRef, linkKey, repoLinkName } from "@/lib/attachments";
+import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef } from "@/lib/attachments";
 import { isDuplicate } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
-export type MediaItem = { url: string; name: string; mimeType: string };
+export type { MediaItem } from "@/lib/projectMedia";
 
-// Galería de medios: todo lo ya subido (archivos y links) en el PROYECTO de la
-// tarea — adjuntos de sus tareas, archivos y enlaces de Definición — sin
-// repetir el mismo archivo físico.
+// Galería de medios: todo lo ya subido en el proyecto de la tarea y en el resto de su grupo de
+// subproyectos (ver projectMedia). Requiere poder editar la tarea.
 export async function listReusableMedia(taskId: string): Promise<{ ok: true; items: MediaItem[] } | { ok: false; error: string }> {
   if (!(await canEditTask(taskId))) return { ok: false, error: "No tenés permiso para editar esta tarea." };
-  const { projectId } = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
-  const fileSelect = { fileUrl: true, fileName: true, mimeType: true, uploadedAt: true } as const;
-  // Spec 001 (RF-7): también los archivos de Ajustes y de las rondas de Prueba/Aceptación.
-  const [attachments, projectAttachments, links, adjustmentFiles, deliverables, evidence, project] = await Promise.all([
-    prisma.attachment.findMany({ where: { task: { projectId } }, select: fileSelect }),
-    prisma.projectAttachment.findMany({ where: { projectId }, select: fileSelect }),
-    prisma.projectLink.findMany({ where: { projectId }, select: { url: true, title: true, createdAt: true } }),
-    prisma.adjustmentAttachment.findMany({ where: { adjustmentItem: { task: { projectId } } }, select: fileSelect }),
-    prisma.reviewDeliverable.findMany({ where: { reviewRound: { task: { projectId } } }, select: fileSelect }),
-    prisma.reviewCheckEvidence.findMany({ where: { reviewCheck: { reviewRound: { task: { projectId } } } }, select: fileSelect }),
-    prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { repoUrl: true, createdAt: true, repos: { select: { url: true, createdAt: true } } } }),
-  ]);
-  // Repositorios (principal + adicionales), con el mismo nombre que en la vista Archivos.
-  const repos = [...(project.repoUrl ? [{ url: project.repoUrl, createdAt: project.createdAt }] : []), ...project.repos].filter((r, i, all) => all.findIndex((x) => x.url === r.url) === i);
-  // Siempre de lo más reciente a lo más antiguo, mezclando archivos y links; un archivo
-  // usado en varios lugares aparece una vez, en la posición de su uso más reciente.
-  // Credenciales del proyecto que esta persona puede ver (nunca las ajenas): se agregan como insumo.
   const actor = await resolveActor();
-  const credentials = actor
-    ? await prisma.credential.findMany({ where: { projectId, ...credentialVisibleWhere(actor) }, select: { id: true, name: true, createdAt: true } })
-    : [];
-  const all = [
-    ...attachments,
-    ...projectAttachments,
-    ...adjustmentFiles,
-    ...deliverables,
-    ...evidence,
-    ...links.map((l) => ({ fileUrl: l.url, fileName: l.title, mimeType: LINK_MIME_TYPE, uploadedAt: l.createdAt })),
-    ...repos.map((r, i) => ({ fileUrl: r.url, fileName: repoLinkName(r.url, i, repos.length), mimeType: LINK_MIME_TYPE, uploadedAt: r.createdAt })),
-    ...credentials.map((c) => ({ fileUrl: credentialRef(c.id), fileName: c.name, mimeType: CREDENTIAL_MIME_TYPE, uploadedAt: c.createdAt })),
-  ]
-    .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
-  const seen = new Set<string>();
-  const items: MediaItem[] = [];
-  for (const a of all) {
-    if (seen.has(linkKey(a.fileUrl))) continue;
-    seen.add(linkKey(a.fileUrl));
-    items.push({ url: a.fileUrl, name: a.fileName, mimeType: a.mimeType });
-  }
-  return { ok: true, items };
+  if (!actor) return { ok: false, error: "No tenés permiso para editar esta tarea." };
+  const { projectId } = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
+  return { ok: true, items: await projectMedia(projectId, actor) };
 }
 
 // Adjunta a la tarea un elemento de la galería sin volver a subir nada. La

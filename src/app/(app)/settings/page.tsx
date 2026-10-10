@@ -265,7 +265,7 @@ export default async function SettingsPage({
         <div className="space-y-4">
           <div className="flex items-center justify-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- ícono estático de la app (el mismo de la instalación) */}
-            <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl" />
+            <img src="/icons/pm-192.png" alt="" className="h-12 w-12 rounded-xl" />
             <p className="font-display font-black text-xl tracking-[-0.02em] text-slate-900">
               ProjectManager<span className="text-[color:var(--sand-warm)]">SK</span>
             </p>
@@ -286,7 +286,7 @@ export default async function SettingsPage({
                     <span aria-hidden className="mr-1.5">{f.icon}</span>
                     {f.title}
                   </p>
-                  <p className="text-balance text-slate-500">{f.text}</p>
+                  <p className="whitespace-pre-line text-balance text-slate-500">{f.text}</p>
                 </li>
               ))}
             </ul>
@@ -325,4 +325,5 @@ const APP_FEATURES = [
   { icon: "🤖", title: "Asistente con IA", text: "Responde sobre proyectos y tiempos, y hace cambios con confirmación; también se conecta con Claude." },
   { icon: "📁", title: "Archivos en orden", text: "Galería por proyecto, sin archivos repetidos y con el detalle de dónde se usa cada uno." },
   { icon: "🔐", title: "Contraseñas seguras", text: "Accesos guardados cifrados, visibles solo para quien corresponda, con botón de copiar e historial de quién los vio." },
+  { icon: "⌨️", title: "Atajos de teclado", text: "Ctrl + B: buscar\nCtrl + Espacio: chat\nCtrl + I: leer respuesta" },
 ];

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
+import { EmojiButton } from "@/components/EmojiButton";
 import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { createTagCategory, updateTagCategory, deleteTagCategory } from "./tagActions";
 
@@ -78,6 +79,7 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categor
               placeholder="Emoji (opcional)"
               className="w-32 flex-shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            <EmojiButton onPick={setEmoji} title="Elegir emoji" className="flex-shrink-0 cursor-pointer rounded-lg border border-slate-300 px-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800" />
           </div>
           <div className="flex items-center gap-3">
             <ColorSwatchPicker value={colorHex} onChange={setColorHex} />
@@ -137,6 +139,7 @@ function CategoryRow({ category, isAdmin }: { category: Category; isAdmin: boole
         <div className="flex gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
           <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="Emoji" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm" />
+          <EmojiButton onPick={setEmoji} title="Elegir emoji" className="flex-shrink-0 cursor-pointer rounded-lg border border-slate-300 px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800" />
         </div>
         <div className="flex items-center justify-between gap-3">
           <ColorSwatchPicker value={colorHex} onChange={setColorHex} />
