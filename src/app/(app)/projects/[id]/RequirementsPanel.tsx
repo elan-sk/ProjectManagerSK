@@ -7,7 +7,7 @@ import { ModalTrigger } from "@/components/Modal";
 import { RequirementForm } from "./RequirementForm";
 import Link from "next/link";
 import { RequirementTasksForm } from "./RequirementTasksForm";
-import { ChildCount, DefinitionCardHeading, DefinitionProgressBar, ServedObjectives } from "./DefinitionParts";
+import { ChildCount, DefinitionCardHeading, DefinitionProgressBar, ServedLinks } from "./DefinitionParts";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
@@ -50,7 +50,7 @@ export function RequirementsPanel({
   return (
     <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.REQUIREMENT.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-[21px] font-semibold text-slate-900">
+        <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>
           <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.REQUIREMENT.dot}`} aria-hidden />
           Requerimientos
         </h2>
@@ -66,7 +66,7 @@ export function RequirementsPanel({
           <li key={r.id} id={`definition-requirement-${r.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <DefinitionCardHeading level="REQUIREMENT" number={index + 1} title={r.title} aside={<ServedObjectives objectives={objectives.filter((o) => r.objectiveIds.includes(o.id))} />} />
+                <DefinitionCardHeading level="REQUIREMENT" number={index + 1} title={r.title} aside={<ServedLinks level="OBJECTIVE" items={objectives.filter((o) => r.objectiveIds.includes(o.id))} />} />
                 {r.description && <p className="mt-1 text-[16px] text-slate-500">{r.description}</p>}
               </div>
               <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">

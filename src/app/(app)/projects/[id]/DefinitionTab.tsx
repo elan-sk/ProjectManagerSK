@@ -107,6 +107,7 @@ export function DefinitionTab({
       />
 
       <PhasesPanel
+        requirements={requirements.map((r) => ({ id: r.id, title: r.title, description: r.description }))}
         canManage={canManage}
         phases={phases}
       />

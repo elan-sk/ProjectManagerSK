@@ -7,7 +7,7 @@ import { deletePhase } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { PhaseForm } from "./PhaseForm";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { ChildCount, DefinitionCardHeading, DefinitionProgressBar } from "./DefinitionParts";
+import { ChildCount, DefinitionCardHeading, DefinitionProgressBar, ServedLinks } from "./DefinitionParts";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
@@ -17,8 +17,10 @@ import type { TaskStatus } from "@prisma/client";
 export function PhasesPanel({
   canManage,
   phases,
+  requirements,
 }: {
   canManage: boolean;
+  requirements: { id: string; title: string; description: string | null }[];
   phases: (PhaseSummary & {
     requirementTitles: string[];
     requirementIds: string[];
@@ -52,7 +54,7 @@ export function PhasesPanel({
 
   return (
     <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.PHASE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
-      <h2 className="flex items-center gap-1.5 text-[21px] font-semibold text-slate-900">
+      <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
         <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
         Fases y avance
       </h2>
@@ -63,7 +65,7 @@ export function PhasesPanel({
           <li key={p.id} id={`definition-phase-${p.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <DefinitionCardHeading level="PHASE" number={index + 1} title={p.name} />
+                <DefinitionCardHeading level="PHASE" number={index + 1} title={p.name} aside={<ServedLinks level="REQUIREMENT" items={requirements.filter((r) => p.requirementIds.includes(r.id))} />} />
               </div>
               <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">
                 <div className="flex items-start gap-2">

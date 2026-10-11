@@ -1,13 +1,14 @@
 import { PublicCommentThread } from "./PublicCommentThread";
 import { linkifyHtml } from "@/lib/linkify";
+import { DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 import { CollapsibleContent } from "@/components/CollapsibleContent";
 import type { PublicCommentWithReplies } from "@/lib/publicView";
 
-function ProgressBar({ pct }: { pct: number }) {
+function ProgressBar({ pct, level }: { pct: number; level: keyof typeof DEFINITION_LEVEL_FILL }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
+        <div className={`${DEFINITION_LEVEL_FILL[level]} h-full`} style={{ width: `${pct}%` }} />
       </div>
       <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
     </div>
@@ -51,7 +52,7 @@ export function PublicDefinitionView({
           <div key={o.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[19px] font-semibold text-slate-800">{o.title}</p>
-              <ProgressBar pct={o.pct} />
+              <ProgressBar pct={o.pct} level="OBJECTIVE" />
             </div>
             {o.description && <p className="text-[18px] text-slate-500">{o.description}</p>}
           </div>
@@ -65,7 +66,7 @@ export function PublicDefinitionView({
           <div key={r.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[19px] font-semibold text-slate-800">{r.title}</p>
-              <ProgressBar pct={r.pct} />
+              <ProgressBar pct={r.pct} level="REQUIREMENT" />
             </div>
             {r.description && <p className="text-[18px] text-slate-500">{r.description}</p>}
           </div>
@@ -81,7 +82,7 @@ export function PublicDefinitionView({
           <div key={p.id} className="space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[19px] font-semibold text-slate-800">{p.name}</p>
-              <ProgressBar pct={p.pct} />
+              <ProgressBar pct={p.pct} level="PHASE" />
             </div>
             {p.taskTitles.length > 0 && (
               <ul className="list-disc space-y-0.5 pl-5 text-[18px] text-slate-500">

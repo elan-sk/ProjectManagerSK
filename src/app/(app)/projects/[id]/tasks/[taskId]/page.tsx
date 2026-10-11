@@ -31,7 +31,7 @@ import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { InlineRequirement } from "./InlineRequirement";
 import { LevelField } from "@/components/LevelField";
-import { DEFINITION_LEVEL_HEX, taskTypeTextClass } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass } from "@/lib/statusColors";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
@@ -795,13 +795,13 @@ export default async function TaskDetailPage({
   );
 }
 
-// Barra de avance del checklist (verde al completarse).
+// Barra de avance del checklist.
 function StepsProgress({ pct, label }: { pct: number; label?: string }) {
   return (
     <div className="space-y-1">
       {label && <p className="text-xs text-slate-500">{label}</p>}
       <div className="h-2 w-full overflow-hidden bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
+        <div className={`${DEFINITION_LEVEL_FILL.TASK} h-full`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

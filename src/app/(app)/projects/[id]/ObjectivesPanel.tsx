@@ -53,7 +53,7 @@ export function ObjectivesPanel({
   return (
     <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.OBJECTIVE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-[21px] font-semibold text-slate-900">
+        <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.OBJECTIVE.text}`}>
           <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.OBJECTIVE.dot}`} aria-hidden />
           Objetivos
         </h2>

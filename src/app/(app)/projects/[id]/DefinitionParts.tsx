@@ -45,29 +45,35 @@ export function ChildCount({ done, total }: { done: number; total: number }) {
   );
 }
 
-export function ServedObjectives({ objectives }: { objectives: { id: string; title: string; description: string | null }[] }) {
-  if (objectives.length === 0) return <span className="text-[12px] text-slate-400">Sin objetivo</span>;
-  const color = DEFINITION_LEVEL_COLOR.OBJECTIVE;
+const SERVED_WORDS = {
+  OBJECTIVE: { one: "objetivo", many: "objetivos", none: "Sin objetivo" },
+  REQUIREMENT: { one: "requerimiento", many: "requerimientos", none: "Sin requerimiento" },
+} as const;
+
+export function ServedLinks({ level, items }: { level: keyof typeof SERVED_WORDS; items: { id: string; title: string; description: string | null }[] }) {
+  const words = SERVED_WORDS[level];
+  if (items.length === 0) return <span className="text-[12px] text-slate-400">{words.none}</span>;
+  const color = DEFINITION_LEVEL_COLOR[level];
   return (
     <ReferencePopover
       width={360}
-      hoverText={objectives.map((o) => o.title).join("\n")}
+      hoverText={items.map((item) => item.title).join("\n")}
       trigger={
         <span className={`inline-flex items-center gap-1 text-[12px] font-medium ${color.text}`}>
           <TargetIcon className="h-3.5 w-3.5" />
-          {objectives.length} {objectives.length === 1 ? "objetivo" : "objetivos"}
+          {items.length} {items.length === 1 ? words.one : words.many}
         </span>
       }
-      items={objectives.map((o) => ({
-        id: o.id,
-        label: o.title,
-        href: `#definition-objective-${o.id}`,
+      items={items.map((item) => ({
+        id: item.id,
+        label: item.title,
+        href: `#definition-${level.toLowerCase()}-${item.id}`,
         content: (
           <span className="flex items-start gap-2">
             <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${color.dot}`} aria-hidden />
             <span className="min-w-0">
-              <span className="block font-medium text-slate-900">{o.title}</span>
-              {o.description && <span className="mt-0.5 block text-xs text-slate-500">{o.description}</span>}
+              <span className="block font-medium text-slate-900">{item.title}</span>
+              {item.description && <span className="mt-0.5 block text-xs text-slate-500">{item.description}</span>}
             </span>
           </span>
         ),

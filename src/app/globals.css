@@ -164,9 +164,10 @@ h1, h2 {
 .progress-fill-emerald { background: linear-gradient(100deg, var(--color-emerald-800) 0%, var(--color-emerald-600) 30%, var(--color-emerald-400) 65%, #8ee6ac 100%); }
 .progress-fill-teal { background: linear-gradient(100deg, var(--pacific-deep) 0%, var(--pacific-tide) 35%, var(--color-blue-400) 70%, #a7ecef 100%); }
 .progress-fill-red { background: linear-gradient(100deg, var(--color-red-800) 0%, var(--color-red-600) 30%, var(--color-red-400) 65%, #ffc6bc 100%); }
-.progress-fill-objective { background: linear-gradient(100deg, #5b21b6 0%, #7c3aed 30%, #a78bfa 65%, #ddd6fe 100%); }
-.progress-fill-requirement { background: linear-gradient(100deg, #075985 0%, #0284c7 30%, #38bdf8 65%, #bae6fd 100%); }
-.progress-fill-phase { background: linear-gradient(100deg, #115e59 0%, #0d9488 30%, #2dd4bf 65%, #99f6e4 100%); }
+.progress-fill-objective { background: linear-gradient(100deg, #ddd6fe 0%, #a78bfa 35%, #7c3aed 70%, #5b21b6 100%); }
+.progress-fill-requirement { background: linear-gradient(100deg, #bae6fd 0%, #38bdf8 35%, #0284c7 70%, #075985 100%); }
+.progress-fill-phase { background: linear-gradient(100deg, #99f6e4 0%, #2dd4bf 35%, #0d9488 70%, #115e59 100%); }
+.progress-fill-task { background: linear-gradient(100deg, #f5d0fe 0%, #e879f9 35%, #c026d3 70%, #86198f 100%); }
 /* Mismas barras pero para Rendimiento (BarChart.tsx): claro→oscuro, dirección propia a pedido —
    no tocar, las de arriba son las que se invierten si hace falta. */
 .progress-fill-emerald-performance { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }

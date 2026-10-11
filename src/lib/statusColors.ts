@@ -70,6 +70,7 @@ export const DEFINITION_LEVEL_FILL = {
   OBJECTIVE: "progress-fill-objective",
   REQUIREMENT: "progress-fill-requirement",
   PHASE: "progress-fill-phase",
+  TASK: "progress-fill-task",
 } as const;
 
 export const DEFINITION_LEVEL_HEX = { PHASE: "#0d9488", REQUIREMENT: "#0284c7" } as const;
