@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateProjectDescription } from "./definitionActions";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { CollapsibleContent } from "@/components/CollapsibleContent";
 
 export function ProjectDescription({ projectId, description }: { projectId: string; description: string | null }) {
   const router = useRouter();
@@ -25,10 +26,12 @@ export function ProjectDescription({ projectId, description }: { projectId: stri
         <button type="button" onClick={() => setEditing(true)} className="mb-1 text-xs font-medium text-slate-400 hover:text-slate-700 hover:underline">
           Editar descripción
         </button>
-        <div
-          className="prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg"
-          dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }}
-        />
+        <CollapsibleContent>
+          <div
+            className="prose prose-lg max-w-none text-slate-600 [&_img]:max-w-full [&_img]:rounded-lg"
+            dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }}
+          />
+        </CollapsibleContent>
       </div>
     );
   }
