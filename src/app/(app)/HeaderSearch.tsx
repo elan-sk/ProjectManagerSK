@@ -197,30 +197,31 @@ export function HeaderSearch() {
         }}
         className="group relative hidden min-w-0 flex-1 md:block md:max-w-sm"
       >
-        {focused ? (
-          <button
-            type="button"
-            title="Tipos de búsqueda"
-            aria-label="Tipos de búsqueda"
-            aria-expanded={filtersOpen}
-            aria-controls="header-search-types"
-            onClick={() => setFiltersOpen((value) => !value)}
-            className="absolute top-1/2 left-1 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-              <path d="M4 5h16l-6 7v6l-4 2v-8Z" />
-            </svg>
-          </button>
-        ) : <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.8}
-          className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-slate-400"
+        {/* Siempre es botón (lupa sin foco, embudo con foco): el primer clic ya abre «Buscar por tipo»,
+            igual que el de contraseñas, sin tener que enfocar antes el campo. */}
+        <button
+          type="button"
+          title="Tipos de búsqueda"
+          aria-label="Tipos de búsqueda"
+          aria-expanded={filtersOpen}
+          aria-controls="header-search-types"
+          onClick={() => {
+            setFiltersOpen((value) => !value);
+            inputRef.current?.focus();
+          }}
+          className={`absolute top-1/2 left-1 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white ${focused ? "text-white/80" : "text-slate-400"}`}
         >
-          <circle cx="11" cy="11" r="6.5" />
-          <path strokeLinecap="round" d="M20 20l-4-4" />
-        </svg>}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+            {focused ? (
+              <path d="M4 5h16l-6 7v6l-4 2v-8Z" />
+            ) : (
+              <>
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M20 20l-4-4" />
+              </>
+            )}
+          </svg>
+        </button>
         <input
           ref={inputRef}
           data-no-bold
