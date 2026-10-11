@@ -146,7 +146,8 @@ function IconWithPm({ sub }: { sub: Sub }) {
 export function SubprojectProgress({ pct }: { pct: number }) {
   return (
     <span className="flex flex-shrink-0 items-center gap-1.5">
-      <span className="block h-1.5 w-16 overflow-hidden bg-slate-100">
+      {/* Pista en slate-200: con slate-100 se confundía con el hover de la fila en el popup de subproyectos. */}
+      <span className="block h-1.5 w-16 overflow-hidden bg-slate-200">
         <span className="progress-fill-emerald block h-full" style={{ width: `${pct}%` }} />
       </span>
       <span className="w-9 text-right text-xs text-slate-500">{pct}%</span>
