@@ -353,7 +353,7 @@ export default async function TaskDetailPage({
         </div>
         <div className="mt-1 flex items-center gap-2">
           <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} parent={task.project.parent} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
-          <div className="min-w-0 has-[input]:flex-1">
+          <div className="min-w-0 flex-1 text-balance">
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>
           <div className="flex flex-shrink-0 items-center gap-1.5">
