@@ -97,7 +97,7 @@ export function ReferencePopover({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -110,8 +110,10 @@ export function ReferencePopover({
     // El popover está portaleado a <body> (ver useLayoutEffect de abajo), así
     // que ya no se mueve solo con el scroll de un ancestro (ej. el panel del
     // Gantt, que scrollea internamente) — en vez de recalcular su posición en
-    // cada scroll, lo cerramos.
-    function handleScroll() {
+    // cada scroll, lo cerramos. El scroll de la propia lista del popover no cuenta
+    // (si no, era imposible recorrerla: se cerraba al primer giro de la rueda).
+    function handleScroll(e: Event) {
+      if (e.target instanceof Node && popoverRef.current?.contains(e.target)) return;
       setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -142,7 +144,11 @@ export function ReferencePopover({
       align === "right" || rect.left + width > window.innerWidth
         ? Math.max(8, rect.right - width)
         : rect.left;
-    setPos({ top: rect.bottom + 4, left });
+    // Alto generoso: todo el espacio libre de la pantalla hacia el lado donde más hay (abajo por
+    // defecto), para mostrar la lista entera sin scroll siempre que quepa y sin salirse nunca.
+    const below = window.innerHeight - rect.bottom - 12;
+    const above = rect.top - 12;
+    setPos(below >= 240 || below >= above ? { top: rect.bottom + 4, left, maxHeight: below } : { bottom: window.innerHeight - rect.top + 4, left, maxHeight: above });
   }, [open, align, width]);
 
   if (items.length === 0) return <span title={hoverText}>{trigger}</span>;
@@ -169,10 +175,10 @@ export function ReferencePopover({
           <div
             ref={popoverRef}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-[70] max-w-[calc(100vw-16px)] rounded-2xl bg-white p-1.5 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-[color:var(--pacific-foam-pale)]"
-            style={{ top: pos.top, left: pos.left, width }}
+            className="fixed z-[70] max-w-[calc(100vw-16px)] rounded-2xl bg-white p-1.5 text-left shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-[color:var(--pacific-foam-pale)] flex flex-col"
+            style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width, maxHeight: pos.maxHeight }}
           >
-            <ul className="max-h-56 space-y-0.5 overflow-x-hidden overflow-y-auto">
+            <ul className="min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain">
               {items.map((item) => (
                 <li key={item.id}>
                   <InteractiveSpan
@@ -194,7 +200,7 @@ export function ReferencePopover({
               ))}
             </ul>
             {(filteredHref || extraHref) && (
-              <div className="mt-1 border-t border-slate-100 pt-1">
+              <div className="mt-1 flex-shrink-0 border-t border-slate-100 pt-1">
                 {[
                   { href: filteredHref, label: filteredLabel },
                   { href: extraHref, label: extraLabel },
