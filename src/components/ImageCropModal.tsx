@@ -106,7 +106,8 @@ export function ImageCropModal({ file, title = "Recortar foto", round = true, on
             />
           )}
           {/* Guía: la forma final (círculo para personas, cuadrado redondeado para proyectos); lo de afuera se atenúa. */}
-          <div className={`pointer-events-none absolute inset-0 ${round ? "rounded-full" : "rounded-lg"} border-2 border-white shadow-[0_0_0_999px_rgba(15,23,42,0.45)]`} />
+          {/* Borde negro con un filo blanco por dentro: el límite del recorte se ve sobre imágenes claras y oscuras. */}
+          <div className={`pointer-events-none absolute inset-0 ${round ? "rounded-full" : "rounded-lg"} border-2 border-black shadow-[0_0_0_999px_rgba(15,23,42,0.45),inset_0_0_0_1px_rgba(255,255,255,0.85)]`} />
         </div>
 
         <label className="flex items-center gap-3 text-xs text-slate-500">
