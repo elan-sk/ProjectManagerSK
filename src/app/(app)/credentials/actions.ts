@@ -16,7 +16,7 @@ const fieldsSchema = z.object({
   url: z.string().trim().max(2000).optional().default(""),
   username: z.string().trim().max(190, "El usuario es demasiado largo.").optional().default(""),
   notes: z.string().trim().max(5000).optional().default(""),
-  visibility: z.enum(["ALL", "PROJECT", "USERS"]).default("PROJECT"),
+  visibility: z.enum(["ME", "ALL", "PROJECT", "USERS"]).default("PROJECT"),
   userIds: z.array(z.string()).optional().default([]),
 });
 
@@ -85,6 +85,17 @@ async function resolvePlace(place: CredentialPlace, actor?: Actor): Promise<Reso
   return { projectId: task.projectId, taskId, stepId, adjustmentItemId };
 }
 
+const NO_PEOPLE_ERROR = "Marque al menos una persona que pueda ver la contraseña.";
+
+/**
+ * «Personas concretas» nunca queda vacía: de los ids recibidos solo cuentan personas que existen y
+ * están activas (un id inventado o de alguien eliminado dejaría la contraseña sin nadie que la vea).
+ */
+async function activeUserIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return (await prisma.user.findMany({ where: { id: { in: ids }, active: true }, select: { id: true } })).map((u) => u.id);
+}
+
 /** Crea una contraseña en el proyecto, o como insumo de una tarea, un paso del checklist o un ajuste. */
 export async function createCredential(input: CredentialInput, place: CredentialPlace, actor?: Actor): Promise<Result<{ id: string }>> {
   const user = await resolveActor(actor);
@@ -95,8 +106,9 @@ export async function createCredential(input: CredentialInput, place: Credential
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
   const password = input.password ?? "";
   if (!password) return { ok: false, error: "Falta indicar la contraseña." };
-  const { name, url, username, notes, visibility, userIds } = parsed.data;
-  if (visibility === "USERS" && userIds.length === 0) return { ok: false, error: "Marque al menos una persona que pueda ver la contraseña." };
+  const { name, url, username, notes, visibility } = parsed.data;
+  const userIds = visibility === "USERS" ? await activeUserIds(parsed.data.userIds) : [];
+  if (visibility === "USERS" && userIds.length === 0) return { ok: false, error: NO_PEOPLE_ERROR };
 
   let passwordEnc: string;
   try {
@@ -114,7 +126,7 @@ export async function createCredential(input: CredentialInput, place: Credential
       notes: notes || null,
       visibility,
       createdById: user.id,
-      allowedUsers: visibility === "USERS" ? { create: [...new Set(userIds)].map((userId) => ({ userId })) } : undefined,
+      allowedUsers: visibility === "USERS" ? { create: userIds.map((userId) => ({ userId })) } : undefined,
       tasks: where.taskId ? { create: { taskId: where.taskId } } : undefined,
       steps: where.stepId ? { create: { stepId: where.stepId } } : undefined,
       adjustmentItems: where.adjustmentItemId ? { create: { adjustmentItemId: where.adjustmentItemId } } : undefined,
@@ -131,8 +143,12 @@ export async function updateCredential(credentialId: string, input: CredentialIn
   if (!user) return { ok: false, error: "Solo quien creó la contraseña, el PM del proyecto o un administrador pueden editarla." };
   const parsed = fieldsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
-  const { name, url, username, notes, visibility, userIds } = parsed.data;
-  if (visibility === "USERS" && userIds.length === 0) return { ok: false, error: "Marque al menos una persona que pueda ver la contraseña." };
+  const { name, url, username, notes, visibility } = parsed.data;
+  const userIds = visibility === "USERS" ? await activeUserIds(parsed.data.userIds) : [];
+  // Sin `visibility` (edición por API que solo cambia otro dato) se conserva quién la ve: antes
+  // caía al valor por defecto y una contraseña «Solo yo» o de «Personas concretas» quedaba abierta al proyecto.
+  const keepAccess = input.visibility === undefined;
+  if (!keepAccess && visibility === "USERS" && userIds.length === 0) return { ok: false, error: NO_PEOPLE_ERROR };
 
   let passwordEnc: string | undefined;
   if (input.password) {
@@ -144,7 +160,7 @@ export async function updateCredential(credentialId: string, input: CredentialIn
   }
   const before = await credentialAudienceIds(credentialId);
   const credential = await prisma.$transaction(async (tx) => {
-    await tx.credentialUser.deleteMany({ where: { credentialId } });
+    if (!keepAccess) await tx.credentialUser.deleteMany({ where: { credentialId } });
     return tx.credential.update({
       where: { id: credentialId },
       data: {
@@ -152,9 +168,8 @@ export async function updateCredential(credentialId: string, input: CredentialIn
         url: url || null,
         username: username || null,
         notes: notes || null,
-        visibility,
         ...(passwordEnc ? { passwordEnc } : {}),
-        allowedUsers: visibility === "USERS" ? { create: [...new Set(userIds)].map((userId) => ({ userId })) } : undefined,
+        ...(keepAccess ? {} : { visibility, allowedUsers: visibility === "USERS" ? { create: userIds.map((userId) => ({ userId })) } : undefined }),
       },
       select: { projectId: true, tasks: { select: { taskId: true } } },
     });
@@ -246,7 +261,7 @@ export type CredentialDetails = {
   /** null = no se puede leer (se guardó con otro AUTH_SECRET). */
   password: string | null;
   notes: string | null;
-  visibility: "ALL" | "PROJECT" | "USERS";
+  visibility: "ME" | "ALL" | "PROJECT" | "USERS";
   allowedUserIds: string[];
   tasks: { id: string; title: string }[];
   createdByName: string | null;

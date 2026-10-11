@@ -1096,6 +1096,7 @@ enum CredentialVisibility {
   ALL // todos los usuarios que pueden ver el proyecto
   PROJECT // PM, asignados y revisores de alguna tarea del proyecto y administradores (por defecto)
   USERS // solo las personas marcadas
+  ME // solo quien la creó: ni administradores, ni el PM, ni los asignados de las tareas donde esté
 }
 
 model Credential {

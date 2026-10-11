@@ -53,7 +53,7 @@ async function main() {
     const otherTask = await prisma.task.create({
       data: { projectId: project.id, phaseId: project.phases[0].id, title: "T2", plannedStart: new Date("2026-10-07"), plannedEnd: new Date("2026-10-08") },
     });
-    const mkCred = (visibility: "ALL" | "PROJECT" | "USERS", extra: object = {}) =>
+    const mkCred = (visibility: "ME" | "ALL" | "PROJECT" | "USERS", extra: object = {}) =>
       prisma.credential.create({ data: { projectId: project.id, name: visibility, passwordEnc: encryptPassword("p"), visibility, createdById: creator.id, ...extra } });
 
     const sees = async (credentialId: string, u: { id: string; role: string }) =>
@@ -69,10 +69,18 @@ async function main() {
     const allCred = await mkCred("ALL");
     for (const u of users) assert.ok(await sees(allCred.id, u), `ALL: ${u.name} la ve`);
 
-    // «Personas concretas»: solo las marcadas y quien la creó — ni el PM ni el admin.
+    // «Personas concretas»: solo las marcadas — ni el PM, ni el admin, ni quien la creó si no se marcó.
     const usersCred = await mkCred("USERS", { allowedUsers: { create: [{ userId: picked.id }] } });
-    for (const u of [picked, creator]) assert.ok(await sees(usersCred.id, u), `USERS: ${u.name} la ve`);
-    for (const u of [pm, assignee, reviewer, outsider, admin]) assert.ok(!(await sees(usersCred.id, u)), `USERS: ${u.name} NO la ve`);
+    assert.ok(await sees(usersCred.id, picked), "USERS: la persona marcada la ve");
+    for (const u of [pm, assignee, reviewer, outsider, admin, creator]) assert.ok(!(await sees(usersCred.id, u)), `USERS: ${u.name} NO la ve`);
+    const usersWithCreator = await mkCred("USERS", { allowedUsers: { create: [{ userId: creator.id }] } });
+    assert.ok(await sees(usersWithCreator.id, creator), "USERS: quien la creó la ve si se marcó");
+
+    // «Solo yo»: únicamente quien la creó — ni admin, ni PM, ni el asignado de la tarea donde está.
+    const meCred = await mkCred("ME", { tasks: { create: [{ taskId: task.id }] } });
+    assert.ok(await sees(meCred.id, creator), "ME: quien la creó la ve");
+    for (const u of [pm, assignee, reviewer, outsider, picked, admin]) assert.ok(!(await sees(meCred.id, u)), `ME: ${u.name} NO la ve`);
+    assert.deepEqual([...(await audience(meCred.id))], [creator.id], "ME: la audiencia es solo quien la creó");
 
     // Agregada a una tarea: sus asignados la ven siempre (aunque sea «Personas concretas»).
     const linked = await mkCred("USERS", { allowedUsers: { create: [{ userId: picked.id }] }, tasks: { create: [{ taskId: task.id }] } });
@@ -84,7 +92,7 @@ async function main() {
     // Destinatarios del aviso = misma regla (solo usuarios de este script: los demás de la base pueden ser admin).
     const mine = new Set(users.map((u) => u.id));
     const onlyMine = (s: Set<string>) => new Set([...s].filter((id) => mine.has(id)));
-    assert.deepEqual(onlyMine(await audience(linked.id)), new Set([picked.id, creator.id, assignee.id]));
+    assert.deepEqual(onlyMine(await audience(linked.id)), new Set([picked.id, assignee.id]));
 
     // Proyecto oculto: solo su admin-PM; nadie más, ni con «Todos».
     await prisma.project.update({ where: { id: project.id }, data: { hidden: true } });
@@ -102,8 +110,11 @@ async function main() {
     const step = await prisma.taskStep.create({ data: { taskId: task.id, description: "Paso", order: 0 } });
     const item = await prisma.adjustmentItem.create({ data: { taskId: task.id, description: "Ajuste", order: 0 } });
     const pmActor = trustedActor({ id: pm.id, role: pm.role });
-    const created = await createCredential({ name: "En paso", password: "s3creta", visibility: "USERS", userIds: [picked.id] }, { stepId: step.id }, pmActor);
+    const created = await createCredential({ name: "En paso", password: "s3creta", visibility: "USERS", userIds: [picked.id, pm.id] }, { stepId: step.id }, pmActor); // el PM se marca: sin eso perdería el acceso al crearla
     assert.ok(created.ok, "crear en un paso");
+    // «Personas concretas» nunca queda vacía: ni lista vacía, ni ids que no existen.
+    assert.ok(!(await createCredential({ name: "Vacía", password: "x", visibility: "USERS", userIds: [] }, { projectId: project.id }, pmActor)).ok, "USERS sin personas se rechaza");
+    assert.ok(!(await createCredential({ name: "Inventada", password: "x", visibility: "USERS", userIds: ["no-existe"] }, { projectId: project.id }, pmActor)).ok, "USERS con ids inexistentes se rechaza");
     const credId = created.ok ? created.id : "";
     assert.equal(await prisma.credentialTask.count({ where: { credentialId: credId, taskId: task.id } }), 1, "el paso arrastra la tarea");
     assert.equal(await prisma.credentialStep.count({ where: { credentialId: credId, stepId: step.id } }), 1);

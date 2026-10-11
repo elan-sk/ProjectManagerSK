@@ -8,12 +8,13 @@ import { EyeIcon, EyeOffIcon } from "@/components/icons";
 import { createCredential, listCredentialCandidates, updateCredential, type CredentialDetails } from "./actions";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 
-type Visibility = "ALL" | "PROJECT" | "USERS";
+type Visibility = "ME" | "ALL" | "PROJECT" | "USERS";
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string; hint: string }[] = [
+  { value: "ME", label: "Solo yo", hint: "Nadie más puede verla: ni administradores, ni el PM, ni los asignados de la tarea." },
   { value: "PROJECT", label: "Solo los del proyecto", hint: "PM, asignados y revisores de las tareas del proyecto, y administradores." },
   { value: "ALL", label: "Todos los usuarios", hint: "Cualquier persona del sistema que pueda ver el proyecto." },
-  { value: "USERS", label: "Personas concretas", hint: "Solo las personas marcadas en la lista." },
+  { value: "USERS", label: "Personas concretas", hint: "Solo las personas marcadas en la lista. Quien la crea también debe marcarse para conservar el acceso." },
 ];
 
 const INPUT = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
@@ -43,7 +44,7 @@ export function CredentialForm({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? "PROJECT");
+  const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? "ME");
   const [userIds, setUserIds] = useState<string[]>(initial?.allowedUserIds ?? []);
   const [users, setUsers] = useState<{ id: string; name: string; avatarUrl: string | null }[] | null>(null);
 
@@ -52,6 +53,9 @@ export function CredentialForm({
       .then(setUsers)
       .catch(() => setUsers([]));
   }, []);
+
+  // «Personas concretas» nunca se guarda vacía (el servidor también lo rechaza).
+  const noPeople = visibility === "USERS" && userIds.length === 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -124,7 +128,7 @@ export function CredentialForm({
             </span>
           </label>
         ))}
-        {place && !("projectId" in place) && <p className="text-xs text-slate-500">Los asignados de esta tarea siempre pueden verla.</p>}
+        {place && !("projectId" in place) && visibility !== "ME" && <p className="text-xs text-slate-500">Los asignados de esta tarea siempre pueden verla.</p>}
         {visibility === "USERS" && (
           <div className="rounded-lg border border-slate-200 p-1.5">
             {users === null ? (
@@ -138,12 +142,13 @@ export function CredentialForm({
             )}
           </div>
         )}
+        {noPeople && <p className="text-xs text-red-600">Falta marcar al menos una persona.</p>}
       </fieldset>
 
       {!initial && <p className="text-xs text-slate-500">Se avisará por la app y por WhatsApp a quienes puedan verla. El aviso no incluye la contraseña.</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
-        disabled={isPending}
+        disabled={isPending || noPeople}
         className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
       >
         {isPending ? "Guardando…" : initial ? "Guardar cambios" : "Guardar contraseña"}

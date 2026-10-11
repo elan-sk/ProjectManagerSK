@@ -7,10 +7,11 @@ import type { CredentialEventName } from "@/lib/credentialPlace";
 /**
  * Fuente única de quién ve una credencial (lista, galería, buscador, API, bot, avisos). Además de
  * poder ver el proyecto (ocultos incluidos: solo su admin-PM), alcanza con UNA de estas:
- *  - la creó;
+ *  - la creó (con «Solo yo» es la ÚNICA: ni administradores, ni el PM, ni los asignados de la tarea).
+ *    Excepción: en «Personas concretas» crearla no da acceso; quien la crea la ve solo si se marcó;
  *  - visibilidad «Todos»;
  *  - es asignado de una tarea donde se agregó la credencial (regla del usuario: quien la agrega a una
- *    tarea da acceso a sus asignados);
+ *    tarea da acceso a sus asignados), salvo que sea «Solo yo»;
  *  - «Personas concretas» y está marcado;
  *  - «Solo los del proyecto» y es administrador, PM del proyecto, o asignado/revisor de alguna tarea.
  */
@@ -23,9 +24,9 @@ export function credentialVisibleWhere(user: Actor): Prisma.CredentialWhereInput
   return {
     project: visibleProjectWhere(user, { includeArchived: true }),
     OR: [
-      { createdById: uid },
+      { createdById: uid, visibility: { not: "USERS" } },
       { visibility: "ALL" },
-      { tasks: { some: { task: { assignees: { some: { userId: uid } } } } } },
+      { visibility: { not: "ME" }, tasks: { some: { task: { assignees: { some: { userId: uid } } } } } },
       { visibility: "USERS", allowedUsers: { some: { userId: uid } } },
       user.role === "ADMIN" ? { visibility: "PROJECT" } : { visibility: "PROJECT", project: projectMember },
     ],
@@ -61,6 +62,7 @@ export async function credentialAudienceIds(credentialId: string): Promise<strin
 }
 
 export const CREDENTIAL_VISIBILITY_LABEL = {
+  ME: "Solo yo",
   ALL: "Todos los usuarios",
   PROJECT: "Solo los del proyecto",
   USERS: "Personas concretas",
