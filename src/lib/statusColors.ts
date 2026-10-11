@@ -76,10 +76,10 @@ export const DEFINITION_LEVEL_FILL = {
 export const DEFINITION_LEVEL_HEX = { PHASE: "#0d9488", REQUIREMENT: "#0284c7" } as const;
 
 export const DEFINITION_LEVEL_COLOR = {
-  OBJECTIVE: { border: "border-violet-300", text: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
-  REQUIREMENT: { border: "border-sky-300", text: "text-sky-700", bg: "bg-sky-50", dot: "bg-sky-500" },
-  PHASE: { border: "border-teal-300", text: "text-teal-700", bg: "bg-teal-50", dot: "bg-teal-500" },
-  TASK: { border: "border-fuchsia-300", text: "text-fuchsia-700", bg: "bg-fuchsia-50", dot: "bg-fuchsia-500" },
+  OBJECTIVE: { border: "border-violet-300", borderLeft: "border-l-violet-300", text: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },
+  REQUIREMENT: { border: "border-sky-300", borderLeft: "border-l-sky-300", text: "text-sky-700", bg: "bg-sky-50", dot: "bg-sky-500" },
+  PHASE: { border: "border-teal-300", borderLeft: "border-l-teal-300", text: "text-teal-700", bg: "bg-teal-50", dot: "bg-teal-500" },
+  TASK: { border: "border-fuchsia-300", borderLeft: "border-l-fuchsia-300", text: "text-fuchsia-700", bg: "bg-fuchsia-50", dot: "bg-fuchsia-500" },
 } as const;
 
 // El status del proyecto (PLANNING/ACTIVE/.../COMPLETED en el schema) no lo

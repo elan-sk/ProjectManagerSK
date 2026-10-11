@@ -54,7 +54,7 @@ export function PhasesPanel({
   }
 
   return (
-    <div className={`space-y-3 rounded-xl border-l-4 ${DEFINITION_LEVEL_COLOR.PHASE.border} border-t border-r border-b border-slate-200 bg-white p-4`}>
+    <div className={`space-y-3 rounded-xl border border-l-4 border-slate-200 ${DEFINITION_LEVEL_COLOR.PHASE.borderLeft} bg-white p-4`}>
       <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
         <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
         Fases y avance
