@@ -41,7 +41,11 @@ export async function updateProjectIdentity(projectId: string, formData: FormDat
   const rawIconUrl = formData.get("iconUrl");
   const iconUrl = typeof rawIconUrl === "string" && rawIconUrl.trim() !== "" ? rawIconUrl : null;
 
-  await prisma.project.update({ where: { id: projectId }, data: { name: parsedName.data, iconUrl } });
+  // Ausente (llamada que no manda el campo) = no se toca; vacío = sin cliente («Interno»).
+  const rawClient = formData.get("clientName");
+  const clientName = typeof rawClient === "string" ? rawClient.trim() || null : undefined;
+
+  await prisma.project.update({ where: { id: projectId }, data: { name: parsedName.data, iconUrl, clientName } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   return { ok: true as const };

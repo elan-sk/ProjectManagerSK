@@ -19,6 +19,7 @@ export function DefinitionTab({
   projectId,
   name,
   iconUrl,
+  clientName,
   description,
   canManage,
   objectives,
@@ -35,6 +36,7 @@ export function DefinitionTab({
   projectId: string;
   name: string;
   iconUrl: string | null;
+  clientName: string | null;
   description: string | null;
   canManage: boolean;
   whatsappGroupJid: string | null;
@@ -77,7 +79,7 @@ export function DefinitionTab({
         </div>
         {canManage && (
           <ModalTrigger label="Icono y nombre" title="Identidad del proyecto" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-            <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} />
+            <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} clientName={clientName} />
           </ModalTrigger>
         )}
       </div>

@@ -1093,6 +1093,7 @@ export default async function ProjectPage({
           projectId={project.id}
           name={project.name}
           iconUrl={project.iconUrl}
+          clientName={project.clientName}
           description={project.description}
           canManage={canManage}
           objectives={orderedDefinition.objectives}

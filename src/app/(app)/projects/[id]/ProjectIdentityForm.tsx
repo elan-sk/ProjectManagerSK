@@ -12,10 +12,12 @@ export function ProjectIdentityForm({
   projectId,
   name,
   iconUrl,
+  clientName,
 }: {
   projectId: string;
   name: string;
   iconUrl: string | null;
+  clientName: string | null;
 }) {
   const router = useRouter();
   const onDone = useModalClose();
@@ -100,6 +102,14 @@ export function ProjectIdentityForm({
           required
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
+      </label>
+
+      {/* Mismo campo que al crear el proyecto; vacío = «Interno». */}
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-slate-700">
+          Cliente <span className="font-normal text-slate-400">(opcional)</span>
+        </span>
+        <input type="text" name="clientName" defaultValue={clientName ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
