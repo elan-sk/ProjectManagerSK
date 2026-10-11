@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useModalClose } from "@/components/Modal";
 import { normalizeSearchText } from "@/lib/search";
+import { checkListArrowKeys } from "@/lib/checkListKeys";
 
 export type TaskPickerPhase = { id: string; name: string; tasks: { id: string; title: string; note?: string | null }[] };
 
@@ -26,12 +27,15 @@ export function TaskPickerForm({
   const [isPending, startTransition] = useTransition();
   const lastClicked = useRef<string | null>(null);
   const shiftHeld = useRef(false);
+  const uncheckHeld = useRef(false);
   const locked = new Set(lockedIds);
 
   const visible = phases
     .map((p) => ({ ...p, tasks: query ? p.tasks.filter((t) => normalizeSearchText(t.title).includes(normalizeSearchText(query))) : p.tasks }))
     .filter((p) => p.tasks.length > 0);
   const visibleIds = visible.flatMap((p) => p.tasks.map((t) => t.id));
+  const freeVisibleIds = visibleIds.filter((id) => !locked.has(id));
+  const allMarked = freeVisibleIds.length > 0 && freeVisibleIds.every((id) => selected.has(id));
 
   function setMany(ids: string[], checked: boolean) {
     setSelected((prev) => {
@@ -47,10 +51,12 @@ export function TaskPickerForm({
 
   function toggleTask(id: string, checked: boolean) {
     const shiftKey = shiftHeld.current;
+    const uncheck = shiftKey && uncheckHeld.current;
     shiftHeld.current = false;
+    uncheckHeld.current = false;
     const from = lastClicked.current ? visibleIds.indexOf(lastClicked.current) : -1;
     const to = visibleIds.indexOf(id);
-    setMany(shiftKey && from >= 0 ? visibleIds.slice(Math.min(from, to), Math.max(from, to) + 1) : [id], checked);
+    setMany(shiftKey && from >= 0 ? visibleIds.slice(Math.min(from, to), Math.max(from, to) + 1) : [id], uncheck ? false : checked);
     lastClicked.current = id;
   }
 
@@ -79,7 +85,14 @@ export function TaskPickerForm({
         placeholder="Buscar tarea…"
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
       />
-      <div className="max-h-[50vh] space-y-3 overflow-x-hidden overflow-y-auto">
+      <div className="flex justify-end">
+        {freeVisibleIds.length > 0 && (
+          <button type="button" onClick={() => setMany(freeVisibleIds, !allMarked)} className="text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline">
+            {allMarked ? "Desmarcar todo" : "Marcar todo"}
+          </button>
+        )}
+      </div>
+      <div className="max-h-[50vh] space-y-3 overflow-x-hidden overflow-y-auto" onKeyDown={(e) => checkListArrowKeys(e, setMany)}>
         {visible.length === 0 && <p className="text-sm text-slate-400">{query ? "Sin resultados." : "El proyecto todavía no tiene tareas."}</p>}
         {visible.map((p) => {
           const ids = p.tasks.map((t) => t.id);
@@ -101,11 +114,13 @@ export function TaskPickerForm({
                   key={t.id}
                   onPointerDown={(e) => {
                     shiftHeld.current = e.shiftKey;
+                    uncheckHeld.current = e.ctrlKey || e.metaKey;
                   }}
                   className="flex select-none items-start gap-2 rounded-lg py-1.5 pl-7 pr-2 text-sm text-slate-600 hover:bg-slate-50"
                 >
                   <input
                     type="checkbox"
+                    data-id={t.id}
                     className="mt-0.5"
                     checked={selected.has(t.id)}
                     disabled={locked.has(t.id)}
