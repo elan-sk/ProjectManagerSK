@@ -670,7 +670,7 @@ export default async function ProjectPage({
       )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-12 w-12 text-base" projectId={project.id} />
+          <ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-12 w-12 text-base" projectId={project.id} toParent />
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
               {project.name}

@@ -58,6 +58,7 @@ export function ProjectIcon({
   projectId,
   parent,
   inline = false,
+  toParent = false,
 }: {
   name: string;
   iconUrl?: string | null;
@@ -71,6 +72,8 @@ export function ProjectIcon({
   parent?: ProjectIconParent;
   /** Íconos muy pequeños (tarjetas): principal | subproyecto lado a lado, porque encimados no se distinguen. */
   inline?: boolean;
+  /** En la página del propio subproyecto: el clic sube al proyecto principal (ir a sí mismo no llevaba a ningún lado). */
+  toParent?: boolean;
 }) {
   // «principal | subproyecto» con link: cada ícono lleva a su proyecto. El encimado lleva solo al subproyecto
   // (dos destinos en un ícono tan chico no se pueden tocar bien).
@@ -108,8 +111,9 @@ export function ProjectIcon({
     <ProjectIconImage name={name} iconUrl={iconUrl} size={size} />
   );
   if (!projectId) return icon;
+  const target = toParent && parent?.id ? { id: parent.id, name: parent.name } : { id: projectId, name };
   return (
-    <Link href={`/projects/${projectId}`} aria-label={`Ir al proyecto ${name}`} className="contents">
+    <Link href={`/projects/${target.id}`} aria-label={`Ir al proyecto ${target.name}`} className="contents">
       {icon}
     </Link>
   );
