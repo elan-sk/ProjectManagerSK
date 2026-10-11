@@ -66,6 +66,12 @@ const DEFINITION_ACTION_BASE = "inline-flex items-center justify-center rounded-
 export const DEFINITION_ACTION_BTN = `${DEFINITION_ACTION_BASE} hover:bg-slate-50 hover:text-slate-900`;
 export const DEFINITION_ACTION_BTN_DANGER = `${DEFINITION_ACTION_BASE} hover:border-red-300 hover:bg-red-50 hover:text-red-600`;
 
+export const DEFINITION_LEVEL_FILL = {
+  OBJECTIVE: "progress-fill-objective",
+  REQUIREMENT: "progress-fill-requirement",
+  PHASE: "progress-fill-phase",
+} as const;
+
 export const DEFINITION_LEVEL_HEX = { PHASE: "#0d9488", REQUIREMENT: "#0284c7" } as const;
 
 export const DEFINITION_LEVEL_COLOR = {

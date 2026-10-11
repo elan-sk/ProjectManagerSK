@@ -126,7 +126,7 @@ export function RequirementsPanel({
               </div>
             </div>
             <div className="mt-2.5">
-              <DefinitionProgressBar pct={r.pct} atRisk={r.atRisk} />
+              <DefinitionProgressBar pct={r.pct} level="REQUIREMENT" />
             </div>
             <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.TASK.border}`}>
               {r.usesPhaseFallback ? (

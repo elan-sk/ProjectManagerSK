@@ -2,7 +2,7 @@
 
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { TargetIcon } from "@/components/icons";
-import { DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_COLOR, DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 
 type Level = "OBJECTIVE" | "REQUIREMENT" | "PHASE";
 
@@ -25,11 +25,11 @@ export function DefinitionCardHeading({ level, title, number, aside }: { level: 
   );
 }
 
-export function DefinitionProgressBar({ pct, atRisk }: { pct: number; atRisk: boolean }) {
+export function DefinitionProgressBar({ pct, level }: { pct: number; level: Level }) {
   return (
     <div className="flex items-center gap-3">
       <div className="h-2 min-w-0 flex-1 overflow-hidden bg-slate-100" role="img" aria-label={`Avance: ${pct}%`}>
-        <div className={`h-full ${atRisk ? "progress-fill-teal" : "progress-fill-emerald"}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${DEFINITION_LEVEL_FILL[level]}`} style={{ width: `${pct}%` }} />
       </div>
       <span className="flex-shrink-0 text-[14px] font-medium tabular-nums text-slate-600">{pct}%</span>
     </div>

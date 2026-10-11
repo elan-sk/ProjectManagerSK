@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ModalTrigger } from "@/components/Modal";
-import { DEFINITION_LEVEL_COLOR } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_COLOR, DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 
 type Row = { id: string; label: string; pct: number; atRisk: boolean };
 type LevelKey = "OBJECTIVE" | "REQUIREMENT" | "PHASE";
@@ -30,7 +30,7 @@ function Group({ level, title, rows }: { level: LevelKey | null; title: string; 
                 >
                   <span className="truncate text-slate-600">{r.label}</span>
                   <span className="h-1.5 overflow-hidden bg-slate-100">
-                    <span className={`block h-full ${r.atRisk ? "progress-fill-teal" : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
+                    <span className={`block h-full ${level ? DEFINITION_LEVEL_FILL[level] : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
                   </span>
                   <span className="text-right tabular-nums text-slate-500">{r.pct}%</span>
                 </RowContent>

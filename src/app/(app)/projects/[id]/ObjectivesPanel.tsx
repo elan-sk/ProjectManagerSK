@@ -133,7 +133,7 @@ export function ObjectivesPanel({
               </div>
             </div>
             <div className="mt-2.5">
-              <DefinitionProgressBar pct={o.pct} atRisk={o.atRiskRequirementCount > 0} />
+              <DefinitionProgressBar pct={o.pct} level="OBJECTIVE" />
             </div>
             <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.REQUIREMENT.border}`}>
               <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>

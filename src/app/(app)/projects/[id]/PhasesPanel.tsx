@@ -120,7 +120,7 @@ export function PhasesPanel({
               </div>
             </div>
             <div className="mt-2.5">
-              <DefinitionProgressBar pct={p.pct} atRisk={p.taskCounts.overdue > 0} />
+              <DefinitionProgressBar pct={p.pct} level="PHASE" />
             </div>
             <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.TASK.border}`}>
               <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
