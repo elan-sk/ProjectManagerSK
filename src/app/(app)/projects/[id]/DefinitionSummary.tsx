@@ -30,9 +30,9 @@ function Group({ level, title, rows }: { level: LevelKey | null; title: string; 
                 >
                   <span className="truncate text-slate-600">{r.label}</span>
                   <span className="h-1.5 overflow-hidden bg-slate-100">
-                    <span className={`block h-full ${r.atRisk ? "progress-fill-red" : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
+                    <span className={`block h-full ${r.atRisk ? "progress-fill-teal" : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
                   </span>
-                  <span className={`text-right tabular-nums ${r.atRisk ? "text-red-700" : "text-slate-500"}`}>{r.pct}%</span>
+                  <span className="text-right tabular-nums text-slate-500">{r.pct}%</span>
                 </RowContent>
               </li>
             );
