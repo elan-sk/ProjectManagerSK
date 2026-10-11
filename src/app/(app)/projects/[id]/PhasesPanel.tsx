@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deletePhase } from "./definitionActions";
+import { deletePhase, setPhaseTasks } from "./definitionActions";
+import { TaskPickerForm } from "./TaskPickerForm";
 import { ModalTrigger } from "@/components/Modal";
 import { PhaseForm } from "./PhaseForm";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -106,6 +107,14 @@ export function PhasesPanel({
                 </div>
                 {canManage && (
                   <div className="flex items-center gap-2">
+                    <ModalTrigger label="Tareas" title={`Tareas de «${p.name}»`} variant="secondary" compact className={DEFINITION_ACTION_BTN}>
+                      <TaskPickerForm
+                        phases={phases.map((ph) => ({ id: ph.id, name: ph.name, tasks: ph.tasks.map((t) => ({ id: t.id, title: t.title })) }))}
+                        initialSelectedIds={p.tasks.map((t) => t.id)}
+                        lockedIds={p.tasks.map((t) => t.id)}
+                        onSave={(ids) => setPhaseTasks(p.id, ids)}
+                      />
+                    </ModalTrigger>
                     <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <PhaseForm phaseId={p.id} currentName={p.name} />
                     </ModalTrigger>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteObjective } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { ObjectiveForm } from "./ObjectiveForm";
+import { ObjectiveRequirementsForm } from "./ObjectiveRequirementsForm";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import Link from "next/link";
 import { RequirementForm } from "./RequirementForm";
@@ -117,6 +118,9 @@ export function ObjectivesPanel({
                 </div>
                 {canManage && (
                   <div className="flex items-center gap-2">
+                    <ModalTrigger label="Requerimientos" title={`Requerimientos de «${o.title}»`} variant="secondary" compact className={DEFINITION_ACTION_BTN}>
+                      <ObjectiveRequirementsForm objectiveId={o.id} requirements={requirements.map((r) => ({ id: r.id, title: r.title }))} currentRequirementIds={o.requirementIds} />
+                    </ModalTrigger>
                     <ModalTrigger label="Editar" title="Editar objetivo" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} parentObjectives={parentObjectives} currentParentObjectiveId={o.parentObjectiveId} />
                     </ModalTrigger>

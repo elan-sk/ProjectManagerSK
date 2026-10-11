@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addRequirement, updateRequirement } from "./definitionActions";
+import { SearchableCheckList } from "@/components/SearchableCheckList";
 import { useModalClose } from "@/components/Modal";
 
 export function RequirementForm({
@@ -61,13 +62,7 @@ export function RequirementForm({
         {objectives.length === 0 ? (
           <p className="text-xs text-slate-400">Todavía no hay objetivos creados en este proyecto.</p>
         ) : (
-          <select name="objectiveIds" multiple defaultValue={currentObjectiveIds} className="h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            {objectives.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.title}
-              </option>
-            ))}
-          </select>
+          <SearchableCheckList name="objectiveIds" options={objectives.map((o) => ({ id: o.id, label: o.title }))} defaultSelectedIds={currentObjectiveIds} />
         )}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}

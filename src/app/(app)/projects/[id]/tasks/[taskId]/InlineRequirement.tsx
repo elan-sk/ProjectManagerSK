@@ -40,8 +40,7 @@ export function InlineRequirement({
 
   if (!canManage) return <span title={titles.join("\n")}>{label}</span>;
 
-  function toggle(id: string, checked: boolean) {
-    const next = checked ? [...current, id] : current.filter((x) => x !== id);
+  function change(next: string[]) {
     setDraft(next);
     startTransition(async () => {
       try {
@@ -67,7 +66,7 @@ export function InlineRequirement({
 
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-2 text-left font-normal shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
-          <SearchableCheckList options={requirements.map((r) => ({ id: r.id, label: r.title }))} selectedIds={current} onToggle={toggle} />
+          <SearchableCheckList options={requirements.map((r) => ({ id: r.id, label: r.title }))} selectedIds={current} onChange={change} />
         </div>
       )}
     </span>

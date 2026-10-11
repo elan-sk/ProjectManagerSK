@@ -4,25 +4,54 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertBadge } from "@/components/AlertBadge";
+import { Avatar } from "@/components/Avatar";
+import { ProjectIcon } from "@/components/ProjectIcon";
+import { PaperclipIcon, ShareIcon, UrgentIcon } from "@/components/icons";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
+import type { TaskStatus } from "@prisma/client";
 
-// Mismo tooltip claro (fondo blanco, no el nativo oscuro del navegador) y
-// mismo criterio de flip/clamp que el hover de las barras del Gantt
-// (GanttBar.tsx) — pedido explícito del usuario de reusar ese patrón acá.
-const TOOLTIP_WIDTH = 224; // w-56
-const TOOLTIP_MAX_HEIGHT = 140;
+const POPOVER_WIDTH = 340;
+const MIN_HEIGHT_BELOW = 320;
+const MAX_AVATARS = 5;
+
+export type CalendarPopoverTask = {
+  title: string;
+  type: string;
+  status: TaskStatus;
+  isUrgent: boolean;
+  projectName: string;
+  projectIconUrl: string | null;
+  projectParent: { id: string; name: string; iconUrl: string | null } | null;
+  phaseName: string | null;
+  requirementTitles: string[];
+  assignees: { name: string; avatarUrl: string | null }[];
+  attachmentsCount: number;
+  shareToken: string | null;
+};
+
+type Position = { left: number; top?: number; bottom?: number; maxHeight: number };
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(Math.max(n, min), max);
 }
 
 function fmtDate(d: Date) {
-  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", timeZone: "UTC" });
+  return d.toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-2">
+      <dt className="text-slate-400">{label}</dt>
+      <dd className="min-w-0 text-slate-700">{children}</dd>
+    </div>
+  );
 }
 
 export function CalendarTaskLink({
   href,
-  title,
+  task,
   start,
   end,
   alert,
@@ -31,7 +60,7 @@ export function CalendarTaskLink({
   children,
 }: {
   href: string;
-  title: string;
+  task: CalendarPopoverTask;
   start: Date;
   end: Date;
   alert: TaskAlert;
@@ -40,19 +69,28 @@ export function CalendarTaskLink({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<Position | null>(null);
 
   function show() {
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return;
-    const fitsBelow = window.innerHeight - rect.bottom >= TOOLTIP_MAX_HEIGHT + 8;
-    const top = fitsBelow ? rect.bottom + 8 : rect.top - TOOLTIP_MAX_HEIGHT - 8;
-    const left = clamp(rect.left, 8, window.innerWidth - TOOLTIP_WIDTH - 8);
-    setPos({ left, top });
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
+    const left = clamp(rect.left, 8, window.innerWidth - width - 8);
+    const below = window.innerHeight - rect.bottom - 12;
+    const above = rect.top - 12;
+    setPos(
+      below >= MIN_HEIGHT_BELOW || below >= above
+        ? { left, top: rect.bottom + 6, maxHeight: below }
+        : { left, bottom: window.innerHeight - rect.top + 6, maxHeight: above }
+    );
   }
   function hide() {
     setPos(null);
   }
+
+  const urgent = task.isUrgent && task.status !== "COMPLETED";
+  const projectLabel = task.projectParent ? `${task.projectParent.name} › ${task.projectName}` : task.projectName;
+  const shownAssignees = task.assignees.slice(0, MAX_AVATARS);
 
   return (
     <>
@@ -63,18 +101,82 @@ export function CalendarTaskLink({
       {pos &&
         createPortal(
           <div
-            className="pointer-events-none fixed z-50 w-56 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
-            style={{ left: pos.left, top: pos.top }}
+            role="tooltip"
+            className="pointer-events-none fixed z-50 max-w-[calc(100vw-16px)] overflow-x-hidden overflow-y-hidden rounded-2xl bg-white text-[13px] shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-slate-200"
+            style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: POPOVER_WIDTH, maxHeight: pos.maxHeight }}
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-medium text-slate-900">{title}</p>
-              <AlertBadge alert={alert} className="flex-shrink-0" />
+            <div className={`h-1.5 ${urgent ? "bg-red-600" : TASK_STATUS_COLOR[task.status].dot}`} aria-hidden />
+            <div className="space-y-3 p-4">
+              <div className="flex items-center gap-2">
+                <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} parent={task.projectParent ?? undefined} size="h-7 w-7 flex-shrink-0 text-[11px]" />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-500">{projectLabel}</span>
+                <span className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_TYPE_BADGE[task.type] ?? ""}`}>{TASK_TYPE_LABEL[task.type] ?? task.type}</span>
+              </div>
+
+              <p className={`flex items-start gap-1.5 text-[16px] font-semibold leading-snug ${urgent ? "text-red-700" : "text-slate-900"}`}>
+                {urgent && <UrgentIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />}
+                <span className="min-w-0 break-words">{task.title}</span>
+              </p>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${TASK_STATUS_COLOR[task.status].badge}`}>
+                  {TASK_STATUS_LABEL[task.status]}
+                </span>
+                <AlertBadge alert={alert} />
+              </div>
+
+              <dl className="space-y-1.5 border-t border-slate-100 pt-3">
+                <Row label="Fechas">
+                  <span className="capitalize">{fmtDate(start)}</span> — <span className="capitalize">{fmtDate(end)}</span>
+                  {alert.level === "onTrack" && <span className="text-slate-400"> · vence en {alert.daysRemaining}d</span>}
+                </Row>
+                {task.phaseName && <Row label="Fase">{task.phaseName}</Row>}
+                {task.requirementTitles.length > 0 && (
+                  <Row label={task.requirementTitles.length > 1 ? "Requerimientos" : "Requerimiento"}>
+                    <span className="line-clamp-3">{task.requirementTitles.join(" · ")}</span>
+                  </Row>
+                )}
+                <Row label="Asignados">
+                  {task.assignees.length === 0 ? (
+                    <span className="text-slate-400">Sin asignar</span>
+                  ) : (
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="flex -space-x-1.5">
+                        {shownAssignees.map((a) => (
+                          <Avatar key={a.name} name={a.name} avatarUrl={a.avatarUrl} size="h-6 w-6 text-[10px]" />
+                        ))}
+                      </span>
+                      <span className="min-w-0">
+                        {shownAssignees.map((a) => a.name.split(" ")[0]).join(", ")}
+                        {task.assignees.length > MAX_AVATARS && ` +${task.assignees.length - MAX_AVATARS}`}
+                      </span>
+                    </span>
+                  )}
+                </Row>
+              </dl>
+
+              {(task.attachmentsCount > 0 || task.shareToken || collisionText) && (
+                <div className="space-y-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  {(task.attachmentsCount > 0 || task.shareToken) && (
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {task.attachmentsCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <PaperclipIcon className="h-3.5 w-3.5" />
+                          {task.attachmentsCount} {task.attachmentsCount === 1 ? "archivo" : "archivos"}
+                        </span>
+                      )}
+                      {task.shareToken && (
+                        <span className="inline-flex items-center gap-1">
+                          <ShareIcon className="h-3.5 w-3.5" />
+                          Compartida
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {collisionText && <p className="text-indigo-600">{collisionText}</p>}
+                </div>
+              )}
             </div>
-            <p className="mt-1 text-slate-500">
-              {fmtDate(start)} — {fmtDate(end)}
-              {alert.level === "onTrack" && ` · vence en ${alert.daysRemaining}d`}
-            </p>
-            {collisionText && <p className="mt-1 text-indigo-600">{collisionText}</p>}
           </div>,
           document.body
         )}

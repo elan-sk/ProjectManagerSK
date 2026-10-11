@@ -206,6 +206,44 @@ export async function setRequirementTasks(requirementId: string, taskIds: string
   return { ok: true as const };
 }
 
+export async function setObjectiveRequirements(objectiveId: string, requirementIds: string[], actor?: Actor) {
+  const objective = await prisma.objective.findUnique({ where: { id: objectiveId }, select: { projectId: true } });
+  if (!objective) return { ok: false as const, error: "Ese objetivo ya no existe." };
+  const denied = await guard(objective.projectId, actor);
+  if (denied) return denied;
+
+  const ids = [...new Set(requirementIds)];
+  const valid = await prisma.requirement.count({ where: { id: { in: ids }, projectId: objective.projectId } });
+  if (valid !== ids.length) return { ok: false as const, error: "Alguno de los requerimientos elegidos no pertenece a este proyecto." };
+
+  try {
+    await prisma.objective.update({ where: { id: objectiveId }, data: { requirements: { set: ids.map((id) => ({ id })) } } });
+  } catch {
+    return { ok: false as const, error: "No se pudieron guardar los requerimientos del objetivo. Conviene intentarlo de nuevo." };
+  }
+  revalidatePath(`/projects/${objective.projectId}`);
+  return { ok: true as const };
+}
+
+export async function setPhaseTasks(phaseId: string, taskIds: string[], actor?: Actor) {
+  const phase = await prisma.phase.findUnique({ where: { id: phaseId }, select: { projectId: true } });
+  if (!phase) return { ok: false as const, error: "Esa fase ya no existe." };
+  const denied = await guard(phase.projectId, actor);
+  if (denied) return denied;
+
+  const ids = [...new Set(taskIds)];
+  const valid = await prisma.task.count({ where: { id: { in: ids }, projectId: phase.projectId } });
+  if (valid !== ids.length) return { ok: false as const, error: "Alguna de las tareas elegidas no pertenece a este proyecto." };
+
+  try {
+    await prisma.task.updateMany({ where: { id: { in: ids }, phaseId: { not: phaseId } }, data: { phaseId } });
+  } catch {
+    return { ok: false as const, error: "No se pudieron mover las tareas a la fase. Conviene intentarlo de nuevo." };
+  }
+  revalidatePath(`/projects/${phase.projectId}`);
+  return { ok: true as const };
+}
+
 const phaseSchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()) });
 
 export async function updatePhase(phaseId: string, formData: FormData, actor?: Actor) {

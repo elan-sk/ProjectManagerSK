@@ -16,7 +16,13 @@ export type CalendarTask = {
   projectName: string;
   /** Subproyecto (spec 004): nombre del proyecto principal, se antepone al del proyecto. */
   projectParentName?: string | null;
+  projectIconUrl: string | null;
+  projectParent: { id: string; name: string; iconUrl: string | null } | null;
   title: string;
+  type: string;
+  phaseName: string | null;
+  requirementTitles: string[];
+  assignees: { name: string; avatarUrl: string | null }[];
   isUrgent: boolean;
   attachmentsCount: number;
   shareToken: string | null;
@@ -191,7 +197,7 @@ export function ProjectCalendarView({
                     <CalendarTaskLink
                       key={t.id}
                       href={`/projects/${t.projectId}/tasks/${t.id}`}
-                      title={label}
+                      task={t}
                       start={t.start}
                       end={t.end}
                       alert={t.alert}

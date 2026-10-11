@@ -68,7 +68,7 @@ const taskInclude = {
   reviewRounds: { select: { outcome: true } },
   taskTags: { include: { tag: { include: { category: true } } } },
   steps: true,
-  requirements: { select: { id: true } },
+  requirements: { select: { id: true, title: true }, orderBy: { order: "asc" as const } },
   attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
   dependsOn: {
     include: {
@@ -547,6 +547,7 @@ export default async function ProjectPage({
     };
   });
 
+  const phaseNameById = new Map(allPhases.map((p) => [p.id, p.name]));
   const calendarTasks: CalendarTask[] = allTasks
     .filter(inCurrentView)
     .filter(matchesFilters)
@@ -557,6 +558,12 @@ export default async function ProjectPage({
       shareToken: taskShareTokenById.get(t.id) ?? null,
       projectId: t.projectId,
       projectName: info(t.projectId).name,
+      projectIconUrl: info(t.projectId).iconUrl,
+      projectParent: info(t.projectId).parent,
+      type: t.type,
+      phaseName: phaseNameById.get(t.phaseId) ?? null,
+      requirementTitles: t.requirements.map((r) => r.title),
+      assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
       // Dentro del principal no se antepone su nombre: ya se está en el grupo y taparía el título de la tarea.
       title: t.title,
       plannedStart: t.plannedStart.toISOString(),

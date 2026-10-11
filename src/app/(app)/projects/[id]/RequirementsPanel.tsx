@@ -6,7 +6,8 @@ import { deleteRequirement } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { RequirementForm } from "./RequirementForm";
 import Link from "next/link";
-import { RequirementTasksForm } from "./RequirementTasksForm";
+import { TaskPickerForm } from "./TaskPickerForm";
+import { setRequirementTasks } from "./definitionActions";
 import { ChildCount, DefinitionCardHeading, DefinitionProgressBar, ServedLinks } from "./DefinitionParts";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
@@ -101,7 +102,18 @@ export function RequirementsPanel({
                 {canManage && (
                   <div className="flex items-center gap-2">
                     <ModalTrigger label="Tareas" title={`Tareas de «${r.title}»`} variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-                      <RequirementTasksForm requirementId={r.id} phases={phases} requirementTitles={requirementTitles} />
+                      <TaskPickerForm
+                        phases={phases.map((p) => ({
+                          id: p.id,
+                          name: p.name,
+                          tasks: p.tasks.map((t) => {
+                            const others = t.requirementIds.filter((id) => id !== r.id).map((id) => requirementTitles[id]);
+                            return { id: t.id, title: t.title, note: others.length > 0 ? `También en: ${others.join(", ")}` : null };
+                          }),
+                        }))}
+                        initialSelectedIds={phases.flatMap((p) => p.tasks.filter((t) => t.requirementIds.includes(r.id)).map((t) => t.id))}
+                        onSave={(ids) => setRequirementTasks(r.id, ids)}
+                      />
                     </ModalTrigger>
                     <ModalTrigger label="Editar" title="Editar requerimiento" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <RequirementForm
