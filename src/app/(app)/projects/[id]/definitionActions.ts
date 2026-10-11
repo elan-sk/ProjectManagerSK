@@ -254,8 +254,8 @@ const projectLinkSchema = z.object({
   url: z.string().trim().url(),
 });
 
-export async function addProjectLink(projectId: string, formData: FormData) {
-  const denied = await guard(projectId);
+export async function addProjectLink(projectId: string, formData: FormData, actor?: Actor) {
+  const denied = await guard(projectId, actor);
   if (denied) return denied;
 
   const parsed = projectLinkSchema.safeParse({

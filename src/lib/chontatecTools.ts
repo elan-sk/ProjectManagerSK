@@ -12,7 +12,7 @@ import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload }
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
-import { updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
+import { addProjectAttachment, addProjectLink, updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
@@ -485,6 +485,16 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "add_project_files",
+    description:
+      "Sube archivos o links directamente al PROYECTO (sus «Archivos y enlaces», sin pasar por una tarea): documentación general, contratos, accesos, referencias. Solo PM del proyecto o admin.",
+    input_schema: {
+      type: "object",
+      properties: { projectId: { type: "string" }, files: FILE_REFS },
+      required: ["projectId", "files"],
+    },
+  },
+  {
     name: "archive_project",
     description: "Archiva (elimina de la vista, sin borrar datos) un proyecto. Solo un administrador. Es lo mismo que el botón Eliminar proyecto de la app.",
     input_schema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
@@ -646,7 +656,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "remove_attachment",
-    description: "Elimina un adjunto (insumo o resultado) de una tarea — IRREVERSIBLE.",
+    description: "Elimina un adjunto de una tarea (insumo o resultado) o un archivo/link del proyecto — IRREVERSIBLE.",
     input_schema: {
       type: "object",
       properties: { attachmentId: { type: "string" } },
@@ -914,7 +924,8 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           children: { where: LIVE_PROJECT_WHERE, select: { id: true, name: true, iconUrl: true }, orderBy: { name: "asc" } },
           pm: { select: { name: true, avatarUrl: true } },
           phases: { select: { id: true, name: true, order: true }, orderBy: { order: "asc" } },
-          links: { select: { title: true, url: true } },
+          links: { select: { id: true, title: true, url: true } },
+          attachments: { select: { id: true, fileName: true, mimeType: true } },
           tasks: { select: { status: true } },
         },
       });
@@ -1180,6 +1191,10 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     }
     case "attach_uploaded_file":
       return "Adjuntar el archivo subido a la tarea";
+    case "add_project_files": {
+      const { files } = input as { files?: unknown[] };
+      return `Subir ${files?.length ?? 0} archivo(s) o link(s) al proyecto`;
+    }
     case "create_project": {
       const { name: projectName } = input as { name?: string };
       return `Crear el proyecto "${projectName ?? "?"}"`;
@@ -1658,6 +1673,34 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         }
         const r = await addTaskAttachments(taskId, await currentActor(), kind ?? "INSUMO", files);
         return { ok: r.ok, message: r.ok ? `Listo, se subieron ${r.added} archivo(s).${skippedNote(r.skipped)}` : r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "add_project_files": {
+      try {
+        const { projectId, files } = z.object({ projectId: z.string(), files: z.array(fileRefSchema).min(1).max(20) }).parse(input);
+        for (const f of files) {
+          if (f.url.startsWith("/uploads/") && !(await findUploadPath(f.url))) {
+            return { ok: false, message: `El archivo "${f.name}" no existe en el servidor.` };
+          }
+        }
+        const actor = await currentActor();
+        const skipped: string[] = [];
+        for (const f of files) {
+          let r;
+          if (f.url.startsWith("/uploads/")) {
+            r = await addProjectAttachment(projectId, { url: f.url, name: f.name, mimeType: f.mimeType ?? mimeFromFileName(f.name) }, actor);
+          } else {
+            const form = new FormData();
+            form.set("title", f.name);
+            form.set("url", f.url);
+            r = await addProjectLink(projectId, form, actor);
+          }
+          if (!r.ok) return { ok: false, message: r.error };
+          if ("duplicate" in r) skipped.push(f.name);
+        }
+        return { ok: true, message: `Listo, se subieron ${files.length - skipped.length} archivo(s) al proyecto.${skippedNote(skipped)}` };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
