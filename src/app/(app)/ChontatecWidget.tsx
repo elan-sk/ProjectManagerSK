@@ -149,7 +149,7 @@ function renderChip(key: number, type: string, args: string[]) {
     if (!name) return null;
     const chipBody = (
       <span className="inline-flex items-center gap-1 align-middle">
-        <ProjectIcon name={name} iconUrl={iconUrl || null} parent={parentName ? { name: parentName, iconUrl: parentIconUrl || null } : null} inline size="h-4 w-4 text-[7px] rounded" />
+        <ProjectIcon name={name} iconUrl={iconUrl || null} parent={parentName ? { name: parentName, iconUrl: parentIconUrl || null } : null} inline size="h-4 w-4 text-[7px]" />
         {name}
       </span>
     );

@@ -35,9 +35,14 @@ export function defaultProjectColor(name: string) {
 }
 
 /**
- * Identidad visual de un proyecto — a propósito CUADRADA (sin redondeo, no
- * rounded-full) para distinguirse de un vistazo de los avatares circulares
- * de personas (Avatar.tsx), aunque aparezcan uno al lado del otro.
+ * Identidad visual de un proyecto — a propósito CUADRADA (no rounded-full)
+ * para distinguirse de un vistazo de los avatares circulares de personas
+ * (Avatar.tsx), aunque aparezcan uno al lado del otro.
+ *
+ * Decisión de diseño (2026-10-10): TODO ícono de proyecto o subproyecto lleva
+ * las esquinas ligeramente redondeadas (ICON_ROUND), en cualquier tamaño y
+ * variante (suelto, encimado, lado a lado, grupito). El redondeo vive acá:
+ * quien usa el componente no pasa clases `rounded-*` en `size`.
  *
  * Ya no hay un color de proyecto elegible ni un fondo de color en tarjetas o
  * vistas (punto confirmado con el usuario: nombre + ícono alcanzan para
@@ -46,6 +51,8 @@ export function defaultProjectColor(name: string) {
  */
 /** `id` (opcional): en el formato «principal | subproyecto» con link, el ícono del principal lleva a su proyecto. */
 // Jerarquía sutil (spec 004): borde gris oscuro en el principal y teal de la marca en el subproyecto.
+// En porcentaje para que el redondeo sea proporcional del ícono de 14px al de 56px.
+const ICON_ROUND = "rounded-[20%]";
 const PARENT_RING = "ring-1! ring-slate-500!";
 const CHILD_RING = "ring-1! ring-[#0a6b78]/70!";
 
@@ -103,9 +110,9 @@ export function ProjectIcon({
     </span>
   ) : parent ? (
     <span className={`relative mt-1.5 mr-1.5 mb-1.5 inline-flex shrink-0 ${size}`} title={`${parent.name} › ${name}`}>
-      <ProjectIconImage name={parent.name} iconUrl={parent.iconUrl} size="h-full w-full rounded-[inherit] ring-[3px]! ring-slate-500!" />
-      {/* Corrido hacia afuera de la esquina (desfase), con borde blanco y una sombra suave: se lee como «encima de», no «dentro de». */}
-      <ProjectIconImage name={name} iconUrl={iconUrl} size="absolute -right-[5%] -bottom-[5%] h-[75%] w-[75%] text-[0.8em] ring-[3px]! ring-white! shadow-[2px_2px_5px_rgba(15,23,42,0.4)]" />
+      <ProjectIconImage name={parent.name} iconUrl={parent.iconUrl} size="h-full w-full ring-[3px]! ring-slate-500!" />
+      {/* Corrido hacia afuera de la esquina (desfase), con borde teal y sombra marcada: se lee como «encima de», no «dentro de». */}
+      <ProjectIconImage name={name} iconUrl={iconUrl} size="absolute -right-[5%] -bottom-[5%] h-[75%] w-[75%] text-[0.8em] ring-[3px]! ring-teal-500! shadow-[2px_2px_6px_rgba(15,23,42,0.6)]" />
     </span>
   ) : (
     <ProjectIconImage name={name} iconUrl={iconUrl} size={size} />
@@ -123,14 +130,14 @@ function ProjectIconImage({ name, iconUrl, size }: { name: string; iconUrl?: str
   if (iconUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={iconUrl} alt={name} title={name} className={`flex-shrink-0 object-cover ring-1 ring-slate-200 ${size}`} />
+      <img src={iconUrl} alt={name} title={name} className={`flex-shrink-0 object-cover ring-1 ring-slate-200 ${ICON_ROUND} ${size}`} />
     );
   }
   return (
     <span
       title={name}
       style={{ backgroundColor: defaultProjectColor(name) }}
-      className={`flex flex-shrink-0 items-center justify-center font-medium text-white ring-1 ring-slate-200 ${size}`}
+      className={`flex flex-shrink-0 items-center justify-center font-medium text-white ring-1 ring-slate-200 ${ICON_ROUND} ${size}`}
     >
       {name.trim().charAt(0).toUpperCase()}
     </span>
@@ -144,12 +151,12 @@ export function ProjectIconGroup({ projects, size = "h-5 w-5 text-[9px]", max = 
   return (
     <span className="flex flex-shrink-0 items-center -space-x-1.5" title={`Subproyectos: ${projects.map((p) => p.name).join(", ")}`}>
       {shown.map((p) => (
-        <span key={p.name} className="ring-2 ring-white">
+        <span key={p.name} className={`ring-2 ring-white ${ICON_ROUND}`}>
           <ProjectIconImage name={p.name} iconUrl={p.iconUrl} size={size} />
         </span>
       ))}
       {projects.length > max && (
-        <span className={`flex items-center justify-center bg-slate-200 font-medium text-slate-600 ring-2 ring-white ${size}`}>+{projects.length - max}</span>
+        <span className={`flex items-center justify-center bg-slate-200 font-medium text-slate-600 ring-2 ring-white ${ICON_ROUND} ${size}`}>+{projects.length - max}</span>
       )}
     </span>
   );

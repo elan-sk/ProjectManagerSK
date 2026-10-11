@@ -104,6 +104,8 @@ La paleta conserva las familias semánticas existentes y cambia solo sus tonalid
 
 Un proyecto se identifica solo por su nombre y su ícono (punto confirmado con el usuario: probó un color de fondo elegible por proyecto — tarjeta de resumen, vista completa del proyecto, encabezado de tarea — y decidió que no aportaba y que nombre + ícono ya alcanzan). No existe un selector de color de proyecto ni un fondo de color en ninguna de esas superficies; el ícono (imagen propia o el cuadrado con inicial de respaldo) se agrandó en su lugar para que tenga más presencia junto al nombre y el cliente.
 
+El ícono de proyecto es cuadrado con las esquinas ligeramente redondeadas (20 % del lado), nunca circular: así se distingue del avatar redondo de una persona. Decisión del 2026-10-10: el redondeo aplica a todo ícono de proyecto y de subproyecto, en todas las pantallas y variantes (suelto, subproyecto encimado sobre su principal, «principal | subproyecto» lado a lado, grupito de subproyectos). Se define una sola vez en `src/components/ProjectIcon.tsx` (`ICON_ROUND`); ninguna pantalla lo pisa con su propio `rounded-*`.
+
 Cada persona sí recibe un color propio (hash determinístico del nombre) solo para identificarse de un vistazo en su avatar — nunca para transmitir estado. Siempre en hex explícito (`style`, no clase de Tailwind): cualquier familia de color de Tailwind sin retonalizar en `globals.css` (rose, violet, teal, fuchsia, purple, indigo, cyan, sky, pink) se ve fuera de lugar en cuanto aparece, así que esta paleta nunca depende de esas clases.
 
 - **Proyectos, respaldo del ícono con inicial** (`ProjectIcon.tsx` → `DEFAULT_COLORS`): marea, selva, océano profundo, orquídea, berry y oro mate — el único color que le queda a un proyecto sin ícono propio.

@@ -286,7 +286,7 @@ export function HeaderSearch() {
                           name={h.project.name}
                           iconUrl={h.project.iconUrl}
                           parent={h.project.parent}
-                          size={h.kind === "project" ? "h-10 w-10 rounded-lg text-base" : "h-7 w-7 rounded text-xs"}
+                          size={h.kind === "project" ? "h-10 w-10 text-base" : "h-7 w-7 text-xs"}
                         />
                       )}
                       <span className="min-w-0 flex-1">
