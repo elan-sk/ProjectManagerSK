@@ -343,11 +343,11 @@ model Objective {
   order       Int
   createdAt   DateTime @default(now())
 
-  requirements Requirement[] @relation("RequirementObjectives")
+  requirements      Requirement[] @relation("RequirementObjectives")
   // Spec 004: un objetivo de un subproyecto puede aportar a un objetivo del proyecto padre.
   parentObjectiveId String?
-  parentObjective   Objective?  @relation("ObjectiveContributions", fields: [parentObjectiveId], references: [id], onDelete: SetNull)
-  contributions     Objective[] @relation("ObjectiveContributions")
+  parentObjective   Objective?    @relation("ObjectiveContributions", fields: [parentObjectiveId], references: [id], onDelete: SetNull)
+  contributions     Objective[]   @relation("ObjectiveContributions")
 }
 
 // "Requerimiento" (Fase 2 de /dev-project-definer) — se cumple a través de
@@ -364,6 +364,7 @@ model Requirement {
 
   objectives Objective[] @relation("RequirementObjectives")
   phases     Phase[]     @relation("PhaseRequirements")
+  tasks      Task[]      @relation("TaskRequirements")
 }
 
 model Task {
@@ -430,6 +431,7 @@ model Task {
   claudeLinks      ClaudeLink[]
   internalMessages InternalMessage[]
   credentials      CredentialTask[]
+  requirements     Requirement[]     @relation("TaskRequirements")
 }
 
 // Conversación estrictamente interna: nunca se consulta desde /share ni se

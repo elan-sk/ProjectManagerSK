@@ -8,23 +8,12 @@ import { ObjectiveForm } from "./ObjectiveForm";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import Link from "next/link";
 import { RequirementForm } from "./RequirementForm";
-import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { ChildCount, DefinitionCardHeading, DefinitionProgressBar } from "./DefinitionParts";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
 import { pctStatus, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import type { ObjectiveSummary, RequirementSummary } from "@/lib/cascadeProgress";
-
-function ProgressBar({ pct }: { pct: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
-    </div>
-  );
-}
 
 export function ObjectivesPanel({
   projectId,
@@ -75,13 +64,13 @@ export function ObjectivesPanel({
         )}
       </div>
       {objectives.length === 0 && <p className="text-[18px] text-slate-400">Todavía no hay objetivos definidos.</p>}
-      <ul className="space-y-2">
-        {objectives.map((o) => (
+      <ul className="space-y-4">
+        {objectives.map((o, index) => (
           <li key={o.id} id={`definition-objective-${o.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-900">{o.title}</p>
-                {o.description && <p className="mt-0.5 text-[18px] text-slate-500">{o.description}</p>}
+                <DefinitionCardHeading level="OBJECTIVE" number={index + 1} title={o.title} />
+                {o.description && <p className="mt-1 text-[16px] text-slate-500">{o.description}</p>}
                 {o.parentObjectiveTitle && <p className="mt-0.5 text-sm text-slate-400">Contribuye a: {o.parentObjectiveTitle}</p>}
                 {o.contributions.length > 0 && (
                   <ul className="mt-1.5 space-y-1">
@@ -97,17 +86,15 @@ export function ObjectivesPanel({
                   </ul>
                 )}
               </div>
-              <div className="flex shrink-0 items-start gap-4">
+              <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">
                 <div className="flex items-start gap-2">
-                  <ProgressRing pct={o.pct} overdue={o.atRiskRequirementCount > 0} size={28} />
-                  <div className="text-[17px] text-slate-500 flex flex-col gap-1">
-                    <p className="whitespace-nowrap">
-                      {o.requirementTitles.length} requerimiento{o.requirementTitles.length === 1 ? "" : "s"}
-                    </p>
+                  <div className="flex flex-col items-end gap-1 text-[14px] text-slate-500">
                     {o.atRiskRequirementCount > 0 ? (
                       <ReferencePopover
+                        align="right"
+                        width={320}
                         trigger={
-                          <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
+                          <span className="inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
                             {o.atRiskRequirementCount} en riesgo
                           </span>
                         }
@@ -117,7 +104,7 @@ export function ObjectivesPanel({
                     ) : (
                       o.openSlackDays !== null && (
                         <span
-                          className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                          className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${
                             o.openSlackDays <= 2 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
                           }`}
                         >
@@ -129,7 +116,7 @@ export function ObjectivesPanel({
                   </div>
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
+                  <div className="flex items-center gap-2">
                     <ModalTrigger label="Editar" title="Editar objetivo" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <ObjectiveForm projectId={projectId} objectiveId={o.id} currentTitle={o.title} currentDescription={o.description} parentObjectives={parentObjectives} currentParentObjectiveId={o.parentObjectiveId} />
                     </ModalTrigger>
@@ -145,23 +132,24 @@ export function ObjectivesPanel({
                 )}
               </div>
             </div>
-            <div className="mt-2">
-              <ProgressBar pct={o.pct} />
+            <div className="mt-2.5">
+              <DefinitionProgressBar pct={o.pct} atRisk={o.atRiskRequirementCount > 0} />
             </div>
-            <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className={`flex items-center gap-1.5 text-[17px] font-medium ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>
+            <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.REQUIREMENT.border}`}>
+              <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.REQUIREMENT.dot}`} aria-hidden />
                 Requerimientos
+                <ChildCount done={o.requirementIds.filter((id) => (requirementById.get(id)?.pct ?? 0) >= 100).length} total={o.requirementIds.length} />
               </p>
               {o.requirementIds.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-[17px] text-slate-500">
+                <ul className="mt-1 space-y-0.5 text-[15px] text-slate-600">
                   {o.requirementIds.map((id, i) => {
                     const title = o.requirementTitles[i];
                     const req = requirementById.get(id);
-                    const status = req ? pctStatus(req.pct, req.atRiskPhaseCount > 0) : null;
+                    const status = req ? pctStatus(req.pct, req.atRisk) : null;
                     const rowClass = `flex items-baseline justify-between gap-2 rounded px-1.5 py-1 ${i % 2 === 0 ? "bg-slate-50" : ""}`;
                     const statusBadge = status && (
-                      <span className={`shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-medium ${status.className}`}>
+                      <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${status.className}`}>
                         {status.label}
                       </span>
                     );
@@ -176,7 +164,7 @@ export function ObjectivesPanel({
                     return (
                       <li key={id} title={title} className={rowClass}>
                         <span className="min-w-0">
-                          <ModalTrigger label={title} title="Editar requerimiento" compact>
+                          <ModalTrigger label={title} title="Editar requerimiento" compact className="text-left hover:text-slate-900 hover:underline">
                             <RequirementForm
                               projectId={projectId}
                               objectives={objectiveOptions}
@@ -193,7 +181,7 @@ export function ObjectivesPanel({
                   })}
                 </ul>
               ) : (
-                <p className="mt-1 text-[17px] text-slate-400">Sin requerimientos vinculados todavía.</p>
+                <p className="mt-1 text-[15px] text-slate-400">Sin requerimientos vinculados todavía.</p>
               )}
             </div>
           </li>

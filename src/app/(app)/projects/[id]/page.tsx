@@ -68,6 +68,7 @@ const taskInclude = {
   reviewRounds: { select: { outcome: true } },
   taskTags: { include: { tag: { include: { category: true } } } },
   steps: true,
+  requirements: { select: { id: true } },
   attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
   dependsOn: {
     include: {
@@ -797,6 +798,7 @@ export default async function ProjectPage({
             <NewTaskForm
               projectId={project.id}
               phases={project.phases}
+              requirements={cascadeProgress.requirements.map((r) => ({ id: r.id, title: r.title }))}
               users={users}
               templates={testTemplates}
               tagCategories={tagCategories}
@@ -1099,9 +1101,7 @@ export default async function ProjectPage({
           objectives={orderedDefinition.objectives}
           requirements={orderedDefinition.requirements}
           phases={orderedDefinition.phases}
-          links={project.links}
-          attachments={project.attachments}
-          credentials={credentials.map((c) => ({ id: c.id, name: c.name, url: c.url }))}
+          unassignedTasks={cascadeProgress.unassignedTasks}
           whatsappGroupJid={project.whatsappGroupJid}
           subprojects={{
             parent: project.parent ? { id: project.parent.id, name: project.parent.name, iconUrl: project.parent.iconUrl } : null,

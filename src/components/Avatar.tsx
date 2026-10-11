@@ -49,12 +49,12 @@ export function Avatar({
   );
 }
 
-export function AvatarGroup({ people }: { people: { name: string; avatarUrl?: string | null }[] }) {
+export function AvatarGroup({ people, size = "h-6 w-6 text-[10px]" }: { people: { name: string; avatarUrl?: string | null }[]; size?: string }) {
   if (people.length === 0) return <span className="text-xs text-slate-400">Sin asignar</span>;
   return (
     <div className="flex -space-x-1.5">
       {people.map((p) => (
-        <Avatar key={p.name} name={p.name} avatarUrl={p.avatarUrl} size="h-6 w-6 text-[10px]" />
+        <Avatar key={p.name} name={p.name} avatarUrl={p.avatarUrl} size={size} />
       ))}
     </div>
   );

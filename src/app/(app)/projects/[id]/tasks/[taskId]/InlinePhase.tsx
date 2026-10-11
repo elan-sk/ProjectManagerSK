@@ -10,12 +10,14 @@ export function InlinePhase({
   phaseName,
   phases,
   canManage,
+  triggerClassName = "-mx-0.5 rounded px-0.5 hover:bg-slate-100 hover:underline",
 }: {
   taskId: string;
   phaseId: string;
   phaseName: string;
   phases: { id: string; name: string }[];
   canManage: boolean;
+  triggerClassName?: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -29,7 +31,7 @@ export function InlinePhase({
         type="button"
         title="Click para cambiar la fase"
         onClick={() => setEditing(true)}
-        className="-mx-0.5 rounded px-0.5 hover:bg-slate-100 hover:underline"
+        className={triggerClassName}
       >
         {phaseName}
       </button>

@@ -59,6 +59,7 @@ import {
   updateTaskTitle,
   updateTaskDescription,
   updateTaskPhase,
+  updateTaskRequirements,
   updateTaskType,
   setDependency,
   removeDependency,
@@ -159,7 +160,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_task_details",
-    description: "Trae el detalle de una tarea puntual: título, estado, asignados, revisores, checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
+    description: "Trae el detalle de una tarea puntual: título, estado, requerimientos de Definición a los que responde (requirements; lista vacía si no tiene), asignados, revisores, checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
     input_schema: {
       type: "object",
       properties: { taskId: { type: "string" } },
@@ -604,13 +605,15 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         assigneeIds: { type: "array", items: { type: "string" }, description: "Al menos un id de usuario." },
         reviewerIds: { type: "array", items: { type: "string" }, description: "Solo tipo QA (Prueba): ids de revisores, distintos de los asignados." },
         defaultTestTemplateId: { type: "string", description: "Solo tipo QA (Prueba): plantilla de pruebas (id de list_test_templates)." },
+        requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Títulos de los requerimientos de Definición a los que responde la tarea (uno o varios), tal cual figuran en el proyecto." },
+        requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Ids de los requerimientos, si se conocen; si no, usar requirementTitles." },
       },
       required: ["projectId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
     },
   },
   {
     name: "update_task",
-    description: "Actualiza título, descripción, fase y/o tipo de una tarea — cualquier combinación de campos, solo se cambian los que se manden.",
+    description: "Actualiza título, descripción, fase, tipo y/o requerimientos de una tarea — cualquier combinación de campos, solo se cambian los que se manden. Los requerimientos (a cuáles de Definición responde la tarea, uno o varios) solo los cambia el PM del proyecto o un administrador.",
     input_schema: {
       type: "object",
       properties: {
@@ -619,6 +622,8 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         description: { type: "string", description: "Opcional." },
         phaseId: { type: "string", description: "Opcional." },
         type: { type: "string", description: "Opcional. SIMPLE | MILESTONE | QA | ADJUSTMENT | ACCEPTANCE" },
+        requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Lista COMPLETA de títulos de requerimientos a los que pasa a responder la tarea (reemplaza la actual). Lista vacía = sin requerimiento." },
+        requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Lo mismo por id, si se conocen." },
       },
       required: ["taskId"],
     },
@@ -943,6 +948,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
         where: { id: taskId },
         include: {
           project: { select: { id: true, name: true, countryCode: true, iconUrl: true } },
+          requirements: { orderBy: { order: "asc" }, select: { id: true, title: true } },
           assignees: { include: { user: { select: { name: true, avatarUrl: true } } } },
           steps: true,
           attachments: { select: { id: true, kind: true, fileName: true, mimeType: true } },
@@ -1137,8 +1143,9 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return `Crear la tarea "${title ?? "?"}"`;
     }
     case "update_task": {
-      const { title, description, phaseId, type } = input as { title?: string; description?: string; phaseId?: string; type?: string };
-      const fields = [title !== undefined && "título", description !== undefined && "descripción", phaseId !== undefined && "fase", type !== undefined && "tipo"].filter(Boolean);
+      const { title, description, phaseId, type, requirementIds, requirementTitles } = input as { title?: string; description?: string; phaseId?: string; type?: string; requirementIds?: string[]; requirementTitles?: string[] };
+      const requirementChange = requirementIds !== undefined || requirementTitles !== undefined;
+      const fields = [title !== undefined && "título", description !== undefined && "descripción", phaseId !== undefined && "fase", type !== undefined && "tipo", requirementChange && "requerimientos"].filter(Boolean);
       return `Actualizar ${fields.join(", ") || "la tarea"}`;
     }
     case "set_task_dependency":
@@ -1351,6 +1358,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             assigneeIds: z.array(z.string()).min(1),
             reviewerIds: z.array(z.string()).optional(),
             defaultTestTemplateId: z.string().optional(),
+            requirementIds: z.array(z.string()).optional(),
+            requirementTitles: z.array(z.string()).optional(),
           })
           .parse(input);
         // La fase se resuelve dentro del proyecto: por id, por nombre, o la única que exista.
@@ -1362,6 +1371,11 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           (!parsed.phaseId && !wanted && phases.length === 1 ? phases[0] : undefined);
         if (!phase) return { ok: false, message: `No encontré esa fase en el proyecto. Fases disponibles: ${phases.map((ph) => `"${ph.name}"`).join(", ") || "ninguna"}.` };
         const formData = new FormData();
+        if (parsed.requirementIds !== undefined || parsed.requirementTitles !== undefined) {
+          const resolved = await resolveRequirementsForBot(parsed.projectId, parsed.requirementIds, parsed.requirementTitles);
+          if (!resolved.ok) return { ok: false, message: resolved.message };
+          for (const id of resolved.ids) formData.append("requirementIds", id);
+        }
         formData.set("phaseId", phase.id);
         formData.set("title", parsed.title);
         formData.set("type", parsed.type);
@@ -1392,6 +1406,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             description: z.string().optional(),
             phaseId: z.string().optional(),
             type: z.string().optional(),
+            requirementIds: z.array(z.string()).optional(),
+            requirementTitles: z.array(z.string()).optional(),
           })
           .parse(input);
         const changed: string[] = [];
@@ -1417,6 +1433,15 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           const r = await updateTaskType(parsed.taskId, parsed.type);
           if (!r.ok) return { ok: false, message: r.error ?? "No se pudo actualizar el tipo." };
           changed.push("tipo");
+        }
+        if (parsed.requirementIds !== undefined || parsed.requirementTitles !== undefined) {
+          const task = await prisma.task.findUnique({ where: { id: parsed.taskId }, select: { projectId: true } });
+          if (!task) return { ok: false, message: "Esa tarea ya no existe." };
+          const resolved = await resolveRequirementsForBot(task.projectId, parsed.requirementIds, parsed.requirementTitles);
+          if (!resolved.ok) return { ok: false, message: resolved.message };
+          const r = await updateTaskRequirements(parsed.taskId, resolved.ids);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudieron actualizar los requerimientos." };
+          changed.push("requerimientos");
         }
         if (changed.length === 0) return { ok: false, message: "No se especificó qué cambiar." };
         return { ok: true, message: `Listo, se actualizó: ${changed.join(", ")}.` };
@@ -1833,11 +1858,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           if (!parsed.phaseId) return { ok: false, message: "Falta indicar la fase." };
           if (parsed.action === "delete") r = await deletePhase(parsed.phaseId);
           else {
-            // updatePhase reemplaza los requerimientos vinculados: se conservan los actuales.
-            const phase = await prisma.phase.findUniqueOrThrow({ where: { id: parsed.phaseId }, select: { requirements: { select: { id: true } } } });
             const fd = new FormData();
             fd.set("name", parsed.name ?? "");
-            for (const req of phase.requirements) fd.append("requirementIds", req.id);
             r = await updatePhase(parsed.phaseId, fd);
           }
         }
@@ -1967,4 +1989,25 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
 // Spec 001: lo que ya estaba cargado en esa sección no se repite; se le cuenta a la persona.
 function skippedNote(skipped?: string[]) {
   return skipped && skipped.length > 0 ? ` No se repitieron porque ya estaban cargados ahí: ${skipped.join(", ")}.` : "";
+}
+
+async function resolveRequirementsForBot(projectId: string, requirementIds: string[] = [], requirementTitles: string[] = []) {
+  const requirements = await prisma.requirement.findMany({ where: { projectId }, select: { id: true, title: true }, orderBy: { order: "asc" } });
+  const ids = new Set<string>();
+  const missing: string[] = [];
+  for (const id of requirementIds) {
+    if (requirements.some((r) => r.id === id)) ids.add(id);
+    else missing.push(id);
+  }
+  for (const title of requirementTitles) {
+    const wanted = normalizeSearchText(title.trim());
+    const found = requirements.find((r) => normalizeSearchText(r.title) === wanted) ?? requirements.find((r) => normalizeSearchText(r.title).includes(wanted));
+    if (found) ids.add(found.id);
+    else missing.push(title);
+  }
+  if (missing.length === 0) return { ok: true as const, ids: [...ids] };
+  return {
+    ok: false as const,
+    message: `No encontré en el proyecto: ${missing.map((m) => `"${m}"`).join(", ")}. Requerimientos disponibles: ${requirements.map((r) => `"${r.title}"`).join(", ") || "ninguno"}.`,
+  };
 }

@@ -17,7 +17,7 @@ import { hrefWithMemory } from "../../NavLinkWithMemory";
 // no una actualización de estado — meterlo dentro de una transición hace
 // que React nunca llegue a pintar el modal (se reprodujo así en pruebas
 // locales: el botón quedaba en "Eliminando…" para siempre sin que apareciera
-// nada). Mismo patrón que ya usa el resto de la app (ver ProjectLinksPanel).
+// nada). Mismo patrón que ya usa el resto de la app.
 import { subprojectsNote } from "@/lib/subprojects";
 export function ArchiveProjectButton({ projectId, projectName, subprojectCount = 0 }: { projectId: string; projectName: string; subprojectCount?: number }) {
   const router = useRouter();

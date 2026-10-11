@@ -1,0 +1,22 @@
+# Tareas 006
+
+- [x] **T1. Columna de requerimiento en la tarea, con el traspaso dentro de la migración.** RF-1, RF-2, RF-3, RF-16
+  - Hecho cuando: la migración corre en local, `verify:task-requirement-backfill` pasa y el respaldo completo incluye la columna.
+- [x] **T2. Avance del requerimiento por sus tareas, con respaldo por fases, y orden cronológico.** RF-4, RF-5, RF-6, RF-7, RF-8
+  - Hecho cuando: `verify:requirement-progress` y `verify:definition-order` pasan.
+- [x] **T3. Acciones del servidor: asignar, asignar en cantidad, heredar al copiar y fase sin borrar vínculos.** RF-10, RF-11, RF-12, RF-13, RF-14, RF-15, RF-17, RF-25, RF-28
+  - Hecho cuando: `tsc` pasa y los chequeos de insertar, mover y subproyectos siguen en verde.
+- [x] **T4. Campo «Requerimiento» en la tarea nueva y en el detalle.** RF-9, RF-10, RF-11
+  - Hecho cuando: `tsc` y `lint` pasan; el campo usa el selector con buscador.
+- [x] **T5. Pestaña Definición: Resumen en dos bloques, tareas por requerimiento, lista de asignación y fase de solo lectura.** RF-12, RF-13, RF-18, RF-19, RF-20, RF-21, RF-22
+  - Hecho cuando: `tsc` y `lint` pasan y no queda ninguna referencia a `PhaseRequirementsForm`.
+- [x] **T6. Link del cliente en dos bloques.** RF-23
+  - Hecho cuando: `tsc` pasa y la vista no recibe tareas por requerimiento.
+- [x] **T7. API: la tarea devuelve y acepta su requerimiento; la fase conserva sus vínculos.** RF-24, RF-25
+  - Hecho cuando: `tsc` pasa y las rutas validan el proyecto del requerimiento.
+- [x] **T8. Bot: crear, editar y consultar el requerimiento de una tarea.** RF-26
+  - Hecho cuando: `tsc` pasa y los chequeos del bot siguen en verde.
+- [x] **T9. Guías de asistentes con la cascada nueva.** RF-27
+  - Hecho cuando: las tres guías describen tarea → requerimiento → objetivo.
+- [x] **T10. Informe antes/después y ensayo general con la copia de producción.**
+  - Hecho cuando: la migración corre limpia sobre la copia y el informe queda revisado.

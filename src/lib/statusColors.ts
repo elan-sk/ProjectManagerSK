@@ -52,6 +52,10 @@ export const TASK_TYPE_BADGE: Record<string, string> = {
   ACCEPTANCE: "bg-pink-50 text-pink-700",
 };
 
+export function taskTypeTextClass(type: string) {
+  return TASK_TYPE_BADGE[type]?.split(" ").find((c) => c.startsWith("text-")) ?? "text-slate-600";
+}
+
 // Un mismo color por nivel de la jerarquía de Definición (Objetivo →
 // Requerimiento → Fase → Tarea), para poder distinguir de un vistazo qué es
 // qué en la pestaña Definición, incluso cuando un panel referencia el nivel
@@ -61,6 +65,8 @@ export const TASK_TYPE_BADGE: Record<string, string> = {
 const DEFINITION_ACTION_BASE = "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 disabled:opacity-60";
 export const DEFINITION_ACTION_BTN = `${DEFINITION_ACTION_BASE} hover:bg-slate-50 hover:text-slate-900`;
 export const DEFINITION_ACTION_BTN_DANGER = `${DEFINITION_ACTION_BASE} hover:border-red-300 hover:bg-red-50 hover:text-red-600`;
+
+export const DEFINITION_LEVEL_HEX = { PHASE: "#0d9488", REQUIREMENT: "#0284c7" } as const;
 
 export const DEFINITION_LEVEL_COLOR = {
   OBJECTIVE: { border: "border-violet-300", text: "text-violet-700", bg: "bg-violet-50", dot: "bg-violet-500" },

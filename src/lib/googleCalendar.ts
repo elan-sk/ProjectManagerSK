@@ -11,6 +11,10 @@ function redirectUri() {
   return `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/google-calendar/callback`;
 }
 
+export function isGoogleCalendarConfigured() {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
 export function getGoogleAuthUrl(state: string) {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,

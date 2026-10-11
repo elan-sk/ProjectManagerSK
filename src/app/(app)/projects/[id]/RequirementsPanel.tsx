@@ -5,41 +5,33 @@ import { useRouter } from "next/navigation";
 import { deleteRequirement } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { RequirementForm } from "./RequirementForm";
-import { PhaseRequirementsForm } from "./PhaseRequirementsForm";
-import { ProgressRing } from "@/components/ProgressRing";
+import Link from "next/link";
+import { RequirementTasksForm } from "./RequirementTasksForm";
+import { ChildCount, DefinitionCardHeading, DefinitionProgressBar, ServedObjectives } from "./DefinitionParts";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
-import { pctStatus, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
+import { pctStatus, TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import type { RequirementSummary } from "@/lib/cascadeProgress";
-
-function ProgressBar({ pct }: { pct: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
-    </div>
-  );
-}
 
 export function RequirementsPanel({
   projectId,
   requirements,
   objectives,
+  phases,
   canManage,
 }: {
   projectId: string;
   requirements: RequirementSummary[];
-  objectives: { id: string; title: string }[];
+  objectives: { id: string; title: string; description: string | null }[];
+  phases: { id: string; name: string; tasks: { id: string; title: string; requirementIds: string[] }[] }[];
   canManage: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const requirementOptions = requirements.map((rr) => ({ id: rr.id, title: rr.title }));
+  const requirementTitles = Object.fromEntries(requirements.map((rr) => [rr.id, rr.title]));
 
   async function handleDelete(id: string, title: string) {
     const ok = await confirm(`¿Seguro que querés eliminar el requerimiento "${title}"? No vas a poder deshacer esto.`, {
@@ -69,29 +61,24 @@ export function RequirementsPanel({
         )}
       </div>
       {requirements.length === 0 && <p className="text-[18px] text-slate-400">Todavía no hay requerimientos definidos.</p>}
-      <ul className="space-y-2">
-        {requirements.map((r) => (
+      <ul className="space-y-4">
+        {requirements.map((r, index) => (
           <li key={r.id} id={`definition-requirement-${r.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-900">{r.title}</p>
-                {r.description && <p className="mt-0.5 text-[18px] text-slate-500">{r.description}</p>}
-                <p className="mt-1 text-[17px] text-slate-400">
-                  {r.objectiveTitles.length > 0 ? `Atiende: ${r.objectiveTitles.join(", ")}` : "Sin objetivo vinculado todavía."}
-                </p>
+                <DefinitionCardHeading level="REQUIREMENT" number={index + 1} title={r.title} aside={<ServedObjectives objectives={objectives.filter((o) => r.objectiveIds.includes(o.id))} />} />
+                {r.description && <p className="mt-1 text-[16px] text-slate-500">{r.description}</p>}
               </div>
-              <div className="flex shrink-0 items-start gap-4">
+              <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">
                 <div className="flex items-center gap-2">
-                  <ProgressRing pct={r.pct} overdue={r.atRiskPhaseCount > 0} size={28} />
-                  <div className="text-[17px] text-slate-500 flex flex-col gap-1">
-                    <p className="whitespace-nowrap">
-                      {r.phases.length} fase{r.phases.length === 1 ? "" : "s"}
-                    </p>
-                    {r.atRiskPhaseCount > 0 ? (
+                  <div className="flex flex-col items-end gap-1 text-[14px] text-slate-500">
+                    {r.atRisk ? (
                       <ReferencePopover
+                        align="right"
+                        width={320}
                         trigger={
-                          <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
-                            {r.atRiskPhaseCount} en riesgo
+                          <span className="inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
+                            {r.atRiskTasks.length} atrasada{r.atRiskTasks.length === 1 ? "" : "s"}
                           </span>
                         }
                         hoverText={`Tareas atrasadas: ${r.atRiskTasks.map((t) => t.title).join(", ")}`}
@@ -100,7 +87,7 @@ export function RequirementsPanel({
                     ) : (
                       r.openSlackDays !== null && (
                         <span
-                          className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                          className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${
                             r.openSlackDays <= 2 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
                           }`}
                         >
@@ -112,7 +99,10 @@ export function RequirementsPanel({
                   </div>
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
+                  <div className="flex items-center gap-2">
+                    <ModalTrigger label="Tareas" title={`Tareas de «${r.title}»`} variant="secondary" compact className={DEFINITION_ACTION_BTN}>
+                      <RequirementTasksForm requirementId={r.id} phases={phases} requirementTitles={requirementTitles} />
+                    </ModalTrigger>
                     <ModalTrigger label="Editar" title="Editar requerimiento" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                       <RequirementForm
                         projectId={projectId}
@@ -135,46 +125,64 @@ export function RequirementsPanel({
                 )}
               </div>
             </div>
-            <div className="mt-2">
-              <ProgressBar pct={r.pct} />
+            <div className="mt-2.5">
+              <DefinitionProgressBar pct={r.pct} atRisk={r.atRisk} />
             </div>
-            <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className={`flex items-center gap-1.5 text-[17px] font-medium ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
-                Fases
-              </p>
-              {r.phases.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-[17px] text-slate-500">
-                  {r.phases.map((p, i) => {
-                    const status = pctStatus(p.pct, p.atRisk);
-                    return (
-                      <li
-                        key={p.id}
-                        title={p.name}
-                        className={`flex items-baseline justify-between gap-2 rounded px-1.5 py-1 ${i % 2 === 0 ? "bg-slate-50" : ""}`}
-                      >
-                        <span className="min-w-0">
-                          {canManage ? (
-                            <ModalTrigger label={p.name} title="Requerimientos de la fase" compact>
-                              <PhaseRequirementsForm
-                                phaseId={p.id}
-                                requirements={requirementOptions}
-                                currentRequirementIds={p.requirementIds}
-                              />
-                            </ModalTrigger>
-                          ) : (
-                            p.name
-                          )}
-                        </span>
-                        <span className={`shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-medium ${status.className}`}>
-                          {status.label}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+            <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.TASK.border}`}>
+              {r.usesPhaseFallback ? (
+                <>
+                  <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
+                    Fases
+                    <ChildCount done={r.phases.filter((p) => p.pct >= 100).length} total={r.phases.length} />
+                  </p>
+                  {r.phases.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5 text-[15px] text-slate-600">
+                      {r.phases.map((p, i) => {
+                        const status = pctStatus(p.pct, p.atRisk);
+                        return (
+                          <li key={p.id} title={p.name} className={`flex items-baseline justify-between gap-2 rounded px-1.5 py-1 ${i % 2 === 0 ? "bg-slate-50" : ""}`}>
+                            <span className="min-w-0">{p.name}</span>
+                            <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${status.className}`}>{status.label}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                  <p className="mt-1 text-[15px] text-slate-400">Sin tareas vinculadas todavía.</p>
+                </>
               ) : (
-                <p className="mt-1 text-[17px] text-slate-400">Sin fase vinculada todavía (vinculalo desde la fase en Fases y avance).</p>
+                <>
+                  <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.TASK.dot}`} aria-hidden />
+                    Tareas
+                    <ChildCount done={r.tasks.filter((t) => t.status === "COMPLETED").length} total={r.tasks.length} />
+                  </p>
+                  {r.phases.map((p) => (
+                    <div key={p.id} className="mt-1.5">
+                      <p className={`flex items-center gap-1.5 text-[14px] font-semibold ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
+                        {p.name}
+                      </p>
+                      <ul className="mt-0.5 space-y-0.5 pl-3 text-[15px] text-slate-600">
+                        {r.tasks
+                          .filter((t) => t.phaseId === p.id)
+                          .map((t, i) => (
+                            <li key={t.id} title={t.title} className={`flex items-baseline justify-between gap-2 rounded px-1.5 py-1 ${i % 2 === 0 ? "bg-slate-50" : ""}`}>
+                              <span className="min-w-0">
+                                <Link href={t.href} className="hover:text-slate-900 hover:underline">
+                                  {t.title}
+                                </Link>
+                              </span>
+                              <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${TASK_STATUS_COLOR[t.status].badge}`}>
+                                {TASK_STATUS_LABEL[t.status]}
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </li>

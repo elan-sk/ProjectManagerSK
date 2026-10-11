@@ -4,16 +4,19 @@ type Objective = { id: string; requirementIds: string[] };
 
 export function orderDefinitionBySchedule<O extends Objective, R extends Requirement, P extends Phase>(
   definition: { objectives: O[]; requirements: R[]; phases: P[] },
-  tasks: { phaseId: string | null; plannedStart: Date }[],
+  tasks: { phaseId: string | null; requirements?: { id: string }[]; plannedStart: Date }[],
 ) {
   const phaseStart = new Map<string, number>();
+  const ownStart = new Map<string, number>();
   for (const task of tasks) {
+    const start = task.plannedStart.getTime();
+    for (const r of task.requirements ?? []) ownStart.set(r.id, Math.min(ownStart.get(r.id) ?? Infinity, start));
     if (!task.phaseId) continue;
-    phaseStart.set(task.phaseId, Math.min(phaseStart.get(task.phaseId) ?? Infinity, task.plannedStart.getTime()));
+    phaseStart.set(task.phaseId, Math.min(phaseStart.get(task.phaseId) ?? Infinity, start));
   }
   const earliest = (ids: string[], dates: Map<string, number>) =>
     ids.reduce((start, id) => Math.min(start, dates.get(id) ?? Infinity), Infinity);
-  const requirementStart = new Map(definition.requirements.map((r) => [r.id, earliest(r.phases.map((p) => p.id), phaseStart)]));
+  const requirementStart = new Map(definition.requirements.map((r) => [r.id, ownStart.get(r.id) ?? earliest(r.phases.map((p) => p.id), phaseStart)]));
   const objectiveStart = new Map(definition.objectives.map((o) => [o.id, earliest(o.requirementIds, requirementStart)]));
 
   // Stable ties preserve the configured order; undated items follow scheduled items.

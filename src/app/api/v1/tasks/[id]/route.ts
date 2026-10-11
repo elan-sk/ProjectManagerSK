@@ -10,7 +10,7 @@ import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { POLL_INCLUDE } from "@/lib/threadView";
 import { canEditTask } from "@/lib/permissions";
 import { updateTaskStatus } from "@/app/(app)/projects/[id]/actions";
-import { deleteTask, updateTaskType } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
+import { deleteTask, updateTaskRequirements, updateTaskType } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
@@ -35,6 +35,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
               objectives: { orderBy: { order: "asc" }, select: { id: true, title: true, description: true } },
             },
           },
+        },
+      },
+      requirements: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          objectives: { orderBy: { order: "asc" }, select: { id: true, title: true, description: true } },
         },
       },
       assignees: { include: { user: { select: PUBLIC_USER_SELECT } } },
@@ -69,6 +78,7 @@ const updateTaskSchema = z.object({
   // Solo PM del proyecto o administrador (mismas reglas que la app):
   type: z.enum(["SIMPLE", "MILESTONE", "QA", "ADJUSTMENT", "ACCEPTANCE"]).optional(),
   isUrgent: z.boolean().optional(),
+  requirementIds: z.array(z.string().min(1)).optional(),
   archived: z.boolean().optional(), // archivar solo aplica a tareas completadas
 });
 
@@ -94,7 +104,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { status, type, isUrgent, archived, ...rest } = parsed.data;
+  const { status, type, isUrgent, archived, requirementIds, ...rest } = parsed.data;
 
   if (rest.phaseId) {
     const phase = await prisma.phase.findUnique({ where: { id: rest.phaseId }, select: { projectId: true } });
@@ -103,6 +113,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const pmOnly = [
     type !== undefined && (() => updateTaskType(id, type, auth.actor)),
     isUrgent !== undefined && (() => setTaskUrgent(id, isUrgent, auth.actor)),
+    requirementIds !== undefined && (() => updateTaskRequirements(id, requirementIds, auth.actor)),
     archived === true && (async () => {
       const r = await archiveCompletedTasks([id], auth.actor);
       return r.ok && r.count === 0 ? { ok: false, error: "Solo se puede archivar una tarea completada (o ya estaba archivada)." } : r;

@@ -45,7 +45,7 @@ export function TaskOpsButtons({ taskId, projectId, isUrgent, completed, archive
       {archived && (
         <button type="button" disabled={pending} onClick={restore} title="Sacarla de archivadas: vuelve a la columna Completada" className="flex cursor-pointer items-center gap-1 rounded-lg border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60">
           <ArchiveIcon className="h-3.5 w-3.5" />
-          Archivada · Volver a Completada
+          Desarchivar
         </button>
       )}
       {!completed && (

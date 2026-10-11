@@ -7,6 +7,7 @@ import { addBusinessDays } from "@/lib/holidays";
 import { notifyAssignment } from "@/lib/notifications";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { allowsSelfReview, getProjectAdmin } from "@/lib/permissions";
+import { requirementsForProject } from "@/lib/taskRequirement";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser(request);
@@ -42,6 +43,7 @@ const createTaskSchema = z.object({
   // creación desde la app web (ver addTask en projects/[id]/actions.ts).
   reviewerIds: z.array(z.string()).default([]),
   defaultTestTemplateId: z.string().optional(),
+  requirementIds: z.array(z.string().min(1)).optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -75,6 +77,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Un asignado a la tarea no puede ser también su revisor." }, { status: 409 });
   }
 
+  const requirement = await requirementsForProject(data.requirementIds, projectId);
+  if (!requirement.ok) return NextResponse.json({ error: requirement.error }, { status: 400 });
+
   const plannedEnd =
     data.durationDays <= 1
       ? data.plannedStart
@@ -84,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     data: {
       projectId,
       phaseId: data.phaseId,
+      requirements: { connect: requirement.requirementIds.map((id) => ({ id })) },
       title: data.title,
       description: data.description ?? null,
       type: data.type,

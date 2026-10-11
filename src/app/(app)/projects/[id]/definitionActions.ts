@@ -187,6 +187,25 @@ export async function deleteRequirement(requirementId: string, actor?: Actor) {
   return { ok: true as const };
 }
 
+export async function setRequirementTasks(requirementId: string, taskIds: string[], actor?: Actor) {
+  const requirement = await prisma.requirement.findUnique({ where: { id: requirementId }, select: { projectId: true } });
+  if (!requirement) return { ok: false as const, error: "Ese requerimiento ya no existe." };
+  const denied = await guard(requirement.projectId, actor);
+  if (denied) return denied;
+
+  const ids = [...new Set(taskIds)];
+  const valid = await prisma.task.count({ where: { id: { in: ids }, projectId: requirement.projectId } });
+  if (valid !== ids.length) return { ok: false as const, error: "Alguna de las tareas elegidas no pertenece a este proyecto." };
+
+  try {
+    await prisma.requirement.update({ where: { id: requirementId }, data: { tasks: { set: ids.map((id) => ({ id })) } } });
+  } catch {
+    return { ok: false as const, error: "No se pudieron guardar las tareas del requerimiento. Conviene intentarlo de nuevo." };
+  }
+  revalidatePath(`/projects/${requirement.projectId}`);
+  return { ok: true as const };
+}
+
 const phaseSchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()) });
 
 export async function updatePhase(phaseId: string, formData: FormData, actor?: Actor) {
@@ -204,7 +223,7 @@ export async function updatePhase(phaseId: string, formData: FormData, actor?: A
     where: { id: phaseId },
     data: {
       name: data.name,
-      requirements: { set: data.requirementIds.map((id) => ({ id })) },
+      ...(formData.get("syncRequirements") === "1" ? { requirements: { set: data.requirementIds.map((id) => ({ id })) } } : {}),
     },
   });
   revalidatePath(`/projects/${phase.projectId}`);
@@ -228,20 +247,6 @@ export async function deletePhase(phaseId: string, actor?: Actor) {
   }
 
   await prisma.phase.delete({ where: { id: phaseId } });
-  revalidatePath(`/projects/${phase.projectId}`);
-  return { ok: true as const };
-}
-
-export async function updatePhaseRequirements(phaseId: string, formData: FormData) {
-  const phase = await prisma.phase.findUniqueOrThrow({ where: { id: phaseId } });
-  const denied = await guard(phase.projectId);
-  if (denied) return denied;
-
-  const requirementIds = formData.getAll("requirementIds") as string[];
-  await prisma.phase.update({
-    where: { id: phaseId },
-    data: { requirements: { set: requirementIds.map((id) => ({ id })) } },
-  });
   revalidatePath(`/projects/${phase.projectId}`);
   return { ok: true as const };
 }

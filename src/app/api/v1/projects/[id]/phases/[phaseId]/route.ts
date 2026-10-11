@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireApiUser, safeJson } from "@/lib/apiAuth";
 import { updatePhase, deletePhase } from "@/app/(app)/projects/[id]/definitionActions";
 
-const bodySchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()).default([]) });
+const bodySchema = z.object({ name: z.string().min(1), requirementIds: z.array(z.string()).optional() });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; phaseId: string }> }) {
   const auth = await requireApiUser(request);
@@ -18,7 +18,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const formData = new FormData();
   formData.set("name", parsed.data.name);
-  for (const id of parsed.data.requirementIds) formData.append("requirementIds", id);
+  if (parsed.data.requirementIds) {
+    formData.set("syncRequirements", "1");
+    for (const id of parsed.data.requirementIds) formData.append("requirementIds", id);
+  }
 
   const result = await updatePhase(phaseId, formData, auth.actor);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 403 });

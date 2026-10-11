@@ -80,13 +80,14 @@ export async function duplicateTask(taskId: string, actor?: Actor): Promise<Resu
   try {
     const src = await prisma.task.findUniqueOrThrow({
       where: { id: taskId },
-      include: { assignees: true, reviewers: true, steps: { orderBy: { order: "asc" } }, taskTags: true, attachments: { where: { kind: "INSUMO" } }, credentials: { select: { credentialId: true } } },
+      include: { assignees: true, reviewers: true, steps: { orderBy: { order: "asc" } }, taskTags: true, attachments: { where: { kind: "INSUMO" } }, credentials: { select: { credentialId: true } }, requirements: { select: { id: true } } },
     });
     const user = await requireProjectAdmin(src.projectId, actor);
     const copy = await prisma.task.create({
       data: {
         projectId: src.projectId,
         phaseId: src.phaseId,
+        requirements: { connect: src.requirements.map((r) => ({ id: r.id })) },
         type: src.type,
         title: `${src.title} (copia)`,
         description: src.description,
@@ -128,7 +129,7 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
 
     const tasks = await prisma.task.findMany({
       where: { id: { in: taskIds } },
-      include: { assignees: true, taskTags: true, dependsOn: true, blocks: true, steps: { orderBy: { order: "asc" } } },
+      include: { assignees: true, taskTags: true, dependsOn: true, blocks: true, steps: { orderBy: { order: "asc" } }, requirements: { select: { id: true } } },
       orderBy: { plannedStart: "asc" },
     });
     if (tasks.length !== new Set(taskIds).size) return { ok: false, error: "Alguna de las tareas ya no existe." };
@@ -168,6 +169,7 @@ export async function mergeTasks(taskIds: string[], title: string, actor?: Actor
         data: {
           projectId,
           phaseId: tasks[0].phaseId,
+          requirements: { connect: [...new Set(tasks.flatMap((t) => t.requirements.map((r) => r.id)))].map((id) => ({ id })) },
           type: "SIMPLE",
           title: cleanTitle,
           description: description || null,

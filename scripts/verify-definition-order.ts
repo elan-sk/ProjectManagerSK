@@ -27,4 +27,11 @@ assert.deepEqual(result.requirements.map((r) => r.id), ["first", "later", "empty
 assert.deepEqual(result.objectives.map((o) => o.id), ["first", "later", "empty"]);
 assert.deepEqual(definition, before, "The display order must not mutate the original definition");
 assert.deepEqual(orderDefinitionBySchedule(definition, []), definition);
+const own = orderDefinitionBySchedule(definition, [
+  { phaseId: "late", plannedStart: new Date("2026-10-10") },
+  { phaseId: "early", plannedStart: new Date("2026-10-01") },
+  { phaseId: "late", requirements: [{ id: "later" }, { id: "empty" }], plannedStart: new Date("2026-09-01") },
+]);
+assert.deepEqual(own.requirements.map((r) => r.id), ["empty", "later", "first"], "Requirements with their own tasks are ordered by them");
+assert.deepEqual(own.objectives.map((o) => o.id), ["later", "first", "empty"]);
 console.log("verify-definition-order: OK");

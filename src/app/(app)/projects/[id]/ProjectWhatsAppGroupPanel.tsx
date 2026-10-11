@@ -16,8 +16,8 @@ export function ProjectWhatsAppGroupPanel({ projectId, currentGroupJid }: { proj
   }, [projectId]);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
-      <p className="text-sm font-medium text-slate-900">Grupo de WhatsApp del proyecto</p>
+    <div className="space-y-1">
+      <p className="text-sm font-medium text-slate-700">Grupo de WhatsApp del proyecto</p>
       <select
         defaultValue={currentGroupJid ?? ""}
         disabled={!groups || isPending}
@@ -28,7 +28,7 @@ export function ProjectWhatsAppGroupPanel({ projectId, currentGroupJid }: { proj
             setSaved("ok" in result && result.ok);
           });
         }}
-        className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-60"
+        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-60"
       >
         <option value="">— Usar el grupo por defecto —</option>
         {groups?.map((g) => (

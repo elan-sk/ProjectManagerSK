@@ -38,6 +38,8 @@
     "example:digest": "tsx scripts/example-daily-digest.mts",
     "verify:agenda-digest": "tsx scripts/verify-agenda-digest.ts",
     "verify:subprojects": "tsx --env-file=.env scripts/verify-subprojects.ts",
+    "verify:requirement-progress": "tsx scripts/verify-requirement-progress.ts",
+    "verify:task-requirement-backfill": "tsx scripts/verify-task-requirement-backfill.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh"
   },
   "dependencies": {

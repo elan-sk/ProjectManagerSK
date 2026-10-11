@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { requirementsForProject } from "@/lib/taskRequirement";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
 import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
@@ -121,6 +122,7 @@ const createTaskSchema = z.object({
   // sola como checks apenas nazca la ronda 1 (ver submitReviewRound).
   reviewerIds: z.array(z.string()).default([]),
   defaultTestTemplateId: z.string().optional(),
+  requirementIds: z.array(z.string()).default([]),
 });
 
 export async function addTask(projectId: string, formData: FormData) {
@@ -136,6 +138,7 @@ export async function addTask(projectId: string, formData: FormData) {
   const rawPredecessorId = formData.get("predecessorId");
   const rawTemplateId = formData.get("defaultTestTemplateId");
   const parsed = createTaskSchema.safeParse({
+    requirementIds: formData.getAll("requirementIds"),
     phaseId: formData.get("phaseId"),
     title: formData.get("title"),
     type: formData.get("type"),
@@ -176,6 +179,9 @@ export async function addTask(projectId: string, formData: FormData) {
     return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
   }
 
+  const requirement = await requirementsForProject(data.requirementIds, projectId);
+  if (!requirement.ok) return { ok: false, error: requirement.error };
+
   const plannedEnd =
     data.durationDays <= 1
       ? data.plannedStart
@@ -185,6 +191,7 @@ export async function addTask(projectId: string, formData: FormData) {
     data: {
       projectId,
       phaseId: data.phaseId,
+      requirements: { connect: requirement.requirementIds.map((id) => ({ id })) },
       title: data.title,
       type: data.type as TaskType,
       description: data.description,
@@ -269,7 +276,7 @@ export async function insertAdjacentTaskCore(
 ) {
   const origin = await prisma.task.findUniqueOrThrow({
     where: { id: originTaskId },
-    include: { project: true, dependsOn: true, blocks: true },
+    include: { project: true, dependsOn: true, blocks: true, requirements: { select: { id: true } } },
   });
 
   const plannedEnd =
@@ -282,6 +289,7 @@ export async function insertAdjacentTaskCore(
       data: {
         projectId: origin.projectId,
         phaseId: origin.phaseId,
+        requirements: { connect: origin.requirements.map((r) => ({ id: r.id })) },
         title: data.title,
         type: data.type,
         description: data.description,

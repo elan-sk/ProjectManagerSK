@@ -42,7 +42,7 @@ Esta skill se comparte entre todo el equipo, así que **no hay ninguna credencia
 
 Si la persona pega un link `<BASE_URL>/api/v1/claude-link/<token>`, generado con el botón **"Conectar IA"** de la app, usalo en vez de pedir usuario/contraseña:
 
-1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y el contexto en JSON. Link de **tarea**: tres bloques, la tarea (`GET /tasks/:id`, con la cascada fase → requerimientos → objetivos), el diseño (`/design`: cambios con antes/después/**insumos** o rondas) y todos los hilos (`/threads`). Link de proyecto: `GET /projects/:id` (con definición, adjuntos, links y los archivos de cada tarea) y sus hilos (`/projects/:id/threads`). Las rutas `/uploads/…` vienen con el dominio completo y se abren sin sesión (también dentro de textos y marcas `[[img:…]]`).
+1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y el contexto en JSON. Link de **tarea**: tres bloques, la tarea (`GET /tasks/:id`, con la cascada tarea → `requirements` (los requerimientos a los que responde, cada uno con sus `objectives`); `phase` es solo su lugar en el cronograma), el diseño (`/design`: cambios con antes/después/**insumos** o rondas) y todos los hilos (`/threads`). Link de proyecto: `GET /projects/:id` (con definición, adjuntos, links y los archivos de cada tarea) y sus hilos (`/projects/:id/threads`). Las rutas `/uploads/…` vienen con el dominio completo y se abren sin sesión (también dentro de textos y marcas `[[img:…]]`).
 2. El token del link **es** la credencial: usalo en `Authorization: Bearer`, con los permisos de la persona. Solo en memoria.
 3. Es reutilizable: reabrirlo trae el contexto actualizado. Vale hasta que la tarea se completa, pasan 7 días sin uso (cada uso reinicia el plazo), se desactiva desde la app o se genera otro para la misma tarea/proyecto. `410`/`401` → pedí uno nuevo.
 4. La tarea/proyecto del link es solo contexto: el token puede todo lo que la persona puede en la app.
@@ -95,11 +95,11 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
 Pensada para volcar acá lo que ya se armó en otra conversación (contexto, actas de reunión transcritas, documentos que definen el proyecto): creá el proyecto, después objetivos/fases/requisitos, y los archivos de contexto como adjuntos. Todo esto se puede volver a editar después — típicamente cuando el cliente pide una contingencia y hay que reformular alcance a mitad de proyecto.
 
 - `POST /api/v1/projects/:id/phases` — `{ "name": "string" }`.
-- `PATCH /api/v1/projects/:id/phases/:phaseId` — `{ "name": "string", "requirementIds": ["..."] }`.
+- `PATCH /api/v1/projects/:id/phases/:phaseId` — `{ "name": "string" }`. `requirementIds` es antiguo y opcional: los vínculos fase–requerimiento solo se tocan si se envía.
 - `DELETE /api/v1/projects/:id/phases/:phaseId` — falla (409) si la fase todavía tiene tareas; movelas o borralas primero.
 - `POST /api/v1/projects/:id/objectives` — `{ "title": "string", "description": "string?", "parentObjectiveId": "string?" }` (`parentObjectiveId`: en un subproyecto, objetivo del principal al que aporta; también en el PATCH, `null` lo desliga).
 - `PATCH /api/v1/projects/:id/objectives/:objectiveId` / `DELETE .../:objectiveId`.
-- `POST /api/v1/projects/:id/requirements` — `{ "title": "string", "description": "string?", "objectiveIds": ["..."], "phaseIds": ["..."] }`.
+- `POST /api/v1/projects/:id/requirements` — `{ "title": "string", "description": "string?", "objectiveIds": ["..."] }`. El avance del requerimiento sale de las tareas que lo incluyen en `requirementIds`; `phaseIds` es antiguo y solo sirve de respaldo mientras el requerimiento no tenga tareas.
 - `PATCH /api/v1/projects/:id/requirements/:requirementId` (mismo body que crear, reemplaza `objectiveIds`) / `DELETE .../:requirementId`.
 - `GET/POST /api/v1/projects/:id/links` — `{ "title": "string", "url": "https://..." }`. Para lo que puede vivir afuera (Drive, Figma, repo) — se prioriza sobre subir el archivo.
 
@@ -120,7 +120,7 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 ### Tareas
 
 - `GET /api/v1/projects/:id/tasks` — lista las tareas de un proyecto.
-- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin.
+- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin. Acepta `requirementIds` opcional: los requerimientos del mismo proyecto a los que responde la tarea (uno o varios).
   ```json
   {
     "phaseId": "string",
@@ -138,7 +138,7 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
   ```
   `plannedEnd` se calcula solo en días hábiles (festivos del país del proyecto vía Nager.Date). `reviewerIds`/`defaultTestTemplateId` solo aplican con `type: "QA"` — y ningún id puede repetirse entre `assigneeIds` y `reviewerIds` (409 si se repite).
 - `GET /api/v1/tasks/:id` — detalle de una tarea: asignados, revisores, etiquetas, checklist ordenado (con su pregunta si tiene), insumos/resultados (`attachments`, con `kind`, `stepId` y quién subió), predecesoras (`dependsOn`) y sucesoras (`blocks`); incluye `delayDays` si está completada.
-- `PATCH /api/v1/tasks/:id` — estado, título, descripción, fase (`phaseId` del mismo proyecto), link de reunión, riesgo. Requiere ser asignado/PM/admin.
+- `PATCH /api/v1/tasks/:id` — estado, título, descripción, fase (`phaseId` del mismo proyecto), link de reunión, riesgo. Requiere ser asignado/PM/admin. `requirementIds` (lista completa; `[]` para dejarla sin requerimiento) reemplaza los requerimientos a los que responde: solo PM/admin.
   Solo PM/admin: `type` (SIMPLE|MILESTONE|QA|ADJUSTMENT|ACCEPTANCE), `isUrgent: true|false` (marcarla urgente avisa por WhatsApp al instante), `archived: true|false` (archivar solo aplica a tareas completadas).
 - `POST /api/v1/tasks/:id/duplicate` — duplica la tarea (datos, asignados, revisores, checklist sin marcar, etiquetas, insumos). PM/admin. Devuelve `{ id }`.
   ```json

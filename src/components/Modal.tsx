@@ -24,6 +24,7 @@ export function ModalTrigger({
   small = false,
   icon,
   className,
+  ariaLabel,
 }: {
   label: string;
   title: string;
@@ -33,6 +34,7 @@ export function ModalTrigger({
   small?: boolean;
   icon?: ReactNode;
   className?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -40,6 +42,8 @@ export function ModalTrigger({
     <>
       <button
         type="button"
+        aria-label={ariaLabel}
+        title={ariaLabel}
         onClick={() => setOpen(true)}
         onPointerDown={(e) => e.stopPropagation()}
         className={

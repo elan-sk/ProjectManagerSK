@@ -1,3 +1,4 @@
+import { isGoogleCalendarConfigured } from "@/lib/googleCalendar";
 import Link from "next/link";
 import { BalancedColumns } from "@/components/BalancedColumns";
 import { visibleProjectWhere } from "@/lib/permissions";
@@ -51,7 +52,7 @@ export default async function SettingsPage({
     isAdmin ? getWhatsAppSettings() : Promise.resolve(null),
     isAdmin ? getBotSettings() : Promise.resolve(null),
   ]);
-  const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  const googleConfigured = isGoogleCalendarConfigured();
 
   return (
     <div className="space-y-4">

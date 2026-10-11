@@ -13,6 +13,7 @@ import { notifyAssignment } from "@/lib/notifications";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { fetchPageTitle } from "@/lib/pageTitle";
 import { bogotaLocalToUTC } from "@/lib/workingHours";
+import { requirementsForProject } from "@/lib/taskRequirement";
 import { propagateToSuccessors } from "../../actions";
 import type { AttachmentKind, AdjustmentAttachmentKind, DependencyType } from "@prisma/client";
 
@@ -398,6 +399,24 @@ export async function updateTaskType(taskId: string, type: string, actor?: Actor
   if (CHECKLIST_LESS_TYPES.has(parsed.data)) {
     await moveStepsToDescription(taskId);
   }
+  await revalidateTask(taskId);
+  revalidatePath(`/projects/${task.projectId}`);
+  return { ok: true };
+}
+
+export async function updateTaskRequirements(taskId: string, requirementIds: string[], actor?: Actor) {
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+  if (!task) return { ok: false, error: "Esa tarea ya no existe." };
+  try {
+    await requireProjectAdmin(task.projectId, actor);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+
+  const resolved = await requirementsForProject(requirementIds, task.projectId);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+
+  await prisma.task.update({ where: { id: taskId }, data: { requirements: { set: resolved.requirementIds.map((id) => ({ id })) } } });
   await revalidateTask(taskId);
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };

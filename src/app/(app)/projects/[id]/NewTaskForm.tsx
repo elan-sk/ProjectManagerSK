@@ -6,6 +6,7 @@ import { addTask } from "./actions";
 import { CalendarDatePicker } from "@/components/CalendarDatePicker";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { SearchableCheckList } from "@/components/SearchableCheckList";
 import { useModalClose } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
 import { TASK_TYPE_LABEL } from "@/lib/statusColors";
@@ -34,6 +35,7 @@ function todayInBogota() {
 export function NewTaskForm({
   projectId,
   phases,
+  requirements,
   users,
   otherTasks,
   templates,
@@ -42,6 +44,7 @@ export function NewTaskForm({
 }: {
   projectId: string;
   phases: { id: string; name: string }[];
+  requirements: { id: string; title: string }[];
   users: { id: string; name: string; avatarUrl?: string | null }[];
   otherTasks: { id: string; title: string; nextAvailableStart: string }[];
   templates: { id: string; name: string }[];
@@ -127,6 +130,13 @@ export function NewTaskForm({
           />
         </div>
       </div>
+
+      {requirements.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Requerimientos (opcional)</label>
+          <SearchableCheckList name="requirementIds" options={requirements.map((r) => ({ id: r.id, label: r.title }))} />
+        </div>
+      )}
 
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Depende de (opcional)</label>

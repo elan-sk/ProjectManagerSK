@@ -1,5 +1,6 @@
 import { PublicCommentThread } from "./PublicCommentThread";
 import { linkifyHtml } from "@/lib/linkify";
+import { CollapsibleContent } from "@/components/CollapsibleContent";
 import type { PublicCommentWithReplies } from "@/lib/publicView";
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -35,9 +36,13 @@ export function PublicDefinitionView({
     <div className="space-y-4">
       {description && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="prose prose-lg max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }} />
+          <CollapsibleContent>
+            <div className="prose prose-lg max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: linkifyHtml(description) }} />
+          </CollapsibleContent>
         </div>
       )}
+
+      <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Alcance</p>
 
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-[21px] font-semibold text-slate-900">Objetivos</h2>
@@ -66,6 +71,8 @@ export function PublicDefinitionView({
           </div>
         ))}
       </div>
+
+      <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Cronograma</p>
 
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-[21px] font-semibold text-slate-900">Fases</h2>

@@ -6,31 +6,18 @@ import { useRouter } from "next/navigation";
 import { deletePhase } from "./definitionActions";
 import { ModalTrigger } from "@/components/Modal";
 import { PhaseForm } from "./PhaseForm";
-import { ProgressRing } from "@/components/ProgressRing";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { ChildCount, DefinitionCardHeading, DefinitionProgressBar } from "./DefinitionParts";
 import { ScheduleVarianceBadge } from "@/components/ProjectSummary";
 import { useConfirm } from "@/components/Confirm";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, DEFINITION_LEVEL_COLOR, DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import type { PhaseSummary, TaskRef } from "@/lib/cascadeProgress";
 import type { TaskStatus } from "@prisma/client";
 
-function ProgressBar({ pct }: { pct: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
-    </div>
-  );
-}
-
 export function PhasesPanel({
-  requirements,
   canManage,
   phases,
 }: {
-  requirements: { id: string; title: string }[];
   canManage: boolean;
   phases: (PhaseSummary & {
     requirementTitles: string[];
@@ -71,27 +58,22 @@ export function PhasesPanel({
       </h2>
       {error && <p className="text-[18px] text-red-600">{error}</p>}
       {phases.length === 0 && <p className="text-[18px] text-slate-400">Todavía no hay fases creadas.</p>}
-      <ul className="space-y-2">
-        {phases.map((p) => (
+      <ul className="space-y-4">
+        {phases.map((p, index) => (
           <li key={p.id} id={`definition-phase-${p.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg border border-slate-100 p-3 target:border-teal-600">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-900">{p.name}</p>
-                <p className="mt-1 text-[17px] text-slate-400">
-                  {p.requirementTitles.length > 0 ? `Atiende: ${p.requirementTitles.join(", ")}` : "Sin requerimiento vinculado todavía."}
-                </p>
+                <DefinitionCardHeading level="PHASE" number={index + 1} title={p.name} />
               </div>
-              <div className="flex shrink-0 items-start gap-4">
+              <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">
                 <div className="flex items-start gap-2">
-                  <ProgressRing pct={p.pct} overdue={p.taskCounts.overdue > 0} size={28} />
-                  <div className="text-[17px] text-slate-500 flex flex-col gap-1">
-                    <p className="whitespace-nowrap">
-                      {p.taskCounts.total > 0 ? `${p.taskCounts.completed}/${p.taskCounts.total} tareas` : "Sin tareas"}
-                    </p>
+                  <div className="flex flex-col items-end gap-1 text-[14px] text-slate-500">
                     {p.taskCounts.overdue > 0 ? (
                       <ReferencePopover
+                        align="right"
+                        width={320}
                         trigger={
-                          <span className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
+                          <span className="inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-red-50 text-red-700">
                             {p.taskCounts.overdue} atrasada{p.taskCounts.overdue === 1 ? "" : "s"}
                           </span>
                         }
@@ -101,9 +83,11 @@ export function PhasesPanel({
                     ) : (
                       p.dueInDays !== null && (
                         <ReferencePopover
+                          align="right"
+                          width={320}
                           trigger={
                             <span
-                              className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                              className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${
                                 p.dueInDays <= 2 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
                               }`}
                             >
@@ -119,14 +103,9 @@ export function PhasesPanel({
                   </div>
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
+                  <div className="flex items-center gap-2">
                     <ModalTrigger label="Editar" title="Editar fase" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-                      <PhaseForm
-                        phaseId={p.id}
-                        currentName={p.name}
-                        requirements={requirements}
-                        currentRequirementIds={p.requirementIds}
-                      />
+                      <PhaseForm phaseId={p.id} currentName={p.name} />
                     </ModalTrigger>
                     <button
                       type="button"
@@ -140,16 +119,17 @@ export function PhasesPanel({
                 )}
               </div>
             </div>
-            <div className="mt-2">
-              <ProgressBar pct={p.pct} />
+            <div className="mt-2.5">
+              <DefinitionProgressBar pct={p.pct} atRisk={p.taskCounts.overdue > 0} />
             </div>
-            <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className={`flex items-center gap-1.5 text-[17px] font-medium ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
+            <div className={`mt-3 ml-1 border-l-2 pl-4 ${DEFINITION_LEVEL_COLOR.TASK.border}`}>
+              <p className={`flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider ${DEFINITION_LEVEL_COLOR.TASK.text}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${DEFINITION_LEVEL_COLOR.TASK.dot}`} aria-hidden />
                 Tareas
+                <ChildCount done={p.taskCounts.completed} total={p.taskCounts.total} />
               </p>
               {p.tasks.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-[17px] text-slate-500">
+                <ul className="mt-1 space-y-0.5 text-[15px] text-slate-600">
                   {p.tasks.map((t, i) => (
                     <li
                       key={t.id}
@@ -159,14 +139,14 @@ export function PhasesPanel({
                       <span className="min-w-0">
                         <Link href={t.href} className="hover:text-slate-900 hover:underline">{t.title}</Link>
                       </span>
-                      <span className={`shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-medium ${TASK_STATUS_COLOR[t.status].badge}`}>
+                      <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-slate-900/10 ${TASK_STATUS_COLOR[t.status].badge}`}>
                         {TASK_STATUS_LABEL[t.status]}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-[17px] text-slate-400">Sin tareas todavía.</p>
+                <p className="mt-1 text-[15px] text-slate-400">Sin tareas todavía.</p>
               )}
             </div>
           </li>

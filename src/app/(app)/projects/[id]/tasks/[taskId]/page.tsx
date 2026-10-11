@@ -22,18 +22,22 @@ import { threadInclude, toTeamPoll, toThread, type PollRow } from "@/lib/threadV
 import { ReviewPanel } from "./ReviewPanel";
 import { AcceptancePanel } from "./AcceptancePanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
+import { isGoogleCalendarConfigured } from "@/lib/googleCalendar";
 import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
 import { InlineMeetingUrl } from "./InlineMeetingUrl";
 import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
+import { InlineRequirement } from "./InlineRequirement";
+import { LevelField } from "@/components/LevelField";
+import { DEFINITION_LEVEL_HEX, taskTypeTextClass } from "@/lib/statusColors";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
-import { ShareIcon, SparklesIcon } from "@/components/icons";
+import { PencilIcon, ShareIcon, SparklesIcon } from "@/components/icons";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { AvatarGroup } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
@@ -102,6 +106,7 @@ export default async function TaskDetailPage({
     include: {
       project: { include: { parent: { select: { id: true, name: true, iconUrl: true, pmId: true } } } },
       phase: true,
+      requirements: { select: { id: true } },
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
       steps: { orderBy: { order: "asc" }, include: { attachments: { orderBy: { uploadedAt: "asc" } }, poll: threadInclude.poll } },
@@ -163,7 +168,7 @@ export default async function TaskDetailPage({
   // Un proyecto oculto solo lo ve el administrador que es su responsable (PM).
   if (!session?.user || !canSeeProject(task.project, session.user)) notFound();
 
-  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags, knownCategories, activeClaudeLink] = await Promise.all([
+  const [otherTasks, canManage, canEdit, canReview, users, alert, phases, requirements, activeShareLink, testTemplates, responseCategories, tagCategories, projectTags, knownCategories, activeClaudeLink] = await Promise.all([
     prisma.task.findMany({
       where: { projectId, id: { not: taskId } },
       select: { id: true, title: true },
@@ -174,6 +179,7 @@ export default async function TaskDetailPage({
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     getTaskAlert(task.project.countryCode, task),
     prisma.phase.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
+    prisma.requirement.findMany({ where: { projectId }, orderBy: { order: "asc" }, select: { id: true, title: true } }),
     getActiveShareLink("TASK", taskId),
     task.type === "QA" ? prisma.testTemplate.findMany({ orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
     task.type === "QA"
@@ -325,55 +331,41 @@ export default async function TaskDetailPage({
           <NavLinkWithMemory href={`/projects/${projectId}`} storageKey={`project:${projectId}`} className="hover:underline">
             {task.project.parent ? task.project.name : `← ${task.project.name}`}
           </NavLinkWithMemory>
+          {(canEdit || canManage) && (
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              {canEdit && (
+                <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
+                  <ShareLinkPanel
+                    activeToken={activeShareLink?.token ?? null}
+                    activeLinkId={activeShareLink?.id ?? null}
+                    onCreate={createTaskShareLink.bind(null, taskId)}
+                    onRevoke={revokeTaskShareLink.bind(null, taskId)}
+                  />
+                </ModalTrigger>
+              )}
+              {canManage && (
+                <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+                  <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+                </ModalTrigger>
+              )}
+            </div>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-2">
           <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} parent={task.project.parent} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 has-[input]:flex-1">
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>
-        </div>
-        {/* Compartir y Conectar IA bajo el título (pedido del usuario): son
-            accesos de la tarea entera, no acciones de estado ni de gestión. */}
-        {(canEdit || canManage) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-1.5">
+            <AvatarGroup people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))} size="h-8 w-8 text-xs" />
             {canEdit && (
-              <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
-                <ShareLinkPanel
-                  activeToken={activeShareLink?.token ?? null}
-                  activeLinkId={activeShareLink?.id ?? null}
-                  onCreate={createTaskShareLink.bind(null, taskId)}
-                  onRevoke={revokeTaskShareLink.bind(null, taskId)}
-                />
-              </ModalTrigger>
-            )}
-            {canManage && (
-              <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
-                <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+              <ModalTrigger label="" ariaLabel="Cambiar asignados" title="Asignar tarea" variant="secondary" className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" icon={<PencilIcon className="h-4 w-4" />}>
+                <ReassignAssigneesForm taskId={taskId} currentAssigneeIds={task.assignees.map((a) => a.userId)} users={users} />
               </ModalTrigger>
             )}
           </div>
-        )}
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
-          <span>
-            <InlineType taskId={taskId} type={task.type} canManage={canManage} /> · Fase:{" "}
-            <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canEdit} />{" "}
-            · Asignados:
-          </span>
-          <AvatarGroup
-            people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))}
-          />
-          {canEdit && (
-            <ModalTrigger label="Cambiar" title="Asignar tarea" variant="secondary" compact>
-              <ReassignAssigneesForm
-                taskId={taskId}
-                currentAssigneeIds={task.assignees.map((a) => a.userId)}
-                users={users}
-              />
-            </ModalTrigger>
-          )}
         </div>
-
-        <div className="mt-1.5">
+        <div className="mt-2 mb-6">
           <TaskTagsEditor
             taskId={taskId}
             currentTags={task.taskTags.map((tt) => ({
@@ -491,32 +483,49 @@ export default async function TaskDetailPage({
           />
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <TaskStatusControl
-            key={task.status}
-            taskId={taskId}
-            status={task.status}
-            type={task.type}
-            canEdit={canEdit}
-            canReview={canReview}
-            canManage={canManage}
-            completionBlockedReason={completionBlockedReason}
-          />
-        </div>
-
-        {/* Urgente, Duplicar y Eliminar: siempre juntos en UNA sola línea. */}
-        {canManage && (
-          <div className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto">
-            <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
-            <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
-          </div>
-        )}
-
-        {session?.user && (
+        {session?.user && isGoogleCalendarConfigured() && (
           <div className="mt-2">
             <GoogleCalendarButton taskId={taskId} userId={session.user.id} />
           </div>
         )}
+
+        <div className="mt-8 flex flex-wrap items-end gap-x-4 gap-y-2">
+          <div>
+            <p className="mb-1 text-xs font-semibold text-slate-600">Estado</p>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 p-1.5">
+              <TaskStatusControl
+                key={task.status}
+                taskId={taskId}
+                status={task.status}
+                type={task.type}
+                canEdit={canEdit}
+                canReview={canReview}
+                canManage={canManage}
+                completionBlockedReason={completionBlockedReason}
+              />
+            </div>
+          </div>
+          {canManage && (
+            <div className="ml-auto flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden">
+              <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
+              <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
+            </div>
+          )}
+        </div>
+
+        <div className="-mb-3 mt-4 flex flex-wrap items-center gap-1.5">
+          <LevelField colorClass={taskTypeTextClass(task.type)} label="Tipo">
+            <InlineType taskId={taskId} type={task.type} canManage={canManage} />
+          </LevelField>
+          <LevelField colorHex={DEFINITION_LEVEL_HEX.PHASE} label="Fase" className={requirements.length === 0 ? "min-w-0 flex-1" : ""}>
+            <InlinePhase taskId={taskId} phaseId={task.phaseId} phaseName={task.phase.name} phases={phases} canManage={canEdit} triggerClassName="inline-block max-w-[min(26rem,60vw)] truncate rounded text-left align-bottom hover:underline" />
+          </LevelField>
+          {requirements.length > 0 && (
+            <LevelField colorHex={DEFINITION_LEVEL_HEX.REQUIREMENT} label={task.requirements.length > 1 ? "Requerimientos" : "Requerimiento"} className="min-w-0 flex-1 basis-72">
+              <InlineRequirement taskId={taskId} requirementIds={task.requirements.map((r) => r.id)} requirements={requirements} canManage={canManage} triggerClassName="block max-w-full truncate rounded text-left hover:underline" />
+            </LevelField>
+          )}
+        </div>
       </div>
 
       {(task.description || canEdit) && (
