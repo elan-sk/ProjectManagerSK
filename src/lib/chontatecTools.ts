@@ -11,6 +11,7 @@ import { normalizeSearchText, matchesTaskSearch } from "@/lib/search";
 import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
+import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { addProjectAttachment, addProjectLink, updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
@@ -170,6 +171,16 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "get_bottlenecks",
     description: "Cuellos de botella de un proyecto (tareas que más están frenando el cronograma).",
+    input_schema: {
+      type: "object",
+      properties: { projectId: { type: "string" } },
+      required: ["projectId"],
+    },
+  },
+  {
+    name: "get_project_definition",
+    description:
+      "Trae la Definición (alcance) de un proyecto: objetivos con su avance, requerimientos con su avance, los objetivos a los que atiende cada uno y sus tareas (con estado y fase), fases con su avance, y las tareas que no responden a ningún requerimiento. Usar para preguntas como «cómo va el requerimiento X», «qué le falta al objetivo Y» o «qué tareas no tienen requerimiento». La cascada es objetivo → requerimiento → tarea; la fase solo ubica la tarea en el cronograma.",
     input_schema: {
       type: "object",
       properties: { projectId: { type: "string" } },
@@ -992,6 +1003,39 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const accessibleIds = await getAccessibleProjectIds(userId);
       if (!hasAccess(accessibleIds, projectId)) return JSON.stringify(NO_ACCESS);
       return JSON.stringify(await getBottlenecks(projectId));
+    }
+
+    case "get_project_definition": {
+      const { projectId } = z.object({ projectId: z.string() }).parse(input);
+      const accessibleIds = await getAccessibleProjectIds(userId);
+      if (!hasAccess(accessibleIds, projectId)) return JSON.stringify(NO_ACCESS);
+      const definition = await getProjectCascadeProgress(projectId);
+      const phaseName = new Map(definition.phases.map((p) => [p.id, p.name]));
+      return JSON.stringify({
+        objectives: definition.objectives.map((o) => ({
+          id: o.id,
+          title: o.title,
+          description: o.description,
+          pct: o.pct,
+          requirements: o.requirementTitles,
+          requirementsAtRisk: o.atRiskRequirementCount,
+          delayDays: o.scheduleVarianceDays,
+        })),
+        requirements: definition.requirements.map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          pct: r.pct,
+          objectives: r.objectiveTitles,
+          tasksDone: r.tasks.filter((t) => t.status === "COMPLETED").length,
+          tasksTotal: r.tasks.length,
+          tasks: r.tasks.map((t) => ({ id: t.id, title: t.title, status: TASK_STATUS_LABEL[t.status], phase: phaseName.get(t.phaseId) ?? null })),
+          overdueTasks: r.atRiskTasks.map((t) => t.title),
+          delayDays: r.scheduleVarianceDays,
+        })),
+        phases: definition.phases.map((p) => ({ id: p.id, name: p.name, pct: p.pct, tasksDone: p.taskCounts.completed, tasksTotal: p.taskCounts.total, overdue: p.taskCounts.overdue })),
+        tasksWithoutRequirement: definition.unassignedTasks.map((t) => ({ id: t.id, title: t.title, phase: phaseName.get(t.phaseId) ?? null })),
+      });
     }
 
     case "get_schedule_analysis": {
