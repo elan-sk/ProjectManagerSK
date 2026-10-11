@@ -225,6 +225,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [dragOver, setDragOver] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  // Respuestas que llegaron con el chat cerrado: insignia sobre el ícono hasta que se abra.
+  const [unread, setUnread] = useState(0);
+  if (open && unread > 0) setUnread(0);
+  const openRef = useRef(open);
+  openRef.current = open;
+  function markUnread() {
+    if (!openRef.current) setUnread((n) => n + 1);
+  }
   const fileViewer = useFileViewer();
   // Clics dentro del visor de archivos (va en portal, fuera del panel) no deben cerrar el chat.
   const viewerOpenRef = useRef(false);
@@ -371,6 +379,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         showSendError();
       } finally {
         setOptimisticMessage(null);
+        markUnread();
       }
     });
   }
@@ -383,6 +392,8 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       } catch (err) {
         console.error("[chat] no se pudo confirmar la acción", err);
         showSendError();
+      } finally {
+        markUnread();
       }
     });
   }
@@ -426,10 +437,15 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-label={`Abrir chat con ${botName}`}
-          className="rounded-full shadow-[0_8px_24px_rgba(15,23,42,0.25)] transition hover:scale-105"
+          aria-label={`Abrir chat con ${botName}${!open && unread > 0 ? ` (${unread} sin leer)` : ""}`}
+          className="relative rounded-full shadow-[0_8px_24px_rgba(15,23,42,0.25)] transition hover:scale-105"
         >
           <Avatar name={botName} avatarUrl={botAvatarUrl} size="h-12 w-12 text-sm" />
+          {!open && unread > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white ring-2 ring-white">
+              {unread}
+            </span>
+          )}
         </button>
         {/* Con el chat abierto el panel queda justo arriba: las insignias van a la izquierda del botón. */}
         <span className={`pointer-events-none absolute flex flex-col items-end gap-1 ${open ? "top-1/2 right-full mr-2 -translate-y-1/2" : "right-0 bottom-full mb-1.5"}`}>
