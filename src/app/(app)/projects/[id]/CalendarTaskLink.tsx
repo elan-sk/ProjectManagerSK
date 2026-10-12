@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "@/lib/useAppRouter";
 import { createPortal } from "react-dom";
 import { AlertBadge } from "@/components/AlertBadge";
 import { Avatar } from "@/components/Avatar";
@@ -68,8 +69,35 @@ export function CalendarTaskLink({
   className: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const ref = useRef<HTMLAnchorElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const touchRef = useRef(false);
   const [pos, setPos] = useState<Position | null>(null);
+  const [touchOpen, setTouchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!touchOpen) return;
+    function close() {
+      setPos(null);
+      setTouchOpen(false);
+    }
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      close();
+    }
+    function onScroll(e: Event) {
+      if (popoverRef.current?.contains(e.target as Node)) return;
+      close();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [touchOpen]);
 
   function show() {
     const rect = ref.current?.getBoundingClientRect();
@@ -85,6 +113,7 @@ export function CalendarTaskLink({
     );
   }
   function hide() {
+    if (touchOpen) return;
     setPos(null);
   }
 
@@ -94,15 +123,34 @@ export function CalendarTaskLink({
 
   return (
     <>
-      <Link ref={ref} href={href} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} className={className}>
+      <Link
+        ref={ref}
+        href={href}
+        onPointerDown={(e) => {
+          touchRef.current = e.pointerType === "touch";
+        }}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        onClick={(e) => {
+          if (!touchRef.current || touchOpen) return;
+          e.preventDefault();
+          show();
+          setTouchOpen(true);
+        }}
+        className={className}
+      >
         {children}
       </Link>
 
       {pos &&
         createPortal(
           <div
+            ref={popoverRef}
             role="tooltip"
-            className="pointer-events-none fixed z-50 max-w-[calc(100vw-16px)] overflow-x-hidden overflow-y-hidden rounded-2xl bg-white text-[13px] shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-slate-200"
+            onClick={() => router.push(href)}
+            className={`${touchOpen ? "cursor-pointer overflow-y-auto" : "pointer-events-none overflow-y-hidden"} fixed z-50 max-w-[calc(100vw-16px)] overflow-x-hidden rounded-2xl bg-white text-[13px] shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ring-1 ring-slate-200`}
             style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: POPOVER_WIDTH, maxHeight: pos.maxHeight }}
           >
             <div className={`h-1.5 ${urgent ? "bg-red-600" : TASK_STATUS_COLOR[task.status].dot}`} aria-hidden />
@@ -175,6 +223,12 @@ export function CalendarTaskLink({
                   )}
                   {collisionText && <p className="text-indigo-600">{collisionText}</p>}
                 </div>
+              )}
+
+              {touchOpen && (
+                <Link href={href} onClick={(e) => e.stopPropagation()} className="block rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white">
+                  Abrir tarea
+                </Link>
               )}
             </div>
           </div>,

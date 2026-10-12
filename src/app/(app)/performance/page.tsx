@@ -331,9 +331,9 @@ export default async function PerformancePage({
         {report.bottlenecks.length > 0 && (
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h3 className="mb-2 text-sm font-medium text-slate-700">Cuellos de botella activos</h3>
-            <ul className="space-y-1.5 text-sm">
+            <ul className="divide-y divide-slate-100 text-sm sm:space-y-1.5 sm:divide-y-0">
               {report.bottlenecks.map((b) => (
-                <li key={b.id} className="flex items-baseline gap-2">
+                <li key={b.id} className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:gap-2 sm:py-0">
                   <Link href={`/projects/${b.projectId}/tasks/${b.id}`} className="font-medium text-slate-900 hover:underline">
                     {b.title}
                   </Link>

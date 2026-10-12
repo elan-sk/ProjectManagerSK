@@ -221,13 +221,13 @@ export function PublicCommentThread({
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
                         />
                       )}
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-col items-start gap-1.5 lg:flex-row lg:items-stretch">
                         <input
                           value={replyBody}
                           onChange={(e) => setReplyBody(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && handleReply(c.id)}
                           placeholder="Responder…"
-                          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
+                          className="w-full min-w-0 flex-1 lg:w-auto rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
                         />
                         <button
                           type="button"
@@ -283,13 +283,13 @@ export function PublicCommentThread({
           <GoToIdentityButton />
         ) : (
           <>
-            <div className="flex gap-1.5">
+            <div className="flex flex-col items-start gap-1.5 lg:flex-row lg:items-stretch">
               <input
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder="Escribir un comentario…"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
+                className="w-full min-w-0 flex-1 lg:w-auto rounded-lg border border-slate-300 px-2 py-1.5 text-[17px]"
               />
               <button
                 type="button"

@@ -87,9 +87,9 @@ export function ObjectivesPanel({
                   </ul>
                 )}
               </div>
-              <div className="flex flex-row-reverse items-start justify-between gap-2 sm:shrink-0 sm:flex-col-reverse sm:items-end sm:justify-start sm:gap-3.5">
+              <div className="flex flex-col-reverse items-start gap-2 sm:shrink-0 sm:items-end sm:justify-start sm:gap-3.5">
                 <div className="flex items-start gap-2">
-                  <div className="flex flex-col items-end gap-1 text-[14px] text-slate-500">
+                  <div className="flex flex-row flex-wrap items-center gap-1 text-[14px] text-slate-500 sm:flex-col sm:items-end">
                     {o.atRiskRequirementCount > 0 ? (
                       <ReferencePopover
                         align="right"

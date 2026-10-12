@@ -101,12 +101,12 @@ export function TaskStatusControl({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="grid w-full auto-cols-fr grid-flow-col gap-1 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-1.5">
         {/* Punto 17: "Devuelta" no es un botón clickeable (no se puede elegir
             a mano) pero mientras la tarea está en ese estado sigue habiendo
             que mostrarlo — si no, la fila de botones no resalta nada. */}
         {(type === "QA" || type === "ACCEPTANCE") && status === "RETURNED" && (
-          <span className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${TASK_STATUS_COLOR.RETURNED.solid}`}>
+          <span className={`overflow-hidden rounded-lg px-0.5 py-1.5 text-center text-xs font-medium tracking-tight whitespace-nowrap text-white sm:px-3 sm:text-sm sm:tracking-normal ${TASK_STATUS_COLOR.RETURNED.solid}`}>
             {TASK_STATUS_LABEL.RETURNED}
           </span>
         )}
@@ -119,7 +119,7 @@ export function TaskStatusControl({
               disabled={isPending || Boolean(disabledReason)}
               title={disabledReason ?? undefined}
               onClick={() => change(value)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60 ${
+              className={`overflow-hidden rounded-lg px-0.5 py-1.5 text-xs font-medium tracking-tight whitespace-nowrap transition-colors disabled:opacity-60 sm:px-3 sm:text-sm sm:tracking-normal ${
                 current === value ? `${TASK_STATUS_COLOR[value].solid} text-white` : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >

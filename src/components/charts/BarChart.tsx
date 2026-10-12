@@ -39,7 +39,7 @@ export function BarChart({
 export function TrendBars({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
-    <div className="flex items-end gap-1.5" style={{ height: 100 }}>
+    <div className="flex h-[112px] items-end gap-1.5 sm:h-[100px]">
       {data.map((d, i) => (
         <div key={`${d.label}-${i}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
           <span className="text-[10px] text-slate-500">{d.value > 0 ? d.value : ""}</span>
@@ -50,7 +50,12 @@ export function TrendBars({ data }: { data: { label: string; value: number }[] }
               title={`${d.label}: ${d.value}`}
             />
           </div>
-          <span className="text-[10px] text-slate-400">{d.label}</span>
+          <span className="hidden whitespace-nowrap text-[10px] text-slate-400 sm:inline">{d.label}</span>
+          <span className="flex h-6 flex-col items-center text-[10px] leading-3 text-slate-400 sm:hidden">
+            {d.label.split(" de ").map((part) => (
+              <span key={part} className="whitespace-nowrap">{part}</span>
+            ))}
+          </span>
         </div>
       ))}
     </div>

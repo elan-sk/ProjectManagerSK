@@ -322,17 +322,17 @@ export default async function TaskDetailPage({
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {task.project.parent && (
             <>
-              <NavLinkWithMemory href={`/projects/${task.project.parent.id}`} storageKey={`project:${task.project.parent.id}`} className="hover:underline">
+              <NavLinkWithMemory href={`/projects/${task.project.parent.id}`} storageKey={`project:${task.project.parent.id}`} className="hover:underline max-sm:hidden">
                 ← {task.project.parent.name}
               </NavLinkWithMemory>
-              <span className="h-3.5 w-px bg-slate-400" aria-hidden />
+              <span className="h-3.5 w-px bg-slate-400 max-sm:hidden" aria-hidden />
             </>
           )}
-          <NavLinkWithMemory href={`/projects/${projectId}`} storageKey={`project:${projectId}`} className="hover:underline">
+          <NavLinkWithMemory href={`/projects/${projectId}`} storageKey={`project:${projectId}`} className="hover:underline max-sm:hidden">
             {task.project.parent ? task.project.name : `← ${task.project.name}`}
           </NavLinkWithMemory>
           {(canEdit || canManage) && (
-            <div className="ml-auto flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
               {canEdit && (
                 <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
                   <ShareLinkPanel
@@ -351,12 +351,14 @@ export default async function TaskDetailPage({
             </div>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-2">
-          <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} parent={task.project.parent} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
-          <div className="min-w-0 flex-1 text-balance">
+        <div className="mt-1 flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="order-2 flex-shrink-0 sm:order-none">
+            <ProjectIcon name={task.project.name} iconUrl={task.project.iconUrl} parent={task.project.parent} size="h-10 w-10 flex-shrink-0 text-sm" projectId={projectId} />
+          </div>
+          <div className="order-1 min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0 sm:text-balance">
             <InlineTitle taskId={taskId} title={task.title} canManage={canEdit} />
           </div>
-          <div className="flex flex-shrink-0 items-center gap-1.5">
+          <div className="order-3 flex flex-shrink-0 items-center gap-1.5 border-l border-slate-300 pl-2 sm:order-none sm:border-l-0 sm:pl-0">
             <AvatarGroup people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))} size="h-8 w-8 text-xs" />
             {canEdit && (
               <ModalTrigger label="" ariaLabel="Cambiar asignados" title="Asignar tarea" variant="secondary" className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" icon={<PencilIcon className="h-4 w-4" />}>
@@ -490,7 +492,7 @@ export default async function TaskDetailPage({
         )}
 
         <div className="mt-8 flex flex-wrap items-end gap-x-4 gap-y-2">
-          <div>
+          <div className="w-full sm:w-auto">
             <p className="mb-1 text-xs font-semibold text-slate-600">Estado</p>
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 p-1.5">
               <TaskStatusControl
@@ -506,7 +508,7 @@ export default async function TaskDetailPage({
             </div>
           </div>
           {canManage && (
-            <div className="ml-auto flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden">
+            <div className="flex w-full flex-nowrap items-center justify-start gap-1.5 max-sm:[&_button]:px-1.5 max-sm:[&_button]:text-[11px] sm:ml-auto sm:w-auto sm:gap-2">
               <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
               <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
             </div>

@@ -1,7 +1,8 @@
 import { ComboFilter } from "@/components/ComboFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { SearchBox } from "@/components/SearchBox";
-import Link from "next/link";
+import { TabMenu } from "@/components/TabMenu";
+import { FILTER_BAR } from "@/lib/filterLayout";
 import { AttachmentSections } from "./tasks/[taskId]/AttachmentSections";
 import { ProjectInsumoUploader } from "./ProjectInsumoUploader";
 import type { SharedLinkItem } from "@/components/SharedLinkTiles";
@@ -14,14 +15,6 @@ const FILE_TYPE_LABEL: Record<string, string> = {
   link: "Links",
   credential: "Contraseñas",
 };
-
-function tabClass(active: boolean) {
-  return `flex-shrink-0 rounded-lg px-3 py-1.5 ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
-}
-
-function pillClass(active: boolean) {
-  return `flex-shrink-0 rounded-lg px-2.5 py-1 text-xs ${active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`;
-}
 
 export function ProjectFilesView({
   projectId,
@@ -59,17 +52,14 @@ export function ProjectFilesView({
   const showSharedLinks = !fileType || fileType === "all" || fileType === "link";
   return (
     <div className="space-y-4">
-      {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver en más líneas. */}
-      <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 text-sm lg:overflow-visible lg:pb-0">
-        <Link href={filesHref({ fileKind: undefined })} className={tabClass(!fileKind)}>
-          Todos
-        </Link>
-        <Link href={filesHref({ fileKind: "INSUMO" })} className={tabClass(fileKind === "INSUMO")}>
-          Insumos
-        </Link>
-        <Link href={filesHref({ fileKind: "RESULTADO" })} className={tabClass(fileKind === "RESULTADO")}>
-          Resultados
-        </Link>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <TabMenu
+          items={[
+            { label: "Todos", href: filesHref({ fileKind: undefined }), active: !fileKind },
+            { label: "Insumos", href: filesHref({ fileKind: "INSUMO" }), active: fileKind === "INSUMO" },
+            { label: "Resultados", href: filesHref({ fileKind: "RESULTADO" }), active: fileKind === "RESULTADO" },
+          ]}
+        />
         {canDelete && (
           <div className="ml-auto flex flex-shrink-0 gap-2">
             <ProjectInsumoUploader projectId={projectId} />
@@ -77,7 +67,7 @@ export function ProjectFilesView({
         )}
       </div>
 
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
+      <div className={`${FILTER_BAR} mb-3 text-sm`}>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox
@@ -117,13 +107,14 @@ export function ProjectFilesView({
 
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Tipo</span>
-          <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
-            {(["all", "image", "document", "link", "credential"] as const).map((t) => (
-              <Link key={t} href={filesHref({ fileType: t === "all" ? undefined : t })} className={pillClass((fileType ?? "all") === t)}>
-                {FILE_TYPE_LABEL[t]}
-              </Link>
-            ))}
-          </div>
+          <TabMenu
+            variant="pill"
+            items={(["all", "image", "document", "link", "credential"] as const).map((t) => ({
+              label: FILE_TYPE_LABEL[t],
+              href: filesHref({ fileType: t === "all" ? undefined : t }),
+              active: (fileType ?? "all") === t,
+            }))}
+          />
         </div>
 
         <ResetFiltersButton

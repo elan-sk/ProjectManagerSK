@@ -1,5 +1,6 @@
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
+import { FILTER_BAR } from "@/lib/filterLayout";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { EyeOffIcon, OverlapIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
@@ -71,7 +72,7 @@ export async function ProjectSummaryGrid({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-3">
-        <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        <div className={`${FILTER_BAR} max-lg:w-full`}>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-400">Buscar</span>
             <ComboFilter
@@ -147,8 +148,8 @@ export async function ProjectSummaryGrid({
                     <div className="flex min-w-0 items-start gap-2">
                       {/* Subproyecto suelto (su principal no está en la lista): doble ícono. */}
                       <ProjectIcon name={p.name} iconUrl={p.iconUrl} parent={grouped.some((g) => g.project.id === p.parentId) ? null : p.parent} size="h-12 w-12 text-base" />
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 font-medium text-slate-900">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex min-w-0 items-center gap-1.5 font-medium text-slate-900 [&>*:not(:first-child)]:flex-shrink-0">
                           <span className="truncate">{p.name}</span>
                           {p.hidden && (
                             <span title="Oculto para el equipo" className="flex-shrink-0 text-amber-600">

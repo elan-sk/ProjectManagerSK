@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FILTER_BAR } from "@/lib/filterLayout";
 
 // Agrupa todos los filtros (Buscar/Persona/Estado/Tipo/Alerta/Fechas/Colisión…) detrás de un
 // botón "Filtros" en mobile (< lg) — apilados uno por uno se comían media pantalla. De lg en
@@ -28,7 +29,7 @@ export function MobileFiltersToggle({ children }: { children: React.ReactNode })
       >
         {open ? "Ocultar filtros" : "Filtros"}
       </button>
-      <div className={`${open ? "mt-3 flex" : "hidden"} flex-col gap-3 lg:mt-0 lg:flex lg:flex-row lg:flex-wrap lg:items-start lg:gap-x-5 lg:gap-y-3`}>
+      <div className={`${open ? "mt-3" : "max-lg:hidden"} ${FILTER_BAR} lg:mt-0`}>
         {children}
       </div>
     </div>

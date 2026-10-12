@@ -135,16 +135,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="font-display tracking-[-0.02em]">ProjectManager<span className="pacific-brand-sk">SK</span></span>
           </Link>
         </div>
-        <MobileMenuToggle>
-          <nav className="pacific-nav flex flex-col gap-1 text-sm font-medium lg:flex-shrink-0 lg:flex-row lg:items-center lg:gap-4">
+        <MobileMenuToggle search={<HeaderSearch />}>
+          <nav className="pacific-nav order-2 flex flex-col gap-0.5 text-sm font-medium lg:order-1 lg:flex-shrink-0 lg:flex-row lg:items-center lg:gap-4">
             <NavLinkWithMemory href="/agenda" storageKey="lastAgendaView">
               Agenda
             </NavLinkWithMemory>
             <Link href={performanceHref}>Rendimiento</Link>
             <Link href="/settings">Configuración</Link>
           </nav>
-          <HeaderSearch />
-          <div className="flex flex-wrap items-center gap-3 lg:flex-shrink-0 lg:flex-nowrap">
+          <div className="order-3 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3 lg:flex-shrink-0 lg:flex-nowrap lg:border-t-0 lg:pt-0">
             <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 lg:inline">
               Hoy: {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", timeZone: "UTC" }).replace(" de ", " ")}
             </span>
@@ -157,20 +156,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             />
             <NotificationBell items={bellItems} />
             <InternalMessageBell items={internalMessages.map((m) => ({ id: m.id, body: m.body, projectId: m.projectId, taskId: m.taskId, author: m.author.name, mentioned: m.mentions.length > 0 }))} />
+          </div>
+          <div className="order-1 flex items-center gap-3 border-b border-slate-200 pb-3 lg:order-4 lg:flex-shrink-0 lg:border-b-0 lg:pb-0">
             <Link href="/settings" className="flex items-center gap-2">
-              <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-7 w-7 text-[11px]" />
+              <Avatar name={me.name} avatarUrl={me.avatarUrl} size="h-9 w-9 text-xs lg:h-7 lg:w-7 lg:text-[11px]" />
             </Link>
             <form
               action={async () => {
                 "use server";
                 await signOut({ redirectTo: "/login?logout=1" });
               }}
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 lg:block lg:flex-none"
             >
-              <span title={me.name} className="mr-3 text-sm text-slate-500">
+              <span title={me.name} className="mr-3 truncate text-sm text-slate-500 max-lg:font-medium">
                 {/* Máx. 10 caracteres: con el buscador en el header no alcanza el ancho. */}
                 {me.name.length > 10 ? `${me.name.slice(0, 10).trimEnd()}…` : me.name}
               </span>
-              <button type="submit" className="text-sm text-slate-500 hover:text-slate-900">
+              <button type="submit" className="flex-shrink-0 cursor-pointer text-sm text-slate-500 hover:text-slate-900 max-lg:rounded-lg max-lg:border max-lg:border-slate-300 max-lg:px-3 max-lg:py-1.5">
                 Salir
               </button>
             </form>

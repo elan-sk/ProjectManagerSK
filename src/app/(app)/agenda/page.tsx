@@ -5,6 +5,7 @@ import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle"
 import { AlertBadge } from "@/components/AlertBadge";
 import { AvatarGroup } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
+import { FILTER_BAR } from "@/lib/filterLayout";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
@@ -354,21 +355,21 @@ export default async function AgendaPage({
                   la fila, y lo que no entra se ve con scroll. Mínimo 3 filas
                   (28px c/u + 2 separaciones de 4px) para el celular, donde las
                   tarjetas van apiladas. Overflow explícito en los dos ejes. */}
-              <div className="relative min-h-23 flex-1">
-              <div className="absolute inset-0 space-y-1 overflow-y-auto overflow-x-hidden pr-1">
+              <div className="relative flex-1 md:min-h-23">
+              <div className="space-y-1 md:absolute md:inset-0 md:overflow-x-hidden md:overflow-y-auto md:pr-1">
                 {/* Mismo orden que el resumen de Proyectos: último abierto primero,
                     el resto por creación (más reciente primero). */}
                 <ProjectCardsOrder
                   items={pmSummary.map((p) => {
                   const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0;
                   return { id: p.id, node: (
-                  <div key={p.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-slate-50">
-                    <Link href={`/projects/${p.id}`} className="flex flex-shrink-0 items-center gap-1.5">
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-1.5 py-1 hover:bg-slate-50 md:flex-nowrap">
+                    <Link href={`/projects/${p.id}`} className="flex min-w-0 items-center gap-1.5 md:flex-shrink-0">
                       {/* Subproyecto suelto (su principal no está en la lista): doble ícono (spec 004). */}
                       <ProjectIcon name={p.name} iconUrl={p.iconUrl} parent={p.parent} size="h-5 w-5 text-[9px]" />
                       {/* Ancho máximo fijo: un nombre largo no debe empujar el
                           resto de la fila ni romper el layout. */}
-                      <span className="max-w-[110px] truncate text-sm font-medium text-slate-800">{p.name}</span>
+                      <span className="truncate text-sm font-medium text-slate-800 md:max-w-[110px]">{p.name}</span>
                     </Link>
                     {/* Principal: grupito de logos de sus subproyectos (como los asignados de una tarea). */}
                     {p.subprojects && <SubprojectsPopover subprojects={p.subprojects} size="h-4 w-4 text-[7px]" max={3} />}
@@ -451,7 +452,7 @@ export default async function AgendaPage({
         </div>
       )}
 
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3 text-sm mb-3">
+      <div className={`${FILTER_BAR} mb-3 text-sm`}>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-slate-400">Buscar</span>
           <SearchBox basePath="/agenda" q={q} hiddenParams={{ projectId, status, userId, risk, type, from, to }} />

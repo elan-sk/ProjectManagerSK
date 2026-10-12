@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { AnchoredPopover, useAnchoredPopover } from "@/components/AnchoredPopover";
 import Link from "next/link";
 import { markNotificationRead, markAllNotificationsRead } from "./notificationActions";
 import { BellIcon, XIcon } from "@/components/icons";
@@ -17,24 +17,12 @@ export type NotificationItem = {
 };
 
 export function NotificationBell({ items }: { items: NotificationItem[] }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const { anchorRef, panelRef, pos, toggle, close } = useAnchoredPopover(320);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={anchorRef} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         className="relative rounded-full p-1.5 text-slate-500 hover:bg-slate-100"
         aria-label="Notificaciones"
       >
@@ -46,8 +34,7 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
         )}
       </button>
 
-      {open && (
-        <div className="pacific-popover absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-6rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+      <AnchoredPopover pos={pos} panelRef={panelRef}>
           {items.length === 0 && (
             <p className="p-3 text-sm text-slate-400">Sin notificaciones pendientes.</p>
           )}
@@ -76,7 +63,7 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
                       : "#"
                 }
                 className="flex-1 text-slate-700"
-                onClick={() => setOpen(false)}
+                onClick={close}
               >
                 {n.message}
               </Link>
@@ -89,8 +76,7 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
               </button>
             </div>
           ))}
-        </div>
-      )}
+      </AnchoredPopover>
     </div>
   );
 }

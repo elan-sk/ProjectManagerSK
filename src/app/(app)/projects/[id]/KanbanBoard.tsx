@@ -1,9 +1,9 @@
 "use client";
 
-import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useAppRouter";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { updateTaskStatus } from "./actions";
 import { deleteTask } from "./tasks/[taskId]/actions";
 import { archiveCompletedTasks, duplicateTask, mergeTasks, setTaskUrgent, unarchiveTask } from "./taskOps";
@@ -94,7 +94,7 @@ function cardClassName(task: TaskCard, extra: string) {
   // [&_button]/[&_a]:cursor-[inherit]: los controles internos (Asignar…)
   // usan el mismo cursor de la card (manito; mano que agarra al presionar) en
   // vez del cursor por defecto de los botones.
-  return `group relative touch-none space-y-2 rounded-2xl p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${task.isUrgent && task.status !== "COMPLETED" ? "bg-red-50 ring-2 ring-red-500/70" : taskCardTint(
+  return `group relative space-y-2 rounded-2xl [@media(pointer:coarse)]:select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] p-3.5 [&_a]:cursor-[inherit] [&_button]:cursor-[inherit] shadow-[0_1px_2px_rgba(15,23,42,0.06),0_1px_8px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.08),0_4px_16px_rgba(15,23,42,0.08)] ${task.isUrgent && task.status !== "COMPLETED" ? "bg-red-50 ring-2 ring-red-500/70" : taskCardTint(
     task.status,
     task.alert.level
   )} ${extra}`;
@@ -372,14 +372,14 @@ function Card({
     <div
       ref={setNodeRef}
       {...attributes}
-      // El arranque del arrastre va en la fase de captura (no burbujeo): así
-      // también empieza desde "Asignar", etc., que frenan
-      // onPointerDown para sí mismos. Un click sin mover nunca activa el
-      // arrastre (sensor con `distance`), así que esos botones siguen
-      // funcionando. Se ignora lo que llega de un modal portaleado (no es hijo
-      // DOM de la card) para no arrastrar al usar el formulario de asignar.
-      onPointerDownCapture={(e) => {
-        if (e.currentTarget.contains(e.target as Node)) (listeners?.onPointerDown as ((ev: typeof e) => void) | undefined)?.(e);
+      onMouseDownCapture={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) (listeners?.onMouseDown as ((ev: typeof e) => void) | undefined)?.(e);
+      }}
+      onTouchStartCapture={(e) => {
+        if (e.currentTarget.contains(e.target as Node)) (listeners?.onTouchStart as ((ev: typeof e) => void) | undefined)?.(e);
+      }}
+      onContextMenu={(e) => {
+        if ((e.nativeEvent as PointerEvent).pointerType === "touch") e.preventDefault();
       }}
       onClick={(e) => {
         // Click simple abre la tarea; el arrastre lo decide el sensor del
@@ -601,9 +601,11 @@ export function KanbanBoard({
   const showToast = useToast();
   const confirm = useConfirm();
   const [, startTransition] = useTransition();
-  // distance: sin esto dnd-kit trata cualquier pointerdown como inicio de
-  // arrastre y el click nunca llega a abrir la tarea.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  );
+  const boardRef = useRef<HTMLDivElement>(null);
 
   function handleDragStart(event: DragStartEvent) {
     setActiveTask(tasks.find((t) => t.id === event.active.id) ?? null);
@@ -696,10 +698,7 @@ export function KanbanBoard({
   const canMerge = !archivedView && tasks.some((t) => t.canManage);
 
   return (
-    // autoScroll desactivado: por defecto dnd-kit scrollea el contenedor más
-    // cercano (cada columna, con overflow-y-auto) al arrastrar cerca de un
-    // borde, lo que movía el tablero solo con empezar a arrastrar una card.
-    <DndContext sensors={sensors} autoScroll={false} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} autoScroll={{ canScroll: (element) => element === boardRef.current }} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {/* Alto fijo (mismo tratamiento que GanttView): el padre es sticky con
           altura calculada, "h-full" propaga ese alto a cada columna. El
           scroll vertical es de CADA columna por separado (ver Column más
@@ -723,7 +722,7 @@ export function KanbanBoard({
           </button>
         </div>
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-visible pb-0 sm:grid-cols-2 lg:grid-cols-4">
+      <div ref={boardRef} className="grid min-h-0 flex-1 auto-cols-[85%] grid-flow-col grid-rows-[minmax(0,1fr)] gap-4 overflow-x-auto overflow-y-hidden pb-0 sm:auto-cols-[minmax(17.5rem,1fr)]">
         {COLUMNS.map((status) => (
           <Column
             key={status}

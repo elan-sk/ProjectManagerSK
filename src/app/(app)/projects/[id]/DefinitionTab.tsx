@@ -57,11 +57,18 @@ export function DefinitionTab({
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="relative items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:flex">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <ProjectIcon name={name} iconUrl={iconUrl} parent={subprojects.parent} size="h-12 w-12 text-[18px]" projectId={projectId} toParent />
+          <div className="hidden sm:block">
+            <ProjectIcon name={name} iconUrl={iconUrl} parent={subprojects.parent} size="h-12 w-12 text-[18px]" projectId={projectId} toParent />
+          </div>
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-[18px] font-medium text-slate-900">Descripción</p>
+            <p className="flex items-center gap-2 text-[18px] font-medium text-slate-900">
+              <span className="sm:hidden">
+                <ProjectIcon name={name} iconUrl={iconUrl} parent={subprojects.parent} size="h-9 w-9 text-sm" projectId={projectId} toParent />
+              </span>
+              Descripción
+            </p>
             {canManage ? (
               <ProjectDescription projectId={projectId} description={description} />
             ) : (
@@ -76,7 +83,7 @@ export function DefinitionTab({
           </div>
         </div>
         {canManage && (
-          <ModalTrigger label="Configuración" title="Configuración del proyecto" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
+          <ModalTrigger label="Configuración" title="Configuración del proyecto" variant="secondary" compact className={`${DEFINITION_ACTION_BTN} absolute top-4 right-4 sm:static`}>
             <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} clientName={clientName} />
             <div className="mt-4 border-t border-slate-100 pt-4">
               <ProjectWhatsAppGroupPanel projectId={projectId} currentGroupJid={whatsappGroupJid} />

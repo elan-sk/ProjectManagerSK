@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { AnchoredPopover, useAnchoredPopover } from "@/components/AnchoredPopover";
 import Link from "next/link";
 import { UndoIcon, ReviewChecklistIcon, UrgentIcon } from "@/components/icons";
 
@@ -35,24 +35,14 @@ function AlertButton({
   colorClass: string;
   items: HeaderAlertTask[];
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const { anchorRef, panelRef, pos, toggle, close } = useAnchoredPopover(288);
 
   if (items.length === 0) return null;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={anchorRef} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         title={label}
         aria-label={label}
         className="relative rounded-full p-1.5 text-slate-500 hover:bg-white/20"
@@ -63,8 +53,7 @@ function AlertButton({
         </span>
       </button>
 
-      {open && (
-        <div className="pacific-popover absolute right-0 z-10 mt-2 w-72 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+      <AnchoredPopover pos={pos} panelRef={panelRef}>
           <p className="px-2 pb-1 pt-0.5 text-xs font-medium text-slate-500">{label}</p>
           {items.length === 0 ? (
             <p className="p-3 text-sm text-slate-400">{emptyLabel}</p>
@@ -73,7 +62,7 @@ function AlertButton({
               <Link
                 key={t.id}
                 href={`/projects/${t.projectId}/tasks/${t.id}`}
-                onClick={() => setOpen(false)}
+                onClick={close}
                 className="block rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
               >
                 <span className="block truncate">{t.title}</span>
@@ -81,8 +70,7 @@ function AlertButton({
               </Link>
             ))
           )}
-        </div>
-      )}
+      </AnchoredPopover>
     </div>
   );
 }

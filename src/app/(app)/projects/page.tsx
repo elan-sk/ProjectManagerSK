@@ -25,6 +25,7 @@ import { RememberViewState } from "../RememberViewState";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { MobileFiltersToggle } from "@/components/MobileFiltersToggle";
+import { TabMenu } from "@/components/TabMenu";
 import { MobileCalendarDayEnforcer } from "@/components/MobileCalendarDayEnforcer";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { GanttView, type GanttTask } from "./[id]/GanttView";
@@ -602,33 +603,16 @@ export default async function ProjectsPage({
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver las píldoras
-              en más líneas — se veía apretado. De lg en adelante entra sin scroll, como antes. */}
-          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
-            <Link
-              href={boardHref({ view: undefined })}
-              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              Tablero
-            </Link>
-            <Link
-              href={boardHref({ view: "gantt" })}
-              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              Gantt
-            </Link>
-            <Link
-              href={boardHref({ view: "calendar" })}
-              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              Calendario
-            </Link>
-            <Link
-              href={filesHref({})}
-              className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-            >
-              Archivos
-            </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <TabMenu
+              prefix="Vista"
+              items={[
+                { label: "Tablero", href: boardHref({ view: undefined }), active: !view || view === "kanban" },
+                { label: "Gantt", href: boardHref({ view: "gantt" }), active: view === "gantt" },
+                { label: "Calendario", href: boardHref({ view: "calendar" }), active: view === "calendar" },
+                { label: "Archivos", href: filesHref({}), active: view === "files" },
+              ]}
+            />
             {hiddenPref.canToggle && <ShowHiddenProjectsToggle active={hiddenPref.include} />}
           </div>
 
@@ -838,7 +822,7 @@ export default async function ProjectsPage({
         ) : (
           /* Mobile (< sm): columnas apiladas (grid-cols-1 en KanbanBoard) — sin altura fija, ver
              mismo comentario en projects/[id]/page.tsx. */
-          <div className="sticky-view-panel-kanban sticky top-[57px] h-auto sm:h-[calc(100vh-150px)]">
+          <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100dvh-150px)] sm:h-[calc(100vh-150px)]">
             <KanbanBoard
               // Solo cambia con los filtros: las cards movidas de estado siguen
               // visibles hasta que se toquen los filtros (ver KanbanBoard).

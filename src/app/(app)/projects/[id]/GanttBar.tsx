@@ -132,6 +132,27 @@ export function GanttBar({
   const [liveEndIndex, setLiveEndIndex] = useState(endIndex);
   const [tooltipPos, setTooltipPos] = useState<{ left: number; top: number } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const touchRef = useRef(false);
+  const [touchOpen, setTouchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!touchOpen) return;
+    function close() {
+      setTooltipPos(null);
+      setTouchOpen(false);
+    }
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (barRef.current?.contains(target) || tooltipRef.current?.contains(target)) return;
+      close();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [touchOpen]);
   // Posición de la barra en el momento del hover — se recalcula el `top`
   // final contra la ALTURA REAL del tooltip (ver layout effect debajo), así
   // nunca puede terminar invadiendo/tapando la propia barra.
@@ -182,7 +203,14 @@ export function GanttBar({
   }
 
   function hideTooltip() {
+    if (touchOpen) return;
     setTooltipPos(null);
+  }
+
+  function cancelDrag() {
+    setDragging(null);
+    setLiveStartIndex(startIndex);
+    setLiveEndIndex(endIndex);
   }
 
   // TOOLTIP_MAX_HEIGHT es solo una estimación para el primer render — tareas
@@ -207,10 +235,11 @@ export function GanttBar({
   // presiona Ctrl — sin esto el tooltip que ya estaba abierto se quedaría
   // pegado en pantalla hasta el próximo mouseenter/leave.
   useEffect(() => {
-    if (ctrlHeld) hideTooltip();
+    if (ctrlHeld) setTooltipPos(null);
   }, [ctrlHeld]);
 
   function onHandleDown(e: React.PointerEvent, edge: "left" | "right") {
+    if (e.pointerType === "touch") return;
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -275,6 +304,8 @@ export function GanttBar({
   // (groupArmed), el arrastre entero pasa a manos de GanttView en vez de
   // manejarse acá — ver comentario junto a esos props.
   function onBodyDown(e: React.PointerEvent) {
+    touchRef.current = e.pointerType === "touch";
+    if (touchRef.current) return;
     if (groupArmed) {
       onGroupDragStart?.(e);
       return;
@@ -342,6 +373,11 @@ export function GanttBar({
       draggedBodyRef.current = false;
       return;
     }
+    if (touchRef.current) {
+      showTooltip();
+      setTouchOpen(true);
+      return;
+    }
     onToggleSelect?.(e.ctrlKey || e.metaKey);
   }
 
@@ -387,6 +423,7 @@ export function GanttBar({
         onPointerDown={onBodyDown}
         onPointerMove={onBodyMove}
         onPointerUp={onBodyUp}
+        onPointerCancel={cancelDrag}
         onClick={onBodyClick}
         onDoubleClick={() => router.push(`/projects/${projectId}/tasks/${taskId}`)}
       >
@@ -404,7 +441,7 @@ export function GanttBar({
         createPortal(
           <div
             ref={tooltipRef}
-            className="pointer-events-none absolute z-10 w-64 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
+            className={`${touchOpen ? "pointer-events-auto" : "pointer-events-none"} absolute z-10 w-64 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}
             style={{ left: tooltipPos.left, top: tooltipPos.top }}
           >
             <p className="font-medium text-slate-900">{title}</p>
@@ -444,6 +481,11 @@ export function GanttBar({
                 ))}
               </div>
             )}
+            {touchOpen && (
+              <button type="button" onClick={() => router.push(`/projects/${projectId}/tasks/${taskId}`)} className="mt-2.5 block w-full cursor-pointer rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white">
+                Abrir tarea
+              </button>
+            )}
           </div>,
           tooltipLayer
         )}
@@ -457,6 +499,7 @@ export function GanttBar({
           onPointerDown={(e) => onHandleDown(e, "left")}
           onPointerMove={(e) => onHandleMove(e, "left")}
           onPointerUp={(e) => onHandleUp(e, "left")}
+          onPointerCancel={cancelDrag}
           className="absolute top-0 left-0 h-full w-2 cursor-ew-resize rounded-l bg-black/0 hover:bg-black/15"
         />
       )}
@@ -469,6 +512,7 @@ export function GanttBar({
           onPointerDown={(e) => onHandleDown(e, "right")}
           onPointerMove={(e) => onHandleMove(e, "right")}
           onPointerUp={(e) => onHandleUp(e, "right")}
+          onPointerCancel={cancelDrag}
           className="absolute top-0 right-0 h-full w-2 cursor-ew-resize rounded-r bg-black/0 hover:bg-black/15"
         />
       )}

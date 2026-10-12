@@ -241,6 +241,21 @@ h1, h2 {
   .pacific-header .pacific-mobile-menu .hover\:bg-slate-100:hover,
   .pacific-header .pacific-mobile-menu .hover\:bg-slate-200:hover { background-color: var(--color-slate-200); }
   .pacific-header .pacific-mobile-menu .hover\:text-slate-900:hover { color: var(--color-slate-900); }
+  .pacific-header .pacific-mobile-menu .pacific-nav a {
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.6rem;
+  }
+  .pacific-header .pacific-mobile-menu .pacific-nav a:hover {
+    color: var(--pacific-deep);
+    background-color: var(--color-slate-100);
+  }
+  .pacific-header .pacific-brand {
+    font-size: clamp(0.875rem, calc(6.25vw - 8.5px), 1.0625rem);
+  }
+  .pacific-header .pacific-brand-mark {
+    width: clamp(1.8rem, calc(5vw + 0.7rem), 2.15rem);
+    height: clamp(1.8rem, calc(5vw + 0.7rem), 2.15rem);
+  }
 }
 .pacific-brand-mark {
   position: relative;

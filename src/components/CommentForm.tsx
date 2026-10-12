@@ -161,8 +161,8 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
       }}
       className="space-y-1.5"
     >
-      <div className="flex gap-2">
-        <div className="relative min-w-0 flex-1 rounded-lg border border-slate-300 bg-white transition focus-within:border-[#0a6b78] focus-within:ring-2 focus-within:ring-[#0a6b78]/40">
+      <div className="flex flex-col items-start gap-2 lg:flex-row lg:items-stretch">
+        <div className="relative w-full min-w-0 flex-1 rounded-lg border border-slate-300 bg-white transition focus-within:border-[#0a6b78] focus-within:ring-2 focus-within:ring-[#0a6b78]/40">
           <textarea
             ref={areaRef}
             value={value}
@@ -250,7 +250,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
         </div>
         <button
           disabled={busy || !value.trim() || !pollReady}
-          className="self-end rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 lg:self-end"
         >
           {pending ? "Enviando…" : asPoll ? "Publicar pregunta" : "Enviar"}
         </button>

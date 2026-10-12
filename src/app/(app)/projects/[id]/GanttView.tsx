@@ -293,6 +293,7 @@ export function GanttView({
   // recortamos sus conectores según el desplazamiento para que nunca asomen
   // por encima del encabezado o de un nombre de fase/tarea.
   const [timelineClipStart, setTimelineClipStart] = useState(0);
+  const [dayTipIndex, setDayTipIndex] = useState<number | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [highlightedIds, setHighlightedIds] = useState<Set<string> | null>(null);
   const [reconnect, setReconnect] = useState<ReconnectState | null>(null);
@@ -462,6 +463,7 @@ export function GanttView({
   // esa barra. deltaIndex se aplica por igual a cada barra del grupo vía
   // moveOffsetIndex (ver GanttBar) mientras dura el arrastre.
   function onGroupDragStart(e: React.PointerEvent) {
+    if (e.pointerType === "touch") return;
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -674,11 +676,12 @@ export function GanttView({
   }
 
   function onContainerPointerDown(e: React.PointerEvent) {
+    if (!(e.target instanceof Element) || !e.target.closest("[data-gantt-day]")) setDayTipIndex(null);
     if (!(e.target instanceof Element) || !e.target.closest("path[data-dep-edge]")) {
       setHighlightedIds(null);
       setCriticalSelected(false);
     }
-    if (reconnect || connect || !isPannableTarget(e.target)) return;
+    if (e.pointerType === "touch" || reconnect || connect || !isPannableTarget(e.target)) return;
     const el = scrollRef.current;
     if (!el) return;
     // Sin esto, arrastrar sobre texto (títulos, meses) dispara la selección
@@ -705,7 +708,7 @@ export function GanttView({
   }
 
   function onGanttScroll(e: React.UIEvent<HTMLDivElement>) {
-    setTimelineClipStart(e.currentTarget.scrollLeft);
+    setTimelineClipStart(window.matchMedia("(min-width: 640px)").matches ? e.currentTarget.scrollLeft : 0);
   }
 
   function onContainerPointerUp(e: React.PointerEvent) {
@@ -722,6 +725,7 @@ export function GanttView({
   // Punto 4 confirmado con el usuario: arrastrar el extremo de una flecha ya
   // dibujada la reasigna a otra tarea, en vez de editarla por formulario.
   function onEdgeHandleDown(e: React.PointerEvent, edge: DependencyEdge, movingEnd: "pred" | "succ") {
+    if (e.pointerType === "touch") return;
     e.preventDefault();
     e.stopPropagation();
     const svg = svgRef.current;
@@ -953,6 +957,7 @@ export function GanttView({
       onPointerDown={onContainerPointerDown}
       onPointerMove={onContainerPointerMove}
       onPointerUp={onContainerPointerUp}
+      onPointerCancel={onContainerPointerUp}
       onContextMenu={onContainerContextMenu}
       onClickCapture={onContainerClickCapture}
       className={`h-full overflow-x-auto overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xl border border-slate-200 bg-white mb-0 ${isPanning ? "cursor-grabbing select-none" : connect ? "cursor-crosshair" : ""}`}
@@ -983,13 +988,20 @@ export function GanttView({
               {businessDays.map((d, i) => (
                 <div
                   key={i}
+                  data-gantt-day
                   title={weekdayLabel(d)}
                   style={{ width: DAY_WIDTH }}
-                  className={`cursor-default select-none py-1 text-center text-[10px] ${
+                  onClick={() => setDayTipIndex((current) => (current === i ? null : i))}
+                  className={`relative cursor-pointer select-none py-1 text-center text-[10px] ${
                     highlightedDayIndices.has(i) ? "bg-indigo-100 font-semibold text-indigo-700" : "font-normal text-slate-400"
                   }`}
                 >
                   {dayLabel(d)}
+                  {dayTipIndex === i && (
+                    <span className="pointer-events-none absolute top-full left-1/2 z-50 mt-0.5 -translate-x-1/2 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium whitespace-nowrap text-white shadow-md">
+                      {weekdayLabel(d)}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

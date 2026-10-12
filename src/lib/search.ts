@@ -14,8 +14,16 @@ export const HEADER_SEARCH_OPTIONS = [
   { prefix: "tareas", kind: "task", label: "Tareas" },
   { prefix: "comentarios", kind: "comment", label: "Comentarios" },
   { prefix: "archivos", kind: "file", label: "Archivos" },
+  { prefix: "links", kind: "link", label: "Links" },
   { prefix: "contraseñas", kind: "credential", label: "Contraseñas" },
 ] as const;
+
+export const SEARCH_BAR_MIN_WIDTH = 224;
+export const SEARCH_BAR_MIN_VIEWPORT = 1024;
+
+export function isCompactSearch(barWidth: number, viewportWidth: number) {
+  return viewportWidth < SEARCH_BAR_MIN_VIEWPORT || barWidth < SEARCH_BAR_MIN_WIDTH;
+}
 
 export type HeaderSearchFilter = typeof HEADER_SEARCH_OPTIONS[number]["kind"];
 

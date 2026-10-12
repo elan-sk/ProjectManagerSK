@@ -7,6 +7,7 @@ import { ComboFilter } from "@/components/ComboFilter";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { MobileFiltersToggle } from "@/components/MobileFiltersToggle";
+import { TabMenu } from "@/components/TabMenu";
 import { MobileCalendarDayEnforcer } from "@/components/MobileCalendarDayEnforcer";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ModalTrigger } from "@/components/Modal";
@@ -678,7 +679,9 @@ export default async function ProjectPage({
       )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-12 w-12 text-base" projectId={project.id} toParent />
+          <div className="hidden sm:block">
+            <ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-12 w-12 text-base" projectId={project.id} toParent />
+          </div>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
               {project.name}
@@ -711,8 +714,11 @@ export default async function ProjectPage({
                 </span>
               ))}
             </div>
+            {!canManage && <div className="mt-1.5 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-14.5 w-14.5 text-xl" projectId={project.id} toParent /></div>}
             {canManage && (
-              <div className="mt-1.5 flex flex-wrap gap-2">
+              <div className="mt-1.5 flex items-start gap-1.5 sm:gap-2">
+                <span className="flex-shrink-0 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-14.5 w-14.5 text-xl" projectId={project.id} toParent /></span>
+              <div className="flex min-w-0 flex-wrap gap-1.5 sm:gap-2">
                 <ModalTrigger label="Fecha de inicio" title="Editar fecha de inicio" variant="secondary" small>
                   <EditStartDateForm
                     projectId={project.id}
@@ -728,7 +734,7 @@ export default async function ProjectPage({
                 <ModalTrigger label="Repositorios" title="Repositorios del proyecto" variant="secondary" small>
                   <EditReposForm projectId={project.id} urls={repoUrls} />
                 </ModalTrigger>
-                <div className="ml-1.5 flex items-center gap-2 border-l border-slate-200 pl-2.5">
+                <div className="ml-0.5 flex items-center gap-1.5 border-l border-slate-200 pl-1.5 sm:ml-1.5 sm:gap-2 sm:pl-2.5">
                   {!project.archivedAt && (
                     <ArchiveToggleButton
                       projectId={project.id}
@@ -744,6 +750,7 @@ export default async function ProjectPage({
                     </>
                   )}
                 </div>
+              </div>
               </div>
             )}
           </div>
@@ -798,7 +805,7 @@ export default async function ProjectPage({
       </div>
 
       {/* Dos grupos separados por una línea: crear (tarea, contraseña) · compartir. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-1 max-sm:[&_button]:px-2 max-sm:[&_button]:text-xs max-sm:[&_button]:whitespace-nowrap sm:flex-wrap sm:gap-2">
         {canManage && (
           <>
           <ModalTrigger label="+ Nueva tarea" title="Nueva tarea" variant="primary">
@@ -819,7 +826,7 @@ export default async function ProjectPage({
           </ModalTrigger>
           {/* Junto a «+ Nueva tarea» (visible en todas las pestañas), no solo dentro de Archivos. Mismo estilo que «Compartir». */}
           <AddCredentialButton place={{ projectId: project.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" />
-          <div className="ml-1.5 flex items-center border-l border-slate-300 pl-3.5">
+          <div className="ml-0.5 flex items-center border-l border-slate-300 pl-1.5 sm:ml-1.5 sm:pl-3.5">
           <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary" icon={<ShareIcon className="h-4 w-4" />}>
             <ShareLinkPanel
               activeToken={activeShareLink?.token ?? null}
@@ -834,40 +841,17 @@ export default async function ProjectPage({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        {/* Mobile (< lg): una sola fila con scroll horizontal en vez de envolver en más líneas. */}
-        <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
-          <Link
-            href={filterHref({ view: "definition" })}
-            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "definition" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Definición
-          </Link>
-          <Link
-            href={filterHref({ view: "kanban" })}
-            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${!view || view === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Tablero
-          </Link>
-          <Link
-            href={filterHref({ view: "gantt" })}
-            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "gantt" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Gantt
-          </Link>
-          <Link
-            href={filterHref({ view: "calendar" })}
-            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "calendar" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Calendario
-          </Link>
-          <Link
-            href={filesHref({})}
-            className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "files" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            Archivos
-          </Link>
-          <Link href={filterHref({ view: "conversation" })} className={`flex-shrink-0 rounded-lg px-3 py-1.5 ${view === "conversation" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Comentarios</Link>
-        </div>
+        <TabMenu
+          prefix="Vista"
+          items={[
+            { label: "Definición", href: filterHref({ view: "definition" }), active: view === "definition" },
+            { label: "Tablero", href: filterHref({ view: "kanban" }), active: !view || view === "kanban" },
+            { label: "Gantt", href: filterHref({ view: "gantt" }), active: view === "gantt" },
+            { label: "Calendario", href: filterHref({ view: "calendar" }), active: view === "calendar" },
+            { label: "Archivos", href: filesHref({}), active: view === "files" },
+            { label: "Comentarios", href: filterHref({ view: "conversation" }), active: view === "conversation" },
+          ]}
+        />
 
         {view === "calendar" && calendarMode !== "day" && (
           <div className="flex items-center gap-2">
@@ -1137,7 +1121,7 @@ export default async function ProjectPage({
            que cada una crezca con su contenido en vez de repartirse una altura de escritorio
            entre 4 filas. De sm en adelante (columnas lado a lado) vuelve a la altura fija con
            scroll propio por columna. */
-        <div className="sticky-view-panel-kanban sticky top-[57px] h-auto sm:h-[calc(100vh-150px)]">
+        <div className="sticky-view-panel-kanban sticky top-[57px] h-[calc(100dvh-150px)] sm:h-[calc(100vh-150px)]">
           <KanbanBoard
             // Solo cambia al cambiar los filtros (no al cambiar una tarea): así
             // las cards que dejaron de coincidir tras un cambio de estado

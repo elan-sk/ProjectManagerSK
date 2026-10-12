@@ -1,7 +1,7 @@
 {
   "id": "/dashboard",
   "name": "ProjectManagerSK",
-  "short_name": "PM SK",
+  "short_name": "PMSK",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f8fafc",

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { fuzzyScore } from "../src/lib/fuzzy";
 import { matchesDateRange, parseDayKey } from "../src/lib/dateRange";
 import { progressBar } from "../src/lib/progressBar";
-import { HEADER_SEARCH_OPTIONS, parseHeaderSearch } from "../src/lib/search";
+import { HEADER_SEARCH_OPTIONS, isCompactSearch, parseHeaderSearch } from "../src/lib/search";
 
 for (const { prefix, kind } of HEADER_SEARCH_OPTIONS) {
   assert.deepEqual(parseHeaderSearch(`${prefix}:`), { filter: kind, text: "" });
@@ -62,4 +62,9 @@ assert.equal(progressBar(96), "█████████░", "96 % no se ve c
 assert.equal(progressBar(100), "█".repeat(10));
 assert.equal([...progressBar(57)].length, 10, "siempre 10 bloques");
 
+assert.equal(isCompactSearch(384, 1280), false);
+assert.equal(isCompactSearch(224, 1024), false);
+assert.equal(isCompactSearch(223, 1280), true);
+assert.equal(isCompactSearch(110, 1280), true);
+assert.equal(isCompactSearch(384, 1023), true);
 console.log("verify-search-filters: OK");

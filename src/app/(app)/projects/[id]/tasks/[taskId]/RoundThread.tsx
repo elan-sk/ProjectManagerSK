@@ -122,13 +122,13 @@ export function RoundThread({ roundId, messages, userId, canComment, canVote, ca
 
       {canComment && (
         <div data-paste-zone className="space-y-1 rounded-lg p-1.5">
-          <div className="flex gap-1.5">
+          <div className="flex flex-col items-start gap-1.5 lg:flex-row lg:items-stretch">
             <input
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !asPoll && handleSend()}
               placeholder={asPoll ? "Enunciado de la pregunta…" : "Escribir un mensaje…"}
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
+              className="w-full min-w-0 flex-1 lg:w-auto rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
             />
             <button
               type="button"

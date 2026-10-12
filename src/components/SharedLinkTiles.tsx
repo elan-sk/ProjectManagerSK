@@ -42,7 +42,7 @@ export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[];
           const name = rest.length > 0 ? rest.join(" — ") : l.label;
           const copied = copiedId === l.id;
           return (
-            <div key={l.id} className="group relative min-w-0">
+            <div key={l.id} className="group relative col-span-2 min-w-0 2xl:col-span-1">
               <button
                 type="button"
                 onClick={() => copy(l)}
@@ -54,8 +54,7 @@ export function SharedLinkTiles({ links, className }: { links: SharedLinkItem[];
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2 pl-2.5 pr-9">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-[#0a6b78]">{copied ? "¡Link copiado!" : rest.length > 0 ? kind : "Link"}</span>
-                  {/* Completo: un nombre largo baja de línea y la ficha crece en alto (pedido del usuario). */}
-                  <span className="break-words text-sm leading-snug font-medium text-slate-800">{name}</span>
+                  <span title={name} className="line-clamp-3 break-words text-sm leading-snug font-medium text-slate-800 2xl:line-clamp-none">{name}</span>
                   {/* Igual que el link externo y la contraseña: ícono y dirección; acá, el logo del proyecto (o su inicial). */}
                   {host && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400">

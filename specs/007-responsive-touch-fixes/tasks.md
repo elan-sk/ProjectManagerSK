@@ -1,0 +1,22 @@
+# Tareas 007
+
+- [x] **T1. Colores del buscador y nombre de la app instalada.** RF-9, RF-10, RF-34
+  - Hecho cuando: tarea en fucsia, link en esmeralda y `short_name` «PMSK»; `tsc` pasa.
+- [x] **T2. Buscador compacto con modal y reubicación en el header.** RF-1 a RF-8
+  - Hecho cuando: `verify:search-filters` cubre `isCompactSearch` y pasa; `tsc` y lint pasan.
+- [x] **T3. Menú angosto y paneles del header fuera del recorte.** RF-11, RF-12
+  - Hecho cuando: las tres campanas usan `AnchoredPopover`; `tsc` y lint pasan.
+- [x] **T4. Agenda «Mis proyectos» y Definición en celular.** RF-13, RF-14, RF-15
+  - Hecho cuando: los topes y la composición vieja aplican solo desde `sm:`.
+- [x] **T5. Tarea en celular: título, estados y acciones.** RF-16, RF-36, RF-38
+  - Hecho cuando: no queda `overflow-x-auto` en la fila de acciones y los estados usan grilla en celular.
+- [x] **T6. Tablero: toque sostenido, columnas en fila y desplazamiento horizontal.** RF-17 a RF-22
+  - Hecho cuando: sensores de ratón y de toque separados; `tsc` y lint pasan.
+- [x] **T7. Calendario: popup con toque.** RF-23 a RF-26
+  - Hecho cuando: con puntero táctil el primer clic no navega; `tsc` pasa.
+- [x] **T8. Links compartidos y tarjeta de proyecto.** RF-27, RF-28
+  - Hecho cuando: ficha de 2 columnas y título limitado por debajo de `2xl`; miniaturas sin encogerse.
+- [x] **T9. Gantt táctil.** RF-29 a RF-33
+  - Hecho cuando: con puntero táctil no hay paneo manual ni arrastre de barras, existe `onPointerCancel` y el popup lleva «Abrir tarea».
+- [x] **T10. Filtros en dos columnas, desplegable de vistas y fila de acciones del proyecto.** RF-35, RF-37, RF-39 a RF-41
+  - Hecho cuando: no queda ninguna fila de botones con `overflow-x-auto`; `tsc` y lint pasan.
