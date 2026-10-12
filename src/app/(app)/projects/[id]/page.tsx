@@ -714,10 +714,10 @@ export default async function ProjectPage({
                 </span>
               ))}
             </div>
-            {!canManage && <div className="mt-1.5 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-14.5 w-14.5 text-xl" projectId={project.id} toParent /></div>}
+            {!canManage && <div className="mt-1.5 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-15.5 w-15.5 text-xl" projectId={project.id} toParent /></div>}
             {canManage && (
               <div className="mt-1.5 flex items-start gap-1.5 sm:gap-2">
-                <span className="flex-shrink-0 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-14.5 w-14.5 text-xl" projectId={project.id} toParent /></span>
+                <span className="flex-shrink-0 sm:hidden"><ProjectIcon name={project.name} iconUrl={project.iconUrl} parent={project.parent} size="h-15.5 w-15.5 text-xl" projectId={project.id} toParent /></span>
               <div className="flex min-w-0 flex-wrap gap-1.5 sm:gap-2">
                 <ModalTrigger label="Fecha de inicio" title="Editar fecha de inicio" variant="secondary" small>
                   <EditStartDateForm

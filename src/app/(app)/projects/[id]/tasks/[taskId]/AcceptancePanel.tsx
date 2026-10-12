@@ -475,7 +475,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
           ⚠ El cliente devolvió esta característica{item.reviewedByExternalName ? ` · ${item.reviewedByExternalName}` : ""}
         </p>
       )}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col-reverse gap-2 max-sm:[&>*:not(:first-child)]:self-end sm:flex-row sm:items-start sm:justify-between">
         {editing ? (
           <form ref={editFormRef} className="min-w-0 flex-1 space-y-1.5">
             <div className="flex gap-1.5">

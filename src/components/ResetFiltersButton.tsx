@@ -9,7 +9,7 @@ import Link from "next/link";
 export function ResetFiltersButton({ href, count, aligned = true }: { href: string; count: number; /** false cuando los demás filtros no tienen etiqueta encima. */ aligned?: boolean }) {
   if (count <= 0) return null;
   return (
-    <div className="flex flex-col gap-1">
+    <div data-reset-filters className="flex flex-col gap-1">
       {aligned && <span className="text-xs text-slate-400">&nbsp;</span>}
       <Link
         href={href}
@@ -19,7 +19,7 @@ export function ResetFiltersButton({ href, count, aligned = true }: { href: stri
         // Baya sólido (#a3455f, de la paleta de la marca) a propósito: ningún
         // otro filtro usa ese tono (los demás son teal, gris o colores de
         // estado), así el botón de "quitar filtros" salta a la vista.
-        className="relative flex items-center gap-1.5 rounded-lg bg-[#a3455f] px-2.5 py-1.5 text-white shadow-sm hover:bg-[#8f3b53]"
+        className="relative flex w-fit items-center gap-1.5 self-start rounded-lg bg-[#a3455f] px-2.5 py-1.5 text-white shadow-sm hover:bg-[#8f3b53]"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h18l-7 8.5V20l-4-2v-4.5L3 5z" />

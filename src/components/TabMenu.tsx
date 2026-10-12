@@ -13,7 +13,14 @@ const ROW_ITEM = {
 
 export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem[]; prefix?: string; variant?: keyof typeof ROW_ITEM }) {
   const [open, setOpen] = useState(false);
+  const [fitsLeft, setFitsLeft] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  function toggle() {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (rect) setFitsLeft(rect.left <= window.innerWidth / 2);
+    setOpen((value) => !value);
+  }
   const current = items.find((item) => item.active) ?? items[0];
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
         <button
           type="button"
           aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
+          onClick={toggle}
           className="flex w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-left text-sm text-white"
         >
           <span className="min-w-0 truncate">
@@ -59,7 +66,7 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
           </svg>
         </button>
         {open && (
-          <div className="absolute left-0 z-40 mt-1 max-h-[60vh] w-max min-w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+          <div className={`absolute ${fitsLeft ? "left-0" : "right-0"} z-40 mt-1 max-h-[60vh] w-max min-w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}>
             {items.map((item) => (
               <Link
                 key={item.label}

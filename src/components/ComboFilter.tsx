@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { normalizeSearchText } from "@/lib/search";
 
+const DROPDOWN_WIDTH = 256;
+
 /**
  * Filtro con autocompletar: para listas que pueden crecer con el uso real
  * del producto (proyectos, personas) — a diferencia de un estado fijo de 4
@@ -41,7 +43,14 @@ export function ComboFilter({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [fitsLeft, setFitsLeft] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  function toggle() {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (rect) setFitsLeft(rect.left + DROPDOWN_WIDTH <= window.innerWidth - 8);
+    setOpen((o) => !o);
+  }
 
   function buildHref(id: string | undefined) {
     const p = new URLSearchParams();
@@ -83,7 +92,7 @@ export function ComboFilter({
     <div className="relative" ref={rootRef}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${value ? (triggerColorClass ?? "bg-[#0a6b78] text-white") : "bg-slate-100 text-slate-600"}`}
       >
         {!triggerColorClass && (selected?.dotColorClass || selected?.dotColorHex) && (
@@ -97,8 +106,8 @@ export function ComboFilter({
 
       {open && (
         <div
-          className={`absolute z-50 mt-1 w-64 rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ${
-            align === "right" ? "right-0" : "left-0"
+          className={`absolute z-50 mt-1 w-64 max-w-[calc(100vw-1rem)] rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ${
+            align === "right" || !fitsLeft ? "right-0" : "left-0"
           }`}
         >
           <input

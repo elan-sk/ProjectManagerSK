@@ -196,7 +196,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   return (
     <div className={`space-y-2 rounded-xl border border-l-4 p-3 shadow-sm ${needsChanges ? "border-amber-400 border-l-amber-500 bg-amber-50" : "border-slate-300 border-l-[#0a6b78] bg-white"}`}>
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Cambio {index + 1} de {total}</p>
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="mb-3 flex flex-col-reverse gap-2 max-sm:[&>*:not(:first-child)]:self-end sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           {editingDescription ? (
             <form action={handleSaveDescription} className="space-y-1.5">

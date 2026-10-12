@@ -756,7 +756,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
   return (
     <li className="space-y-1.5 rounded-xl border border-slate-300 border-l-4 border-l-[#0a6b78] bg-white p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col-reverse gap-2 max-sm:[&>*:not(:first-child)]:self-end sm:flex-row sm:items-start sm:justify-between">
         {editing ? (
           <form ref={editFormRef} className="min-w-0 flex-1 space-y-1.5">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Prueba {index + 1} de {total}</p>

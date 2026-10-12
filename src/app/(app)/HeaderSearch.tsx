@@ -89,6 +89,7 @@ export function HeaderSearch() {
   const [modalOpen, setModalOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
+  const historyEntryRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileViewer = useFileViewer();
   const trimmed = query.trim();
@@ -132,6 +133,18 @@ export function HeaderSearch() {
   }, []);
 
   useEffect(() => {
+    function onPopState() {
+      if (!historyEntryRef.current) return;
+      historyEntryRef.current = false;
+      setModalOpen(false);
+      setFiltersOpen(false);
+      setOpen(false);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -148,7 +161,7 @@ export function HeaderSearch() {
       if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== "Space") return;
       if (compact && !modalOpen) {
         e.preventDefault();
-        setModalOpen(true);
+        showModal();
         setOpen(true);
         requestAnimationFrame(() => inputRef.current?.focus());
         return;
@@ -170,18 +183,39 @@ export function HeaderSearch() {
 
   // Archivos, links y contraseñas se abren en su visor (useFileViewer: mismo criterio que las fichas
   // de archivos); un archivo sin vista previa se descarga y un link común abre en pestaña nueva.
-  function openModal(prefix?: string) {
+  function showModal() {
+    if (!historyEntryRef.current) {
+      window.history.pushState(null, "");
+      historyEntryRef.current = true;
+    }
     setModalOpen(true);
+  }
+
+  function closeModal() {
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      window.history.back();
+    }
+    setModalOpen(false);
+  }
+
+  function openModal(prefix?: string) {
+    showModal();
     if (prefix) return selectSearchType(prefix);
     setOpen(true);
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function go(hit: SearchHit) {
-    setModalOpen(false);
     setOpen(false);
     setQuery("");
-    if (!hit.preview) return router.push(hit.href);
+    if (!hit.preview) {
+      const replaceEntry = historyEntryRef.current;
+      historyEntryRef.current = false;
+      setModalOpen(false);
+      return replaceEntry ? router.replace(hit.href) : router.push(hit.href);
+    }
+    closeModal();
     fileViewer.open({ id: hit.id, url: hit.preview.url, name: hit.title, mimeType: hit.preview.mimeType, place: { href: hit.href, title: hit.context ?? hit.title } });
   }
 
@@ -244,7 +278,7 @@ export function HeaderSearch() {
           if (e.key === "Escape") {
             setFiltersOpen(false);
             setOpen(false);
-            setModalOpen(false);
+            closeModal();
           }
         }}
         className={`group relative min-w-0 flex-1 ${compact ? "" : "max-w-sm"}`}
@@ -413,12 +447,12 @@ export function HeaderSearch() {
           <div
             className="fixed inset-0 z-[60] flex items-start justify-center overflow-x-hidden overflow-y-auto bg-slate-900/40 px-3 pt-3"
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setModalOpen(false);
+              if (e.target === e.currentTarget) closeModal();
             }}
           >
             <div role="dialog" aria-label="Buscador rápido" className="flex w-full max-w-xl items-center gap-1 rounded-2xl bg-[#0a5866] p-2 shadow-[0_16px_40px_rgba(15,23,42,0.3)]">
               {field}
-              <button type="button" title="Cerrar buscador" aria-label="Cerrar buscador" onClick={() => setModalOpen(false)} className="flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white">
+              <button type="button" title="Cerrar buscador" aria-label="Cerrar buscador" onClick={closeModal} className="flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white">
                 <XIcon className="h-4 w-4" />
               </button>
             </div>
