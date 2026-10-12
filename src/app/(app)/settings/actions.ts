@@ -7,6 +7,14 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { setAppCountryCode } from "@/lib/appSettings";
+import { deleteUserPermanently, getUserDeletionSummary, type UserDeletionSummary } from "@/lib/userDeletion";
+import { deleteFileIfUnused } from "@/lib/fileCleanup";
+import { logger } from "@/lib/logger";
+
+async function deletedUserError(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { deletedAt: true } });
+  return !user || user.deletedAt ? "Esta persona fue eliminada y su cuenta ya no se puede modificar." : null;
+}
 
 async function requireAdmin() {
   const session = await auth();
@@ -93,6 +101,8 @@ export async function updateUserRole(userId: string, role: "ADMIN" | "MEMBER") {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
   await prisma.user.update({ where: { id: userId }, data: { role } });
   forgetUserStatus(userId);
   revalidatePath("/settings");
@@ -107,6 +117,8 @@ export async function resetUserPassword(userId: string, formData: FormData) {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
   const parsed = resetPasswordSchema.safeParse({ password: formData.get("password") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
@@ -121,6 +133,8 @@ export async function updateUserProfile(userId: string, formData: FormData) {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
 
   const parsed = updateProfileSchema.safeParse({
     name: formData.get("name"),
@@ -171,10 +185,12 @@ export async function deactivateUser(userId: string) {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
 
   const session = await auth();
   if (session?.user?.id === userId) {
-    return { ok: false, error: "No podés eliminar tu propio usuario." };
+    return { ok: false, error: "No es posible desactivar la cuenta propia." };
   }
 
   await prisma.user.update({ where: { id: userId }, data: { active: false } });
@@ -189,6 +205,8 @@ export async function reactivateUser(userId: string) {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
 
   await prisma.user.update({ where: { id: userId }, data: { active: true } });
   forgetUserStatus(userId);
@@ -202,6 +220,8 @@ export async function updateUserAvatar(userId: string, avatarUrl: string) {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
   await prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
   revalidatePath("/settings");
   return { ok: true };
@@ -273,5 +293,51 @@ export async function changeOwnPassword(formData: FormData) {
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  return { ok: true };
+}
+
+export async function getUserDeletionSummaryAction(userId: string): Promise<{ ok: true; summary: UserDeletionSummary } | { ok: false; error: string }> {
+  try {
+    await requireAdmin();
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+  const deleted = await deletedUserError(userId);
+  if (deleted) return { ok: false, error: deleted };
+  return { ok: true, summary: await getUserDeletionSummary(userId) };
+}
+
+const deleteUserSchema = z.object({
+  userId: z.string().min(1),
+  newPmId: z.string().min(1).nullable(),
+  tasksToId: z.string().min(1).nullable(),
+  credentialsToId: z.string().min(1).nullable(),
+});
+
+export async function deleteUserPermanentlyAction(input: z.input<typeof deleteUserSchema>): Promise<{ ok: true } | { ok: false; error: string }> {
+  let admin;
+  try {
+    admin = await requireAdmin();
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+  const parsed = deleteUserSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Los datos del formulario no son válidos." };
+
+  const previous = await prisma.user.findUnique({ where: { id: parsed.data.userId }, select: { avatarUrl: true } });
+  const result = await deleteUserPermanently({ ...parsed.data, actorId: admin.id });
+  if (!result.ok) return result;
+
+  forgetUserStatus(parsed.data.userId);
+  if (previous?.avatarUrl) await deleteFileIfUnused(previous.avatarUrl);
+  logger.info("users", "Cuenta eliminada definitivamente", {
+    actorId: admin.id,
+    userId: parsed.data.userId,
+    newPmId: parsed.data.newPmId,
+    tasksToId: parsed.data.tasksToId,
+    credentialsToId: parsed.data.credentialsToId,
+    summary: result.summary,
+  });
+  revalidatePath("/", "layout");
   return { ok: true };
 }

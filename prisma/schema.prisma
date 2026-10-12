@@ -137,6 +137,7 @@ model User {
   // puede loguearse ni se lo puede asignar a nada nuevo, pero su historial
   // queda intacto.
   active                Boolean   @default(true)
+  deletedAt             DateTime?
   avatarUrl             String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
   phone                 String?

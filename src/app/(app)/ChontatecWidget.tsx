@@ -9,7 +9,9 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { ALERT_STYLE, ALERT_LEVEL_LABEL } from "@/components/AlertBadge";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import { useConfirm } from "@/components/Confirm";
-import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon } from "@/components/icons";
+import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon, MicIcon } from "@/components/icons";
+import { useDictation } from "@/components/useDictation";
+import { appendDictation } from "@/lib/dictation";
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -238,6 +240,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const viewerOpenRef = useRef(false);
   viewerOpenRef.current = fileViewer.isOpen;
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+  const {
+    supported: canDictate,
+    listening,
+    interim,
+    error: dictationError,
+    stop: stopDictation,
+    toggle: toggleDictation,
+  } = useDictation((spoken) => setText((current) => appendDictation(current, spoken)));
   // Alt+L con el historial sin cargar: se lee apenas llega.
   const speakLastOnLoad = useRef(false);
   const lastAssistant = messages.findLast((m) => m.role === "assistant" && m.text);
@@ -262,6 +272,9 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   useEffect(() => {
     if (!open && canSpeak) window.speechSynthesis.cancel();
   }, [open, canSpeak]);
+  useEffect(() => {
+    if (!open && listening) stopDictation();
+  }, [open, listening, stopDictation]);
   useEffect(() => {
     return () => {
       if (canSpeak) window.speechSynthesis.cancel();
@@ -363,6 +376,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   function handleSend() {
     const typed = text.trim();
     if ((!typed && attached.length === 0) || isPending) return;
+    if (listening) stopDictation();
     // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
     const value = attached.length
       ? `${typed || "Subí este archivo."}\n\n[Archivos subidos en el chat: ${attached.map((f) => `"${f.name}" → ${f.url}`).join(", ")}]`
@@ -598,6 +612,11 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
               <p className="px-1 py-1.5 text-center text-xs text-slate-400">Confirmá o cancelá la acción de arriba primero.</p>
             ) : (
               <div className="space-y-1">
+              {(listening || dictationError) && (
+                <p className={`truncate px-1 text-[11px] ${dictationError ? "text-red-600" : "text-slate-400"}`} aria-live="polite">
+                  {dictationError ?? (interim || "Escuchando…")}
+                </p>
+              )}
               {(attached.length > 0 || uploadError) && (
                 <div className="flex flex-wrap items-center gap-1 px-1 text-[11px]">
                   {attached.map((f) => (
@@ -614,11 +633,29 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   📎
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+                {canDictate && (
+                  <button
+                    type="button"
+                    onClick={toggleDictation}
+                    disabled={isPending}
+                    aria-pressed={listening}
+                    title={listening ? "Detener el dictado (Ctrl + D)" : "Dictar por voz (Ctrl + D)"}
+                    aria-label={listening ? "Detener el dictado" : "Dictar por voz"}
+                    className={`flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg disabled:opacity-60 ${listening ? "animate-pulse bg-red-600 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
+                  >
+                    <MicIcon className="h-4 w-4" />
+                  </button>
+                )}
                 <input
                   autoFocus
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => {
+                    if (canDictate && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+                      e.preventDefault();
+                      toggleDictation();
+                      return;
+                    }
                     if (e.key === "Enter") handleSend();
                   }}
                   placeholder="Preguntale algo…"

@@ -690,7 +690,7 @@ export default async function ProjectPage({
                   <EyeOffIcon className="h-5 w-5" />
                 </span>
               )}
-              {isParent && <SubprojectsPopover subprojects={children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) }))} size="h-6 w-6 text-[10px]" />}
+              {isParent && <span className="hidden sm:contents"><SubprojectsPopover subprojects={children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) }))} size="h-6 w-6 text-[10px]" /></span>}
             </h1>
             {project.parent && (
               <p className="text-sm text-slate-500">
@@ -751,6 +751,18 @@ export default async function ProjectPage({
                   )}
                 </div>
               </div>
+              </div>
+            )}
+            {isParent && (
+              <div className="mt-2 sm:hidden">
+                <SubprojectsPopover
+                  subprojects={children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) }))}
+                  trigger={
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                      Grupo: {children.length} {children.length === 1 ? "subproyecto" : "subproyectos"}
+                    </span>
+                  }
+                />
               </div>
             )}
           </div>

@@ -229,7 +229,7 @@ export async function getUserPerformance(
   projectIds?: string[]
 ): Promise<UserPerformance[]> {
   const users = await prisma.user.findMany({
-    where: userId ? { id: userId } : undefined,
+    where: { deletedAt: null, ...(userId ? { id: userId } : {}) },
     include: {
       assignments: {
         where: projectIds ? { task: { projectId: { in: projectIds } } } : undefined,
@@ -424,6 +424,7 @@ export type WorkloadRow = {
  */
 export async function getTeamWorkload(projectIds?: string[]): Promise<WorkloadRow[]> {
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     include: {
       assignments: {
         where: { task: { status: { not: "COMPLETED" }, projectId: projectIds ? { in: projectIds } : undefined } },

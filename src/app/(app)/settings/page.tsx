@@ -42,6 +42,7 @@ export default async function SettingsPage({
     prisma.googleCalendarConnection.findUnique({ where: { userId: session.user.id } }),
     isAdmin
       ? prisma.user.findMany({
+          where: { deletedAt: null },
           orderBy: [{ active: "desc" }, { name: "asc" }],
           select: { id: true, name: true, email: true, username: true, role: true, avatarUrl: true, phone: true, active: true },
         })

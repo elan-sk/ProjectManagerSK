@@ -10,6 +10,7 @@ import { useToast } from "@/components/Toast";
 import { CreateUserForm } from "./CreateUserForm";
 import { ResetPasswordForm } from "./ResetPasswordForm";
 import { EditUserForm } from "./EditUserForm";
+import { DeleteUserForm } from "./DeleteUserForm";
 
 type UserRow = {
   id: string;
@@ -42,12 +43,6 @@ function RoleSelect({ userId, role }: { userId: string; role: UserRow["role"] })
   );
 }
 
-// El botón dice "Eliminar" (así lo entiende el equipo) pero por dentro
-// desactiva en vez de borrar de verdad — ver el comentario en
-// deactivateUser (actions.ts) sobre por qué un borrado en cascada colgaba
-// toda la app. Desactivado: no puede loguearse ni se lo puede asignar a
-// nada nuevo — invisible en la práctica para el resto del equipo.
-//
 // El confirm() se llama AFUERA de useTransition a propósito — ver el
 // comentario en ArchiveProjectButton.tsx sobre por qué mezclarlo con una
 // transición hacía que el modal nunca llegara a pintarse.
@@ -58,8 +53,8 @@ function DeactivateUserButton({ userId, name }: { userId: string; name: string }
   const [isPending, setIsPending] = useState(false);
 
   async function handleDeactivate() {
-    const ok = await confirm(`¿Eliminar a "${name}"? No va a poder entrar ni asignársele nada nuevo.`, {
-      confirmLabel: "Eliminar",
+    const ok = await confirm(`¿Desactivar a «${name}»? No podrá entrar ni se le podrá asignar nada nuevo. Se puede reactivar después.`, {
+      confirmLabel: "Desactivar",
       danger: true,
     });
     if (!ok) return;
@@ -68,10 +63,10 @@ function DeactivateUserButton({ userId, name }: { userId: string; name: string }
     const result = await deactivateUser(userId);
     if (!result.ok) {
       setIsPending(false);
-      showToast(result.error ?? "No se pudo eliminar el usuario.");
+      showToast(result.error ?? "No se pudo desactivar a esta persona.");
       return;
     }
-    showToast(`Se eliminó a ${name}.`, "success");
+    showToast(`Se desactivó a ${name}.`, "success");
     router.refresh();
   }
 
@@ -80,9 +75,9 @@ function DeactivateUserButton({ userId, name }: { userId: string; name: string }
       type="button"
       disabled={isPending}
       onClick={handleDeactivate}
-      className="flex-shrink-0 text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-60"
+      className="flex-shrink-0 cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-900 disabled:opacity-60"
     >
-      Eliminar
+      Desactivar
     </button>
   );
 }
@@ -116,6 +111,18 @@ function ReactivateUserButton({ userId, name }: { userId: string; name: string }
   );
 }
 
+function DeleteUserTrigger({ user, users }: { user: UserRow; users: UserRow[] }) {
+  return (
+    <ModalTrigger
+      label="Eliminar definitivamente"
+      title={`Eliminar definitivamente — ${user.name}`}
+      className="flex-shrink-0 cursor-pointer text-xs font-medium text-red-500 hover:text-red-700"
+    >
+      <DeleteUserForm userId={user.id} name={user.name} people={users.filter((p) => p.active && p.id !== user.id).map((p) => ({ id: p.id, label: p.name }))} />
+    </ModalTrigger>
+  );
+}
+
 export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; currentUserId: string }) {
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -136,7 +143,7 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">
                   {u.name}
-                  {!u.active && <span className="ml-1.5 text-xs font-normal text-slate-400">(eliminado)</span>}
+                  {!u.active && <span className="ml-1.5 text-xs font-normal text-slate-400">(desactivado)</span>}
                 </p>
                 <p className="truncate text-xs text-slate-400">
                   @{u.username}
@@ -155,13 +162,17 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
                     <ResetPasswordForm userId={u.id} />
                   </ModalTrigger>
                   {u.id !== currentUserId && (
-                    <div className="ml-1.5 border-l border-slate-200 pl-2.5">
+                    <div className="ml-1.5 flex items-center gap-2.5 border-l border-slate-200 pl-2.5">
                       <DeactivateUserButton userId={u.id} name={u.name} />
+                      <DeleteUserTrigger user={u} users={users} />
                     </div>
                   )}
                 </>
               ) : (
-                <ReactivateUserButton userId={u.id} name={u.name} />
+                <>
+                  <ReactivateUserButton userId={u.id} name={u.name} />
+                  <DeleteUserTrigger user={u} users={users} />
+                </>
               )}
             </div>
           </li>

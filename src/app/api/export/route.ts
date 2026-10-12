@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     ? await prisma.user.findMany({
         where: projectIds ? { username: { in: [...referenced] } } : undefined,
         orderBy: { username: "asc" },
-        select: { username: true, name: true, email: true, phone: true, role: true, active: true, avatarUrl: true, passwordHash: true },
+        select: { username: true, name: true, email: true, phone: true, role: true, active: true, deletedAt: true, avatarUrl: true, passwordHash: true },
       })
     : undefined;
 

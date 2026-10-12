@@ -45,6 +45,7 @@ import { commentInputSchema, listTaskThreads, postProjectComment, postTaskCommen
 import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { mentionMarker } from "@/lib/commentBody";
 import { addBusinessDays } from "@/lib/holidays";
+import { getWorkingCalendar, WORKING_CALENDAR_MAX_DAYS } from "@/lib/botCalendar";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { sendDailyDigestNow } from "@/lib/notifications";
 import { readFile, stat } from "node:fs/promises";
@@ -195,6 +196,21 @@ export const READ_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { projectId: { type: "string" } },
       required: ["projectId"],
+    },
+  },
+  {
+    name: "get_working_calendar",
+    description:
+      "Calendario laboral oficial de la app (sin fines de semana ni festivos del país). Devuelve los festivos del rango (fecha, día de la semana y nombre), los días hábiles entre `from` y `to` (ambos incluidos) y, con `durationDays`, la fecha en que termina un trabajo de esa duración (`endDate`; el día de inicio cuenta como día 1, igual que en las tareas). Sin `to` ni `durationDays` cubre hasta el 31 de diciembre de ese año. Con `projectId` usa el país de ese proyecto.",
+    input_schema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Fecha inicial, AAAA-MM-DD." },
+        to: { type: "string", description: "Fecha final, AAAA-MM-DD." },
+        durationDays: { type: "number", description: "Duración en días hábiles, mínimo 1." },
+        projectId: { type: "string" },
+      },
+      required: ["from"],
     },
   },
   {
@@ -1061,6 +1077,18 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           };
         })
       );
+    }
+
+    case "get_working_calendar": {
+      const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+      const { projectId, ...range } = z.object({ from: day, to: day.optional(), durationDays: z.number().int().min(1).max(WORKING_CALENDAR_MAX_DAYS).optional(), projectId: z.string().optional() }).parse(input);
+      let countryCode = await getAppCountryCode();
+      if (projectId) {
+        const accessibleIds = await getAccessibleProjectIds(userId);
+        if (!hasAccess(accessibleIds, projectId)) return JSON.stringify(NO_ACCESS);
+        countryCode = (await prisma.project.findUnique({ where: { id: projectId }, select: { countryCode: true } }))?.countryCode ?? countryCode;
+      }
+      return JSON.stringify(await getWorkingCalendar(countryCode, range));
     }
 
     case "get_team_workload": {

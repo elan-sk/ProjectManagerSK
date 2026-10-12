@@ -47,6 +47,7 @@ const userSchema = z.object({
   phone: z.string().nullable(),
   role: z.enum(["ADMIN", "MEMBER"]),
   active: z.boolean(),
+  deletedAt: z.string().nullable().optional(),
   avatarUrl: z.string().nullable(),
   passwordHash: z.string().min(1),
 });
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
           phone: u.phone,
           role: u.role,
           active: u.active,
+          deletedAt: u.deletedAt ? new Date(u.deletedAt) : null,
           avatarUrl: u.avatarUrl,
           passwordHash: u.passwordHash,
         },

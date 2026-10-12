@@ -38,7 +38,7 @@ export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?
       where: taskFilter,
       select: { submittedById: true, roundNumber: true, outcome: true, taskId: true },
     }),
-    prisma.user.findMany({ select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { deletedAt: null }, select: { id: true, name: true } }),
   ]);
 
   const byUser = new Map<string, ReviewPerformance>();
@@ -60,6 +60,7 @@ export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?
   const nameById = new Map(users.map((u) => [u.id, u.name]));
 
   for (const round of rounds) {
+    if (!nameById.has(round.submittedById)) continue;
     const entry = get(round.submittedById, nameById.get(round.submittedById) ?? "—");
     entry.roundsSubmitted++;
     tasksByUser.get(round.submittedById)!.add(round.taskId);
