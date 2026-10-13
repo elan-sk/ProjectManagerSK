@@ -1,3 +1,5 @@
+import { format as formatDay, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 import { TaskDatesEditor } from "./TaskDatesEditor";
 import { progressPct, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
@@ -54,6 +56,8 @@ import { TaskTagsEditor } from "./TaskTagsEditor";
 import { InternalConversation } from "@/components/InternalConversation";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
+// Fecha corta de la línea «Planeada / Real» («1 oct»), igual a la que muestra el calendario de fechas planeadas.
+const shortDay = (d: Date) => formatDay(parseISO(d.toISOString().slice(0, 10)), "d MMM", { locale: es });
 
 type RoundMessageRow = {
   id: string;
@@ -416,14 +420,14 @@ export default async function TaskDetailPage({
             <TaskDatesEditor taskId={taskId} from={task.plannedStart.toISOString().slice(0, 10)} to={task.plannedEnd.toISOString().slice(0, 10)} updatedAt={task.updatedAt.toISOString()} />
           ) : (
             <>
-              {task.plannedStart.toLocaleDateString("es-CO", DATE_FMT)} — {task.plannedEnd.toLocaleDateString("es-CO", DATE_FMT)}
+              {shortDay(task.plannedStart)} – {shortDay(task.plannedEnd)}
             </>
           )}
           {task.actualStart && (
             <>
               {" "}
-              · <span className="font-medium text-slate-600">Real:</span> {task.actualStart.toLocaleDateString("es-CO", DATE_FMT)}
-              {task.actualEnd ? ` — ${task.actualEnd.toLocaleDateString("es-CO", DATE_FMT)}` : " — en curso"}
+              · <span className="font-medium text-slate-600">Real:</span> {shortDay(task.actualStart)}
+              {task.actualEnd ? ` – ${shortDay(task.actualEnd)}` : " – en curso"}
             </>
           )}
         </p>
