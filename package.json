@@ -32,6 +32,7 @@
     "verify:insert-adjacent-task": "tsx scripts/verify-insert-adjacent-task.ts",
     "verify:bot-usage-reset": "tsx scripts/verify-bot-usage-reset.ts",
     "verify:optimistic-lock": "tsx scripts/verify-optimistic-lock.ts",
+    "verify:tag-summary": "tsx scripts/verify-tag-summary.ts",
     "verify:search-filters": "tsx scripts/verify-search-filters.ts",
     "verify:group-alert-digest": "tsx scripts/verify-group-alert-digest.ts",
     "verify:paste-image": "tsx scripts/verify-paste-image.ts",

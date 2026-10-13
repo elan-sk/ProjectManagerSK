@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
+import { tagNameSchema } from "@/lib/tagNameInput";
 import { prisma } from "@/lib/prisma";
-import { isPmOrAdminAnywhere, canEditTask, resolveActor, type Actor } from "@/lib/permissions";
+import { isPmOrAdminAnywhere, canEditTask, resolveActor, visibleProjectWhere, managedProjectWhere, type Actor } from "@/lib/permissions";
 import { ALLOWED_TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { upsertTag } from "@/lib/tags";
 
@@ -19,7 +21,7 @@ async function requirePmOrAdmin(actor?: Actor) {
 }
 
 function revalidate() {
-  revalidatePath("/settings/tags");
+  revalidatePath("/", "layout");
 }
 
 // Punto 17: la categoría (contenedor global — nombre, color, emoji) requiere
@@ -73,7 +75,54 @@ export async function deleteTagCategory(categoryId: string, actor?: Actor) {
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
-  await prisma.tagCategory.delete({ where: { id: categoryId } });
+  try {
+    await prisma.tagCategory.deleteMany({ where: { id: categoryId } });
+  } catch {
+    return { ok: false as const, error: "No se pudo eliminar la categoría. Se puede intentar nuevamente." };
+  }
+  revalidate();
+  return { ok: true as const };
+}
+
+export async function updateTag(tagId: string, rawName: string) {
+  const user = await resolveActor();
+  if (!user) return { ok: false as const, error: "Se necesita iniciar sesión." };
+  const name = tagNameSchema.safeParse(rawName);
+  if (!name.success) return { ok: false as const, error: "El nombre debe tener entre 1 y 80 caracteres." };
+  try {
+    const result = await prisma.tag.updateMany({
+      where: {
+        id: tagId,
+        project: {
+          AND: [visibleProjectWhere(user, { includeArchived: true }), ...(user.role === "ADMIN" ? [] : [managedProjectWhere(user.id)])],
+        },
+      },
+      data: { name: name.data },
+    });
+    if (!result.count) return { ok: false as const, error: "La etiqueta ya no existe o no hay permiso para editarla." };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false as const, error: "Ya existe una etiqueta con ese nombre en esta categoría y proyecto." };
+    }
+    return { ok: false as const, error: "No se pudo guardar la etiqueta. Se puede intentar nuevamente." };
+  }
+  revalidate();
+  return { ok: true as const };
+}
+
+export async function deleteTag(tagId: string) {
+  const user = await resolveActor();
+  if (!user || user.role !== "ADMIN") {
+    return { ok: false as const, error: "Solo un administrador puede eliminar etiquetas." };
+  }
+  try {
+    const result = await prisma.tag.deleteMany({
+      where: { id: tagId, project: visibleProjectWhere(user, { includeArchived: true }) },
+    });
+    if (!result.count) return { ok: false as const, error: "La etiqueta ya no existe o no está disponible." };
+  } catch {
+    return { ok: false as const, error: "No se pudo eliminar la etiqueta. Se puede intentar nuevamente." };
+  }
   revalidate();
   return { ok: true as const };
 }
