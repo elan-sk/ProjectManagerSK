@@ -100,6 +100,8 @@ export function DefinitionTab({
 
       <SubprojectsPanel projectId={projectId} canManage={canManage} {...subprojects} />
 
+      <ProjectRolesPanel projectId={projectId} roles={roles} members={members} canManage={canManage} />
+
       <DefinitionSummary
         taskProgress={taskProgress}
         objectives={objectives.map((o) => ({ id: o.id, label: o.title, pct: o.pct, atRisk: o.atRiskRequirementCount > 0 }))}
@@ -108,8 +110,6 @@ export function DefinitionTab({
         unassignedTasks={unassignedTasks}
         subprojects={subprojects.subprojects.map((s) => ({ id: s.id, label: s.name, pct: s.pct, atRisk: false }))}
       />
-
-      <ProjectRolesPanel projectId={projectId} roles={roles} members={members} canManage={canManage} />
 
       <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} parentObjectives={parentObjectives} />
       <RequirementsPanel

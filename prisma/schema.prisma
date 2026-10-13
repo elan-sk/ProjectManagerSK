@@ -208,7 +208,7 @@ model ProjectRole {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Qué hace esta persona en este proyecto (ej. "Arquitecto de datos", "Enlace con el cliente").
-  role      String
+  role      String   @db.Text
   createdAt DateTime @default(now())
 
   // Una sola fila por persona y proyecto: el rol se edita, no se duplica.

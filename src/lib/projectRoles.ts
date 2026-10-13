@@ -7,7 +7,7 @@ import { z } from "zod";
 // el chat rechacen exactamente lo mismo.
 
 export const CARGO_MAX = 80;
-export const ROLE_MAX = 120;
+export const ROLE_MAX = 1000;
 
 // Texto libre de una línea: se recortan los extremos y los espacios de más, y
 // vacío significa "sin dato" (null), no una cadena con espacios.
@@ -21,10 +21,19 @@ export const optionalLine = (max: number) =>
     .transform((s) => (s.length === 0 ? null : s));
 
 export const cargoSchema = optionalLine(CARGO_MAX);
-// Un rol cargado no puede quedar vacío: o se describe, o no hay fila.
+// Un rol cargado no puede quedar vacío: o se describe, o no hay fila. Admite
+// varias líneas para detallar: se ordenan los espacios de cada línea y se dejan
+// como mucho una línea en blanco seguida.
 export const roleSchema = z
   .string()
-  .transform((s) => s.replace(/\s+/g, " ").trim())
+  .transform((s) =>
+    s
+      .replace(/\r\n?/g, "\n")
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/ ?\n ?/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+  )
   .refine((s) => s.length > 0, {
     message: "Escribí qué hace esta persona en el proyecto.",
   })

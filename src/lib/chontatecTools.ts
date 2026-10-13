@@ -17,6 +17,7 @@ import { addProjectAttachment, addProjectLink, updateProjectDescription, updateP
 import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
+import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
 import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
 import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm } from "@/lib/permissions";
@@ -545,6 +546,21 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         parentId: { type: "string", description: "Id del proyecto principal, o vacío para quitarlo del grupo." },
       },
       required: ["projectId"],
+    },
+  },
+  {
+    name: "set_project_role",
+    description:
+      "Carga, cambia o quita el rol de una persona EN UN PROYECTO (qué hace ahí, ej. «Arquitecto de datos, enlace con el cliente»; es informativo, no da permisos). action «set» guarda el rol (hasta 1000 caracteres, admite párrafos); action «remove» quita a la persona del equipo del proyecto. Solo PM del proyecto o admin. El userId sale de list_members.",
+    input_schema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        userId: { type: "string" },
+        action: { type: "string", enum: ["set", "remove"] },
+        role: { type: "string", description: "Qué hace la persona en el proyecto. Obligatorio con action «set»." },
+      },
+      required: ["projectId", "userId", "action"],
     },
   },
   {
@@ -1397,6 +1413,8 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return "Cambiar las fechas o la duración de la tarea";
     case "set_task_reviewers":
       return "Agregar o quitar un revisor";
+    case "set_project_role":
+      return (input as { action?: string }).action === "remove" ? "Quitar a una persona del equipo del proyecto" : "Guardar el rol de una persona en el proyecto";
     case "send_welcome_message":
       return "Enviar el mensaje de bienvenida con la foto del bot";
     case "send_daily_digest":
@@ -2175,6 +2193,19 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         for (const id of ids) fd.append("reviewerIds", id);
         const r = await setTaskReviewers(taskId, fd);
         return { ok: r.ok, message: r.ok ? "Listo, se actualizaron los revisores." : (r.error ?? "No se pudo actualizar.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "set_project_role": {
+      try {
+        const { projectId, userId, action, role } = z
+          .object({ projectId: z.string(), userId: z.string(), action: z.enum(["set", "remove"]), role: z.string().optional() })
+          .parse(input);
+        const r = action === "remove" ? await removeProjectRole(projectId, userId) : await setProjectRole(projectId, userId, role ?? "");
+        if (!r.ok) return { ok: false, message: r.error };
+        return { ok: true, message: action === "remove" ? "Listo, se quitó a la persona del equipo del proyecto." : "Listo, se guardó el rol en el proyecto." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

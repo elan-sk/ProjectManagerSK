@@ -4,10 +4,7 @@ import { Avatar } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
 import { ModalTrigger } from "@/components/Modal";
 import { ROLE_MAX } from "@/lib/projectRoles";
-import {
-  DEFINITION_ACTION_BTN,
-  DEFINITION_LEVEL_COLOR
-} from "@/lib/statusColors";
+import { DEFINITION_ACTION_BTN } from "@/lib/statusColors";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { removeProjectRole, setProjectRole } from "./roleActions";
@@ -74,7 +71,7 @@ export function ProjectRolesPanel({
 
   return (
     <div
-      className={`space-y-3 rounded-xl border border-l-4 border-slate-200 ${DEFINITION_LEVEL_COLOR.PHASE.borderLeft} bg-white p-4`}
+      className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[21px] font-semibold text-slate-900">
@@ -152,13 +149,14 @@ export function ProjectRolesPanel({
                 )}
               </div>
               {editingId === row.userId ? (
-                <div className="mt-2 flex gap-2">
-                  <input
+                <div className="mt-2 flex items-start gap-2">
+                  <textarea
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     maxLength={ROLE_MAX}
+                    rows={5}
                     autoFocus
-                    className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
+                    className="min-w-0 flex-1 resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-[17px]"
                   />
                   <button
                     type="button"
@@ -182,7 +180,7 @@ export function ProjectRolesPanel({
                   </button>
                 </div>
               ) : (
-                <p className="mt-1 text-[17px] text-slate-700">{row.role}</p>
+                <p className="mt-1 whitespace-pre-line text-[17px] text-slate-700">{row.role}</p>
               )}
             </li>
           ))}
@@ -241,12 +239,13 @@ function AddRoleForm({
         <span className="text-sm font-medium text-slate-700">
           Qué hace en este proyecto
         </span>
-        <input
+        <textarea
           value={role}
           onChange={(e) => setRole(e.target.value)}
           maxLength={ROLE_MAX}
+          rows={5}
           placeholder="Ej. Arquitecto de datos, enlace con el cliente…"
-          className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+          className="w-full resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
         />
       </label>
       {error && <p className="text-sm text-red-600">{error}</p>}

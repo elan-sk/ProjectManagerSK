@@ -53,9 +53,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           // Corrector ortográfico en todo campo de texto (inputs, textareas y
           // el editor enriquecido): Firefox no revisa los <input> de una línea
           // sin spellcheck explícito. Se activa al enfocar, sin tocar cada
-          // formulario. Excluye email/url/password/número/fecha.
+          // formulario. Excluye email/url/password/número/fecha. Extensiones
+          // (LanguageTool) le ponen spellcheck="false" a los campos y el
+          // corrector deja de subrayar: si alguien lo apaga, se vuelve a encender.
           dangerouslySetInnerHTML={{
-            __html: `document.addEventListener('focusin', function (e) { var t = e.target; if (!(t instanceof HTMLElement) || t.hasAttribute('spellcheck')) return; var ok = t.isContentEditable || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search')); if (ok) { t.setAttribute('spellcheck', 'true'); } });`,
+            __html: `(function () { function fix(t) { if (!(t instanceof HTMLElement) || t.getAttribute('spellcheck') === 'true') return; var ok = t.isContentEditable || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search')); if (ok) t.setAttribute('spellcheck', 'true'); } document.addEventListener('focusin', function (e) { fix(e.target); }); new MutationObserver(function (list) { list.forEach(function (m) { fix(m.target); }); }).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['spellcheck'] }); })();`,
           }}
         />
         <script
