@@ -185,7 +185,7 @@ export default async function ProjectPage({
     return `/projects/${id}?${p.toString()}`;
   };
 
-  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink, testTemplates, taskShareLinks, tagCategories, projectTags, activeClaudeLink] = await Promise.all([
+  const [project, users, canManage, bottlenecks, cascadeProgress, activeShareLink, testTemplates, taskShareLinks, tagCategories, projectTags, activeClaudeLink, projectRoles] = await Promise.all([
     prisma.project.findUnique({
       where: { id },
       include: {
@@ -234,6 +234,12 @@ export default async function ProjectPage({
     prisma.tagCategory.findMany({ orderBy: { name: "asc" } }),
     prisma.tag.findMany({ where: { projectId: id }, select: { id: true, categoryId: true, name: true } }),
     myUserId ? getActiveClaudeLink(myUserId, { projectId: id }) : Promise.resolve(null),
+    // Roles del equipo en este proyecto (Definición): informativos.
+    prisma.projectRole.findMany({
+      where: { projectId: id },
+      select: { userId: true, role: true, user: { select: { name: true, avatarUrl: true, cargo: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   if (!project) notFound();
@@ -1110,6 +1116,8 @@ export default async function ProjectPage({
           }}
           parentObjectives={parentObjectives}
           taskProgress={{ completed: summaryCompleted, total: summaryTotal }}
+          roles={projectRoles.map((r) => ({ userId: r.userId, name: r.user.name, avatarUrl: r.user.avatarUrl, cargo: r.user.cargo, role: r.role }))}
+          members={users.map((u) => ({ id: u.id, name: u.name, cargo: u.cargo }))}
         />
       ) : view === "gantt" ? (
         <div className="sticky-view-panel-gantt sticky top-[57px] h-[calc(100vh-150px)]">

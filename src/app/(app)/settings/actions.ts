@@ -141,6 +141,7 @@ export async function updateUserProfile(userId: string, formData: FormData) {
     username: formData.get("username"),
     email: formData.get("email"),
     phone: formData.get("phone"),
+    cargo: formData.get("cargo"),
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
@@ -151,7 +152,7 @@ export async function updateUserProfile(userId: string, formData: FormData) {
 
   await prisma.user.update({
     where: { id: userId },
-    data: { name: parsed.data.name, username: parsed.data.username, email: parsed.data.email || null, phone: parsed.data.phone || null },
+    data: { name: parsed.data.name, username: parsed.data.username, email: parsed.data.email || null, phone: parsed.data.phone || null, cargo: parsed.data.cargo?.trim() || null },
   });
   revalidatePath("/settings");
   return { ok: true };
@@ -236,6 +237,8 @@ const updateProfileSchema = z.object({
     .regex(/^[0-9]{8,15}$/, "Solo números, con indicativo de país y sin espacios ni +")
     .optional()
     .or(z.literal("")),
+  // Cargo general de la persona: informativo, no da permisos (ver spec 010).
+  cargo: z.string().max(80, "El cargo no puede superar los 80 caracteres.").optional().or(z.literal("")),
 });
 
 export async function updateProfile(formData: FormData) {

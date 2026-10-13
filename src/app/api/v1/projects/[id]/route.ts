@@ -14,6 +14,7 @@ import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { getProjectAdmin, visibleProjectWhere } from "@/lib/permissions";
 import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
+import { roleSchema } from "@/lib/projectRoles";
 
 const FILE_SELECT = { id: true, fileUrl: true, fileName: true, mimeType: true } as const;
 const FILE_SELECT_WITH_KIND = { ...FILE_SELECT, kind: true } as const;
@@ -35,6 +36,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       // Definición completa: lo que la app muestra en la pestaña Definición.
       objectives: { orderBy: { order: "asc" } },
       requirements: { orderBy: { order: "asc" }, include: { objectives: { select: { id: true, title: true } } } },
+      // Roles del equipo en este proyecto (informativos, no dan permisos).
+      roles: { orderBy: { createdAt: "asc" }, include: { user: { select: PUBLIC_USER_SELECT } } },
       attachments: { include: { uploadedBy: { select: { name: true } } }, orderBy: { uploadedAt: "asc" } },
       links: { orderBy: { createdAt: "asc" } },
       repos: { orderBy: { createdAt: "asc" } },
@@ -89,13 +92,28 @@ const updateProjectSchema = z.object({
   archived: z.boolean().optional(),
   // Spec 004: id del proyecto principal (vincular como subproyecto) o null (quitar del grupo).
   parentId: z.string().min(1).nullable().optional(),
+  // Spec 010: roles del equipo en este proyecto (informativos). Reemplaza la lista completa
+  // cuando viene; un rol vacío para una persona la quita. Mismo alcance que la app (PM o admin).
+  roles: z.array(z.object({ userId: z.string().min(1), role: roleSchema })).optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return withBody(request, updateProjectSchema, async (actor, data) => {
     if (!(await getProjectAdmin(id, actor))) return { ok: false, status: 403, error: "Solo el PM de este proyecto o un administrador pueden editarlo." };
-    const { hidden, archived, whatsappGroupJid, parentId, ...fields } = data;
+    const { hidden, archived, whatsappGroupJid, parentId, roles, ...fields } = data;
+    if (roles !== undefined) {
+      // Se reemplaza la lista completa: así una persona que ya no está en el equipo
+      // desaparece sin que la skill tenga que acordarse de borrarla aparte.
+      const valid = await prisma.user.findMany({ where: { id: { in: roles.map((r) => r.userId) }, active: true }, select: { id: true } });
+      const validIds = new Set(valid.map((u) => u.id));
+      const unknown = roles.filter((r) => !validIds.has(r.userId));
+      if (unknown.length > 0) return { ok: false, status: 400, error: "Alguna persona no está disponible en el equipo." };
+      await prisma.$transaction([
+        prisma.projectRole.deleteMany({ where: { projectId: id } }),
+        ...roles.map((r) => prisma.projectRole.create({ data: { projectId: id, userId: r.userId, role: r.role } })),
+      ]);
+    }
     if (parentId !== undefined) {
       const r = await setProjectParent(id, parentId, actor);
       if (!r.ok) return r;

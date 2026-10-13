@@ -139,6 +139,10 @@ model User {
   active                Boolean   @default(true)
   deletedAt             DateTime?
   avatarUrl             String?
+  // Qué hace la persona en el equipo, en general (ej. "Diseñador UX",
+  // "Desarrollador backend"). Texto libre, informativo: no da permisos. El rol
+  // de una persona DENTRO de un proyecto puntual es ProjectRole.
+  cargo                 String?
   // Con código de país (ej. 57...), sin +. Usado para mencionar al usuario en las alertas de WhatsApp.
   phone                 String?
   // null = el bot todavía no le mandó ningún WhatsApp directo a esta persona.
@@ -190,6 +194,25 @@ model User {
   credentialsCreated    Credential[]              @relation("CredentialCreator")
   credentialAccess      CredentialUser[]
   credentialAccessLogs  CredentialAccessLog[]
+  projectRoles          ProjectRole[]
+}
+
+// Rol de una persona DENTRO de un proyecto (pestaña Definición): quién hace
+// qué en ese proyecto en concreto. Distinto de User.cargo, que es el cargo
+// general de la persona. Informativo: no da permisos — quien puede editar,
+// revisar o administrar sigue saliendo de PM/asignado/revisor/admin.
+model ProjectRole {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Qué hace esta persona en este proyecto (ej. "Arquitecto de datos", "Enlace con el cliente").
+  role      String
+  createdAt DateTime @default(now())
+
+  // Una sola fila por persona y proyecto: el rol se edita, no se duplica.
+  @@unique([projectId, userId])
 }
 
 // Conexión OAuth de Google Calendar por usuario (punto 14: sincronizar
@@ -279,6 +302,8 @@ model Project {
   notifications    Notification[]
   internalMessages InternalMessage[]
   credentials      Credential[]
+  // Roles del equipo en este proyecto (pestaña Definición), ver ProjectRole.
+  roles            ProjectRole[]
 }
 
 model ProjectRepo {

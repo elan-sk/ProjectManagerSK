@@ -20,6 +20,8 @@ type UserRow = {
   role: "ADMIN" | "MEMBER";
   avatarUrl: string | null;
   phone: string | null;
+  /** Qué hace la persona en el equipo, en general (ej. «Diseñador UX»). */
+  cargo: string | null;
   active: boolean;
 };
 
@@ -147,6 +149,7 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
                 </p>
                 <p className="truncate text-xs text-slate-400">
                   @{u.username}
+                  {u.cargo && <span className="text-slate-400"> · {u.cargo}</span>}
                   {u.email && <span className="text-slate-300"> · {u.email}</span>}
                 </p>
               </div>
@@ -156,7 +159,7 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
                 <>
                   <RoleSelect userId={u.id} role={u.role} />
                   <ModalTrigger label="Editar" title={`Editar usuario — ${u.name}`} variant="secondary" small>
-                    <EditUserForm userId={u.id} name={u.name} username={u.username} email={u.email} phone={u.phone} avatarUrl={u.avatarUrl} />
+                    <EditUserForm userId={u.id} name={u.name} username={u.username} email={u.email} phone={u.phone} avatarUrl={u.avatarUrl} cargo={u.cargo} />
                   </ModalTrigger>
                   <ModalTrigger label="Restablecer clave" title={`Restablecer contraseña — ${u.name}`} variant="secondary" small>
                     <ResetPasswordForm userId={u.id} />

@@ -134,7 +134,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_team_members",
-    description: "Lista miembros activos (id, nombre, usuario y si tienen WhatsApp). Usala para identificar a quién enviar un WhatsApp o para recordar un usuario. Nunca muestra contraseñas.",
+    description: "Lista miembros activos (id, nombre, usuario, cargo y si tienen WhatsApp). Usala para identificar a quién enviar un WhatsApp, para recordar un usuario y para responder «quién hace qué» en general (el rol de alguien DENTRO de un proyecto sale de get_project_definition). Nunca muestra contraseñas.",
     input_schema: { type: "object", properties: {} },
   },
   {
@@ -192,7 +192,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "get_project_definition",
     description:
-      "Trae la Definición (alcance) de un proyecto: objetivos con su avance, requerimientos con su avance, los objetivos a los que atiende cada uno y sus tareas (con estado y fase), fases con su avance, y las tareas que no responden a ningún requerimiento. Usar para preguntas como «cómo va el requerimiento X», «qué le falta al objetivo Y» o «qué tareas no tienen requerimiento». La cascada es objetivo → requerimiento → tarea; la fase solo ubica la tarea en el cronograma.",
+      "Trae la Definición (alcance) de un proyecto: el equipo con su rol EN ESTE proyecto (quién hace qué acá), objetivos con su avance, requerimientos con su avance, los objetivos a los que atiende cada uno y sus tareas (con estado y fase), fases con su avance, y las tareas que no responden a ningún requerimiento. Usar para preguntas como «cómo va el requerimiento X», «qué le falta al objetivo Y», «qué tareas no tienen requerimiento» o «quién es el diseñador acá». La cascada es objetivo → requerimiento → tarea; la fase solo ubica la tarea en el cronograma. El rol en el proyecto y el cargo general de la persona son informativos: no cambian permisos.",
     input_schema: {
       type: "object",
       properties: { projectId: { type: "string" } },
@@ -927,10 +927,10 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
     case "list_team_members": {
       const users = await prisma.user.findMany({
         where: { active: true },
-        select: { id: true, name: true, username: true, phone: true },
+        select: { id: true, name: true, username: true, phone: true, cargo: true },
         orderBy: { name: "asc" },
       });
-      return JSON.stringify(users.map((user) => ({ id: user.id, name: user.name, username: user.username, hasWhatsApp: Boolean(user.phone) })));
+      return JSON.stringify(users.map((user) => ({ id: user.id, name: user.name, username: user.username, cargo: user.cargo, hasWhatsApp: Boolean(user.phone) })));
     }
     case "list_projects": {
       const accessibleIds = await getAccessibleProjectIds(userId);
@@ -1101,7 +1101,14 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!hasAccess(accessibleIds, projectId)) return JSON.stringify(NO_ACCESS);
       const definition = await getProjectCascadeProgress(projectId);
       const phaseName = new Map(definition.phases.map((p) => [p.id, p.name]));
+      // Roles del equipo en ESTE proyecto (informativos): quién hace qué acá.
+      const roles = await prisma.projectRole.findMany({
+        where: { projectId },
+        select: { role: true, user: { select: { id: true, name: true, cargo: true } } },
+        orderBy: { createdAt: "asc" },
+      });
       return JSON.stringify({
+        team: roles.map((r) => ({ userId: r.user.id, name: r.user.name, cargo: r.user.cargo, projectRole: r.role })),
         objectives: definition.objectives.map((o) => ({
           id: o.id,
           title: o.title,

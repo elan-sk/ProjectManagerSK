@@ -15,6 +15,7 @@ export function EditUserForm({
   email,
   phone,
   avatarUrl,
+  cargo,
 }: {
   userId: string;
   name: string;
@@ -22,6 +23,8 @@ export function EditUserForm({
   email: string | null;
   phone: string | null;
   avatarUrl: string | null;
+  /** Qué hace la persona en el equipo, en general (ej. «Diseñador UX»). Informativo. */
+  cargo: string | null;
 }) {
   const router = useRouter();
   const onDone = useModalClose();
@@ -98,6 +101,11 @@ export function EditUserForm({
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Email (opcional)</label>
           <input type="email" name="email" defaultValue={email ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Cargo (opcional)</label>
+          <input name="cargo" defaultValue={cargo ?? ""} maxLength={80} placeholder="ej. Diseñador UX" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <p className="text-xs text-slate-400">Qué hace en el equipo, en general. Es informativo: no cambia permisos. El rol dentro de un proyecto puntual se carga en la Definición de ese proyecto.</p>
         </div>
         <div className="space-y-1">
           <label className="text-sm text-slate-600">WhatsApp</label>

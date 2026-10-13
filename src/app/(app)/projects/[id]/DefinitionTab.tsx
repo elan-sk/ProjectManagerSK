@@ -10,6 +10,7 @@ import { RequirementsPanel } from "./RequirementsPanel";
 import { PhasesPanel } from "./PhasesPanel";
 import { ProjectWhatsAppGroupPanel } from "./ProjectWhatsAppGroupPanel";
 import { SubprojectsPanel } from "./SubprojectsPanel";
+import { ProjectRolesPanel, type ProjectRoleRow } from "./ProjectRolesPanel";
 import { DefinitionSummary } from "./DefinitionSummary";
 import type { ComponentProps } from "react";
 import type { ObjectiveSummary, RequirementSummary, PhaseSummary, TaskRef, UnassignedTask } from "@/lib/cascadeProgress";
@@ -30,6 +31,8 @@ export function DefinitionTab({
   subprojects,
   parentObjectives,
   taskProgress,
+  roles,
+  members,
 }: {
   projectId: string;
   name: string;
@@ -54,6 +57,9 @@ export function DefinitionTab({
   parentObjectives?: { id: string; title: string }[];
   /** Tareas completadas / total (en un principal, de todo el grupo). */
   taskProgress: { completed: number; total: number };
+  /** Roles del equipo en este proyecto (informativos, no dan permisos). */
+  roles: ProjectRoleRow[];
+  members: { id: string; name: string; cargo: string | null }[];
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -103,8 +109,9 @@ export function DefinitionTab({
         subprojects={subprojects.subprojects.map((s) => ({ id: s.id, label: s.name, pct: s.pct, atRisk: false }))}
       />
 
-      <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} parentObjectives={parentObjectives} />
+      <ProjectRolesPanel projectId={projectId} roles={roles} members={members} canManage={canManage} />
 
+      <ObjectivesPanel projectId={projectId} objectives={objectives} requirements={requirements} canManage={canManage} parentObjectives={parentObjectives} />
       <RequirementsPanel
         projectId={projectId}
         requirements={requirements}

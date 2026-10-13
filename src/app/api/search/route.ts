@@ -111,6 +111,8 @@ export async function GET(request: Request) {
       iconUrl: true,
       parent: { select: { name: true, iconUrl: true } },
       pm: { select: { name: true, avatarUrl: true } },
+      // Roles del equipo en el proyecto (informativos): entran con peso bajo al texto de sus tareas.
+      roles: { select: { role: true, user: { select: { name: true, cargo: true } } } },
       links: { select: { id: true, title: true, url: true } },
       attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
       tasks: {
@@ -190,8 +192,11 @@ export async function GET(request: Request) {
       if (typeMatches && (filter !== "tag" || tags)) {
         const taskText = filter === "tag" && !tagContentText ? tags : `${t.title} ${stripHtml(t.description ?? "")}`;
         // El proyecto (y su principal, si es subproyecto) entra con peso bajo para rastrear la tarea por él.
+        // El equipo y sus roles también: buscar «diseñador» encuentra las tareas del proyecto donde esa
+        // persona tiene ese rol, sin competir con el título ni la descripción.
         const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status }, projectText);
+        const teamText = p.roles.map((r) => `${r.user.name} ${r.user.cargo ?? ""} ${r.role}`).join(" ");
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status }, `${projectText} ${teamText}`);
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
