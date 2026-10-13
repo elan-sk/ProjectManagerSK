@@ -15,6 +15,7 @@ import { fetchPageTitle } from "@/lib/pageTitle";
 import { bogotaLocalToUTC } from "@/lib/workingHours";
 import { requirementsForProject } from "@/lib/taskRequirement";
 import { propagateToSuccessors } from "../../actions";
+import { autoStartTask } from "@/lib/taskAutoStart";
 import type { AttachmentKind, AdjustmentAttachmentKind, DependencyType } from "@prisma/client";
 
 export async function addStep(taskId: string, formData: FormData, actor?: Actor) {
@@ -37,7 +38,7 @@ export async function toggleStep(stepId: string, done: boolean, actor?: Actor) {
     throw new Error("No tenés permiso para editar esta tarea.");
   }
   await prisma.taskStep.update({ where: { id: stepId }, data: { done } });
-  if (done) await autoAdvanceToInProgress(step.taskId);
+  if (done) await autoStartTask(step.taskId, "STEP_DONE");
   await revalidateTask(step.taskId);
 }
 
@@ -73,22 +74,6 @@ export async function removeStep(stepId: string, actor?: Actor) {
   await revalidateTask(step.taskId);
 }
 
-// Un Entregable, una Revisión, o cualquier tarea con checklist "avisan solas"
-// de que arrancaron en cuanto alguien chulea un paso o sube evidencia — nadie
-// tiene que acordarse de moverlas a mano a "En curso".
-async function autoAdvanceToInProgress(taskId: string) {
-  const task = await prisma.task.findUniqueOrThrow({
-    where: { id: taskId },
-    select: { status: true, type: true, actualStart: true, steps: { select: { id: true } } },
-  });
-  if (task.status !== "NOT_STARTED") return;
-  if (task.type !== "MILESTONE" && task.type !== "QA" && task.steps.length === 0) return;
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { status: "IN_PROGRESS", actualStart: task.actualStart ?? new Date() },
-  });
-}
-
 export async function addAttachmentRecord(
   taskId: string,
   kind: AttachmentKind,
@@ -112,7 +97,7 @@ export async function addAttachmentRecord(
       uploadedById,
     },
   });
-  if (kind === "RESULTADO") await autoAdvanceToInProgress(taskId);
+  if (kind === "RESULTADO") await autoStartTask(taskId, "RESULTADO");
   await revalidateTask(taskId);
 }
 
@@ -252,7 +237,7 @@ export async function addLinkAttachment(
       uploadedById,
     },
   });
-  if (kind === "RESULTADO") await autoAdvanceToInProgress(taskId);
+  if (kind === "RESULTADO") await autoStartTask(taskId, "RESULTADO");
   await revalidateTask(taskId);
 }
 
@@ -484,8 +469,8 @@ export async function updateTaskMeetingUrl(taskId: string, formData: FormData) {
 }
 
 // Punto 2.5: "cambios solicitados" de una tarea tipo Ajuste — cada uno con
-// su Antes/Después (o una nota cuando no aplica). El estado de cada cambio
-// se deriva solo de esto, nunca de un checkbox manual.
+// su Antes/Después y una nota opcional. El estado de cada cambio se deriva
+// solo de si tiene «Después» (adjustmentItemAnswered), nunca de un checkbox manual.
 // La descripción viaja como HTML (editor WYSIWYG); min(1) por sí solo no
 // alcanza porque un párrafo vacío del editor ("<p></p>") también pasa esa
 // validación.
@@ -551,6 +536,7 @@ export async function addAdjustmentAttachment(
   await prisma.adjustmentAttachment.create({
     data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById },
   });
+  if (kind === "AFTER") await autoStartTask(item.taskId, "ADJUSTMENT_AFTER");
   await revalidateTask(item.taskId);
 }
 
@@ -582,6 +568,7 @@ export async function addAdjustmentLinkAttachment(
       uploadedById,
     },
   });
+  if (kind === "AFTER") await autoStartTask(item.taskId, "ADJUSTMENT_AFTER");
   await revalidateTask(item.taskId);
 }
 

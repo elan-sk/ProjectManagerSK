@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
+import { adjustmentItemAnswered } from "@/lib/taskProgress";
 import type { TaskStatus, TaskType } from "@prisma/client";
 
 // DTOs para las vistas compartidas por link (punto 1) — construidos a mano,
@@ -269,7 +270,7 @@ export async function getPublicTask(taskId: string): Promise<{
       id: item.id,
       description: item.description,
       note: item.note,
-      answered: Boolean(item.note) || item.attachments.some((a) => a.kind === "AFTER"),
+      answered: adjustmentItemAnswered(item),
       clientApproval: item.clientApproval,
       clientApprovalAt: item.clientApprovalAt?.toISOString() ?? null,
       clientApprovalBy: item.clientApprovalBy,

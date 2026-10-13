@@ -169,9 +169,11 @@ export function CredentialView({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#0a6b78]/10 text-[#0a6b78]">
-          <KeyIcon className="h-5 w-5" />
+      <div className="flex items-center gap-3">
+        {/* Mismo distintivo que la ficha de la contraseña en Archivos (CredentialTile): llave y etiqueta en rojo. */}
+        <span className="flex flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-red-600/30 bg-red-600/10 px-2 py-1.5 text-red-700">
+          <KeyIcon className="h-6 w-6" />
+          <span className="rounded bg-current/10 px-1 text-[10px] leading-4 font-bold tracking-wide">CONTRASEÑA</span>
         </span>
         <div className="min-w-0">
           <p className="truncate font-medium text-slate-900">{credential.name}</p>

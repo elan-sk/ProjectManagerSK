@@ -76,7 +76,8 @@ export function AdjustmentPanel({ taskId, items, userId, canEdit, canDelete, can
     });
   }
 
-  const pendingCount = items.filter((i) => !i.note && i.after.length === 0).length;
+  // Respondido = «Después» cargado (misma regla que adjustmentItemAnswered en taskProgress.ts).
+  const pendingCount = items.filter((i) => i.after.length === 0).length;
 
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -134,7 +135,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const answered = !!item.note || item.after.length > 0;
+  const answered = item.after.length > 0;
   // El cliente pidió cambios: el ajuste no está resuelto aunque ya tenga "Después".
   const needsChanges = item.clientApproval === false && !item.clientReviewOpen;
   const reopened = item.clientApproval !== null && item.clientReviewOpen;
@@ -289,7 +290,7 @@ function AdjustmentItemRow({ index, total, taskId, item, userId, canEdit, canDel
             </p>
           ) : (
             <button type="button" onClick={() => setEditingNote(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
-              + Agregar nota (si no aplica)
+              + Agregar nota
             </button>
           )}
         </div>

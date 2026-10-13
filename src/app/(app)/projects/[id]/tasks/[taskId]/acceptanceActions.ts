@@ -9,6 +9,7 @@ import { canEditTask, resolveActor, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned } from "@/lib/notifications";
+import { autoStartTask } from "@/lib/taskAutoStart";
 
 // Tarea tipo ACCEPTANCE: mismo motor de rondas que Prueba (QA) — ReviewRound/
 // ReviewCheck — pero quien arma la lista de características es el equipo
@@ -112,6 +113,8 @@ export async function submitAcceptanceRound(
     if (task.status === "RETURNED") {
       await tx.task.update({ where: { id: taskId }, data: { status: "IN_PROGRESS" } });
     }
+    // Enviar la primera ronda al cliente arranca la tarea si estaba «Sin iniciar».
+    await autoStartTask(taskId, "ROUND_SUBMITTED", tx);
     for (const check of carryForwardChecks) {
       await tx.reviewCheck.update({
         where: { id: check.id },

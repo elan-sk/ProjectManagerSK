@@ -670,6 +670,22 @@ export default async function ProjectPage({
             </NavLinkWithMemory>
           </>
         )}
+        {/* Compartir y Conectar IA arriba a la derecha, compactos: igual que en la ficha de una tarea. */}
+        <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+          {canManage && (
+            <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
+              <ShareLinkPanel
+                activeToken={activeShareLink?.token ?? null}
+                activeLinkId={activeShareLink?.id ?? null}
+                onCreate={createProjectShareLink.bind(null, project.id)}
+                onRevoke={revokeProjectShareLink.bind(null, project.id)}
+              />
+            </ModalTrigger>
+          )}
+          <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+            <ClaudeLinkPanel projectId={project.id} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+          </ModalTrigger>
+        </div>
       </div>
       {project.archivedAt && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -789,12 +805,6 @@ export default async function ProjectPage({
             <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
               Rendimiento
             </Link>
-            {/* Separado de «Rendimiento» por una línea, igual que «Compartir» en la fila de acciones. */}
-            <div className="ml-1.5 flex items-center border-l border-slate-300 pl-3.5">
-            <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
-              <ClaudeLinkPanel projectId={project.id} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
-            </ModalTrigger>
-            </div>
           </div>
         </div>
 
@@ -812,7 +822,7 @@ export default async function ProjectPage({
         </div>
       </div>
 
-      {/* Dos grupos separados por una línea: crear (tarea, contraseña) · compartir. */}
+      {/* Crear: tarea y contraseña (Compartir está arriba a la derecha, junto a Conectar IA). */}
       <div className="flex flex-nowrap items-center gap-1 max-sm:[&_button]:px-2 max-sm:[&_button]:text-xs max-sm:[&_button]:whitespace-nowrap sm:flex-wrap sm:gap-2">
         {canManage && (
           <>
@@ -834,16 +844,6 @@ export default async function ProjectPage({
           </ModalTrigger>
           {/* Junto a «+ Nueva tarea» (visible en todas las pestañas), no solo dentro de Archivos. Mismo estilo que «Compartir». */}
           <AddCredentialButton place={{ projectId: project.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" />
-          <div className="ml-0.5 flex items-center border-l border-slate-300 pl-1.5 sm:ml-1.5 sm:pl-3.5">
-          <ModalTrigger label="Compartir" title="Compartir proyecto" variant="secondary" icon={<ShareIcon className="h-4 w-4" />}>
-            <ShareLinkPanel
-              activeToken={activeShareLink?.token ?? null}
-              activeLinkId={activeShareLink?.id ?? null}
-              onCreate={createProjectShareLink.bind(null, project.id)}
-              onRevoke={revokeProjectShareLink.bind(null, project.id)}
-            />
-          </ModalTrigger>
-          </div>
           </>
         )}
       </div>

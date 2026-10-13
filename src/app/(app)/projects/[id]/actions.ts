@@ -8,6 +8,7 @@ import { addBusinessDays, subtractBusinessDays, businessDaysBetween, isBusinessD
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
 import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
+import { adjustmentItemAnswered } from "@/lib/taskProgress";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
 
 // Solo un administrador global (no el PM del proyecto) puede archivarlo.
@@ -465,14 +466,12 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
   }
 
   // Punto 2.5: un Ajuste solo se completa cuando todos sus cambios quedaron
-  // respondidos (con un "Después" cargado o una nota de que no aplica) — el
+  // respondidos con su "Después" cargado (adjustmentItemAnswered) — el
   // estado nunca se marca a mano con un checkbox.
   if (status === "COMPLETED" && task.type === "ADJUSTMENT") {
-    const pending = task.adjustmentItems.filter(
-      (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
-    );
+    const pending = task.adjustmentItems.filter((item) => !adjustmentItemAnswered(item));
     if (pending.length > 0) {
-      return { ok: false, error: `Todavía hay ${pending.length} cambio(s) sin responder (falta el "Después" o una nota).` };
+      return { ok: false, error: `Todavía hay ${pending.length} cambio(s) sin su "Después" cargado.` };
     }
   }
 

@@ -1,17 +1,21 @@
 // Avance propio de una tarea, el que dibuja su barra en la tarjeta y en la ficha.
 // Prueba, Ajuste y Aceptación no usan checklist: su avance son los puntos respondidos sobre el total,
-// sin importar si la respuesta fue buena o mala. En Ajuste un cambio está respondido cuando el equipo
-// cargó su «Después» o una nota (la misma regla que exige completar la tarea). En Prueba y Aceptación cuentan los puntos de TODAS las
+// sin importar si la respuesta fue buena o mala. En Ajuste un cambio está respondido solo cuando el equipo
+// cargó su «Después» (ver adjustmentItemAnswered; una nota, el «Antes» o un insumo no cuentan). En Prueba y Aceptación cuentan los puntos de TODAS las
 // rondas (una ronda nueva sin responder baja el porcentaje: 10 de 10 pasa a 10 de 20). El resto de tipos
 // sigue con los pasos del checklist.
 const POINT_TYPES = ["QA", "ADJUSTMENT", "ACCEPTANCE"];
+
+/** Un cambio de Ajuste está respondido solo con su «Después» cargado. Misma regla para la barra, la píldora,
+ * el punto de estado, la vista compartida y la compuerta para completar la tarea. */
+export const adjustmentItemAnswered = (item: { attachments: { kind: string }[] }) => item.attachments.some((a) => a.kind === "AFTER");
 
 export type TaskProgress = { done: number; total: number; unit: "pasos" | "puntos" };
 
 export function taskProgress(task: {
   type: string;
   steps: { done: boolean }[];
-  adjustmentItems: { note: string | null; attachments: { kind: string }[] }[];
+  adjustmentItems: { attachments: { kind: string }[] }[];
   reviewRounds: { checks: { result: string | null }[] }[];
 }): TaskProgress | null {
   if (!POINT_TYPES.includes(task.type)) {
@@ -19,7 +23,7 @@ export function taskProgress(task: {
   }
   const answered =
     task.type === "ADJUSTMENT"
-      ? task.adjustmentItems.map((i) => Boolean(i.note) || i.attachments.some((a) => a.kind === "AFTER"))
+      ? task.adjustmentItems.map(adjustmentItemAnswered)
       : task.reviewRounds.flatMap((r) => r.checks.map((c) => c.result !== null));
   return answered.length > 0 ? { done: answered.filter(Boolean).length, total: answered.length, unit: "puntos" } : null;
 }

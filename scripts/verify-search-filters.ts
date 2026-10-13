@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
-import { fuzzyScore } from "../src/lib/fuzzy";
+import { fuzzyScore, weightedScore } from "../src/lib/fuzzy";
 import { matchesDateRange, parseDayKey } from "../src/lib/dateRange";
 import { progressBar } from "../src/lib/progressBar";
 import { HEADER_SEARCH_OPTIONS, isCompactSearch, parseHeaderSearch } from "../src/lib/search";
+
+// Nombre del proyecto de la tarea: la encuentra, pero pesa menos que el título y que la descripción.
+{
+  const byProject = weightedScore("cafexport", "Ajustes de logos", "Ajustes de logos cambiar imágenes", "Cafexport");
+  const byBody = weightedScore("cafexport", "Ajustes de logos", "Ajustes de logos para cafexport", "Otro");
+  const byTitle = weightedScore("cafexport", "Cafexport logos", "Cafexport logos", "Otro");
+  assert.ok(byProject > 0 && byProject < byBody && byBody < byTitle);
+  assert.equal(weightedScore("cafexport", "Ajustes de logos", "Ajustes de logos"), 0);
+  // Palabras repartidas entre la tarea y su proyecto también la encuentran.
+  assert.ok(weightedScore("cafexport logos", "Ajustes de logos", "Ajustes de logos", "Cafexport") > weightedScore("cafexport logos", "Ajustes de textos", "Ajustes de textos", "Otro"));
+}
 
 for (const { prefix, kind } of HEADER_SEARCH_OPTIONS) {
   assert.deepEqual(parseHeaderSearch(`${prefix}:`), { filter: kind, text: "" });

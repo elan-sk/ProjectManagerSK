@@ -1,7 +1,7 @@
 import { format as formatDay, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { TaskDatesEditor } from "./TaskDatesEditor";
-import { deliverableEvidenceLoaded, progressPct, taskProgress } from "@/lib/taskProgress";
+import { adjustmentItemAnswered, deliverableEvidenceLoaded, progressPct, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
@@ -302,11 +302,9 @@ export default async function TaskDetailPage({
   } else if (task.type === "MILESTONE" && !task.attachments.some((a) => a.kind === "RESULTADO")) {
     completionBlockedReason = "Este entregable necesita al menos un resultado cargado para poder completarse.";
   } else if (task.type === "ADJUSTMENT") {
-    const pendingCount = task.adjustmentItems.filter(
-      (item) => !item.note && !item.attachments.some((a) => a.kind === "AFTER")
-    ).length;
+    const pendingCount = task.adjustmentItems.filter((item) => !adjustmentItemAnswered(item)).length;
     if (pendingCount > 0) {
-      completionBlockedReason = `Todavía hay ${pendingCount} cambio(s) sin responder (falta el "Después" o una nota).`;
+      completionBlockedReason = `Todavía hay ${pendingCount} cambio(s) sin su "Después" cargado.`;
     }
   } else if (task.type === "QA") {
     const lastReviewRound = task.reviewRounds[0];

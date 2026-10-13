@@ -10,6 +10,7 @@ import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
 import { setDefaultTestTemplate } from "@/lib/taskDesign";
 import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
+import { autoStartTask } from "@/lib/taskAutoStart";
 import type { CheckResult } from "@prisma/client";
 
 const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
@@ -173,6 +174,8 @@ export async function submitReviewRound(
     if (task.status === "RETURNED") {
       await tx.task.update({ where: { id: taskId }, data: { status: "IN_PROGRESS" } });
     }
+    // Enviar la primera ronda arranca la tarea si estaba «Sin iniciar».
+    await autoStartTask(taskId, "ROUND_SUBMITTED", tx);
     // Punto 3b/4 (confirmado con el usuario): "es la misma prueba" también a
     // nivel de fila — se REASIGNA el mismo ReviewCheck a la ronda nueva (no
     // se recrea), así su evidencia (ligada al id de la prueba, no a la

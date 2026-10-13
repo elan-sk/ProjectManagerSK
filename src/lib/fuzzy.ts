@@ -64,6 +64,10 @@ export function fuzzyScore(query: string, text: string): number {
 // misma descripción, ej. las de un mismo curso), así que la descripción solo suma un poco encima del
 // título. Una consulta de varias palabras que aparece seguida, tal cual («3 diseño ui»), suma un extra.
 const BODY_WEIGHT = 0.3;
+// Contexto (ej. el nombre del proyecto de una tarea): pesa menos que la descripción. Se mide sobre todo el
+// texto junto (título + descripción + contexto) para que «cafexport certificaciones» encuentre la tarea
+// «certificaciones» del proyecto Cafexport aunque cada palabra esté en un campo distinto.
+const CONTEXT_WEIGHT = 0.15;
 const TITLE_PHRASE_BONUS = 0.5;
 const BODY_PHRASE_BONUS = 0.25;
 /** Un resultado se muestra solo si su puntaje llega a esta fracción del mejor de su grupo. */
@@ -75,11 +79,13 @@ const containsPhrase = (phrase: string, text: string) => ` ${words(text).join(" 
  * Puntaje con pesos de `title` + `text` (el texto completo, que puede incluir el título) frente a
  * `query`. 0 = no coincide. Suma el título (1 a 1) y el texto completo (al 30 %): si solo coincide la
  * descripción, el resultado queda muy por debajo de uno que coincide en el título. La frase exacta suma.
+ * `context` (opcional) suma al 15 %: menos que la descripción.
  */
-export function weightedScore(query: string, title: string, text: string): number {
+export function weightedScore(query: string, title: string, text: string, context = ""): number {
   const titleScore = fuzzyScore(query, title);
   const bodyScore = fuzzyScore(query, text) * BODY_WEIGHT;
-  const base = titleScore + bodyScore;
+  const contextScore = context.trim() ? fuzzyScore(query, `${title} ${text} ${context}`) * CONTEXT_WEIGHT : 0;
+  const base = titleScore + bodyScore + contextScore;
   if (base === 0) return 0;
   const tokens = words(query);
   if (tokens.length < 2) return base;

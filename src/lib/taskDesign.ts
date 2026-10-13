@@ -10,6 +10,7 @@ import { splitNew } from "@/lib/attachmentDedup";
 import { linkKey } from "@/lib/attachments";
 import { submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
 import { submitAcceptanceRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/acceptanceActions";
+import { autoStartTask } from "@/lib/taskAutoStart";
 
 // Diseño de Ajustes, Pruebas (QA) y Aceptaciones por API — y el mismo motor que
 // usa el chat. Cada función recibe al usuario que actúa (Actor: su id y rol reales)
@@ -168,6 +169,7 @@ export async function addAdjustmentItems(taskId: string, actor: Actor, items: Ad
       created.push({ id: row.id, description: row.description });
     }
   });
+  if (items.some((i) => (i.after ?? []).length > 0)) await autoStartTask(taskId, "ADJUSTMENT_AFTER");
   touch(task);
   return { ok: true as const, items: created };
 }
@@ -207,6 +209,8 @@ export async function addAdjustmentAttachments(itemId: string, actor: Actor, kin
       data: { adjustmentItemId: itemId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id },
     });
   }
+  // Igual que la app: cargar el «Después» arranca un Ajuste «Sin iniciar».
+  if (kind === "AFTER" && fresh.length > 0) await autoStartTask(item.taskId, "ADJUSTMENT_AFTER");
   touch(item.task);
   return { ok: true as const, added: fresh.length, skipped };
 }
@@ -461,12 +465,7 @@ export async function addTaskAttachments(taskId: string, actor: Actor, kind: "IN
     await prisma.attachment.create({ data: { taskId, kind, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, uploadedById: actor.id } });
   }
   // Igual que la app: subir evidencia a una tarea sin iniciar la pasa a "En curso".
-  if (kind === "RESULTADO") {
-    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true, type: true, actualStart: true, steps: { select: { id: true } } } });
-    if (t && t.status === "NOT_STARTED" && (t.type === "MILESTONE" || t.type === "QA" || t.steps.length > 0)) {
-      await prisma.task.update({ where: { id: taskId }, data: { status: "IN_PROGRESS", actualStart: t.actualStart ?? new Date() } });
-    }
-  }
+  if (kind === "RESULTADO") await autoStartTask(taskId, "RESULTADO");
   touch(task);
   return { ok: true as const, added: fresh.length, skipped };
 }

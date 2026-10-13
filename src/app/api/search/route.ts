@@ -153,11 +153,12 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl">) => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl">, contextText = "") => {
     if (hitKind && kind !== hitKind) return;
     // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
-    // Con pesos (weightedScore): el título cuenta más que la descripción y la frase completa suma.
-    const score = filter === "tag" ? (tagContentText ? weightedScore(tagContentText, title, text) : 1) : filter && !needle ? 1 : weightedScore(needle, title, text);
+    // Con pesos (weightedScore): el título cuenta más que la descripción, y esta más que el contexto
+    // (nombre del proyecto de la tarea); la frase completa suma.
+    const score = filter === "tag" ? (tagContentText ? weightedScore(tagContentText, title, text, contextText) : 1) : filter && !needle ? 1 : weightedScore(needle, title, text, contextText);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" || kind === "credential" ? "file" : kind;
     if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
@@ -188,7 +189,9 @@ export async function GET(request: Request) {
       const typeMatches = filter !== "taskType" || fuzzyScore(taskTypeText, TASK_TYPE_LABEL[t.type] ?? t.type) > 0;
       if (typeMatches && (filter !== "tag" || tags)) {
         const taskText = filter === "tag" && !tagContentText ? tags : `${t.title} ${stripHtml(t.description ?? "")}`;
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status });
+        // El proyecto (y su principal, si es subproyecto) entra con peso bajo para rastrear la tarea por él.
+        const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status }, projectText);
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
