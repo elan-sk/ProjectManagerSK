@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { setSharePollClosed, voteSharePoll } from "./shareThreadActions";
 import { Avatar } from "@/components/Avatar";
+import { ProgressFill } from "@/components/ProgressFill";
 import type { TeamPoll } from "./TeamShareThread";
 
 /** Marco que separa una pregunta de los comentarios normales: borde de color, etiqueta «Pregunta» y, si se indica, quién la hizo. */
@@ -105,7 +106,7 @@ export function TeamPollCard({
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden bg-slate-100">
-                <div className="progress-fill-teal h-full" style={{ width: `${pct}%` }} />
+                <ProgressFill pct={pct} className="progress-fill-teal" durationMs={500} />
               </div>
               {o.voters.length > 0 && (
                 <p className="text-[15px] text-slate-500">

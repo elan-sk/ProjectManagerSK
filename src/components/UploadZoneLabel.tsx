@@ -11,7 +11,7 @@ export function UploadZoneLabel({ uploading, dragOver, label, progress }: { uplo
       <span className="flex w-full max-w-xs flex-col items-center gap-1">
         <span className="font-medium">Subiendo… {pct}%</span>
         <span className="h-1.5 w-full overflow-hidden bg-slate-200">
-          <span className="progress-fill-teal block h-full transition-[width]" style={{ width: `${pct}%` }} />
+          <span className="progress-fill-teal block h-full" style={{ width: `${pct}%` }} />
         </span>
       </span>
     );

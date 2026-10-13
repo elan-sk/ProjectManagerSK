@@ -3,6 +3,7 @@
 import { progressPct, type TaskProgress } from "@/lib/taskProgress";
 // Barras de tarea en el color del nivel Tarea (igual que en la ficha); el verde queda para proyectos.
 import { DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
+import { ProgressFill } from "@/components/ProgressFill";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useAppRouter";
@@ -226,12 +227,7 @@ function CardBody({
       {task.stepsProgress && (
         <div className="space-y-1">
           <div className="h-1.5 w-full overflow-hidden bg-slate-100">
-            <div
-              className={`${DEFINITION_LEVEL_FILL.TASK} h-full`}
-              style={{
-                width: `${progressPct(task.stepsProgress)}%`,
-              }}
-            />
+            <ProgressFill pct={progressPct(task.stepsProgress)} className={DEFINITION_LEVEL_FILL.TASK} durationMs={500} />
           </div>
           <p className="text-[11px] text-slate-500">
             {task.stepsProgress.done}/{task.stepsProgress.total} {task.stepsProgress.unit}

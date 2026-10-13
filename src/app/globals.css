@@ -183,6 +183,22 @@ h1, h2 {
 .progress-fill-requirement { background: linear-gradient(100deg, #bae6fd 0%, #38bdf8 35%, #0284c7 70%, #075985 100%); }
 .progress-fill-phase { background: linear-gradient(100deg, #99f6e4 0%, #2dd4bf 35%, #0d9488 70%, #115e59 100%); }
 .progress-fill-task { background: linear-gradient(100deg, #dbe98a 0%, #b6c955 35%, #8ba02f 70%, #647423 100%); }
+/* Cuando el avance cambia, la barra se llena de a poco en vez de saltar de golpe (el ancho lo
+   fija cada componente por estilo en línea; esto anima ese cambio). Solo "width": animar
+   "background" también haría parpadear el degradado. Respeta a quien pidió menos movimiento
+   en su sistema. */
+.progress-fill-emerald, .progress-fill-teal, .progress-fill-red, .progress-fill-objective,
+.progress-fill-requirement, .progress-fill-phase, .progress-fill-task,
+.progress-fill-emerald-performance, .progress-fill-teal-performance, .progress-fill-red-performance {
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill-emerald, .progress-fill-teal, .progress-fill-red, .progress-fill-objective,
+  .progress-fill-requirement, .progress-fill-phase, .progress-fill-task,
+  .progress-fill-emerald-performance, .progress-fill-teal-performance, .progress-fill-red-performance {
+    transition: none;
+  }
+}
 /* Mismas barras pero para Rendimiento (BarChart.tsx): claro→oscuro, dirección propia a pedido —
    no tocar, las de arriba son las que se invierten si hace falta. */
 .progress-fill-emerald-performance { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }

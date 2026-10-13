@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ModalTrigger } from "@/components/Modal";
+import { ProgressFill } from "@/components/ProgressFill";
 import { DEFINITION_LEVEL_COLOR, DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 
 type Row = { id: string; label: string; pct: number; atRisk: boolean };
@@ -30,7 +31,7 @@ function Group({ level, title, rows }: { level: LevelKey | null; title: string; 
                 >
                   <span className="truncate text-slate-600">{r.label}</span>
                   <span className="h-1.5 overflow-hidden bg-slate-100">
-                    <span className={`block h-full ${level ? DEFINITION_LEVEL_FILL[level] : "progress-fill-emerald"}`} style={{ width: `${r.pct}%` }} />
+                    <ProgressFill pct={r.pct} className={level ? DEFINITION_LEVEL_FILL[level] : "progress-fill-emerald"} durationMs={500} />
                   </span>
                   <span className="text-right tabular-nums text-slate-500">{r.pct}%</span>
                 </RowContent>
@@ -78,7 +79,7 @@ export function DefinitionSummary({
         <p className="text-4xl font-semibold tabular-nums text-slate-900">{pct}%</p>
       </div>
       <div className="h-2 overflow-hidden bg-slate-100" role="img" aria-label={`Avance del proyecto: ${pct}%`}>
-        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
+        <ProgressFill pct={pct} className="progress-fill-emerald" />
       </div>
 
       <div className={`grid grid-cols-1 gap-5 ${subprojects.length > 0 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>

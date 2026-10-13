@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "@/lib/useAppRouter";
 import { Avatar } from "@/components/Avatar";
+import { ProgressFill } from "@/components/ProgressFill";
 import { useConfirm } from "@/components/Confirm";
 import { ModalTrigger, useModalClose } from "@/components/Modal";
 import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
@@ -148,7 +149,7 @@ export function SubprojectProgress({ pct }: { pct: number }) {
     <span className="flex flex-shrink-0 items-center gap-1.5">
       {/* Pista en slate-200: con slate-100 se confundía con el hover de la fila en el popup de subproyectos. */}
       <span className="block h-1.5 w-16 overflow-hidden bg-slate-200">
-        <span className="progress-fill-emerald block h-full" style={{ width: `${pct}%` }} />
+        <ProgressFill pct={pct} className="progress-fill-emerald" durationMs={500} />
       </span>
       <span className="w-9 text-right text-xs text-slate-500">{pct}%</span>
     </span>

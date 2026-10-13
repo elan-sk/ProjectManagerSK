@@ -10,6 +10,7 @@ import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
+import { ProgressFill } from "@/components/ProgressFill";
 import { setDependency, removeDependency, deleteTask } from "./tasks/[taskId]/actions";
 import { useConfirm } from "@/components/Confirm";
 import { moveTaskGroup } from "./actions";
@@ -1033,7 +1034,7 @@ export function GanttView({
                     <div className="relative z-10 flex-1" style={{ width: timelineWidth, height: PHASE_ROW_HEIGHT }}>
                       <TimelineDateMarkers todayIndex={todayIndex} targetEndIndex={targetEndIndex} />
                       <div className="absolute top-1/2 h-2.5 -translate-y-1/2 overflow-hidden bg-slate-300" style={{ left: headerSpan.start * DAY_WIDTH, width: (headerSpan.end - headerSpan.start) * DAY_WIDTH }}>
-                        <div className="progress-fill-emerald h-full" style={{ width: `${projectHeaders![headerPid].pct}%` }} />
+                        <ProgressFill pct={projectHeaders![headerPid].pct} className="progress-fill-emerald" durationMs={500} />
                       </div>
                     </div>
                   </div>
@@ -1066,9 +1067,10 @@ export function GanttView({
                       className="absolute top-1/2 h-4 -translate-y-1/2 overflow-hidden bg-slate-200"
                       style={{ left: phaseStart * DAY_WIDTH, width: (phaseEnd - phaseStart) * DAY_WIDTH }}
                     >
-                      <div
-                        className={phaseHasOverdue ? "progress-fill-red h-full" : "progress-fill-emerald h-full"}
-                        style={{ width: `${phasePct}%` }}
+                      <ProgressFill
+                        pct={phasePct}
+                        className={phaseHasOverdue ? "progress-fill-red" : "progress-fill-emerald"}
+                        durationMs={500}
                       />
                     </div>
                   </div>

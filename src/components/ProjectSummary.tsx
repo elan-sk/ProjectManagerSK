@@ -1,4 +1,5 @@
 import { ProjectAlertLink } from "@/app/(app)/ProjectAlertLink";
+import { ProgressFill } from "@/components/ProgressFill";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL, HEALTH_STYLE } from "@/lib/projectHealth";
 import type { getBottlenecks } from "@/lib/delays";
@@ -119,7 +120,7 @@ export function ProjectProgress({
     <div>
       <div className="flex items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden bg-black/10">
-          <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
+          <ProgressFill pct={pct} className="progress-fill-emerald" />
         </div>
         <span className="flex-shrink-0 text-xs text-slate-500">
           {pct}% · {completed}/{total} tareas

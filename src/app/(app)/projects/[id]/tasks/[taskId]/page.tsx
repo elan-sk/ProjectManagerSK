@@ -1,8 +1,7 @@
 import { format as formatDay, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { TaskDatesEditor } from "./TaskDatesEditor";
-import { adjustmentItemAnswered, deliverableEvidenceLoaded, progressPct, taskProgress } from "@/lib/taskProgress";
-import { credentialVisibleWhere } from "@/lib/credentials";
+import { adjustmentItemAnswered, deliverableEvidenceLoaded, progressPct, taskProgress } from "@/lib/taskProgress";import { credentialVisibleWhere } from "@/lib/credentials";
 import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 import Link from "next/link";
@@ -36,6 +35,7 @@ import { InlinePhase } from "./InlinePhase";
 import { InlineRequirement } from "./InlineRequirement";
 import { LevelField } from "@/components/LevelField";
 import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass } from "@/lib/statusColors";
+import { ProgressFill } from "@/components/ProgressFill";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { EvidenceLoadedIcon, UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
@@ -821,7 +821,7 @@ function StepsProgress({ pct, label }: { pct: number; label?: string }) {
     <div className="space-y-1">
       {label && <p className="text-xs text-slate-500">{label}</p>}
       <div className="h-2 w-full overflow-hidden bg-slate-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className={`${DEFINITION_LEVEL_FILL.TASK} h-full`} style={{ width: `${pct}%` }} />
+        <ProgressFill pct={pct} className={DEFINITION_LEVEL_FILL.TASK} />
       </div>
     </div>
   );

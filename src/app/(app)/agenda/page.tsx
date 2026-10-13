@@ -13,6 +13,7 @@ import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, is
 import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
+import { ProgressFill } from "@/components/ProgressFill";
 import { TaskIndicators } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
@@ -375,7 +376,7 @@ export default async function AgendaPage({
                     {p.subprojects && <SubprojectsPopover subprojects={p.subprojects} size="h-4 w-4 text-[7px]" max={3} />}
                     <div className="flex flex-shrink-0 items-center gap-1.5">
                       <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden bg-slate-100">
-                        <div className="progress-fill-emerald h-full" style={{ width: `${pct}%` }} />
+                        <ProgressFill pct={pct} className="progress-fill-emerald" durationMs={500} />
                       </div>
                       <span className="flex-shrink-0 text-[11px] text-slate-400">
                         {pct}% · {p.completed}/{p.total}
