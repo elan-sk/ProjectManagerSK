@@ -19,6 +19,7 @@ function Month({
   hover,
   onPick,
   onHover,
+  disableWeekends,
 }: {
   month: Date;
   from: Date | null;
@@ -26,6 +27,7 @@ function Month({
   hover: Date | null;
   onPick: (d: Date) => void;
   onHover: (d: Date | null) => void;
+  disableWeekends?: boolean;
 }) {
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
   const blanks = (getDay(startOfMonth(month)) + 6) % 7; // lunes = 0
@@ -47,6 +49,13 @@ function Month({
           const isStart = from && isSameDay(day, from);
           const isEnd = rangeEnd && isSameDay(day, rangeEnd);
           const inRange = from && rangeEnd && isAfter(day, from) && isBefore(day, rangeEnd);
+          if (disableWeekends && [0, 6].includes(getDay(day))) {
+            return (
+              <span key={day.toISOString()} className={`flex h-8 items-center justify-center text-xs text-slate-300 ${inRange ? "bg-[#0a6b78]/10" : ""}`}>
+                {format(day, "d")}
+              </span>
+            );
+          }
           return (
             <button
               key={day.toISOString()}
@@ -78,19 +87,29 @@ function Month({
  * primer click = inicio, segundo click = fin (aplica de inmediato). Deja los
  * params `from`/`to` en la URL igual que ComboFilter, así que funciona en
  * cualquier vista con `basePath` + `currentParams` (datos planos).
+ *
+ * Con `onSelect` deja de ser filtro y sirve para ELEGIR un rango (ej. fechas planeadas de una tarea):
+ * entrega inicio y fin en vez de tocar la URL. `disableWeekends` no deja elegir sábados ni domingos.
+ * `plain` dibuja el disparador como texto con aspecto de link, sin ícono, para ir dentro de una frase.
  */
 export function DateRangeFilter({
   from,
   to,
-  basePath,
-  currentParams,
+  basePath = "",
+  currentParams = {},
   label = "Todas las fechas",
+  onSelect,
+  disableWeekends,
+  plain,
 }: {
   from: string | undefined;
   to: string | undefined;
-  basePath: string;
-  currentParams: Record<string, string | undefined>;
+  basePath?: string;
+  currentParams?: Record<string, string | undefined>;
   label?: string;
+  onSelect?: (from: string, to: string) => void;
+  disableWeekends?: boolean;
+  plain?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -159,6 +178,7 @@ export function DateRangeFilter({
     setDraftFrom(a);
     setDraftTo(b);
     setOpen(false);
+    if (onSelect) return onSelect(dayKey(a), dayKey(b));
     router.push(href(dayKey(a), dayKey(b)), { scroll: false });
   }
 
@@ -173,12 +193,14 @@ export function DateRangeFilter({
         ref={buttonRef}
         type="button"
         onClick={toggle}
-        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${active ? "bg-[#0a6b78] text-white" : "bg-slate-100 text-slate-600"}`}
+        className={plain ? "-mx-0.5 cursor-pointer rounded px-0.5 hover:bg-slate-100 hover:underline" : `flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${active ? "bg-[#0a6b78] text-white" : "bg-slate-100 text-slate-600"}`}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-3.5 w-3.5">
-          <rect x="3" y="5" width="18" height="16" rx="2" />
-          <path strokeLinecap="round" d="M8 3v4M16 3v4M3 10h18" />
-        </svg>
+        {!plain && (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-3.5 w-3.5">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path strokeLinecap="round" d="M8 3v4M16 3v4M3 10h18" />
+          </svg>
+        )}
         {triggerLabel}
       </button>
 
@@ -199,8 +221,8 @@ export function DateRangeFilter({
                 ›
               </button>
             </div>
-            <Month month={viewMonth} from={draftFrom} to={draftTo} hover={hover} onPick={pick} onHover={setHover} />
-            {active && (
+            <Month month={viewMonth} from={draftFrom} to={draftTo} hover={hover} onPick={pick} onHover={setHover} disableWeekends={disableWeekends} />
+            {active && !onSelect && (
               <button type="button" onClick={clear} className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-900 hover:underline">
                 Quitar fechas
               </button>

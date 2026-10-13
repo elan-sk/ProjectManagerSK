@@ -21,10 +21,16 @@ function getRecognitionCtor(): RecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+// En celulares y tabletas el dictado choca con el micrófono del propio teclado del sistema: ahí no se ofrece.
+// Se detecta por sistema, no por tamaño de pantalla; el iPad moderno se presenta como Mac con pantalla táctil.
+function isMobileOs() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 const noSubscription = () => () => {};
 
 export function useDictation(onFinal: (spoken: string) => void, lang = "es-CO") {
-  const supported = useSyncExternalStore(noSubscription, () => getRecognitionCtor() !== null, () => false);
+  const supported = useSyncExternalStore(noSubscription, () => getRecognitionCtor() !== null && !isMobileOs(), () => false);
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [error, setError] = useState<string | null>(null);

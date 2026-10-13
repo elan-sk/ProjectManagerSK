@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateTaskRequirements } from "./actions";
 import { SearchableCheckList } from "@/components/SearchableCheckList";
@@ -25,6 +25,7 @@ export function InlineRequirement({
   const [draft, setDraft] = useState<string[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const rootRef = useRef<HTMLSpanElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const current = isPending && draft ? draft : requirementIds;
   const titles = requirements.filter((r) => current.includes(r.id)).map((r) => r.title);
   const label = titles.length === 0 ? "Sin requerimiento" : titles.length === 1 ? titles[0] : `${titles[0]} +${titles.length - 1}`;
@@ -36,6 +37,16 @@ export function InlineRequirement({
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  // El popup nace alineado a la izquierda del texto; si así se sale por la derecha (celular), se corre
+  // hacia la izquierda lo justo para quedar dentro de la pantalla.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!open || !popup) return;
+    popup.style.left = "0px";
+    const overflow = popup.getBoundingClientRect().right - (window.innerWidth - 8);
+    if (overflow > 0) popup.style.left = `${-overflow}px`;
   }, [open]);
 
   if (!canManage) return <span title={titles.join("\n")}>{label}</span>;
@@ -65,7 +76,7 @@ export function InlineRequirement({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-2 text-left font-normal shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+        <div ref={popupRef} className="absolute left-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-2 text-left font-normal shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
           <SearchableCheckList options={requirements.map((r) => ({ id: r.id, label: r.title }))} selectedIds={current} onChange={change} />
         </div>
       )}

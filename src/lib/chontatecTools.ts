@@ -72,8 +72,18 @@ import type { TaskStatus } from "@prisma/client";
 import { sendDirectAlert, sendGroupAlert, sendWelcomeMessage } from "@/lib/whatsapp";
 import { getWhatsAppSettings } from "@/lib/appSettings";
 import { notify } from "@/lib/notifications";
+import { setTaskTag, removeTaskTag, createTagCategory, updateTagCategory, deleteTagCategory } from "@/app/(app)/settings/tags/tagActions";
+import { categoryForm } from "@/lib/tagCategoryInput";
+import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
+import { tagLabel as sharedTagLabel } from "@/lib/tagFilter";
 
 const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
+const NO_TAG_CATEGORY = "Esa categoría de etiqueta ya no existe.";
+
+// Etiquetas de una tarea para el bot, con el mismo texto que la ficha de la app: «Categoría | etiqueta», o solo la categoría.
+const TASK_TAGS_SELECT = { select: { categoryId: true, tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } } as const;
+type TaskTagForBot = { categoryId: string; tag: { name: string; category: { name: string; emoji: string | null } } };
+const tagLabel = ({ tag }: TaskTagForBot) => sharedTagLabel(tag.category, tag.name);
 
 // Tools de LECTURA — todas delegan en código de dominio existente
 // (src/lib/delays.ts, src/lib/criticalPath.ts, src/lib/search.ts) o en
@@ -141,7 +151,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_project_tasks",
-    description: "Lista TODAS las tareas de un proyecto (no solo las del usuario) con sus fechas planeadas, estado y asignados — usala para responder cosas como \"¿cuál es la próxima tarea por vencer?\" dejando que vos mismo compares las fechas.",
+    description: "Lista TODAS las tareas de un proyecto (no solo las del usuario) con sus fechas planeadas, estado, asignados y etiquetas (tags) — usala para responder cosas como \"¿cuál es la próxima tarea por vencer?\" dejando que vos mismo compares las fechas.",
     input_schema: {
       type: "object",
       properties: {
@@ -162,7 +172,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_task_details",
-    description: "Trae el detalle de una tarea puntual: título, estado, requerimientos de Definición a los que responde (requirements; lista vacía si no tiene), asignados, revisores, checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
+    description: "Trae el detalle de una tarea puntual: título, estado, requerimientos de Definición a los que responde (requirements; lista vacía si no tiene), asignados, revisores, etiquetas (tags, con su categoryId), checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
     input_schema: {
       type: "object",
       properties: { taskId: { type: "string" } },
@@ -224,7 +234,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "search_tasks",
     description:
-      "Busca tareas por texto en título, descripción o nombre de adjuntos (sin distinguir mayúsculas ni tildes); también sirve para saber en qué tarea está un archivo. projectId opcional (sin él, en todos los accesibles).",
+      "Busca tareas por texto en título, descripción, etiquetas o nombre de adjuntos (sin distinguir mayúsculas ni tildes); también sirve para saber en qué tarea está un archivo o cuáles llevan una etiqueta. projectId opcional (sin él, en todos los accesibles).",
     input_schema: {
       type: "object",
       properties: {
@@ -250,6 +260,11 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     name: "list_test_templates",
     description: "Lista las plantillas de pruebas (id, nombre y cantidad de pruebas) para elegir la de una tarea de tipo Prueba. Solo para revisores, PM o administradores.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "list_tags",
+    description: "Categorías de etiqueta de la app (id, nombre, emoji y color) y, con projectId, las etiquetas ya usadas en ese proyecto y en cuántas tareas está cada una.",
+    input_schema: { type: "object", properties: { projectId: { type: "string", description: "Opcional." } } },
   },
 ];
 
@@ -369,6 +384,25 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         done: { type: "boolean" },
       },
       required: ["stepId", "done"],
+    },
+  },
+  {
+    name: "set_task_tag",
+    description:
+      "Pone una etiqueta a una tarea: una por categoría (reemplaza la que hubiera de esa categoría). name es opcional (sin él queda marcada solo con la categoría); si ese nombre no existe en el proyecto, se crea. categoryId de list_tags.",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, categoryId: { type: "string" }, name: { type: "string" } },
+      required: ["taskId", "categoryId"],
+    },
+  },
+  {
+    name: "remove_task_tag",
+    description: "Quita de una tarea la etiqueta de una categoría (categoryId de get_task_details).",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, categoryId: { type: "string" } },
+      required: ["taskId", "categoryId"],
     },
   },
   {
@@ -526,6 +560,22 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
     name: "archive_project",
     description: "Archiva (elimina de la vista, sin borrar datos) un proyecto. Solo un administrador. Es lo mismo que el botón Eliminar proyecto de la app.",
     input_schema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
+  },
+  {
+    name: "manage_tag_category",
+    description:
+      "Gestiona las categorías de etiqueta (globales, se ven en todos los proyectos): create (name, colorHex, emoji?), update (categoryId y lo que cambie) o delete (categoryId; solo un administrador, borra también sus etiquetas de todas las tareas).",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "create | update | delete" },
+        categoryId: { type: "string" },
+        name: { type: "string" },
+        colorHex: { type: "string", enum: TAG_CATEGORY_COLORS },
+        emoji: { type: ["string", "null"], description: "Opcional; null lo quita." },
+      },
+      required: ["action"],
+    },
   },
   {
     name: "manage_phase",
@@ -899,11 +949,11 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const where = await myTasksWhere(userId);
       const tasks = await prisma.task.findMany({
         where: { ...where, ...(status ? { status: status as TaskStatus } : {}) },
-        select: { id: true, title: true, status: true, plannedEnd: true, projectId: true, project: { select: { name: true } } },
+        select: { id: true, title: true, status: true, plannedEnd: true, projectId: true, project: { select: { name: true } }, taskTags: TASK_TAGS_SELECT },
         orderBy: { plannedEnd: "asc" },
         take: 50,
       });
-      return JSON.stringify(tasks.map((t) => ({ ...t, statusLabel: TASK_STATUS_LABEL[t.status] })));
+      return JSON.stringify(tasks.map(({ taskTags, ...t }) => ({ ...t, statusLabel: TASK_STATUS_LABEL[t.status], tags: taskTags.map(tagLabel) })));
     }
 
     case "list_project_tasks": {
@@ -919,6 +969,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           plannedStart: true,
           plannedEnd: true,
           assignees: { include: { user: { select: { name: true, avatarUrl: true } } } },
+          taskTags: TASK_TAGS_SELECT,
         },
         orderBy: { plannedEnd: "asc" },
       });
@@ -931,6 +982,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           plannedStart: t.plannedStart,
           plannedEnd: t.plannedEnd,
           assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
+          tags: t.taskTags.map(tagLabel),
         }))
       );
     }
@@ -980,6 +1032,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           steps: true,
           attachments: { select: { id: true, kind: true, fileName: true, mimeType: true } },
           reviewers: { include: { user: { select: { id: true, name: true } } } },
+          taskTags: TASK_TAGS_SELECT,
         },
       });
       if (!task) return JSON.stringify({ error: "No existe esa tarea." });
@@ -990,7 +1043,14 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const alert = await getTaskAlert(task.project.countryCode, task);
       const credentials = await credentialsForBot({ tasks: { some: { taskId: task.id } } }, userId);
       return JSON.stringify({
-        task: { ...task, statusLabel: TASK_STATUS_LABEL[task.status], attachments: filesAccessible ? task.attachments : [], credentials },
+        task: {
+          ...task,
+          taskTags: undefined,
+          tags: task.taskTags.map((tt) => ({ categoryId: tt.categoryId, label: tagLabel(tt) })),
+          statusLabel: TASK_STATUS_LABEL[task.status],
+          attachments: filesAccessible ? task.attachments : [],
+          credentials,
+        },
         filesAccessible,
         alert,
       });
@@ -1001,6 +1061,19 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!(await canManageTemplates(trustedActor({ id: userId, role })))) return JSON.stringify({ error: "Las plantillas de pruebas solo las ven revisores, PM o administradores." });
       const templates = await prisma.testTemplate.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { items: true } } } });
       return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
+    }
+
+    case "list_tags": {
+      const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);
+      const categories = await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } });
+      if (!projectId) return JSON.stringify({ categories });
+      if (!hasAccess(await getAccessibleProjectIds(userId), projectId)) return JSON.stringify(NO_ACCESS);
+      const tags = await prisma.tag.findMany({
+        where: { projectId },
+        select: { categoryId: true, name: true, _count: { select: { taskTags: true } } },
+        orderBy: { name: "asc" },
+      });
+      return JSON.stringify({ categories, tags: tags.map((t) => ({ categoryId: t.categoryId, name: t.name, tasks: t._count.taskTags })) });
     }
 
     case "get_task_design":
@@ -1118,13 +1191,19 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           projectId: true,
           project: { select: { name: true } },
           attachments: { select: { fileName: true } },
+          taskTags: TASK_TAGS_SELECT,
         },
       });
+      const needle = normalizeSearchText(query.trim());
       // Si no tiene acceso a los archivos de esa tarea puntual, la búsqueda
       // no debe encontrarla POR un nombre de archivo (ni mostrar cuál
       // matcheó) — solo puede aparecer por título/descripción.
       const matches = tasks
-        .filter((t) => matchesTaskSearch({ ...t, attachments: canSeeTaskFiles(fileAccessIds, t.id) ? t.attachments : [] }, query))
+        .filter(
+          (t) =>
+            matchesTaskSearch({ ...t, attachments: canSeeTaskFiles(fileAccessIds, t.id) ? t.attachments : [] }, query) ||
+            t.taskTags.some((tt) => normalizeSearchText(tagLabel(tt)).includes(needle))
+        )
         .slice(0, 20);
       return JSON.stringify(
         matches.map((t) => ({
@@ -1134,6 +1213,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           statusLabel: TASK_STATUS_LABEL[t.status],
           projectId: t.projectId,
           projectName: t.project.name,
+          tags: t.taskTags.map(tagLabel),
           matchingFiles: canSeeTaskFiles(fileAccessIds, t.id)
             ? t.attachments.filter((a) => normalizeSearchText(a.fileName).includes(normalizeSearchText(query))).map((a) => a.fileName)
             : [],
@@ -1205,6 +1285,17 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       if (addUserId) return "Agregar una persona a la tarea";
       if (removeUserId) return "Quitar una persona de la tarea";
       return "Reasignar la tarea";
+    }
+    case "set_task_tag":
+      return "Poner una etiqueta a la tarea";
+    case "remove_task_tag":
+      return "Quitar una etiqueta de la tarea";
+    case "manage_tag_category": {
+      const { action } = input as { action?: string };
+      return (
+        { create: "Crear una categoría de etiqueta", update: "Editar una categoría de etiqueta", delete: "⚠️ Eliminar una categoría de etiqueta con todas sus etiquetas (no se puede deshacer)" }[action ?? ""] ??
+        "Gestionar categorías de etiqueta"
+      );
     }
     case "set_test_template": {
       const { templateId } = input as { templateId?: string | null };
@@ -1517,6 +1608,58 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         }
         if (changed.length === 0) return { ok: false, message: "No se especificó qué cambiar." };
         return { ok: true, message: `Listo, se actualizó: ${changed.join(", ")}.` };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "set_task_tag": {
+      try {
+        const parsed = z.object({ taskId: z.string(), categoryId: z.string(), name: z.string().optional() }).parse(input);
+        const category = await prisma.tagCategory.findUnique({ where: { id: parsed.categoryId }, select: { id: true } });
+        if (!category) return { ok: false, message: NO_TAG_CATEGORY };
+        const result = await setTaskTag(parsed.taskId, parsed.categoryId, parsed.name ?? "");
+        return result.ok ? { ok: true, message: "Listo, la tarea quedó con esa etiqueta." } : { ok: false, message: result.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "remove_task_tag": {
+      try {
+        const parsed = z.object({ taskId: z.string(), categoryId: z.string() }).parse(input);
+        const taskTag = await prisma.taskTag.findUnique({ where: { taskId_categoryId: parsed }, select: { id: true } });
+        if (!taskTag) return { ok: false, message: "La tarea no tiene una etiqueta de esa categoría." };
+        const result = await removeTaskTag(taskTag.id);
+        return result.ok ? { ok: true, message: "Listo, se quitó la etiqueta." } : { ok: false, message: result.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_tag_category": {
+      try {
+        const parsed = z
+          .object({ action: z.enum(["create", "update", "delete"]), categoryId: z.string().optional(), name: z.string().optional(), colorHex: z.string().optional(), emoji: z.string().nullable().optional() })
+          .parse(input);
+        if (parsed.action === "create") {
+          if (!parsed.name?.trim() || !parsed.colorHex) return { ok: false, message: "Falta indicar el nombre y el color de la categoría." };
+          const result = await createTagCategory(categoryForm({ name: parsed.name, colorHex: parsed.colorHex, emoji: parsed.emoji }));
+          if (!result.ok) return { ok: false, message: result.error };
+          return { ok: true, message: withHiddenIds(`Listo, se creó la categoría «${result.category.name}».`, { categoryId: result.category.id }) };
+        }
+        const current = parsed.categoryId ? await prisma.tagCategory.findUnique({ where: { id: parsed.categoryId } }) : null;
+        if (!current) return { ok: false, message: NO_TAG_CATEGORY };
+        if (parsed.action === "delete") {
+          const result = await deleteTagCategory(current.id);
+          return result.ok ? { ok: true, message: `Listo, se eliminó la categoría «${current.name}» con sus etiquetas.` } : { ok: false, message: result.error };
+        }
+        // La acción de la app pide los tres campos: lo que no cambia se conserva.
+        const result = await updateTagCategory(
+          current.id,
+          categoryForm({ name: parsed.name ?? current.name, colorHex: parsed.colorHex ?? current.colorHex, emoji: parsed.emoji === undefined ? current.emoji : parsed.emoji })
+        );
+        return result.ok ? { ok: true, message: "Listo, se actualizó la categoría." } : { ok: false, message: result.error };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

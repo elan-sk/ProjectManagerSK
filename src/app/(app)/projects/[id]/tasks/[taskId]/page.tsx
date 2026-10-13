@@ -1,3 +1,5 @@
+import { TaskDatesEditor } from "./TaskDatesEditor";
+import { progressPct, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel } from "@/lib/attachments";
 import type { CredentialPlace } from "@/lib/credentialPlace";
@@ -220,6 +222,8 @@ export default async function TaskDetailPage({
   const stepsTotal = task.steps.length;
   const stepsDone = task.steps.filter((st) => st.done).length;
   const stepsPct = stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
+  // Prueba, Ajuste y Aceptación: su barra son los puntos respondidos (ver taskProgress.ts).
+  const points = hasChecklist ? null : taskProgress(task);
 
   const insumos = task.attachments.filter((a) => a.kind === "INSUMO");
   // Credenciales agregadas a esta tarea que ESTA persona puede ver (sus asignados siempre pueden).
@@ -390,6 +394,11 @@ export default async function TaskDetailPage({
             <StepsProgress pct={stepsPct} label={`Checklist: ${stepsDone}/${stepsTotal} pasos · ${stepsPct}%`} />
           </div>
         )}
+        {points && (
+          <div className="mt-2 max-w-sm">
+            <StepsProgress pct={progressPct(points)} label={`Puntos respondidos: ${points.done}/${points.total} · ${progressPct(points)}%`} />
+          </div>
+        )}
         {task.isUrgent && task.status !== "COMPLETED" && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white" title={canManage ? undefined : "Solo un administrador o el PM puede quitar la urgencia"}>
             <UrgentIcon className="h-3.5 w-3.5" />
@@ -402,12 +411,18 @@ export default async function TaskDetailPage({
           </p>
         )}
         <p className="mt-1 text-sm text-slate-500">
-          Planeada: {task.plannedStart.toLocaleDateString("es-CO", DATE_FMT)} —{" "}
-          {task.plannedEnd.toLocaleDateString("es-CO", DATE_FMT)}
+          <span className="font-medium text-slate-600">Planeada:</span>{" "}
+          {canManage && !task.archivedAt ? (
+            <TaskDatesEditor taskId={taskId} from={task.plannedStart.toISOString().slice(0, 10)} to={task.plannedEnd.toISOString().slice(0, 10)} updatedAt={task.updatedAt.toISOString()} />
+          ) : (
+            <>
+              {task.plannedStart.toLocaleDateString("es-CO", DATE_FMT)} — {task.plannedEnd.toLocaleDateString("es-CO", DATE_FMT)}
+            </>
+          )}
           {task.actualStart && (
             <>
               {" "}
-              · Real: {task.actualStart.toLocaleDateString("es-CO", DATE_FMT)}
+              · <span className="font-medium text-slate-600">Real:</span> {task.actualStart.toLocaleDateString("es-CO", DATE_FMT)}
               {task.actualEnd ? ` — ${task.actualEnd.toLocaleDateString("es-CO", DATE_FMT)}` : " — en curso"}
             </>
           )}

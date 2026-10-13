@@ -1,5 +1,6 @@
 "use client";
 
+import { progressPct, type TaskProgress } from "@/lib/taskProgress";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useAppRouter";
@@ -49,7 +50,7 @@ export type TaskCard = {
   tags: { id: string; categoryId: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   plannedStart: string;
   plannedEnd: string;
-  stepsProgress: { done: number; total: number } | null;
+  stepsProgress: TaskProgress | null;
   attachmentsCount: number;
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
@@ -223,12 +224,12 @@ function CardBody({
             <div
               className="progress-fill-emerald h-full"
               style={{
-                width: `${Math.round((task.stepsProgress.done / task.stepsProgress.total) * 100)}%`,
+                width: `${progressPct(task.stepsProgress)}%`,
               }}
             />
           </div>
           <p className="text-[11px] text-slate-500">
-            {task.stepsProgress.done}/{task.stepsProgress.total} pasos
+            {task.stepsProgress.done}/{task.stepsProgress.total} {task.stepsProgress.unit}
           </p>
         </div>
       )}

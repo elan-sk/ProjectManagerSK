@@ -1,3 +1,4 @@
+import { taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -246,7 +247,8 @@ export default async function ProjectsPage({
       requirements: { select: { title: true }, orderBy: { order: "asc" } },
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
-      reviewRounds: { select: { outcome: true } },
+reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } },
+      adjustmentItems: { select: { clientApproval: true } },
       taskTags: { include: { tag: { include: { category: true } } } },
       steps: true,
       attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
@@ -388,8 +390,7 @@ export default async function ProjectsPage({
       tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryId: tt.tag.categoryId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
-      stepsProgress:
-        t.steps.length > 0 ? { done: t.steps.filter((s) => s.done).length, total: t.steps.length } : null,
+      stepsProgress: taskProgress(t),
       attachmentsCount: t.attachments.length,
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,

@@ -5,6 +5,11 @@
 // (son cuid), así que no hay colisión posible. Sin Prisma: lo usa también TagChip (cliente).
 export const TAG_FILTER_CATEGORY_PREFIX = "cat:";
 
+// Texto de una etiqueta fuera de su ficha (bot, buscador): «Categoría | etiqueta», o solo la categoría.
+export function tagLabel(category: { name: string; emoji: string | null }, name: string) {
+  return `${category.emoji ? `${category.emoji} ` : ""}${category.name}${name ? ` | ${name}` : ""}`;
+}
+
 export function categoryFilterValue(categoryId: string) {
   return `${TAG_FILTER_CATEGORY_PREFIX}${categoryId}`;
 }

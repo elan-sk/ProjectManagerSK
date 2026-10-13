@@ -38,9 +38,10 @@ export function PushSubscribeButton() {
   if (subscribed === null || subscribed) return null;
 
   return (
+    // Con el aviso de WhatsApp a la vista (su hermano anterior en el encabezado) este botón no se muestra.
     <button
       onClick={subscribe}
-      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200"
+      className="[.whatsapp-health-alert~&]:hidden rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200"
     >
       Activar notificaciones
     </button>

@@ -7,6 +7,8 @@ import { parseHeaderSearch } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { credentialVisibleWhere } from "@/lib/credentials";
+import { TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { tagLabel } from "@/lib/tagFilter";
 import type { Prisma, TaskStatus } from "@prisma/client";
 
 // Los resultados se muestran agrupados y en este orden: Proyectos → Tareas
@@ -48,6 +50,13 @@ export async function GET(request: Request) {
   if (q.length < 2) return NextResponse.json({ hits: [] satisfies SearchHit[] });
   const { filter, text: searchText } = parseHeaderSearch(q);
   const credentialsOnly = filter === "credential";
+  // «tipos:» y «etiquetas:» traen tareas, buscadas por su tipo o por sus etiquetas en vez de por su texto.
+  const hitKind = filter === "taskType" || filter === "tag" ? "task" : filter;
+  // Sin texto todavía: el buscador ofrece los tipos (los conoce) o las categorías de etiqueta para elegir.
+  if (hitKind === "task" && filter !== "task" && !searchText) {
+    const categories = filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : [];
+    return NextResponse.json({ hits: [] satisfies SearchHit[], categories });
+  }
 
   // Buscar «contraseña(s)» o «clave(s)» trae todas las contraseñas que la persona puede ver, primero y sin
   // tope. No hace falta escribirla exacta: desde 4 letras vale el comienzo («contra», «clav») o un error de
@@ -55,6 +64,19 @@ export async function GET(request: Request) {
   const allCredentials = credentialsOnly
     ? !searchText
     : q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
+  // «etiquetas:Categoría:nombre» — antes de los dos puntos la categoría y después el nombre (cualquiera
+  // de los dos puede ir vacío). Sin dos puntos, el texto se busca en «Categoría | nombre» completo.
+  // «tipos:Tipo:texto» — igual: antes de los dos puntos el tipo y después lo que se busca dentro de sus tareas.
+  const colon = filter === "tag" || filter === "taskType" ? searchText.indexOf(":") : -1;
+  const taskTypeText = filter === "taskType" ? (colon < 0 ? searchText : searchText.slice(0, colon)).trim() : "";
+  // Lo que se compara contra el texto de cada resultado.
+  const needle = filter === "taskType" ? (colon < 0 ? "" : searchText.slice(colon + 1).trim()) : searchText;
+  const tagCategoryText = colon < 0 ? null : searchText.slice(0, colon).trim();
+  const tagNameText = colon < 0 ? null : searchText.slice(colon + 1).trim();
+  const matchesTag = (category: { name: string; emoji: string | null }, name: string) =>
+    tagCategoryText === null || tagNameText === null
+      ? fuzzyScore(searchText, tagLabel(category, name)) > 0
+      : (!tagCategoryText || fuzzyScore(tagCategoryText, category.name) > 0) && (!tagNameText || fuzzyScore(tagNameText, name) > 0);
   const userId = session.user.id;
   const projectWhere: Prisma.ProjectWhereInput =
     session.user.role === "ADMIN"
@@ -87,6 +109,7 @@ export async function GET(request: Request) {
           type: true,
           status: true,
           steps: { select: { id: true, description: true } },
+          taskTags: { select: { tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
           reviewers: { select: { user: { select: { name: true, avatarUrl: true } } } },
           attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
@@ -111,8 +134,9 @@ export async function GET(request: Request) {
 
   const hits: SearchHit[] = [];
   const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl">) => {
-    if (filter && kind !== filter) return;
-    const score = filter && !searchText ? 1 : fuzzyScore(searchText, text);
+    if (hitKind && kind !== hitKind) return;
+    // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
+    const score = (filter && !needle) || filter === "tag" ? 1 : fuzzyScore(needle, text);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" || kind === "credential" ? "file" : kind;
     if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
@@ -130,7 +154,16 @@ export async function GET(request: Request) {
       taskTitleById.set(t.id, t.title);
       const taskHref = `/projects/${p.id}/tasks/${t.id}`;
       const involved = [...t.assignees, ...t.reviewers].map((x) => x.user).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i);
-      push("task", t.id, t.title, p.name, taskHref, `${t.title} ${stripHtml(t.description ?? "")}`, logo, involved, { taskType: t.type, taskStatus: t.status });
+      // Por etiqueta: categoría y nombre tienen que coincidir en UNA misma etiqueta, no entre dos distintas.
+      const tags = t.taskTags
+        .filter((tt) => filter !== "tag" || matchesTag(tt.tag.category, tt.tag.name))
+        .map((tt) => tagLabel(tt.tag.category, tt.tag.name))
+        .join(", ");
+      const typeMatches = filter !== "taskType" || fuzzyScore(taskTypeText, TASK_TYPE_LABEL[t.type] ?? t.type) > 0;
+      if (typeMatches && (filter !== "tag" || tags)) {
+        const taskText = filter === "tag" ? tags : `${t.title} ${stripHtml(t.description ?? "")}`;
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status });
+      }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
         const isLink = a.mimeType === LINK_MIME_TYPE;

@@ -8,9 +8,9 @@ import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
-import { HEADER_SEARCH_OPTIONS, isCompactSearch } from "@/lib/search";
+import { HEADER_SEARCH_OPTIONS, isCompactSearch, parseHeaderSearch } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
-import { KeyIcon, SearchIcon, XIcon } from "@/components/icons";
+import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -45,16 +45,27 @@ const KIND_LABEL: Record<SearchHit["kind"], string> = {
   credential: "Contraseña",
 };
 
-const KIND_COLOR: Record<SearchHit["kind"], string> = {
-  // Sólido (no tinte): la fila activa del resultado ya es verdosa y un tinte del mismo tono se perdía.
-  project: "bg-[#0a6b78] text-white",
+const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "tag", string> = {
+  project: "bg-cyan-50 text-cyan-800",
   task: "bg-fuchsia-50 text-fuchsia-700",
   step: "bg-slate-100 text-slate-600",
   comment: "bg-amber-50 text-amber-700",
   file: "bg-sky-50 text-sky-700",
   link: "bg-emerald-50 text-emerald-700",
   credential: "bg-red-50 text-red-700", // rojo de seguridad, como sus fichas
+  taskType: "bg-teal-50 text-teal-700",
+  tag: "bg-indigo-50 text-indigo-700",
 };
+
+type TagCategoryChoice = { id: string; name: string; emoji: string | null; colorHex: string };
+type Choice = { key: string; label: string; badge?: string; emoji?: string | null; colorHex?: string };
+
+// Atajos con ícono dentro del campo: cada uno deja escrito su tipo de búsqueda.
+const FIELD_SHORTCUTS = [
+  { prefix: "tipos", label: "Buscar por tipo de tarea", Icon: TaskTypeIcon },
+  { prefix: "etiquetas", label: "Buscar por etiqueta", Icon: TagIcon },
+  { prefix: "contraseñas", label: "Buscar contraseñas", Icon: KeyIcon },
+];
 
 // Punto de color de cada tipo en el menú «Buscar por tipo» (mismos tonos que las etiquetas).
 const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> = {
@@ -64,6 +75,8 @@ const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> =
   file: "bg-sky-500",
   link: "bg-emerald-500",
   credential: "bg-red-500",
+  taskType: "bg-teal-500",
+  tag: "bg-indigo-500",
 };
 
 /**
@@ -76,7 +89,7 @@ export function HeaderSearch() {
   const [query, setQuery] = useState("");
   // `result.q` = consulta a la que corresponden `result.hits`; mientras no
   // coincida con lo escrito, se está buscando.
-  const [result, setResult] = useState<{ q: string; hits: SearchHit[] }>({
+  const [result, setResult] = useState<{ q: string; hits: SearchHit[]; categories?: TagCategoryChoice[] }>({
     q: "",
     hits: [],
   });
@@ -106,7 +119,7 @@ export function HeaderSearch() {
           { signal: controller.signal },
         );
         const body = res.ok ? await res.json() : { hits: [] };
-        setResult({ q: trimmed, hits: body.hits });
+        setResult({ q: trimmed, hits: body.hits, categories: body.categories });
         setActive(0);
       } catch {
         // abortado por una tecla nueva — la siguiente búsqueda toma el relevo
@@ -257,6 +270,22 @@ export function HeaderSearch() {
   }
 
   const showPanel = !filtersOpen && open && trimmed.length >= 2;
+  // «tipos:» o «etiquetas:» sin texto todavía: se ofrecen los tipos o las categorías para elegir con un toque.
+  const parsed = parseHeaderSearch(trimmed);
+  const choices: Choice[] | null = parsed.text
+    ? null
+    : parsed.filter === "taskType"
+      ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type] }))
+      : parsed.filter === "tag" && result.q === trimmed && result.categories?.length
+        ? result.categories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex }))
+        : null;
+  function choose(prefix: string, label: string) {
+    // Queda «Categoría:» o «Tipo:» lista para seguir escribiendo, todo pegado y sin espacios
+    // y en minúsculas (etiquetas:componentes:banner, tipos:prueba:login).
+    setQuery(`${prefix}:${label.toLowerCase()}:`);
+    setActive(0);
+    inputRef.current?.focus();
+  }
 
   const field = (
       <div
@@ -324,18 +353,23 @@ export function HeaderSearch() {
           placeholder="Buscar proyectos, tareas, comentarios, archivos…"
           aria-label="Buscador rápido"
           autoComplete="off"
-          className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-9 pl-8 text-sm text-white outline-none [&::-webkit-search-cancel-button]:hidden placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
+          className="w-full rounded-full border border-white/25 bg-white/15 py-1.5 pr-23 pl-8 text-sm text-white outline-none [&::-webkit-search-cancel-button]:hidden placeholder:text-white/70 focus:border-white/50 focus:bg-white/25"
         />
-        {!query && <Hotkey keys="Espacio" className="absolute top-1/2 right-10 z-10 -translate-y-1/2" />}
-        <button
-          type="button"
-          title="Buscar contraseñas"
-          aria-label="Buscar contraseñas"
-          onClick={() => selectSearchType("contraseñas")}
-          className="absolute top-1/2 right-1 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
-        >
-          <KeyIcon className="h-4 w-4" />
-        </button>
+        {!query && <Hotkey keys="Espacio" className="absolute top-1/2 right-24 z-10 -translate-y-1/2" />}
+        <div className="absolute top-1/2 right-1 flex -translate-y-1/2">
+          {FIELD_SHORTCUTS.map(({ prefix, label, Icon }) => (
+            <button
+              key={prefix}
+              type="button"
+              title={label}
+              aria-label={label}
+              onClick={() => selectSearchType(prefix)}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-white/80 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
         {filtersOpen && (
           <div id="header-search-types" className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">Buscar por tipo</p>
@@ -350,7 +384,21 @@ export function HeaderSearch() {
         )}
         {showPanel && (
           <div className={`pacific-popover absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] ${compact ? "min-w-0" : "min-w-[22rem]"} overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}>
-            {hits.length === 0 ? (
+            {choices ? (
+              <div className="flex flex-wrap gap-1.5 p-1.5">
+                {choices.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => choose(parsed.filter === "tag" ? "etiquetas" : "tipos", c.label)}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? "bg-slate-100 text-slate-700"}`}
+                  >
+                    {c.emoji ? <span aria-hidden>{c.emoji}</span> : c.colorHex ? <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: c.colorHex }} aria-hidden /> : null}
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            ) : hits.length === 0 ? (
               <p className="px-3 py-2 text-sm text-slate-400">
                 {loading ? "Buscando…" : "Sin resultados."}
               </p>

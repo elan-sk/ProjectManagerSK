@@ -414,3 +414,23 @@ html.show-hotkeys .hotkey {
 [data-paste-active="true"] .paste-ready {
   display: inline;
 }
+
+/* Visor de Word (docx-preview) en celular: la hoja trae el ancho y los márgenes del papel (ej. 21 cm), no
+   cabe y, al ir centrada, su borde izquierdo queda fuera de alcance. Aquí ocupa el ancho disponible. */
+@media (max-width: 639.98px) {
+  .docx-wrapper {
+    padding: 0 !important;
+    background: none !important;
+    align-items: stretch !important;
+  }
+  .docx-wrapper > section.docx {
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0.5rem !important;
+    margin-bottom: 0 !important;
+    box-shadow: none !important;
+  }
+  .docx-wrapper table {
+    max-width: 100%;
+  }
+}

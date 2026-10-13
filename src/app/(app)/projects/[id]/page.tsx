@@ -1,3 +1,4 @@
+import { taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { canSeeProject, managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -66,7 +67,8 @@ import { SaveLastProject } from "./SaveLastProject";
 const taskInclude = {
   assignees: { include: { user: true } },
   reviewers: { include: { user: true } },
-  reviewRounds: { select: { outcome: true } },
+reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } },
+  adjustmentItems: { select: { clientApproval: true } },
   taskTags: { include: { tag: { include: { category: true } } } },
   steps: true,
   requirements: { select: { id: true, title: true }, orderBy: { order: "asc" as const } },
@@ -451,10 +453,7 @@ export default async function ProjectPage({
     tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryId: tt.tag.categoryId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
-    stepsProgress:
-      t.steps.length > 0
-        ? { done: t.steps.filter((s) => s.done).length, total: t.steps.length }
-        : null,
+    stepsProgress: taskProgress(t),
     attachmentsCount: t.attachments.length,
     alert: alertByTaskId.get(t.id)!,
     collidesWith: null,
@@ -757,11 +756,7 @@ export default async function ProjectPage({
               <div className="mt-2 sm:hidden">
                 <SubprojectsPopover
                   subprojects={children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) }))}
-                  trigger={
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                      Grupo: {children.length} {children.length === 1 ? "subproyecto" : "subproyectos"}
-                    </span>
-                  }
+                  size="h-6 w-6 text-[10px]"
                 />
               </div>
             )}

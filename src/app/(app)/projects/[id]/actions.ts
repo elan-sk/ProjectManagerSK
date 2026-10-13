@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirementsForProject } from "@/lib/taskRequirement";
-import { addBusinessDays, subtractBusinessDays, businessDaysBetween } from "@/lib/holidays";
+import { addBusinessDays, subtractBusinessDays, businessDaysBetween, isBusinessDay } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
 import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
@@ -725,6 +725,67 @@ export async function resizeTask(
 
   revalidatePath(`/projects/${task.projectId}`);
   return { ok: true };
+}
+
+/**
+ * Fechas planeadas elegidas en el calendario de la ficha de la tarea (inicio y fin a la vez). Mismas
+ * reglas que el arrastre en el Gantt (permiso, tarea iniciada/completada, dependencias, cascada a las
+ * sucesoras), pero aquí la fecha la eligió la persona: si no se puede, se le explica en vez de ajustarla.
+ */
+export async function setTaskPlannedDates(taskId: string, startKey: string, endKey: string, expectedUpdatedAt?: string, actor?: Actor) {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      project: true,
+      dependsOn: {
+        include: { predecessor: { select: { status: true, plannedStart: true, plannedEnd: true, actualEnd: true } } },
+      },
+    },
+  });
+  if (!task) return { ok: false as const, error: "Tarea no encontrada." };
+  const isDay = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(k) && !Number.isNaN(new Date(k).getTime());
+  if (!isDay(startKey) || !isDay(endKey)) return { ok: false as const, error: "Las fechas no son válidas." };
+
+  try {
+    assertNotStale(task, expectedUpdatedAt);
+    await requireProjectAdmin(task.projectId, actor);
+    await assertDatesEditable(taskId);
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
+
+  const key = (d: Date) => d.toISOString().slice(0, 10);
+  const startChanged = startKey !== key(task.plannedStart);
+  const endChanged = endKey !== key(task.plannedEnd);
+  if (!startChanged && !endChanged) return { ok: true as const };
+  if (endKey < startKey) return { ok: false as const, error: "La fecha de fin no puede ser anterior a la de inicio." };
+  if (startChanged && task.status !== "NOT_STARTED") {
+    return { ok: false as const, error: "No se puede mover la fecha de inicio de una tarea que ya inició." };
+  }
+  if (endChanged && task.status === "COMPLETED") {
+    return { ok: false as const, error: "No se puede mover la fecha de fin de una tarea completada." };
+  }
+
+  const countryCode = task.project.countryCode;
+  const start = new Date(startKey);
+  const end = new Date(endKey);
+  if (startChanged && !(await isBusinessDay(countryCode, start))) return { ok: false as const, error: "La fecha de inicio cae en un fin de semana o festivo." };
+  if (endChanged && !(await isBusinessDay(countryCode, end))) return { ok: false as const, error: "La fecha de fin cae en un fin de semana o festivo." };
+  if (startChanged) {
+    const minStart = await requiredStartFor(countryCode, task.dependsOn, task.project.startDate);
+    if (start.getTime() < minStart.getTime()) {
+      const day = minStart.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+      return { ok: false as const, error: `La tarea no puede empezar antes del ${day}: depende de otra tarea o del inicio del proyecto.` };
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.update({ where: { id: taskId }, data: { plannedStart: start, plannedEnd: end } });
+    await propagateToSuccessors(tx, countryCode, taskId);
+  });
+  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/projects/${task.projectId}/tasks/${taskId}`);
+  return { ok: true as const };
 }
 
 /**
