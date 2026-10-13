@@ -633,35 +633,37 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   📎
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-                {canDictate && (
-                  <button
-                    type="button"
-                    onClick={toggleDictation}
+                <div className="relative flex-1">
+                  <input
+                    autoFocus
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (canDictate && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+                        e.preventDefault();
+                        toggleDictation();
+                        return;
+                      }
+                      if (e.key === "Enter") handleSend();
+                    }}
+                    placeholder="Preguntale algo…"
                     disabled={isPending}
-                    aria-pressed={listening}
-                    title={listening ? "Detener el dictado (Ctrl + D)" : "Dictar por voz (Ctrl + D)"}
-                    aria-label={listening ? "Detener el dictado" : "Dictar por voz"}
-                    className={`flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg disabled:opacity-60 ${listening ? "animate-pulse bg-red-600 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
-                  >
-                    <MicIcon className="h-4 w-4" />
-                  </button>
-                )}
-                <input
-                  autoFocus
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (canDictate && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
-                      e.preventDefault();
-                      toggleDictation();
-                      return;
-                    }
-                    if (e.key === "Enter") handleSend();
-                  }}
-                  placeholder="Preguntale algo…"
-                  disabled={isPending}
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-60"
-                />
+                    className={`w-full rounded-lg border border-slate-300 py-1.5 pl-3 text-sm disabled:opacity-60 ${canDictate ? "pr-10" : "pr-3"}`}
+                  />
+                  {canDictate && (
+                    <button
+                      type="button"
+                      onClick={toggleDictation}
+                      disabled={isPending}
+                      aria-pressed={listening}
+                      title={listening ? "Detener el dictado (Ctrl + D)" : "Dictar por voz (Ctrl + D)"}
+                      aria-label={listening ? "Detener el dictado" : "Dictar por voz"}
+                      className={`absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md disabled:opacity-60 ${listening ? "animate-pulse bg-red-600 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
+                    >
+                      <MicIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={handleSend}
