@@ -21,6 +21,18 @@ export const HEADER_SEARCH_OPTIONS = [
   { prefix: "contraseñas", kind: "credential", label: "Contraseñas" },
 ] as const;
 
+// Abre el buscador del header con una consulta ya escrita (ej. desde un chip de etiqueta).
+export const OPEN_HEADER_SEARCH_EVENT = "header-search:open";
+export function openHeaderSearch(query: string) {
+  window.dispatchEvent(new CustomEvent<string>(OPEN_HEADER_SEARCH_EVENT, { detail: query }));
+}
+
+// Consulta del buscador para una etiqueta: «etiquetas:categoría:» (toda la categoría) o
+// «etiquetas:categoría:etiqueta:» — siempre termina en «:», como las sugerencias del buscador.
+export function tagSearchQuery(categoryName: string, name?: string) {
+  return `etiquetas:${categoryName.toLowerCase()}:${name ? `${name.toLowerCase()}:` : ""}`;
+}
+
 export const SEARCH_BAR_MIN_WIDTH = 224;
 export const SEARCH_BAR_MIN_VIEWPORT = 1024;
 

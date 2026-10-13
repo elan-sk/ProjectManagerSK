@@ -3,6 +3,7 @@
 import type { MouseEvent } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { categoryFilterValue } from "@/lib/tagFilter";
+import { openHeaderSearch, tagSearchQuery } from "@/lib/search";
 
 // Punto 17: la etiqueta siempre se ve igual en cualquier lado de la app —
 // color/emoji de la categoría + el nombre puntual (ej. 🧩 hero-banner). El
@@ -19,6 +20,7 @@ export function TagChip({
   name,
   onRemove,
   filter,
+  searchable,
   size = "sm",
 }: {
   colorHex: string;
@@ -31,6 +33,11 @@ export function TagChip({
    * y clic en el nombre filtra por esa etiqueta puntual (mismo valor que el ComboFilter, `?tag=`).
    */
   filter?: { tagId: string; categoryId: string };
+  /**
+   * En el detalle de la tarea: clic en la categoría abre el buscador del header con
+   * «etiquetas:categoría:» y clic en el nombre con «etiquetas:categoría:etiqueta».
+   */
+  searchable?: boolean;
   /** `md`: más grande y con borde, para donde la etiqueta es protagonista (detalle y formulario de la tarea); `sm` en tarjetas. */
   size?: "sm" | "md";
 }) {
@@ -45,9 +52,14 @@ export function TagChip({
     params.set("tag", value);
     router.push(`${window.location.pathname}?${params.toString()}`, { scroll: false });
   };
-  const part = (value: string, title: string, className: string, children: React.ReactNode) =>
-    filter ? (
-      <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={filterBy(value)} title={title} className={`${className} cursor-pointer hover:underline`}>
+  const searchBy = (query: string) => (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openHeaderSearch(query);
+  };
+  const part = (value: string, title: string, className: string, children: React.ReactNode, query?: string) =>
+    filter || (searchable && query) ? (
+      <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={filter ? filterBy(value) : searchBy(query!)} title={title} className={`${className} cursor-pointer hover:underline`}>
         {children}
       </button>
     ) : (
@@ -62,11 +74,13 @@ export function TagChip({
       {emoji ? <span aria-hidden>{emoji}</span> : <span className={`flex-shrink-0 rounded-full ${md ? "h-2 w-2" : "h-1.5 w-1.5"}`} style={{ backgroundColor: colorHex }} aria-hidden />}
       {filter
         ? part(categoryFilterValue(filter.categoryId), `Filtrar por la categoría ${categoryName}`, name ? "flex-shrink-0 font-semibold" : "truncate font-semibold", categoryName)
-        : <span className={name ? "flex-shrink-0 font-semibold" : "truncate font-semibold"}>{categoryName}</span>}
+        : searchable
+          ? part("", `Buscar tareas con la categoría ${categoryName}`, name ? "flex-shrink-0 font-semibold" : "truncate font-semibold", categoryName, tagSearchQuery(categoryName))
+          : <span className={name ? "flex-shrink-0 font-semibold" : "truncate font-semibold"}>{categoryName}</span>}
       {name && (
         <>
           <span className={`w-px flex-shrink-0 opacity-40 ${md ? "h-3.5" : "h-2.5"}`} style={{ backgroundColor: colorHex }} aria-hidden />
-          {part(filter?.tagId ?? "", `Filtrar por la etiqueta ${fullLabel}`, "truncate opacity-80", name)}
+          {part(filter?.tagId ?? "", filter ? `Filtrar por la etiqueta ${fullLabel}` : `Buscar tareas con la etiqueta ${fullLabel}`, "truncate opacity-80", name, searchable ? tagSearchQuery(categoryName, name) : undefined)}
         </>
       )}
       {onRemove && (

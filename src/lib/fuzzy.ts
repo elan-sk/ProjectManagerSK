@@ -59,3 +59,30 @@ export function fuzzyScore(query: string, text: string): number {
   if (matched < Math.ceil(tokens.length * 0.6)) return 0;
   return total / tokens.length;
 }
+
+// Pesos del buscador: el título es lo que distingue un resultado de otro (muchas tareas comparten la
+// misma descripción, ej. las de un mismo curso), así que la descripción solo suma un poco encima del
+// título. Una consulta de varias palabras que aparece seguida, tal cual («3 diseño ui»), suma un extra.
+const BODY_WEIGHT = 0.3;
+const TITLE_PHRASE_BONUS = 0.5;
+const BODY_PHRASE_BONUS = 0.25;
+/** Un resultado se muestra solo si su puntaje llega a esta fracción del mejor de su grupo. */
+export const RELATIVE_SCORE_CUTOFF = 0.6;
+
+const containsPhrase = (phrase: string, text: string) => ` ${words(text).join(" ")}`.includes(` ${phrase}`);
+
+/**
+ * Puntaje con pesos de `title` + `text` (el texto completo, que puede incluir el título) frente a
+ * `query`. 0 = no coincide. Suma el título (1 a 1) y el texto completo (al 30 %): si solo coincide la
+ * descripción, el resultado queda muy por debajo de uno que coincide en el título. La frase exacta suma.
+ */
+export function weightedScore(query: string, title: string, text: string): number {
+  const titleScore = fuzzyScore(query, title);
+  const bodyScore = fuzzyScore(query, text) * BODY_WEIGHT;
+  const base = titleScore + bodyScore;
+  if (base === 0) return 0;
+  const tokens = words(query);
+  if (tokens.length < 2) return base;
+  const phrase = tokens.join(" ");
+  return base + (containsPhrase(phrase, title) ? TITLE_PHRASE_BONUS : containsPhrase(phrase, text) ? BODY_PHRASE_BONUS : 0);
+}

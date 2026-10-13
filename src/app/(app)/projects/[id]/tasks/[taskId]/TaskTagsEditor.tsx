@@ -73,7 +73,7 @@ export function TaskTagsEditor({
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {tags.map((t) => (
         // La recién agregada aún no tiene id real: no se puede quitar hasta que el servidor confirme.
-        <TagChip key={t.categoryId} colorHex={t.colorHex} emoji={t.emoji} categoryName={t.categoryName} name={t.name} size="md" onRemove={canEdit && t.taskTagId !== PENDING_ID ? () => handleRemove(t.taskTagId) : undefined} />
+        <TagChip key={t.categoryId} colorHex={t.colorHex} emoji={t.emoji} categoryName={t.categoryName} name={t.name} size="md" searchable onRemove={canEdit && t.taskTagId !== PENDING_ID ? () => handleRemove(t.taskTagId) : undefined} />
       ))}
 
       {canEdit && (availableCategories.length > 0 || canCreateCategory) && (

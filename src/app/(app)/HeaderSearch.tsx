@@ -8,7 +8,7 @@ import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
-import { HEADER_SEARCH_OPTIONS, isCompactSearch, normalizeSearchText, parseHeaderSearch } from "@/lib/search";
+import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
@@ -208,6 +208,27 @@ export function HeaderSearch() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [compact, modalOpen]);
 
+  // Otro componente (ej. un chip de etiqueta en el detalle de la tarea) pide abrir el
+  // buscador con una consulta ya escrita: openHeaderSearch() en src/lib/search.ts.
+  useEffect(() => {
+    function onOpenSearch(e: Event) {
+      const q = (e as CustomEvent<string>).detail;
+      if (typeof q !== "string") return;
+      if (compact && !modalOpen) showModal();
+      setQuery(q);
+      setFiltersOpen(false);
+      setOpen(true);
+      setActive(0);
+      requestAnimationFrame(() => {
+        const input = inputRef.current;
+        input?.focus();
+        input?.setSelectionRange(q.length, q.length);
+      });
+    }
+    window.addEventListener(OPEN_HEADER_SEARCH_EVENT, onOpenSearch);
+    return () => window.removeEventListener(OPEN_HEADER_SEARCH_EVENT, onOpenSearch);
+  });
+
   // Archivos, links y contraseñas se abren en su visor (useFileViewer: mismo criterio que las fichas
   // de archivos); un archivo sin vista previa se descarga y un link común abre en pestaña nueva.
   function showModal() {
@@ -294,18 +315,25 @@ export function HeaderSearch() {
   // - «etiquetas:categoría:…» → las etiquetas de esa categoría.
   const parsed = parseHeaderSearch(trimmed);
   const colon = parsed.text.indexOf(":");
-  const level = parsed.filter !== "taskType" && parsed.filter !== "tag" ? 0 : colon < 0 ? 1 : parsed.filter === "tag" ? 2 : 0;
+  // «etiquetas:categoría: texto» (espacio tras los dos puntos) o «etiquetas:categoría:etiqueta:texto» ya
+  // buscan en el contenido de las tareas (ver /api/search): ahí no se sugieren etiquetas.
+  const tagRest = colon < 0 ? "" : parsed.text.slice(colon + 1);
+  const searchingContent = /^\s/.test(tagRest) || tagRest.includes(":");
+  const level = parsed.filter !== "taskType" && parsed.filter !== "tag" ? 0 : colon < 0 ? 1 : parsed.filter === "tag" && !searchingContent ? 2 : 0;
   const prefix = parsed.filter === "tag" ? "etiquetas" : "tipos";
   const categoryPart = parsed.text.slice(0, Math.max(colon, 0)).trim();
   const partial = normalizeSearchText(level === 2 ? parsed.text.slice(colon + 1).trim() : parsed.text);
   const startsWithPartial = (c: Choice) => (normalizeSearchText(c.label).startsWith(partial) ? 0 : 1);
-  // Queda todo pegado, sin espacios y en minúsculas (tipos:prueba:login, etiquetas:componentes:banner).
+  // Queda todo pegado, sin espacios y en minúsculas, y siempre termina en «:» para seguir escribiendo
+  // lo que se busca dentro (tipos:prueba:, etiquetas:componentes:, etiquetas:componentes:banner:).
   const firstLevel = (label: string) => `${prefix}:${label.toLowerCase()}:`;
+  // Categoría escrita en «etiquetas:categoría:…»: sus etiquetas se sugieren con su mismo color y emoji.
+  const typedCategory = level === 2 ? tagCategories.find((c) => normalizeSearchText(c.name) === normalizeSearchText(categoryPart)) : undefined;
   const all: Choice[] =
     level === 0
       ? []
       : level === 2
-        ? (tagNames.category === categoryPart ? tagNames.names : []).map((name) => ({ key: name, label: name, query: `${prefix}:${categoryPart}:${name.toLowerCase()}` }))
+        ? (tagNames.category === categoryPart ? tagNames.names : []).map((name) => ({ key: name, label: name, emoji: typedCategory?.emoji, colorHex: typedCategory?.colorHex, query: `${prefix}:${categoryPart}:${name.toLowerCase()}:` }))
         : parsed.filter === "taskType"
           ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type], query: firstLevel(label) }))
           : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
@@ -423,7 +451,9 @@ export function HeaderSearch() {
                     key={c.key}
                     type="button"
                     onClick={() => choose(c)}
-                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? "bg-slate-100 text-slate-700"} ${i === 0 && partial ? "ring-2 ring-[#0a6b78]/50" : ""}`}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? (c.colorHex ? "" : "bg-slate-100 text-slate-700")} ${i === 0 && partial ? "ring-2 ring-[#0a6b78]/50" : ""}`}
+                    // Mismos colores que el chip de etiqueta (TagChip): fondo tenue y texto del color de la categoría.
+                    style={!c.badge && c.colorHex ? { backgroundColor: `${c.colorHex}1f`, color: c.colorHex } : undefined}
                   >
                     {c.emoji ? <span aria-hidden>{c.emoji}</span> : c.colorHex ? <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: c.colorHex }} aria-hidden /> : null}
                     {c.label}
