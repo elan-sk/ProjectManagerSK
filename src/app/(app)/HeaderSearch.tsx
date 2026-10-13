@@ -79,6 +79,14 @@ const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> =
   tag: "bg-indigo-500",
 };
 
+// Fila/sección elegida con el cursor o con las flechas: tinte de marea con un aro
+// tenue, no `bg-slate-100` — ese mismo tono es el fondo del chip de categoría de
+// etiqueta en las sugerencias y del tipo de tarea «Simple» (TASK_TYPE_BADGE en
+// src/lib/statusColors.ts), así que lo seleccionado y la etiqueta se veían del
+// mismo color (confusión reportada). Mismo tinte de selección que las sugerencias
+// de menciones en CommentForm, para que «elegido» signifique lo mismo en la app.
+const SELECTED_CLASS = "bg-[#0a6b78]/15 ring-1 ring-inset ring-[#0a6b78]/30";
+
 /**
  * Buscador rápido del header: resultados en un desplegable bajo el campo,
  * mientras se escribe (sin modal). Tolera tildes, mayúsculas y errores de
@@ -398,7 +406,7 @@ export function HeaderSearch() {
           <div id="header-search-types" className="pacific-popover absolute top-full right-0 left-0 z-50 mt-1 rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">Buscar por tipo</p>
             {HEADER_SEARCH_OPTIONS.map(({ prefix, kind, label }, i) => (
-              <button key={prefix} type="button" onClick={() => selectSearchType(prefix)} onMouseEnter={() => setFilterActive(i)} className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-slate-900 focus-visible:bg-slate-100 focus-visible:outline-none ${i === filterActive ? "bg-slate-100" : ""}`}>
+              <button key={prefix} type="button" onClick={() => selectSearchType(prefix)} onMouseEnter={() => setFilterActive(i)} className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-slate-900 focus-visible:bg-[#0a6b78]/15 focus-visible:outline-none ${i === filterActive ? SELECTED_CLASS : ""}`}>
                 <span className={`h-2 w-2 flex-shrink-0 rounded-full ${KIND_DOT[kind]}`} aria-hidden />
                 <span className="flex-1">{label}</span>
                 <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${KIND_COLOR[kind]}`}>{prefix}:</span>
@@ -441,7 +449,7 @@ export function HeaderSearch() {
                     type="button"
                     onClick={() => go(h)}
                     onMouseEnter={() => setActive(i)}
-                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 text-left ${h.kind === "project" ? "py-2.5" : "py-1.5"} ${i === active ? "bg-slate-100" : ""}`}
+                    className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 text-left ${h.kind === "project" ? "py-2.5" : "py-1.5"} ${i === active ? SELECTED_CLASS : ""}`}
                   >
                     <span className="flex w-full min-w-0 items-center gap-2.5">
                       {h.project && (
