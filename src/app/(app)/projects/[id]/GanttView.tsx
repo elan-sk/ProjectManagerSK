@@ -1195,7 +1195,7 @@ export function GanttView({
                 <path d="M0,0 L8,4 L0,8 Z" fill="#475569" />
               </marker>
               <marker id="gantt-dep-arrow-critical" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M0,0 L8,4 L0,8 Z" fill="#c026d3" />
+                <path d="M0,0 L8,4 L0,8 Z" fill="#0891b2" />
               </marker>
               <marker id="gantt-dep-arrow-active" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M0,0 L8,4 L0,8 Z" fill="#6366f1" />
@@ -1250,7 +1250,7 @@ export function GanttView({
                   <path
                     d={dependencyPath(e)}
                     fill="none"
-                    stroke={isHighlighted ? "#6366f1" : isCriticalActive ? "#c026d3" : isCritical ? "#475569" : "#94a3b8"}
+                    stroke={isHighlighted ? "#6366f1" : isCriticalActive ? "#0891b2" : isCritical ? "#475569" : "#94a3b8"}
                     strokeWidth={isHighlighted || isCriticalActive ? 2.5 : 1.5}
                     strokeDasharray={e.type === "START_TO_START" ? "3 3" : undefined}
                     markerEnd={

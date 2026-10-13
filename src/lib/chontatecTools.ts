@@ -50,6 +50,7 @@ import { getAppCountryCode } from "@/lib/appSettings";
 import { sendDailyDigestNow } from "@/lib/notifications";
 import { readFile, stat } from "node:fs/promises";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { absoluteUrl } from "@/lib/appUrl";
 import { findUploadPath } from "@/lib/persistentUploads";
 import { prepareFileForBot } from "@/lib/botFilePrep";
 import {
@@ -351,7 +352,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "send_whatsapp_group_message",
     description:
-      "Envía un mensaje al grupo de WhatsApp de un proyecto y menciona automáticamente al PM, asignados y revisores de la tarea indicada. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
+      "Envía un mensaje al grupo de WhatsApp de un proyecto y menciona automáticamente al PM, asignados y revisores de la tarea indicada. El mensaje debe incluir el link absoluto de la tarea (APP_URL + /projects/{projectId}/tasks/{taskId}) si la persona lo quiere compartir. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
     input_schema: {
       type: "object",
       properties: {
@@ -822,7 +823,7 @@ async function currentUserId(): Promise<string> {
 async function credentialsForBot(where: Prisma.CredentialWhereInput, userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
   const list = await prisma.credential.findMany({ where: { AND: [where, credentialVisibleWhere(user)] }, select: { id: true, name: true } });
-  return list.map((c) => ({ name: c.name, link: `${process.env.NEXTAUTH_URL ?? ""}/credentials/${c.id}`, note: "Contraseña guardada: por seguridad solo se ve abriendo el enlace." }));
+  return list.map((c) => ({ name: c.name, link: absoluteUrl(`/credentials/${c.id}`), note: "Contraseña guardada: por seguridad solo se ve abriendo el enlace." }));
 }
 
 async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
@@ -1408,7 +1409,7 @@ export function summarizeWriteTool(name: string, input: unknown): string {
 // en el momento exacto de ejecutar (auth() + canEditTask/getProjectAdmin
 // adentro de cada una) — si algo cambió mientras la confirmación estaba
 // pendiente, se rechaza solo, sin código nuevo acá.
-export async function runWriteTool(name: string, input: unknown): Promise<{ ok: boolean; message: string }> {
+export async function runWriteTool(name: string, input: unknown): Promise<{ ok: boolean; message: string; taskLink?: string | null }> {
   try {
     await assertToolAllowed(await currentUserId(), name);
   } catch (err) {
@@ -1470,6 +1471,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           message: sent
             ? `Listo, se envió el mensaje al grupo de ${project.name} y se mencionó a los implicados de “${task.title}”.`
             : "WhatsApp no está conectado; no se pudo enviar el mensaje al grupo.",
+          taskLink: absoluteUrl(`/projects/${projectId}/tasks/${taskId}`),
         };
       } catch (err) {
         return { ok: false, message: (err as Error).message };

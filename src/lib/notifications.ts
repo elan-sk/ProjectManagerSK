@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { progressBar } from "@/lib/progressBar";
 import { commentMentionIds, splitCommentBody } from "@/lib/commentBody";
 import { prisma } from "@/lib/prisma";
+import { absoluteUrl as absoluteUrlFromApp } from "@/lib/appUrl";
 import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
@@ -43,8 +44,7 @@ const GROUP_SECTIONS: { type: NotificationType; title: string }[] = [
 // WhatsApp lo reconoce como clickeable.
 function absoluteUrl(url?: string) {
   if (!url) return undefined;
-  const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  return `${base}${url}`;
+  return absoluteUrlFromApp(url) ?? undefined;
 }
 
 async function resolveProjectGroupJid(projectId: string) {

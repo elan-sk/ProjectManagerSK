@@ -4,6 +4,7 @@ import { getBotConnection, getBotSettings, getBotPersonaPrompt, checkAndConsumeB
 import { createOpenAICompatMessage, withoutOpenAIExtras } from "@/lib/botOpenAI";
 import { HISTORY_WINDOW, trimHistory, withCacheOnLast } from "@/lib/botHistory";
 import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeWriteTool } from "@/lib/chontatecTools";
+import { appUrl } from "@/lib/appUrl";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -32,6 +33,7 @@ Reglas:
 - Formato (el chat es un panel angosto): para enumerar, listas con «- ». Tabla Markdown solo para comparar varias filas, con 2 o 3 columnas de texto corto (nombres, días, cantidades); nunca más de 3 columnas ni párrafos dentro de una celda. Títulos de sección en **negrita**, en su propia línea.
 - Estados y fases vienen con código en inglés (status/phase, ej. "COMPLETED") y su nombre en español (statusLabel/phaseLabel, ej. "Completada"). Hablá SIEMPRE con ese nombre; el código solo va en el input de una herramienta.
 - Links Markdown [texto](url) con ids reales de las herramientas: proyecto /projects/{projectId}; tarea /projects/{projectId}/tasks/{taskId}; archivo de una tarea /projects/{projectId}?view=files&fileTask={taskId}.
+- Link absoluto (para pegarlo FUERA del chat: un WhatsApp, un correo, un documento): la app corre en APP_URL (viene en tu contexto). Armá SIEMPRE APP_URL + la ruta de arriba, tal cual, sin inventar ni acortar el dominio (ej. si APP_URL es https://app.ejemplo.com y la tarea es /projects/p1/tasks/t1, el link es https://app.ejemplo.com/projects/p1/tasks/t1). Es la única forma de que el link funcione para quien lo recibe; sin APP_URL, decí que no podés armar el link.
 - Al CREAR algo (create_task, create_project…), confirmá en una frase que quedó creado, con su nombre como link (ids del comentario oculto <!--ids:…--> del resultado), sin repetir datos técnicos. NUNCA escribas un id como texto.
 - Listas que la persona quiere como checklist: add_checklist_steps (un paso por ítem). Notas o bitácora: add_task_comment.
 - Archivos: en todo campo de archivos { url, name }, url es la ruta /uploads/… que la persona subió en este chat, o un link https://. Si sube un archivo, leelo DE INMEDIATO con read_uploaded_file (no le pidas adjuntarlo antes); adjuntarlo (attach_uploaded_file) es aparte y solo si lo pide. Un archivo o link puede ir a una tarea o DIRECTO al proyecto (add_project_files, sin crear ni elegir tarea): si piden vincularlo "al proyecto", usá esa. Para un archivo ya adjunto a una tarea, read_attachment. Leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint). Crear un archivo: create_file (Word, Excel, PDF, PowerPoint, .md, .txt, .csv; .html solo admin o PM), con datos reales consultados antes; mostrá el link que devuelve, tal cual. Máximo ~1.200 palabras por archivo: si pide más, proponé dividirlo en partes ANTES de crearlo.
@@ -95,8 +97,7 @@ async function loadMe(userId: string): Promise<Me> {
   return { ...user, pmCount };
 }
 
-function buildSystemBlocks(botName: string, persona: string, pathname: string, me: Me): Anthropic.TextBlockParam[] {
-  return [
+function buildSystemBlocks(botName: string, persona: string, pathname: string, me: Me): Anthropic.TextBlockParam[] {  return [
     {
       type: "text",
       text: `${buildOperatingRules(botName)}\n\n${persona}`,
@@ -108,7 +109,7 @@ function buildSystemBlocks(botName: string, persona: string, pathname: string, m
     },
     {
       type: "text",
-      text: `Contexto actual: el usuario está viendo la página "${pathname}" de la app. Ahora es ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" })} (hora de Colombia); fecha de hoy ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Usala para "hoy", "mañana", "desde hoy", etc., sin pedírsela a la persona.`,
+      text: `Contexto actual: el usuario está viendo la página "${pathname}" de la app. La app está publicada en ${appUrl() ?? "una dirección que no está configurada"} — usala para armar links absolutos. Ahora es ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" })} (hora de Colombia); fecha de hoy ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Usala para "hoy", "mañana", "desde hoy", etc., sin pedírsela a la persona.`,
     },
   ];
 }

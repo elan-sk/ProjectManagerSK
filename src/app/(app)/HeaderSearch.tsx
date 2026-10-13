@@ -26,7 +26,7 @@ const GROUP_LABEL: Record<SearchHit["group"], string> = {
 // título del grupo.
 const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
   project: { title: "text-[#136673]" },
-  task: { title: "text-fuchsia-700" },
+  task: { title: "text-task-700" },
   comment: { title: "text-amber-700" },
   file: { title: "text-sky-700" },
 };
@@ -47,7 +47,7 @@ const KIND_LABEL: Record<SearchHit["kind"], string> = {
 
 const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "tag", string> = {
   project: "bg-cyan-50 text-cyan-800",
-  task: "bg-fuchsia-50 text-fuchsia-700",
+  task: "bg-task-50 text-task-700",
   step: "bg-slate-100 text-slate-600",
   comment: "bg-amber-50 text-amber-700",
   file: "bg-sky-50 text-sky-700",
@@ -70,7 +70,7 @@ const FIELD_SHORTCUTS = [
 // Punto de color de cada tipo en el menú «Buscar por tipo» (mismos tonos que las etiquetas).
 const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> = {
   project: "bg-[#0a6b78]",
-  task: "bg-fuchsia-500",
+  task: "bg-task-500",
   comment: "bg-amber-500",
   file: "bg-sky-500",
   link: "bg-emerald-500",
