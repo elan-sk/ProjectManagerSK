@@ -114,7 +114,7 @@ function ReactivateUserButton({ userId, name }: { userId: string; name: string }
 function DeleteUserTrigger({ user, users }: { user: UserRow; users: UserRow[] }) {
   return (
     <ModalTrigger
-      label="Eliminar definitivamente"
+      label="Eliminar"
       title={`Eliminar definitivamente — ${user.name}`}
       className="flex-shrink-0 cursor-pointer text-xs font-medium text-red-500 hover:text-red-700"
     >

@@ -1,4 +1,4 @@
-import { taskProgress } from "@/lib/taskProgress";
+import { deliverableEvidenceLoaded, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -248,7 +248,7 @@ export default async function ProjectsPage({
       assignees: { include: { user: true } },
       reviewers: { include: { user: true } },
 reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } },
-      adjustmentItems: { select: { clientApproval: true } },
+      adjustmentItems: { select: { note: true, attachments: { select: { kind: true } } } },
       taskTags: { include: { tag: { include: { category: true } } } },
       steps: true,
       attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, kind: true, uploadedAt: true } },
@@ -391,6 +391,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       stepsProgress: taskProgress(t),
+      evidenceLoaded: deliverableEvidenceLoaded(t),
       attachmentsCount: t.attachments.length,
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,

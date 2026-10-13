@@ -348,6 +348,25 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
+// «Evidencia cargada» de un Entregable (tarjeta y ficha de la tarea): una hoja con la esquina doblada, sin
+// fondo (ocupa todo el tamaño), con un sello de chulo en la esquina. `className` da el tamaño (h-5 w-5, h-8 w-8…).
+export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <span title="Evidencia cargada" aria-label="Evidencia cargada" role="img" className={`relative inline-flex flex-shrink-0 text-emerald-700 ${className}`}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
+        <path d="M6.5 2.5h7L19 8v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5Z" fill="white" />
+        <path d="M13.5 2.5V8H19" />
+        <path d="M8.5 12h7M8.5 15.5h4" />
+      </svg>
+      <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-emerald-600 text-white ring-[1.5px] ring-white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden>
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 export function TagIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className} aria-hidden>

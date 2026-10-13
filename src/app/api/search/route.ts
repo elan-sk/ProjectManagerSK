@@ -52,11 +52,10 @@ export async function GET(request: Request) {
   const credentialsOnly = filter === "credential";
   // «tipos:» y «etiquetas:» traen tareas, buscadas por su tipo o por sus etiquetas en vez de por su texto.
   const hitKind = filter === "taskType" || filter === "tag" ? "task" : filter;
+  // Por etiqueta siempre viajan las categorías: el buscador las sugiere mientras se escribe.
+  const categories = filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : undefined;
   // Sin texto todavía: el buscador ofrece los tipos (los conoce) o las categorías de etiqueta para elegir.
-  if (hitKind === "task" && filter !== "task" && !searchText) {
-    const categories = filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : [];
-    return NextResponse.json({ hits: [] satisfies SearchHit[], categories });
-  }
+  if (hitKind === "task" && filter !== "task" && !searchText) return NextResponse.json({ hits: [] satisfies SearchHit[], categories });
 
   // Buscar «contraseña(s)» o «clave(s)» trae todas las contraseñas que la persona puede ver, primero y sin
   // tope. No hace falta escribirla exacta: desde 4 letras vale el comienzo («contra», «clav») o un error de
@@ -142,6 +141,8 @@ export async function GET(request: Request) {
   };
 
   const taskTitleById = new Map<string, string>();
+  // «etiquetas:categoría:…»: nombres de etiqueta de esa categoría que la persona puede ver, para sugerirlos.
+  const tagNames = new Set<string>();
   for (const p of projects) {
     const logo = { name: p.name, iconUrl: p.iconUrl, parent: p.parent };
     push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""}`, logo, [p.pm]);
@@ -155,6 +156,9 @@ export async function GET(request: Request) {
       const taskHref = `/projects/${p.id}/tasks/${t.id}`;
       const involved = [...t.assignees, ...t.reviewers].map((x) => x.user).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i);
       // Por etiqueta: categoría y nombre tienen que coincidir en UNA misma etiqueta, no entre dos distintas.
+      if (tagCategoryText !== null) {
+        for (const { tag } of t.taskTags) if (tag.name && (!tagCategoryText || fuzzyScore(tagCategoryText, tag.category.name) > 0)) tagNames.add(tag.name);
+      }
       const tags = t.taskTags
         .filter((tt) => filter !== "tag" || matchesTag(tt.tag.category, tt.tag.name))
         .map((tt) => tagLabel(tt.tag.category, tt.tag.name))
@@ -210,5 +214,6 @@ export async function GET(request: Request) {
       .sort((a, b) => secondary(a) - secondary(b) || b.score - a.score)
       .slice(0, filter ? undefined : LIMIT[group] + (group === "file" ? credentialHits : 0))
   );
-  return NextResponse.json({ hits: ordered });
+  const tagNameChoices = tagCategoryText === null ? undefined : { category: tagCategoryText, names: [...tagNames].sort((a, b) => a.localeCompare(b, "es")).slice(0, 40) };
+  return NextResponse.json({ hits: ordered, categories, tagNames: tagNameChoices });
 }

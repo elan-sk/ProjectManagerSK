@@ -8,7 +8,7 @@ import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
-import { HEADER_SEARCH_OPTIONS, isCompactSearch, parseHeaderSearch } from "@/lib/search";
+import { HEADER_SEARCH_OPTIONS, isCompactSearch, normalizeSearchText, parseHeaderSearch } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
@@ -58,7 +58,7 @@ const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "tag", string> = {
 };
 
 type TagCategoryChoice = { id: string; name: string; emoji: string | null; colorHex: string };
-type Choice = { key: string; label: string; badge?: string; emoji?: string | null; colorHex?: string };
+type Choice = { key: string; label: string; query: string; badge?: string; emoji?: string | null; colorHex?: string };
 
 // Atajos con ícono dentro del campo: cada uno deja escrito su tipo de búsqueda.
 const FIELD_SHORTCUTS = [
@@ -89,10 +89,14 @@ export function HeaderSearch() {
   const [query, setQuery] = useState("");
   // `result.q` = consulta a la que corresponden `result.hits`; mientras no
   // coincida con lo escrito, se está buscando.
-  const [result, setResult] = useState<{ q: string; hits: SearchHit[]; categories?: TagCategoryChoice[] }>({
+  const [result, setResult] = useState<{ q: string; hits: SearchHit[] }>({
     q: "",
     hits: [],
   });
+  // Categorías de etiqueta para sugerir mientras se escribe «etiquetas:…» (llegan con cada búsqueda de ese tipo).
+  const [tagCategories, setTagCategories] = useState<TagCategoryChoice[]>([]);
+  // Etiquetas de la categoría escrita en «etiquetas:categoría:…», con la categoría a la que corresponden.
+  const [tagNames, setTagNames] = useState<{ category: string; names: string[] }>({ category: "", names: [] });
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -119,7 +123,9 @@ export function HeaderSearch() {
           { signal: controller.signal },
         );
         const body = res.ok ? await res.json() : { hits: [] };
-        setResult({ q: trimmed, hits: body.hits, categories: body.categories });
+        setResult({ q: trimmed, hits: body.hits });
+        if (body.categories) setTagCategories(body.categories);
+        if (body.tagNames) setTagNames(body.tagNames);
         setActive(0);
       } catch {
         // abortado por una tecla nueva — la siguiente búsqueda toma el relevo
@@ -256,6 +262,11 @@ export function HeaderSearch() {
       }
       return;
     }
+    // Tab completa con la primera sugerencia de tipo o de categoría (la resaltada).
+    if (e.key === "Tab" && !e.shiftKey && choices.length > 0) {
+      e.preventDefault();
+      return choose(choices[0]);
+    }
     if (e.key === "Escape") setOpen(false);
     else if (e.key === "ArrowDown" && hits.length) {
       e.preventDefault();
@@ -270,19 +281,32 @@ export function HeaderSearch() {
   }
 
   const showPanel = !filtersOpen && open && trimmed.length >= 2;
-  // «tipos:» o «etiquetas:» sin texto todavía: se ofrecen los tipos o las categorías para elegir con un toque.
+  // Sugerencias para elegir con clic o con Tab (la primera), filtradas por lo que se va escribiendo:
+  // - «tipos:…» o «etiquetas:…» antes del segundo «:» → los tipos o las categorías;
+  // - «etiquetas:categoría:…» → las etiquetas de esa categoría.
   const parsed = parseHeaderSearch(trimmed);
-  const choices: Choice[] | null = parsed.text
-    ? null
-    : parsed.filter === "taskType"
-      ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type] }))
-      : parsed.filter === "tag" && result.q === trimmed && result.categories?.length
-        ? result.categories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex }))
-        : null;
-  function choose(prefix: string, label: string) {
-    // Queda «Categoría:» o «Tipo:» lista para seguir escribiendo, todo pegado y sin espacios
-    // y en minúsculas (etiquetas:componentes:banner, tipos:prueba:login).
-    setQuery(`${prefix}:${label.toLowerCase()}:`);
+  const colon = parsed.text.indexOf(":");
+  const level = parsed.filter !== "taskType" && parsed.filter !== "tag" ? 0 : colon < 0 ? 1 : parsed.filter === "tag" ? 2 : 0;
+  const prefix = parsed.filter === "tag" ? "etiquetas" : "tipos";
+  const categoryPart = parsed.text.slice(0, Math.max(colon, 0)).trim();
+  const partial = normalizeSearchText(level === 2 ? parsed.text.slice(colon + 1).trim() : parsed.text);
+  const startsWithPartial = (c: Choice) => (normalizeSearchText(c.label).startsWith(partial) ? 0 : 1);
+  // Queda todo pegado, sin espacios y en minúsculas (tipos:prueba:login, etiquetas:componentes:banner).
+  const firstLevel = (label: string) => `${prefix}:${label.toLowerCase()}:`;
+  const all: Choice[] =
+    level === 0
+      ? []
+      : level === 2
+        ? (tagNames.category === categoryPart ? tagNames.names : []).map((name) => ({ key: name, label: name, query: `${prefix}:${categoryPart}:${name.toLowerCase()}` }))
+        : parsed.filter === "taskType"
+          ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type], query: firstLevel(label) }))
+          : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
+  const choices = all
+    // Una etiqueta ya escrita completa deja de sugerirse.
+    .filter((c) => normalizeSearchText(c.label).includes(partial) && !(level === 2 && normalizeSearchText(c.label) === partial))
+    .sort((x, y) => startsWithPartial(x) - startsWithPartial(y));
+  function choose(choice: Choice) {
+    setQuery(choice.query);
     setActive(0);
     inputRef.current?.focus();
   }
@@ -384,24 +408,27 @@ export function HeaderSearch() {
         )}
         {showPanel && (
           <div className={`pacific-popover absolute top-full right-0 left-0 z-50 mt-1 max-h-[70vh] ${compact ? "min-w-0" : "min-w-[22rem]"} overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}>
-            {choices ? (
+            {choices.length > 0 && (
               <div className="flex flex-wrap gap-1.5 p-1.5">
-                {choices.map((c) => (
+                {choices.map((c, i) => (
                   <button
                     key={c.key}
                     type="button"
-                    onClick={() => choose(parsed.filter === "tag" ? "etiquetas" : "tipos", c.label)}
-                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? "bg-slate-100 text-slate-700"}`}
+                    onClick={() => choose(c)}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? "bg-slate-100 text-slate-700"} ${i === 0 && partial ? "ring-2 ring-[#0a6b78]/50" : ""}`}
                   >
                     {c.emoji ? <span aria-hidden>{c.emoji}</span> : c.colorHex ? <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: c.colorHex }} aria-hidden /> : null}
                     {c.label}
                   </button>
                 ))}
               </div>
-            ) : hits.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-slate-400">
-                {loading ? "Buscando…" : "Sin resultados."}
-              </p>
+            )}
+            {hits.length === 0 ? (
+              choices.length === 0 && (
+                <p className="px-3 py-2 text-sm text-slate-400">
+                  {loading ? "Buscando…" : "Sin resultados."}
+                </p>
+              )
             ) : (
               hits.map((h, i) => (
                 <Fragment key={`${h.kind}:${h.id}`}>

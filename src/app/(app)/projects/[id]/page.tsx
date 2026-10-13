@@ -1,4 +1,4 @@
-import { taskProgress } from "@/lib/taskProgress";
+import { deliverableEvidenceLoaded, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { canSeeProject, managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -68,7 +68,7 @@ const taskInclude = {
   assignees: { include: { user: true } },
   reviewers: { include: { user: true } },
 reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } },
-  adjustmentItems: { select: { clientApproval: true } },
+  adjustmentItems: { select: { note: true, attachments: { select: { kind: true } } } },
   taskTags: { include: { tag: { include: { category: true } } } },
   steps: true,
   requirements: { select: { id: true, title: true }, orderBy: { order: "asc" as const } },
@@ -454,6 +454,7 @@ export default async function ProjectPage({
     plannedStart: t.plannedStart.toISOString(),
     plannedEnd: t.plannedEnd.toISOString(),
     stepsProgress: taskProgress(t),
+    evidenceLoaded: deliverableEvidenceLoaded(t),
     attachmentsCount: t.attachments.length,
     alert: alertByTaskId.get(t.id)!,
     collidesWith: null,

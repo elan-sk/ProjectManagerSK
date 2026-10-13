@@ -17,7 +17,7 @@ import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
-import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon } from "@/components/icons";
+import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon, EvidenceLoadedIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, TASK_TYPE_BADGE, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
@@ -52,6 +52,7 @@ export type TaskCard = {
   plannedEnd: string;
   stepsProgress: TaskProgress | null;
   attachmentsCount: number;
+  evidenceLoaded?: boolean;
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
   shareToken: string | null;
@@ -145,8 +146,10 @@ function CardBody({
       )}
       <div className={`flex items-start justify-between gap-2 ${selectMode ? "pr-7" : ""}`}>
         <div className="flex flex-wrap items-center gap-1">
-          <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_TYPE_BADGE[task.type]}`}>
+          {/* El ícono de evidencia va DENTRO de la ficha del tipo: son un solo bloque de información. */}
+          <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_TYPE_BADGE[task.type]}`}>
             {TYPE_LABEL[task.type] ?? task.type}
+            {task.evidenceLoaded && <EvidenceLoadedIcon className="mr-0.5 h-4 w-4" />}
           </span>
           {task.isArchived && (
             <span className="inline-flex items-center gap-1 rounded-md bg-amber-200 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
