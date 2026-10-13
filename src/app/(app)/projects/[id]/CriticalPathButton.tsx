@@ -8,9 +8,9 @@
 // listener en GanttView.tsx.
 export const CRITICAL_PATH_EVENT = "gantt-select-critical-path";
 
-// Cian (bg-task-50/text-task-700), no gris: mismo lenguaje de color
+// Verde azulado (bg-task-50/text-task-700), no gris: mismo lenguaje de color
 // que ya usa la ruta crítica adentro del Gantt (outline y flechas en
-// #0891b2) — así el botón se identifica de un vistazo con lo que va a
+// #0f9d8b) — así el botón se identifica de un vistazo con lo que va a
 // resaltar. Rojo queda reservado para la línea de cierre del proyecto.
 export function CriticalPathButton() {
   return (

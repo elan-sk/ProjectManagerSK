@@ -86,15 +86,16 @@
      de escala que faltara caía al azul/rojo/ámbar/verde/naranja de fábrica
      de Tailwind y se veía fuera de tono contra el resto de la app (bug real
      detectado por el usuario en las alertas). */
-  /* Tarea: mar profundo, entre el petróleo y el cian. Familia propia (el
-     objetivo es violeta, el requerimiento azul y la fase verde azulado), con
-     los saltos que usa Tailwind para que cada tono se vea como la app. */
-  --color-task-50: #e0f4f7;
-  --color-task-100: #bce8f0;
-  --color-task-300: #5fc0d4;
-  --color-task-500: #128fa8;
-  --color-task-700: #0a5f75;
-  --color-task-800: #07485c;
+  /* Tarea: mar profundo, verde azulado y saturado. Familia propia, elegida para
+     no parecerse a ninguna otra: el objetivo es violeta, el requerimiento azul
+     cielo (más frío y más claro) y la fase un verde azulado apagado (más verde
+     y más oscuro). Con el mismo brillo que la fase, se distingue por el tono. */
+  --color-task-50: #d9f5ee;
+  --color-task-100: #b0ebe0;
+  --color-task-300: #4fd0bb;
+  --color-task-500: #0f9d8b;
+  --color-task-700: #076b62;
+  --color-task-800: #04514b;
   --color-blue-50: #e4f3f5;
   --color-blue-100: #c7e7e9;
   --color-blue-400: #4fa3ae;
@@ -179,7 +180,7 @@ h1, h2 {
 .progress-fill-objective { background: linear-gradient(100deg, #ddd6fe 0%, #a78bfa 35%, #7c3aed 70%, #5b21b6 100%); }
 .progress-fill-requirement { background: linear-gradient(100deg, #bae6fd 0%, #38bdf8 35%, #0284c7 70%, #075985 100%); }
 .progress-fill-phase { background: linear-gradient(100deg, #99f6e4 0%, #2dd4bf 35%, #0d9488 70%, #115e59 100%); }
-.progress-fill-task { background: linear-gradient(100deg, #7fd0e2 0%, #35a6c4 35%, #128fa8 70%, #0a5f75 100%); }
+.progress-fill-task { background: linear-gradient(100deg, #7ee6cf 0%, #2fbfa4 35%, #0f9d8b 70%, #076b62 100%); }
 /* Mismas barras pero para Rendimiento (BarChart.tsx): claro→oscuro, dirección propia a pedido —
    no tocar, las de arriba son las que se invierten si hace falta. */
 .progress-fill-emerald-performance { background: linear-gradient(100deg, #8ee6ac 0%, var(--color-emerald-400) 35%, var(--color-emerald-600) 70%, var(--color-emerald-800) 100%); }

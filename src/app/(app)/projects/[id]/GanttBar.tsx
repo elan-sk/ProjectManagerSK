@@ -404,7 +404,7 @@ export function GanttBar({
       style={{
         left,
         width,
-        outline: criticalSelected ? "2px solid #0891b2" : critical ? "1.5px solid #475569" : "none",
+        outline: criticalSelected ? "2px solid #0f9d8b" : critical ? "1.5px solid #475569" : "none",
         outlineOffset: criticalSelected || critical ? "1px" : undefined,
       }}
       onMouseEnter={() => !ctrlHeld && showTooltip()}
