@@ -20,6 +20,7 @@ import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, is
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
+import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -338,7 +339,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
     matchesRiskFilter(boardAlertById.get(t.id)!, risk) &&
     matchesDateRange(t, from, to) &&
     matchesType(t) &&
-    (!userId || t.assignees.some((a) => a.userId === userId)) &&
+    matchesAssigneeFilter(userId, t.assignees) &&
     matchesTagFilter(tag, t.taskTags) &&
     (!collision || (myCollisionTaskIds ? myCollisionTaskIds.has(t.id) : Boolean(collisionsById.get(t.id)))) &&
     (!projSet || projSet.has(t.projectId)) &&
@@ -658,7 +659,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
               <ComboFilter
                 allLabel="Todas las personas"
                 value={userId}
-                options={users.map((u) => ({ id: u.id, label: u.name }))}
+                options={[...users.map((u) => ({ id: u.id, label: u.name })), UNASSIGNED_ASSIGNEE_OPTION]}
                 paramKey="userId"
                 basePath="/projects"
                 currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, q, proj, tag, collision }}

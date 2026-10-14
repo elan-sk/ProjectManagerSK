@@ -3,6 +3,7 @@ import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
 import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
 import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { AlertBadge } from "@/components/AlertBadge";
+import { AnimatedCount } from "@/components/AnimatedCount";
 import { AvatarGroup } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { FILTER_BAR } from "@/lib/filterLayout";
@@ -330,7 +331,9 @@ export default async function AgendaPage({
                 <span className={`h-1.5 w-1.5 rounded-full ${tile.dot}`} />
                 {tile.label}
               </span>
-              <span className={`text-2xl font-bold ${tile.text}`}>{counts[tile.key]}</span>
+              <span className={`text-2xl font-bold ${tile.text}`}>
+                <AnimatedCount value={counts[tile.key]} />
+              </span>
             </Link>
           );
         })}

@@ -38,6 +38,7 @@ import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { getActiveShareLink } from "@/lib/shareLinks";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
+import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { Prisma, TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -434,7 +435,7 @@ export default async function ProjectPage({
     matchesDateRange(t, from, to) &&
     (!status || (status as string) === "ARCHIVED" || t.status === status) &&
     matchesType(t) &&
-    (!userId || t.assignees.some((a) => a.userId === userId)) &&
+    matchesAssigneeFilter(userId, t.assignees) &&
     matchesTagFilter(tag, t.taskTags) &&
     (!projFilter || t.projectId === projFilter) &&
     // En un principal el filtro «Proyecto» reemplaza a Buscar.
@@ -919,7 +920,7 @@ export default async function ProjectPage({
           <ComboFilter
             allLabel="Todas las personas"
             value={userId}
-            options={users.map((u) => ({ id: u.id, label: u.name }))}
+            options={[...users.map((u) => ({ id: u.id, label: u.name })), UNASSIGNED_ASSIGNEE_OPTION]}
             paramKey="userId"
             basePath={`/projects/${project.id}`}
             currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), status, type, risk, q, proj, tag }}
