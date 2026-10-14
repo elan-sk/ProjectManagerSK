@@ -342,10 +342,17 @@ export function HeaderSearch() {
           : parsed.filter === "taskStatus"
             ? (Object.entries(TASK_STATUS_LABEL) as [TaskStatus, string][]).map(([status, label]) => ({ key: status, label, badge: TASK_STATUS_COLOR[status].badge, query: firstLevel(label) }))
             : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
-  const choices = all
-    // Una etiqueta ya escrita completa deja de sugerirse.
-    .filter((c) => normalizeSearchText(c.label).includes(partial) && !(level === 2 && normalizeSearchText(c.label) === partial))
-    .sort((x, y) => startsWithPartial(x) - startsWithPartial(y));
+  // Una sola palabra sin «:» que es el comienzo de un filtro («es» → «estados:»): se sugiere el filtro.
+  const filterChoices: Choice[] =
+    !parsed.filter && !trimmed.includes(":") && !/\s/.test(trimmed)
+      ? HEADER_SEARCH_OPTIONS.filter((o) => normalizeSearchText(o.prefix).startsWith(partial)).map((o) => ({ key: o.prefix, label: `${o.prefix}:`, badge: KIND_COLOR[o.kind], query: `${o.prefix}:` }))
+      : [];
+  const choices = filterChoices.length
+    ? filterChoices
+    : all
+        // Una etiqueta ya escrita completa deja de sugerirse.
+        .filter((c) => normalizeSearchText(c.label).includes(partial) && !(level === 2 && normalizeSearchText(c.label) === partial))
+        .sort((x, y) => startsWithPartial(x) - startsWithPartial(y));
   function choose(choice: Choice) {
     setQuery(choice.query);
     setActive(0);
