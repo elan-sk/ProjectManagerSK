@@ -36,6 +36,10 @@ const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
 // (paso vs. tarea, archivo vs. link); en los demás sería repetir el título.
 const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link", "credential"]);
 
+// Tarjeta con la portada de la tarea al pasar el mouse por un resultado (alto total, con su borde de 2px).
+const COVER_PREVIEW_WIDTH = 240;
+const COVER_PREVIEW_HEIGHT = 152;
+
 const KIND_LABEL: Record<SearchHit["kind"], string> = {
   project: "Proyecto",
   task: "Tarea",
@@ -112,6 +116,8 @@ export function HeaderSearch() {
   const [focused, setFocused] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // Portada de la tarea bajo el mouse: tarjeta flotante al costado del panel, nunca encima de los resultados.
+  const [cover, setCover] = useState<{ url: string; top: number; left: number } | null>(null);
   const [filterActive, setFilterActive] = useState(0);
   const [compact, setCompact] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -490,7 +496,17 @@ export function HeaderSearch() {
                   <button
                     type="button"
                     onClick={() => go(h)}
-                    onMouseEnter={() => setActive(i)}
+                    onMouseEnter={(e) => {
+                      setActive(i);
+                      const panel = e.currentTarget.closest(".pacific-popover")?.getBoundingClientRect();
+                      if (!h.coverUrl || !panel) return setCover(null);
+                      const width = COVER_PREVIEW_WIDTH + 8;
+                      const left = panel.left >= width ? panel.left - width : window.innerWidth - panel.right >= width ? panel.right + 8 : null;
+                      if (left === null) return setCover(null);
+                      const top = Math.min(e.currentTarget.getBoundingClientRect().top, window.innerHeight - COVER_PREVIEW_HEIGHT - 8);
+                      setCover({ url: h.coverUrl, top, left });
+                    }}
+                    onMouseLeave={() => setCover(null)}
                     className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 text-left ${h.kind === "project" ? "py-2.5" : "py-1.5"} ${i === active ? SELECTED_CLASS : ""}`}
                   >
                     <span className="flex w-full min-w-0 items-center gap-2.5">
@@ -581,6 +597,18 @@ export function HeaderSearch() {
                 <XIcon className="h-4 w-4" />
               </button>
             </div>
+          </div>,
+          document.body
+        )}
+      {showPanel && cover &&
+        createPortal(
+          <div
+            aria-hidden
+            className="pointer-events-none fixed z-50 overflow-hidden rounded-2xl border-2 border-[#0a6b78] bg-white shadow-[0_10px_20px_rgba(15,23,42,0.18),0_28px_60px_rgba(15,23,42,0.28)]"
+            style={{ top: cover.top, left: cover.left, width: COVER_PREVIEW_WIDTH }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cover.url} alt="" className="block w-full object-cover" style={{ height: COVER_PREVIEW_HEIGHT - 4 }} />
           </div>,
           document.body
         )}

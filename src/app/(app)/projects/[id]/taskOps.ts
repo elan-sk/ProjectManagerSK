@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getProjectAdmin, isProjectPm, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
+import { canEditTask, getProjectAdmin, isProjectPm, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { notifyAssignment, notifyUrgentTask } from "@/lib/notifications";
 
 // Acciones de Fase 2 sobre tareas y proyectos: urgente, archivar, duplicar,
@@ -32,6 +32,30 @@ export async function setTaskUrgent(taskId: string, urgent: boolean, actor?: Act
     if (task.isUrgent === urgent) return { ok: true, id: taskId };
     await prisma.task.update({ where: { id: taskId }, data: { isUrgent: urgent } });
     if (urgent) await notifyUrgentTask(taskId, user.id).catch((err) => console.error("[urgente] no se pudo notificar", err));
+    refresh(task.projectId, taskId);
+    return { ok: true, id: taskId };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// ─── Portada ────────────────────────────────────────────────────────────
+// Imagen de la card (como Trello). "first" = la primera imagen adjunta (lo de
+// siempre), "none" = sin portada, o el id de un adjunto de imagen de la tarea.
+// Mismo permiso que editar la tarea. Regla de qué se muestra: taskCover.ts.
+export async function setTaskCover(taskId: string, cover: string, actor?: Actor): Promise<Result> {
+  try {
+    if (!(await canEditTask(taskId, actor))) return { ok: false, error: "No tiene permiso para editar esta tarea." };
+    const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
+    let data: { coverAttachmentId: string | null; coverHidden: boolean };
+    if (cover === "first") data = { coverAttachmentId: null, coverHidden: false };
+    else if (cover === "none") data = { coverAttachmentId: null, coverHidden: true };
+    else {
+      const image = await prisma.attachment.findFirst({ where: { id: cover, taskId, mimeType: { startsWith: "image/" } }, select: { id: true } });
+      if (!image) return { ok: false, error: "Esa imagen no está adjunta a esta tarea." };
+      data = { coverAttachmentId: image.id, coverHidden: false };
+    }
+    await prisma.task.update({ where: { id: taskId }, data });
     refresh(task.projectId, taskId);
     return { ok: true, id: taskId };
   } catch (err) {

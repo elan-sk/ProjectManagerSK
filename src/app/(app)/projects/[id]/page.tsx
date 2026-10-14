@@ -31,6 +31,7 @@ import { getDesignFiles } from "@/lib/designFiles";
 import { addBusinessDays, businessDaysRange } from "@/lib/holidays";
 import { getProjectAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { taskCoverUrl } from "@/lib/taskCover";
 import { projectHealth } from "@/lib/projectHealth";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
@@ -462,6 +463,7 @@ export default async function ProjectPage({
     stepsProgress: taskProgress(t),
     evidenceLoaded: deliverableEvidenceLoaded(t),
     attachmentsCount: t.attachments.length,
+    coverUrl: taskCoverUrl(t),
     alert: alertByTaskId.get(t.id)!,
     collidesWith: null,
     shareToken: taskShareTokenById.get(t.id) ?? null,
@@ -544,6 +546,7 @@ export default async function ProjectPage({
       blocks: t.blocks.map((d) => d.successor.title),
       blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
       attachmentsCount: t.attachments.length,
+      coverUrl: taskCoverUrl(t),
       alert: alertByTaskId.get(t.id)!,
       bottleneckReason: bottleneckReasonById.get(t.id) ?? null,
       collidesWith: null,
@@ -562,6 +565,7 @@ export default async function ProjectPage({
       id: t.id,
       isUrgent: t.isUrgent,
       attachmentsCount: t.attachments.length,
+      coverUrl: taskCoverUrl(t),
       shareToken: taskShareTokenById.get(t.id) ?? null,
       projectId: t.projectId,
       projectName: info(t.projectId).name,

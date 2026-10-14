@@ -28,6 +28,7 @@ export type CalendarPopoverTask = {
   requirementTitles: string[];
   assignees: { name: string; avatarUrl: string | null }[];
   attachmentsCount: number;
+  coverUrl: string | null;
   shareToken: string | null;
 };
 
@@ -154,6 +155,11 @@ export function CalendarTaskLink({
             style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: POPOVER_WIDTH, maxHeight: pos.maxHeight }}
           >
             <div className={`h-1.5 ${urgent ? "bg-red-600" : TASK_STATUS_COLOR[task.status].dot}`} aria-hidden />
+            {task.coverUrl && (
+              // Portada bajo la franja del estado, alto fijo para que el cálculo de posición no cambie al cargar.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={task.coverUrl} alt="" className="block h-32 w-full object-cover" />
+            )}
             <div className="space-y-3 p-4">
               <div className="flex items-center gap-2">
                 <ProjectIcon name={task.projectName} iconUrl={task.projectIconUrl} parent={task.projectParent ?? undefined} size="h-7 w-7 flex-shrink-0 text-[11px]" />

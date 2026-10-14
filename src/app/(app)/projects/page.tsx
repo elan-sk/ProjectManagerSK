@@ -13,6 +13,7 @@ import { findScheduleCollisions } from "@/lib/collisions";
 import { getBottlenecks, getTaskAlert, matchesRiskFilter } from "@/lib/delays";
 import { businessDaysRange } from "@/lib/holidays";
 import { prisma } from "@/lib/prisma";
+import { taskCoverUrl } from "@/lib/taskCover";
 import { getProjectSummaryRows } from "@/lib/projectSummaries";
 import { expandProjectFilter, projectFilterOptions } from "@/lib/subprojects";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
@@ -393,6 +394,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       stepsProgress: taskProgress(t),
       evidenceLoaded: deliverableEvidenceLoaded(t),
       attachmentsCount: t.attachments.length,
+      coverUrl: taskCoverUrl(t),
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
       shareToken: taskShareTokenById.get(t.id) ?? null,
@@ -434,6 +436,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         blocks: t.blocks.map((d) => d.successor.title),
         blockedSuccessors: t.blocks.map((d) => ({ id: d.successor.id, title: d.successor.title })),
         attachmentsCount: t.attachments.length,
+        coverUrl: taskCoverUrl(t),
         alert: boardAlertById.get(t.id)!,
         bottleneckReason: boardBottleneckReasonById.get(t.id) ?? null,
         collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
@@ -460,6 +463,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       title: t.title,
       isUrgent: t.isUrgent,
       attachmentsCount: t.attachments.length,
+      coverUrl: taskCoverUrl(t),
       shareToken: taskShareTokenById.get(t.id) ?? null,
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),

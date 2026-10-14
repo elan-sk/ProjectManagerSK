@@ -421,6 +421,11 @@ model Task {
 
   // Urgente: la marcan Admin/PM; ancla la tarea arriba y avisa de inmediato.
   isUrgent   Boolean   @default(false)
+  // Portada (imagen de la card, como Trello): nulo = la primera imagen adjunta;
+  // si el adjunto elegido ya no existe, también vale la primera (ver taskCover.ts).
+  // coverHidden = la persona eligió «Sin portada».
+  coverAttachmentId String?
+  coverHidden       Boolean   @default(false)
   // Archivada: sale del flujo visual pero sigue en la base (completada).
   archivedAt DateTime?
 

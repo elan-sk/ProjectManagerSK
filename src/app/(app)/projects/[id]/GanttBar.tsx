@@ -50,6 +50,7 @@ export function GanttBar({
   plannedEnd,
   updatedAt,
   attachmentsCount,
+  coverUrl,
   alert: taskAlert,
   assignees,
   reviewers,
@@ -82,6 +83,7 @@ export function GanttBar({
   // Punto 12: bloqueo optimista — se reenvía tal cual a resizeTask/moveTask.
   updatedAt: string;
   attachmentsCount: number;
+  coverUrl: string | null;
   alert: TaskAlert;
   assignees: { name: string; avatarUrl: string | null }[];
   reviewers: { name: string; avatarUrl: string | null }[];
@@ -444,6 +446,11 @@ export function GanttBar({
             className={`${touchOpen ? "pointer-events-auto" : "pointer-events-none"} absolute z-10 w-64 rounded-xl bg-white p-3 text-xs shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}
             style={{ left: tooltipPos.left, top: tooltipPos.top }}
           >
+            {coverUrl && (
+              // Portada borde a borde (compensa el p-3); alto fijo para que la medida del popup no cambie al cargar.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={coverUrl} alt="" className="-mx-3 -mt-3 mb-2 block h-28 w-[calc(100%+1.5rem)] max-w-none rounded-t-xl object-cover" />
+            )}
             <p className="font-medium text-slate-900">{title}</p>
             <div className="mt-1 flex flex-wrap gap-1 empty:mt-0">
               <AlertBadge alert={taskAlert} />

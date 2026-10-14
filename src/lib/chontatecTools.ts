@@ -14,7 +14,8 @@ import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/stat
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { addProjectAttachment, addProjectLink, updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
-import { reorderPhases } from "@/app/(app)/projects/[id]/taskOps";
+import { reorderPhases, setTaskCover } from "@/app/(app)/projects/[id]/taskOps";
+import { taskCoverUrl } from "@/lib/taskCover";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
 import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
@@ -275,6 +276,15 @@ export const READ_TOOLS: Anthropic.Tool[] = [
 // ejecutan directo: el loop en chontatec.ts las pausa para que el usuario
 // confirme explícitamente antes de correr runWriteTool.
 export const WRITE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "set_task_cover",
+    description: "Cambia la portada de una tarea (la imagen que se ve en su card del tablero y en los popups). cover: \"first\" = la primera imagen adjunta (lo automático), \"none\" = sin portada, o el id de un adjunto de imagen de la tarea (ver attachments en get_task_details). Quien puede editar la tarea.",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, cover: { type: "string" } },
+      required: ["taskId", "cover"],
+    },
+  },
   {
     name: "set_test_template",
     description: "Elige, cambia o quita (templateId null) la plantilla de pruebas de una tarea de tipo Prueba, antes de que se envíe a revisión: se copia sola a la ronda 1 al enviarla. Los ids salen de list_test_templates. Revisor, PM o administrador.",
@@ -1047,7 +1057,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           requirements: { orderBy: { order: "asc" }, select: { id: true, title: true } },
           assignees: { include: { user: { select: { name: true, avatarUrl: true } } } },
           steps: true,
-          attachments: { select: { id: true, kind: true, fileName: true, mimeType: true } },
+          attachments: { select: { id: true, kind: true, fileName: true, fileUrl: true, mimeType: true, uploadedAt: true } },
           reviewers: { include: { user: { select: { id: true, name: true } } } },
           taskTags: TASK_TAGS_SELECT,
         },
@@ -1066,6 +1076,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           tags: task.taskTags.map((tt) => ({ categoryId: tt.categoryId, label: tagLabel(tt) })),
           statusLabel: TASK_STATUS_LABEL[task.status],
           attachments: filesAccessible ? task.attachments : [],
+          coverUrl: filesAccessible ? taskCoverUrl(task) : null,
           credentials,
         },
         filesAccessible,
@@ -1320,6 +1331,10 @@ export function summarizeWriteTool(name: string, input: unknown): string {
         { create: "Crear una categoría de etiqueta", update: "Editar una categoría de etiqueta", delete: "⚠️ Eliminar una categoría de etiqueta con todas sus etiquetas (no se puede deshacer)" }[action ?? ""] ??
         "Gestionar categorías de etiqueta"
       );
+    }
+    case "set_task_cover": {
+      const { cover } = input as { cover?: string };
+      return cover === "none" ? "Quitar la portada de la tarea" : cover === "first" ? "Usar la primera imagen como portada" : "Cambiar la portada de la tarea";
     }
     case "set_test_template": {
       const { templateId } = input as { templateId?: string | null };
@@ -1772,6 +1787,17 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         return { ok: true, message: r?.duplicate ? "Ese enlace ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el enlace." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "set_task_cover": {
+      try {
+        const d = z.object({ taskId: z.string(), cover: z.string().min(1) }).parse(input);
+        const r = await setTaskCover(d.taskId, d.cover, await currentActor());
+        if (!r.ok) return { ok: false, message: r.error };
+        return { ok: true, message: d.cover === "none" ? "Listo, la tarea quedó sin portada." : "Listo, se cambió la portada." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "No se pudo cambiar la portada." };
       }
     }
 

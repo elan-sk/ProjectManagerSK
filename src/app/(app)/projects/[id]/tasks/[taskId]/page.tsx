@@ -30,6 +30,8 @@ import { TaskStatusControl } from "./TaskStatusControl";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
 import { InlineMeetingUrl } from "./InlineMeetingUrl";
+import { TaskCoverPicker } from "./TaskCoverPicker";
+import { taskCoverImages } from "@/lib/taskCover";
 import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { InlineRequirement } from "./InlineRequirement";
@@ -290,6 +292,7 @@ export default async function TaskDetailPage({
     })
   );
   const resultados = task.attachments.filter((a) => a.kind === "RESULTADO");
+  const coverImages = taskCoverImages(task.attachments);
 
   // Punto 5: mismas reglas de "¿puede completarse ya?" que updateTaskStatus
   // valida del lado servidor (actions.ts) — se resuelven acá (con los datos
@@ -374,6 +377,9 @@ export default async function TaskDetailPage({
             )}
           </div>
         </div>
+        {/* Información a la izquierda y la portada en el espacio libre de la derecha desde la línea de etiquetas (debajo en pantallas chicas). */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
         <div className="mt-2 mb-6">
           <TaskTagsEditor
             taskId={taskId}
@@ -508,6 +514,18 @@ export default async function TaskDetailPage({
             <GoogleCalendarButton taskId={taskId} userId={session.user.id} />
           </div>
         )}
+
+        </div>
+        {coverImages.length > 0 && (
+          <TaskCoverPicker
+            taskId={taskId}
+            images={coverImages.map((a) => ({ id: a.id, url: a.fileUrl, name: a.fileName }))}
+            coverAttachmentId={task.coverAttachmentId}
+            coverHidden={task.coverHidden}
+            canEdit={canEdit}
+          />
+        )}
+        </div>
 
         <div className="mt-8 flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="w-full sm:w-auto">

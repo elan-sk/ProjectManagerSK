@@ -1,6 +1,7 @@
 import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 import { NextResponse } from "next/server";
-import { archiveCompletedTasks, setTaskUrgent, unarchiveTask } from "@/app/(app)/projects/[id]/taskOps";
+import { archiveCompletedTasks, setTaskCover, setTaskUrgent, unarchiveTask } from "@/app/(app)/projects/[id]/taskOps";
+import { taskCoverUrl } from "@/lib/taskCover";
 import { taskVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -65,7 +66,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     await prisma.credential.findMany({ where: { tasks: { some: { taskId: id } }, ...credentialVisibleWhere(auth.actor) }, include: { tasks: { select: { taskId: true } }, allowedUsers: { select: { userId: true } } } })
   ).map(credentialForApi);
   await logCredentialAccess(credentials.map((c) => c.id), auth.actor, "VIEW", "api");
-  return NextResponse.json({ ...task, delayDays, credentials });
+  return NextResponse.json({ ...task, coverUrl: taskCoverUrl(task), delayDays, credentials });
 }
 
 const updateTaskSchema = z.object({
@@ -80,6 +81,8 @@ const updateTaskSchema = z.object({
   isUrgent: z.boolean().optional(),
   requirementIds: z.array(z.string().min(1)).optional(),
   archived: z.boolean().optional(), // archivar solo aplica a tareas completadas
+  // Portada de la card: "first" (primera imagen), "none" (sin portada) o el id de un adjunto de imagen.
+  cover: z.string().min(1).optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -104,7 +107,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { status, type, isUrgent, archived, requirementIds, ...rest } = parsed.data;
+  const { status, type, isUrgent, archived, requirementIds, cover, ...rest } = parsed.data;
 
   if (rest.phaseId) {
     const phase = await prisma.phase.findUnique({ where: { id: rest.phaseId }, select: { projectId: true } });
@@ -119,6 +122,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return r.ok && r.count === 0 ? { ok: false, error: "Solo se puede archivar una tarea completada (o ya estaba archivada)." } : r;
     }),
     archived === false && (() => unarchiveTask(id, auth.actor)),
+    cover !== undefined && (() => setTaskCover(id, cover, auth.actor)),
   ];
   for (const run of pmOnly) {
     if (!run) continue;

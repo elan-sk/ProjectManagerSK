@@ -24,6 +24,7 @@
     "verify:bot-history": "tsx scripts/verify-bot-history.ts",
     "verify:dictation": "tsx scripts/verify-dictation.ts",
     "verify:bot-calendar": "tsx --env-file=.env scripts/verify-bot-calendar.ts",
+    "verify:task-cover": "tsx scripts/verify-task-cover.ts",
     "verify:schedule-cascade": "tsx scripts/verify-schedule-cascade.ts",
     "verify:schedule-forecast": "tsx scripts/verify-schedule-forecast.ts",
     "verify:file-dedup": "tsx scripts/verify-file-dedup.ts",

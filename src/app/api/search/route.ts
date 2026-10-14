@@ -6,6 +6,7 @@ import { RELATIVE_SCORE_CUTOFF, fuzzyScore, weightedScore } from "@/lib/fuzzy";
 import { parseHeaderSearch } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
+import { taskCoverUrl } from "@/lib/taskCover";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { tagLabel } from "@/lib/tagFilter";
@@ -33,6 +34,8 @@ export type SearchHit = {
   // Archivos, links y contraseñas: el buscador los abre en su visor (como AttachmentGrid) en vez de navegar.
   preview?: { url: string; mimeType: string };
   siteUrl?: string | null;
+  // Solo en resultados de tarea: su portada (taskCover.ts), se ve al pasar el mouse.
+  coverUrl?: string | null;
 };
 
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -127,7 +130,9 @@ export async function GET(request: Request) {
           taskTags: { select: { tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
           reviewers: { select: { user: { select: { name: true, avatarUrl: true } } } },
-          attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
+          coverAttachmentId: true,
+          coverHidden: true,
+          attachments: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, uploadedAt: true, uploadedBy: { select: { name: true, avatarUrl: true } } } },
         },
       },
     },
@@ -156,7 +161,7 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl">, contextText = "") => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl" | "coverUrl">, contextText = "") => {
     if (hitKind && kind !== hitKind) return;
     // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
     // Con pesos (weightedScore): el título cuenta más que la descripción, y esta más que el contexto
@@ -200,7 +205,7 @@ export async function GET(request: Request) {
         // persona tiene ese rol, sin competir con el título ni la descripción.
         const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
         const teamText = p.roles.map((r) => `${r.user.name} ${r.user.cargo ?? ""} ${r.role}`).join(" ");
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status }, `${projectText} ${teamText}`);
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`);
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {

@@ -25,6 +25,8 @@ export type CalendarTask = {
   assignees: { name: string; avatarUrl: string | null }[];
   isUrgent: boolean;
   attachmentsCount: number;
+  /** Portada (imagen de la card), ver taskCover.ts. */
+  coverUrl: string | null;
   shareToken: string | null;
   plannedStart: string;
   plannedEnd: string;

@@ -55,6 +55,8 @@ export type GanttTask = {
   blocks: string[];
   blockedSuccessors: { id: string; title: string }[];
   attachmentsCount: number;
+  /** Portada (imagen de la card), ver taskCover.ts. */
+  coverUrl: string | null;
   alert: TaskAlert;
   bottleneckReason: string | null;
   collidesWith: CollisionInfo[] | null;
@@ -1154,6 +1156,7 @@ export function GanttView({
                         plannedEnd={t.plannedEnd}
                         updatedAt={t.updatedAt}
                         attachmentsCount={t.attachmentsCount}
+                        coverUrl={t.coverUrl}
                         alert={t.alert}
                         assignees={t.assignees}
                         reviewers={t.reviewers}
