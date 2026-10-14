@@ -142,9 +142,10 @@ function CardBody({
   return (
     <>
       {task.coverUrl && (
-        // Portada (como Trello): borde a borde, compensando el padding de la card (p-3.5).
+        // Portada (como Trello): todo el ancho, compensando el padding de la card (p-3.5); alto según
+        // la proporción de la imagen con tope generoso — si lo pasa se recorta lo alto, nunca lo ancho.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={task.coverUrl} alt="" loading="lazy" draggable={false} className="-mx-3.5 -mt-3.5 block h-32 w-[calc(100%+1.75rem)] max-w-none rounded-t-2xl object-cover" />
+        <img src={task.coverUrl} alt="" loading="lazy" draggable={false} className="-mx-3.5 -mt-3.5 block h-auto max-h-52 w-[calc(100%+1.75rem)] max-w-none rounded-t-2xl object-cover" />
       )}
       {selectMode && (
         <span
