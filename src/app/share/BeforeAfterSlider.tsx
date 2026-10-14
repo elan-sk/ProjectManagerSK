@@ -28,8 +28,8 @@ export function BeforeAfterSlider({ before, after }: { before: PublicFile[]; aft
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
           draggable={false}
         />
-        <div className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow" style={{ left: `${position}%` }}>
-          <span className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600 shadow">‹›</span>
+        <div className="pointer-events-none absolute inset-y-0 w-1 -translate-x-1/2 bg-[#0a6b78] shadow-[0_0_0_1px_#fff,0_0_6px_rgba(15,23,42,0.45)]" style={{ left: `${position}%` }}>
+          <span className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-[#0a6b78] text-sm font-bold text-white shadow-md">‹›</span>
         </div>
         <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Antes</span>
         <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Después</span>
