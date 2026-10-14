@@ -36,9 +36,8 @@ const GROUP_COLOR: Record<SearchHit["group"], { title: string }> = {
 // (paso vs. tarea, archivo vs. link); en los demás sería repetir el título.
 const SHOW_KIND_BADGE = new Set<SearchHit["kind"]>(["step", "file", "link", "credential"]);
 
-// Tarjeta con la portada de la tarea al pasar el mouse por un resultado (alto total, con su borde de 2px).
+// Ancho máximo de la tarjeta con la portada de la tarea al pasar el mouse por un resultado.
 const COVER_PREVIEW_WIDTH = 240;
-const COVER_PREVIEW_HEIGHT = 152;
 
 const KIND_LABEL: Record<SearchHit["kind"], string> = {
   project: "Proyecto",
@@ -117,7 +116,7 @@ export function HeaderSearch() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [active, setActive] = useState(0);
   // Portada de la tarea bajo el mouse: tarjeta flotante al costado del panel, nunca encima de los resultados.
-  const [cover, setCover] = useState<{ url: string; top: number; left: number } | null>(null);
+  const [cover, setCover] = useState<{ url: string; top: number; left?: number; right?: number } | null>(null);
   const [filterActive, setFilterActive] = useState(0);
   const [compact, setCompact] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -501,10 +500,11 @@ export function HeaderSearch() {
                       const panel = e.currentTarget.closest(".pacific-popover")?.getBoundingClientRect();
                       if (!h.coverUrl || !panel) return setCover(null);
                       const width = COVER_PREVIEW_WIDTH + 8;
-                      const left = panel.left >= width ? panel.left - width : window.innerWidth - panel.right >= width ? panel.right + 8 : null;
-                      if (left === null) return setCover(null);
-                      const top = Math.min(e.currentTarget.getBoundingClientRect().top, window.innerHeight - COVER_PREVIEW_HEIGHT - 8);
-                      setCover({ url: h.coverUrl, top, left });
+                      const top = e.currentTarget.getBoundingClientRect().top;
+                      // A la izquierda se ancla por su borde derecho: queda pegada al panel aunque la imagen sea angosta.
+                      if (panel.left >= width) setCover({ url: h.coverUrl, top, right: window.innerWidth - panel.left + 8 });
+                      else if (window.innerWidth - panel.right >= width) setCover({ url: h.coverUrl, top, left: panel.right + 8 });
+                      else setCover(null);
                     }}
                     onMouseLeave={() => setCover(null)}
                     className={`flex w-full cursor-pointer flex-col items-start gap-0.5 rounded-lg px-2.5 text-left ${h.kind === "project" ? "py-2.5" : "py-1.5"} ${i === active ? SELECTED_CLASS : ""}`}
@@ -605,10 +605,22 @@ export function HeaderSearch() {
           <div
             aria-hidden
             className="pointer-events-none fixed z-50 overflow-hidden rounded-2xl border-2 border-task-300 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.18),0_28px_60px_rgba(15,23,42,0.28)]"
-            style={{ top: cover.top, left: cover.left, width: COVER_PREVIEW_WIDTH }}
+            style={{ top: cover.top, left: cover.left, right: cover.right }}
           >
+            {/* Proporción exacta de la imagen (sin recorte): la tarjeta se ajusta a ella, hasta 240px de ancho y 80vh de alto.
+                Al cargar, si se sale por abajo, sube lo necesario. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={cover.url} alt="" className="block w-full object-cover" style={{ height: COVER_PREVIEW_HEIGHT - 4 }} />
+            <img
+              src={cover.url}
+              alt=""
+              className="block h-auto max-h-[80vh] w-auto"
+              style={{ maxWidth: COVER_PREVIEW_WIDTH }}
+              onLoad={(e) => {
+                const height = e.currentTarget.getBoundingClientRect().height + 4;
+                const maxTop = window.innerHeight - height - 8;
+                setCover((c) => (c && c.url === cover.url && c.top > maxTop ? { ...c, top: Math.max(8, maxTop) } : c));
+              }}
+            />
           </div>,
           document.body
         )}
