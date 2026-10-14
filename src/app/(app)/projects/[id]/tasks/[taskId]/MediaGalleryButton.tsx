@@ -11,6 +11,7 @@ import { DocumentIcon, DownloadIcon, ExternalLinkIcon, EyeIcon, KeyIcon, LinkIco
 import { AttachmentPreviewModal, isPreviewable } from "@/components/AttachmentPreviewModal";
 import { AttachmentLightbox } from "./AttachmentLightbox";
 import { YouTubeModal } from "@/components/YouTubeModal";
+import { LinkFavicon } from "@/components/LinkFavicon";
 import { CredentialLoader } from "../../../../credentials/CredentialView";
 import { listCommentMedia } from "@/app/(app)/internalMessageActions";
 import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, reuseMediaForStep, type MediaItem } from "./mediaGallery";
@@ -133,7 +134,10 @@ export function MediaGalleryButton(props: Props) {
                         <span className="rounded bg-current/10 px-1 text-[10px] leading-4 font-bold tracking-wide">{item.name.includes(".") ? item.name.split(".").pop()!.toUpperCase() : doc.label}</span>
                       </span>
                     )}
-                    <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
+                    <span className="flex min-w-0 items-center gap-1">
+                      {type === "link" && !videoId && <LinkFavicon url={item.url} />}
+                      <span className="truncate text-xs font-medium text-slate-700">{busy === item.url ? "Agregando…" : item.name}</span>
+                    </span>
                   </button>
                   {type === "credential" ? (
                     <button type="button" onClick={() => setViewing(item)} title="Ver contraseña" aria-label={`Ver ${item.name}`} className={actionClass}>
