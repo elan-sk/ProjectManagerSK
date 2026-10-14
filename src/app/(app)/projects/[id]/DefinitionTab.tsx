@@ -90,10 +90,9 @@ export function DefinitionTab({
         </div>
         {canManage && (
           <ModalTrigger label="Configuración" title="Configuración del proyecto" variant="secondary" compact className={`${DEFINITION_ACTION_BTN} absolute top-4 right-4 sm:static`}>
-            <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} clientName={clientName} />
-            <div className="mt-4 border-t border-slate-100 pt-4">
+            <ProjectIdentityForm projectId={projectId} name={name} iconUrl={iconUrl} clientName={clientName}>
               <ProjectWhatsAppGroupPanel projectId={projectId} currentGroupJid={whatsappGroupJid} />
-            </div>
+            </ProjectIdentityForm>
           </ModalTrigger>
         )}
       </div>

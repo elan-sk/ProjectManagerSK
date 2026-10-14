@@ -13,11 +13,13 @@ export function ProjectIdentityForm({
   name,
   iconUrl,
   clientName,
+  children,
 }: {
   projectId: string;
   name: string;
   iconUrl: string | null;
   clientName: string | null;
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const onDone = useModalClose();
@@ -111,6 +113,9 @@ export function ProjectIdentityForm({
         </span>
         <input type="text" name="clientName" defaultValue={clientName ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </label>
+
+      {/* Campos extra del modal (ej. grupo de WhatsApp): van antes de «Guardar». */}
+      {children}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
