@@ -7,7 +7,7 @@ import { parseHeaderSearch } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { credentialVisibleWhere } from "@/lib/credentials";
-import { TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { tagLabel } from "@/lib/tagFilter";
 import type { Prisma, TaskStatus } from "@prisma/client";
 
@@ -50,11 +50,12 @@ export async function GET(request: Request) {
   if (q.length < 2) return NextResponse.json({ hits: [] satisfies SearchHit[] });
   const { filter, text: searchText } = parseHeaderSearch(q);
   const credentialsOnly = filter === "credential";
-  // «tipos:» y «etiquetas:» traen tareas, buscadas por su tipo o por sus etiquetas en vez de por su texto.
-  const hitKind = filter === "taskType" || filter === "tag" ? "task" : filter;
+  // «tipos:», «estados:» y «etiquetas:» traen tareas, buscadas por su tipo, su estado o sus etiquetas en vez de por su texto.
+  const byTypeOrStatus = filter === "taskType" || filter === "taskStatus";
+  const hitKind = byTypeOrStatus || filter === "tag" ? "task" : filter;
   // Por etiqueta siempre viajan las categorías: el buscador las sugiere mientras se escribe.
   const categories = filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : undefined;
-  // Sin texto todavía: el buscador ofrece los tipos (los conoce) o las categorías de etiqueta para elegir.
+  // Sin texto todavía: el buscador ofrece los tipos y estados (los conoce) o las categorías de etiqueta para elegir.
   if (hitKind === "task" && filter !== "task" && !searchText) return NextResponse.json({ hits: [] satisfies SearchHit[], categories });
 
   // Buscar «contraseña(s)» o «clave(s)» trae todas las contraseñas que la persona puede ver, primero y sin
@@ -65,11 +66,11 @@ export async function GET(request: Request) {
     : q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
   // «etiquetas:Categoría:nombre» — antes de los dos puntos la categoría y después el nombre (cualquiera
   // de los dos puede ir vacío). Sin dos puntos, el texto se busca en «Categoría | nombre» completo.
-  // «tipos:Tipo:texto» — igual: antes de los dos puntos el tipo y después lo que se busca dentro de sus tareas.
-  const colon = filter === "tag" || filter === "taskType" ? searchText.indexOf(":") : -1;
-  const taskTypeText = filter === "taskType" ? (colon < 0 ? searchText : searchText.slice(0, colon)).trim() : "";
+  // «tipos:Tipo:texto» / «estados:Estado:texto» — igual: antes de los dos puntos el tipo o el estado y después lo que se busca dentro de sus tareas.
+  const colon = filter === "tag" || byTypeOrStatus ? searchText.indexOf(":") : -1;
+  const typeOrStatusText = byTypeOrStatus ? (colon < 0 ? searchText : searchText.slice(0, colon)).trim() : "";
   // Lo que se compara contra el texto de cada resultado.
-  const needle = filter === "taskType" ? (colon < 0 ? "" : searchText.slice(colon + 1).trim()) : searchText;
+  const needle = byTypeOrStatus ? (colon < 0 ? "" : searchText.slice(colon + 1).trim()) : searchText;
   const tagCategoryText = colon < 0 ? null : searchText.slice(0, colon).trim();
   // «etiquetas:categoría:etiqueta:texto» — lo que va después de un tercer «:» se busca en el contenido
   // (título + descripción) de las tareas con esa etiqueta. Con un espacio justo después de
@@ -188,7 +189,10 @@ export async function GET(request: Request) {
         .filter((tt) => filter !== "tag" || matchesTag(tt.tag.category, tt.tag.name))
         .map((tt) => tagLabel(tt.tag.category, tt.tag.name))
         .join(", ");
-      const typeMatches = filter !== "taskType" || fuzzyScore(taskTypeText, TASK_TYPE_LABEL[t.type] ?? t.type) > 0;
+      const typeMatches =
+        filter === "taskType" ? fuzzyScore(typeOrStatusText, TASK_TYPE_LABEL[t.type] ?? t.type) > 0
+        : filter === "taskStatus" ? fuzzyScore(typeOrStatusText, TASK_STATUS_LABEL[t.status]) > 0
+        : true;
       if (typeMatches && (filter !== "tag" || tags)) {
         const taskText = filter === "tag" && !tagContentText ? tags : `${t.title} ${stripHtml(t.description ?? "")}`;
         // El proyecto (y su principal, si es subproyecto) entra con peso bajo para rastrear la tarea por él.

@@ -8,6 +8,7 @@ import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
+import type { TaskStatus } from "@prisma/client";
 import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
@@ -45,7 +46,7 @@ const KIND_LABEL: Record<SearchHit["kind"], string> = {
   credential: "Contraseña",
 };
 
-const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "tag", string> = {
+const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "taskStatus" | "tag", string> = {
   project: "bg-cyan-50 text-cyan-800",
   task: "bg-task-50 text-task-700",
   step: "bg-slate-100 text-slate-600",
@@ -54,6 +55,7 @@ const KIND_COLOR: Record<SearchHit["kind"] | "taskType" | "tag", string> = {
   link: "bg-emerald-50 text-emerald-700",
   credential: "bg-red-50 text-red-700", // rojo de seguridad, como sus fichas
   taskType: "bg-teal-50 text-teal-700",
+  taskStatus: "bg-blue-50 text-blue-700",
   tag: "bg-indigo-50 text-indigo-700",
 };
 
@@ -76,6 +78,7 @@ const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> =
   link: "bg-emerald-500",
   credential: "bg-red-500",
   taskType: "bg-teal-500",
+  taskStatus: "bg-blue-500",
   tag: "bg-indigo-500",
 };
 
@@ -311,7 +314,7 @@ export function HeaderSearch() {
 
   const showPanel = !filtersOpen && open && trimmed.length >= 2;
   // Sugerencias para elegir con clic o con Tab (la primera), filtradas por lo que se va escribiendo:
-  // - «tipos:…» o «etiquetas:…» antes del segundo «:» → los tipos o las categorías;
+  // - «tipos:…», «estados:…» o «etiquetas:…» antes del segundo «:» → los tipos, los estados o las categorías;
   // - «etiquetas:categoría:…» → las etiquetas de esa categoría.
   const parsed = parseHeaderSearch(trimmed);
   const colon = parsed.text.indexOf(":");
@@ -319,8 +322,8 @@ export function HeaderSearch() {
   // buscan en el contenido de las tareas (ver /api/search): ahí no se sugieren etiquetas.
   const tagRest = colon < 0 ? "" : parsed.text.slice(colon + 1);
   const searchingContent = /^\s/.test(tagRest) || tagRest.includes(":");
-  const level = parsed.filter !== "taskType" && parsed.filter !== "tag" ? 0 : colon < 0 ? 1 : parsed.filter === "tag" && !searchingContent ? 2 : 0;
-  const prefix = parsed.filter === "tag" ? "etiquetas" : "tipos";
+  const level = parsed.filter !== "taskType" && parsed.filter !== "taskStatus" && parsed.filter !== "tag" ? 0 : colon < 0 ? 1 : parsed.filter === "tag" && !searchingContent ? 2 : 0;
+  const prefix = parsed.filter === "tag" ? "etiquetas" : parsed.filter === "taskStatus" ? "estados" : "tipos";
   const categoryPart = parsed.text.slice(0, Math.max(colon, 0)).trim();
   const partial = normalizeSearchText(level === 2 ? parsed.text.slice(colon + 1).trim() : parsed.text);
   const startsWithPartial = (c: Choice) => (normalizeSearchText(c.label).startsWith(partial) ? 0 : 1);
@@ -336,7 +339,9 @@ export function HeaderSearch() {
         ? (tagNames.category === categoryPart ? tagNames.names : []).map((name) => ({ key: name, label: name, emoji: typedCategory?.emoji, colorHex: typedCategory?.colorHex, query: `${prefix}:${categoryPart}:${name.toLowerCase()}:` }))
         : parsed.filter === "taskType"
           ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type], query: firstLevel(label) }))
-          : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
+          : parsed.filter === "taskStatus"
+            ? (Object.entries(TASK_STATUS_LABEL) as [TaskStatus, string][]).map(([status, label]) => ({ key: status, label, badge: TASK_STATUS_COLOR[status].badge, query: firstLevel(label) }))
+            : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
   const choices = all
     // Una etiqueta ya escrita completa deja de sugerirse.
     .filter((c) => normalizeSearchText(c.label).includes(partial) && !(level === 2 && normalizeSearchText(c.label) === partial))

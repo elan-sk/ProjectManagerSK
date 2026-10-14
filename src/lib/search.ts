@@ -12,8 +12,9 @@ export function normalizeSearchText(s: string): string {
 export const HEADER_SEARCH_OPTIONS = [
   { prefix: "proyectos", kind: "project", label: "Proyectos" },
   { prefix: "tareas", kind: "task", label: "Tareas" },
-  // Estos dos también devuelven tareas, por eso van junto a «Tareas»: las de un tipo (Prueba, Ajuste…) o las que llevan una etiqueta.
+  // Estos tres también devuelven tareas, por eso van junto a «Tareas»: las de un tipo (Prueba, Ajuste…), un estado o las que llevan una etiqueta.
   { prefix: "tipos", kind: "taskType", label: "Tipo de tarea" },
+  { prefix: "estados", kind: "taskStatus", label: "Estado de tarea" },
   { prefix: "etiquetas", kind: "tag", label: "Etiquetas" },
   { prefix: "comentarios", kind: "comment", label: "Comentarios" },
   { prefix: "archivos", kind: "file", label: "Archivos" },
