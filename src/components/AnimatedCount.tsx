@@ -3,41 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Número que pasa del valor anterior al nuevo contando, en vez de saltar de
- * golpe cuando cambian los filtros (ej. los contadores de alertas de la Agenda).
+ * Número que se renueva cuando cambia (ej. los contadores de alertas de la Agenda):
+ * el valor nuevo entra desde abajo con un leve desenfoque y se asienta, en vez de
+ * contar uno por uno ni saltar de golpe.
  *
- * Arranca ya en el valor real: solo anima cuando el número cambia después, así
- * que la primera carga no muestra un conteo desde 0. Con «reducir movimiento»
- * activo, cambia de inmediato.
+ * La animación es una clase CSS (`.count-roll-in`, globals.css) que se vuelve a
+ * disparar al cambiar `key`. La primera carga no se anima. Con «reducir
+ * movimiento» activo, la regla global de globals.css la deja en 0,01 ms.
  */
-export function AnimatedCount({ value, durationMs = 450, className }: { value: number; durationMs?: number; className?: string }) {
-  const [shown, setShown] = useState(value);
-  // Último valor pintado: si un cambio llega a mitad de la animación, la nueva
-  // parte desde ahí y no desde el destino anterior.
-  const shownRef = useRef(value);
+export function AnimatedCount({ value, className }: { value: number; className?: string }) {
+  const prevRef = useRef(value);
+  const [run, setRun] = useState(0);
 
   useEffect(() => {
-    const from = shownRef.current;
-    if (from === value) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      shownRef.current = value;
-      setShown(value);
-      return;
-    }
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const next = Math.round(from + (value - from) * eased);
-      shownRef.current = next;
-      setShown(next);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value, durationMs]);
+    if (prevRef.current === value) return;
+    prevRef.current = value;
+    setRun((r) => r + 1);
+  }, [value]);
 
-  // tabular-nums: los dígitos no cambian de ancho mientras cuentan.
-  return <span className={`tabular-nums ${className ?? ""}`}>{shown}</span>;
+  // tabular-nums: los dígitos no cambian de ancho al renovarse.
+  return (
+    <span key={run} className={`inline-block tabular-nums ${run ? "count-roll-in" : ""} ${className ?? ""}`}>
+      {value}
+    </span>
+  );
 }

@@ -389,6 +389,16 @@ button:not(:disabled):active {
   animation: gantt-flash 1.8s ease-in-out;
 }
 
+/* Número nuevo de un contador (AnimatedCount): entra desde abajo con un leve
+   desenfoque y se asienta. Sin contar intermedios: se lee como un cambio, no como un marcador. */
+@keyframes count-roll-in {
+  from { opacity: 0; transform: translateY(45%); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.count-roll-in {
+  animation: count-roll-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Indicador de escritura del chat: tres pulsos suaves, como una ola corta,
    para comunicar actividad sin competir con el contenido ni usar texto. */
 @keyframes typing-dot {
