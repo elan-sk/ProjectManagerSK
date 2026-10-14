@@ -604,7 +604,7 @@ export function HeaderSearch() {
         createPortal(
           <div
             aria-hidden
-            className="pointer-events-none fixed z-50 overflow-hidden rounded-2xl border-2 border-[#0a6b78] bg-white shadow-[0_10px_20px_rgba(15,23,42,0.18),0_28px_60px_rgba(15,23,42,0.28)]"
+            className="pointer-events-none fixed z-50 overflow-hidden rounded-2xl border-2 border-task-300 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.18),0_28px_60px_rgba(15,23,42,0.28)]"
             style={{ top: cover.top, left: cover.left, width: COVER_PREVIEW_WIDTH }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
