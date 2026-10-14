@@ -55,6 +55,69 @@ export function parseHeaderSearch(query: string) {
   return { filter, text: filter ? trimmed.slice(colon + 1).trim() : trimmed };
 }
 
+export type SearchSegment = { filter: HeaderSearchFilter; text: string };
+
+// Un tramo todavía a medio escribir: vacío (recién puesto «&» o «|») o el comienzo de un filtro («pro»).
+const isPartialFilter = (piece: string) => {
+  const word = normalizeSearchText(piece.trim());
+  return !word || (!/[\s:]/.test(word) && HEADER_SEARCH_OPTIONS.some((o) => normalizeSearchText(o.prefix).startsWith(word)));
+};
+
+// Filtros combinados: «etiquetas:sprint:&proyecto:racafe:» (Y) y «estados:hecho:|estados:revisión:» (O); «&» pesa
+// más que «|»: «a&b|c» = (a y b) o c. Devuelve los grupos O, cada uno con sus filtros Y. Solo es combinada si
+// arranca con un filtro y cada tramo es un filtro o uno a medio escribir (este no filtra): así un «&» dentro
+// de un texto («clave:https://x.com?a=1&b=2») sigue siendo texto.
+export function parseCombinedSearch(query: string): SearchSegment[][] | null {
+  if (!/[&|]/.test(query)) return null;
+  const groups = query.split("|").map((group) => group.split("&"));
+  const pieces = groups.flat();
+  if (!parseHeaderSearch(pieces[0]).filter || !pieces.every((p) => parseHeaderSearch(p).filter || isPartialFilter(p))) return null;
+  return groups
+    .map((group) => group.map(parseHeaderSearch).filter((s): s is SearchSegment => s.filter !== null))
+    .filter((group) => group.length > 0);
+}
+
+// Lo ya escrito hasta el último «&»/«|» de una consulta combinada y el tramo que se está escribiendo (el
+// que reciben las sugerencias y Tab). En una consulta simple, todo es el tramo.
+export function splitActiveSegment(query: string) {
+  if (!parseCombinedSearch(query)) return { head: "", piece: query };
+  const at = Math.max(query.lastIndexOf("&"), query.lastIndexOf("|")) + 1;
+  return { head: query.slice(0, at), piece: query.slice(at) };
+}
+
+// Qué devuelve un grupo Y: etiquetas, tipos, estados y tareas dan tareas; si solo tiene «proyecto:» da esos
+// proyectos, y junto a otro filtro «proyecto:» restringe a los de ese proyecto. Dos tipos distintos
+// («archivos:&comentarios:») no dan nada.
+export function combinedGroupKind(group: SearchSegment[]) {
+  const kinds = new Set(group.flatMap(({ filter }) =>
+    filter === "project" ? [] : filter === "tag" || filter === "taskType" || filter === "taskStatus" ? ["task"] : [filter]));
+  return kinds.size > 1 ? null : ([...kinds][0] ?? "project");
+}
+
+// «valor:texto» de tipos, estados y proyecto: antes de los dos puntos lo que se elige y después lo que se
+// busca dentro de sus resultados.
+export function splitFilterValue(text: string) {
+  const colon = text.indexOf(":");
+  return colon < 0 ? { value: text.trim(), content: "" } : { value: text.slice(0, colon).trim(), content: text.slice(colon + 1).trim() };
+}
+
+// «etiquetas:Categoría:nombre:texto» — antes de los dos puntos la categoría y después el nombre (cualquiera
+// de los dos puede ir vacío; sin dos puntos, `category` y `name` son null y el texto se busca en
+// «Categoría | nombre» completo). Lo que va después de un tercer «:» se busca en el contenido de las tareas;
+// con un espacio justo después de «categoría:» («etiquetas:capacitación: figma») se salta la etiqueta y se
+// busca directo en el contenido de las tareas de la categoría.
+export function parseTagSegment(text: string) {
+  const colon = text.indexOf(":");
+  if (colon < 0) return { text, category: null, name: null, content: "" };
+  const rest = text.slice(colon + 1);
+  const restColon = rest.indexOf(":");
+  const rawName = restColon < 0 ? rest : rest.slice(0, restColon);
+  const content = restColon < 0 ? "" : rest.slice(restColon + 1).trim();
+  const category = text.slice(0, colon).trim();
+  if (/^\s/.test(rawName)) return { text, category, name: "", content: [rawName.trim(), content].filter(Boolean).join(" ") };
+  return { text, category, name: rawName.trim(), content };
+}
+
 // Búsqueda de texto tipo buscador de correo: título + descripción (se le
 // saca el HTML del editor enriquecido) + nombre de los archivos adjuntos.
 // No indexa el CONTENIDO de los archivos (PDF/Word/etc.) — eso requeriría

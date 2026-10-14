@@ -9,7 +9,7 @@ import { ProjectIcon } from "@/components/ProjectIcon";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
 import type { SearchHit } from "@/app/api/search/route";
 import type { TaskStatus } from "@prisma/client";
-import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch } from "@/lib/search";
+import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch, splitActiveSegment } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
@@ -116,7 +116,8 @@ export function HeaderSearch() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [active, setActive] = useState(0);
   // Portada de la tarea bajo el mouse: tarjeta flotante al costado del panel, nunca encima de los resultados.
-  const [cover, setCover] = useState<{ url: string; top: number; left?: number; right?: number } | null>(null);
+  // Guarda la lista de resultados donde se pasó el mouse: si la fila desaparece sin «mouseleave» (cambian los resultados o se cierra el panel), se descarta.
+  const [cover, setCover] = useState<{ url: string; top: number; left?: number; right?: number; hits: SearchHit[] } | null>(null);
   const [filterActive, setFilterActive] = useState(0);
   const [compact, setCompact] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -318,10 +319,13 @@ export function HeaderSearch() {
   }
 
   const showPanel = !filtersOpen && open && trimmed.length >= 2;
+  if (cover && (!showPanel || cover.hits !== hits)) setCover(null);
   // Sugerencias para elegir con clic o con Tab (la primera), filtradas por lo que se va escribiendo:
   // - «tipos:…», «estados:…» o «etiquetas:…» antes del segundo «:» → los tipos, los estados o las categorías;
   // - «etiquetas:categoría:…» → las etiquetas de esa categoría.
-  const parsed = parseHeaderSearch(trimmed);
+  // En una combinada («etiquetas:sprint:&proyecto:…») todo esto vale para el último tramo; lo anterior (`head`) queda igual.
+  const { head, piece } = splitActiveSegment(trimmed);
+  const parsed = parseHeaderSearch(piece);
   const colon = parsed.text.indexOf(":");
   // «etiquetas:categoría: texto» (espacio tras los dos puntos) o «etiquetas:categoría:etiqueta:texto» ya
   // buscan en el contenido de las tareas (ver /api/search): ahí no se sugieren etiquetas.
@@ -347,9 +351,9 @@ export function HeaderSearch() {
           : parsed.filter === "taskStatus"
             ? (Object.entries(TASK_STATUS_LABEL) as [TaskStatus, string][]).map(([status, label]) => ({ key: status, label, badge: TASK_STATUS_COLOR[status].badge, query: firstLevel(label) }))
             : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
-  // Una sola palabra sin «:» que es el comienzo de un filtro («es» → «estados:»): se sugiere el filtro.
+  // Una sola palabra sin «:» que es el comienzo de un filtro («es» → «estados:»), o nada todavía tras «&»/«|»: se sugiere el filtro.
   const filterChoices: Choice[] =
-    !parsed.filter && !trimmed.includes(":") && !/\s/.test(trimmed)
+    !parsed.filter && !piece.includes(":") && !/\s/.test(piece.trim())
       ? HEADER_SEARCH_OPTIONS.filter((o) => normalizeSearchText(o.prefix).startsWith(partial)).map((o) => ({ key: o.prefix, label: `${o.prefix}:`, badge: KIND_COLOR[o.kind], query: `${o.prefix}:` }))
       : [];
   const choices = filterChoices.length
@@ -359,7 +363,7 @@ export function HeaderSearch() {
         .filter((c) => normalizeSearchText(c.label).includes(partial) && !(level === 2 && normalizeSearchText(c.label) === partial))
         .sort((x, y) => startsWithPartial(x) - startsWithPartial(y));
   function choose(choice: Choice) {
-    setQuery(choice.query);
+    setQuery(head + choice.query);
     setActive(0);
     inputRef.current?.focus();
   }
@@ -502,8 +506,8 @@ export function HeaderSearch() {
                       const width = COVER_PREVIEW_WIDTH + 8;
                       const top = e.currentTarget.getBoundingClientRect().top;
                       // A la izquierda se ancla por su borde derecho: queda pegada al panel aunque la imagen sea angosta.
-                      if (panel.left >= width) setCover({ url: h.coverUrl, top, right: window.innerWidth - panel.left + 8 });
-                      else if (window.innerWidth - panel.right >= width) setCover({ url: h.coverUrl, top, left: panel.right + 8 });
+                      if (panel.left >= width) setCover({ url: h.coverUrl, top, right: window.innerWidth - panel.left + 8, hits });
+                      else if (window.innerWidth - panel.right >= width) setCover({ url: h.coverUrl, top, left: panel.right + 8, hits });
                       else setCover(null);
                     }}
                     onMouseLeave={() => setCover(null)}

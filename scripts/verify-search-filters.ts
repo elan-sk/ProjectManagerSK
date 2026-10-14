@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { fuzzyScore, weightedScore } from "../src/lib/fuzzy";
 import { matchesDateRange, parseDayKey } from "../src/lib/dateRange";
 import { progressBar } from "../src/lib/progressBar";
-import { HEADER_SEARCH_OPTIONS, isCompactSearch, parseHeaderSearch } from "../src/lib/search";
+import { HEADER_SEARCH_OPTIONS, combinedGroupKind, isCompactSearch, parseCombinedSearch, parseHeaderSearch, parseTagSegment, splitActiveSegment, splitFilterValue } from "../src/lib/search";
 
 // Nombre del proyecto de la tarea: la encuentra, pero pesa menos que el título y que la descripción.
 {
@@ -78,4 +78,32 @@ assert.equal(isCompactSearch(224, 1024), false);
 assert.equal(isCompactSearch(223, 1280), true);
 assert.equal(isCompactSearch(110, 1280), true);
 assert.equal(isCompactSearch(384, 1023), true);
+// Filtros combinados: «&» (y) pesa más que «|» (o); el orden de los filtros no cambia el grupo.
+{
+  const tag = { filter: "tag", text: "sprint:" } as const;
+  const project = { filter: "project", text: "racafe:" } as const;
+  assert.deepEqual(parseCombinedSearch("etiquetas:sprint:&proyecto:racafe:"), [[tag, project]]);
+  assert.deepEqual(parseCombinedSearch("proyecto:racafe:&etiquetas:sprint:"), [[project, tag]]);
+  assert.deepEqual(parseCombinedSearch("etiquetas:sprint:&proyecto:racafe:|estados:hecho:"), [[tag, project], [{ filter: "taskStatus", text: "hecho:" }]]);
+  assert.deepEqual(parseCombinedSearch("etiquetas:sprint:&"), [[tag]], "tramo vacío recién escrito: no filtra");
+  assert.deepEqual(parseCombinedSearch("etiquetas:sprint:&pro"), [[tag]], "filtro a medio escribir: no filtra");
+  assert.equal(parseCombinedSearch("etiquetas:sprint:"), null, "sin «&»/«|» es simple");
+  assert.equal(parseCombinedSearch("R&D informe"), null, "texto común con «&»");
+  assert.equal(parseCombinedSearch("clave:https://x.com?a=1&b=2"), null, "«&» dentro de lo buscado");
+  assert.deepEqual(splitActiveSegment("etiquetas:sprint:&pro"), { head: "etiquetas:sprint:&", piece: "pro" });
+  assert.deepEqual(splitActiveSegment("etiquetas:sprint:|"), { head: "etiquetas:sprint:|", piece: "" });
+  assert.deepEqual(splitActiveSegment("clave:a&b=2"), { head: "", piece: "clave:a&b=2" });
+  assert.equal(combinedGroupKind([tag, project]), "task");
+  assert.equal(combinedGroupKind([project]), "project", "solo proyecto: esos proyectos");
+  assert.equal(combinedGroupKind([project, { filter: "project", text: "paguer:" }]), "project");
+  assert.deepEqual(parseCombinedSearch("proyectos:paguer:|proyectos:racafe"), [[{ filter: "project", text: "paguer:" }], [{ filter: "project", text: "racafe" }]]);
+  assert.equal(combinedGroupKind([{ filter: "file", text: "" }, project]), "file");
+  assert.equal(combinedGroupKind([{ filter: "file", text: "" }, { filter: "comment", text: "" }]), null, "dos tipos distintos no dan nada");
+  assert.deepEqual(splitFilterValue("racafe:login"), { value: "racafe", content: "login" });
+  assert.deepEqual(splitFilterValue("racafe"), { value: "racafe", content: "" });
+  assert.deepEqual(parseTagSegment("sprint"), { text: "sprint", category: null, name: null, content: "" });
+  assert.deepEqual(parseTagSegment("sprint:"), { text: "sprint:", category: "sprint", name: "", content: "" });
+  assert.deepEqual(parseTagSegment("sprint:2:login"), { text: "sprint:2:login", category: "sprint", name: "2", content: "login" });
+  assert.deepEqual(parseTagSegment("sprint: login"), { text: "sprint: login", category: "sprint", name: "", content: "login" });
+}
 console.log("verify-search-filters: OK");

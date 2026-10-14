@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { PublicFileGrid } from "./PublicFileGrid";
+import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { PublicUploadWidget } from "./PublicUploadWidget";
 import { PublicCommentThread } from "./PublicCommentThread";
 import { ShareIdentityBar } from "./ShareIdentityBar";
@@ -16,6 +17,38 @@ import type { PublicTask, PublicFile, PublicAdjustmentItem, PublicAcceptanceRoun
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 
 const DATE_FMT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" };
+
+const isImage = (f: PublicFile) => f.mimeType.startsWith("image/");
+
+function hasComparison(item: PublicAdjustmentItem) {
+  return item.before.some(isImage) && item.after.some(isImage);
+}
+
+// Slider con los pares de imágenes; lo que sobra (imágenes sin par, PDF, links) queda en grilla debajo.
+function AdjustmentComparison({ item }: { item: PublicAdjustmentItem }) {
+  const pairs = Math.min(item.before.filter(isImage).length, item.after.filter(isImage).length);
+  const before = item.before.filter(isImage).slice(0, pairs);
+  const after = item.after.filter(isImage).slice(0, pairs);
+  const restBefore = item.before.filter((f) => !before.includes(f));
+  const restAfter = item.after.filter((f) => !after.includes(f));
+  return (
+    <>
+      <BeforeAfterSlider before={before} after={after} />
+      {(restBefore.length > 0 || restAfter.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <p className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Antes · otros archivos</p>
+            <PublicFileGrid files={restBefore} />
+          </div>
+          <div className="space-y-1">
+            <p className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Después · otros archivos</p>
+            <PublicFileGrid files={restAfter} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function beforeAfterSequence(item: PublicAdjustmentItem) {
   return [...item.before.map((f) => ({ ...f, group: "Antes" })), ...item.after.map((f) => ({ ...f, group: "Después" }))];
@@ -151,7 +184,10 @@ export function PublicTaskDetail({
                 <div className="prose prose-lg min-w-0 max-w-none text-slate-800 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.description) }} />
               </div>
               {!item.answered && <p className="text-[17px] text-amber-600">Todavía no se ha realizado.</p>}
-              {/* Un solo carrusel: al terminar las imágenes de Antes sigue con las de Después. */}
+              {hasComparison(item) ? (
+                <AdjustmentComparison item={item} />
+              ) : (
+              /* Un solo carrusel: al terminar las imágenes de Antes sigue con las de Después. */
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <p className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Antes</p>
@@ -162,6 +198,7 @@ export function PublicTaskDetail({
                   <PublicFileGrid files={item.after} sequence={beforeAfterSequence(item)} />
                 </div>
               </div>
+              )}
               {item.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={item.note} /></p>}
               {item.reviewOpen ? (
                 <fieldset className="space-y-1 rounded-lg bg-slate-50 p-2 text-[15px] text-slate-700">

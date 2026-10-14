@@ -3,7 +3,7 @@ import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { RELATIVE_SCORE_CUTOFF, fuzzyScore, weightedScore } from "@/lib/fuzzy";
-import { parseHeaderSearch } from "@/lib/search";
+import { combinedGroupKind, parseCombinedSearch, parseHeaderSearch, parseTagSegment, splitActiveSegment, splitFilterValue, type SearchSegment } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { taskCoverUrl } from "@/lib/taskCover";
@@ -51,13 +51,18 @@ export async function GET(request: Request) {
 
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ hits: [] satisfies SearchHit[] });
-  const { filter, text: searchText } = parseHeaderSearch(q);
+  // «etiquetas:sprint:&proyecto:racafe:» / «…|…»: filtros combinados (parseCombinedSearch). Ahí no rige la
+  // lógica de un solo filtro de abajo: cada resultado se evalúa con combinedScore.
+  const combined = parseCombinedSearch(q);
+  const { filter, text: searchText } = combined ? { filter: null, text: "" } : parseHeaderSearch(q);
+  // El tramo que se está escribiendo (el último en una combinada): a él responden las sugerencias de etiqueta.
+  const active = combined ? parseHeaderSearch(splitActiveSegment(q).piece) : { filter, text: searchText };
   const credentialsOnly = filter === "credential";
   // «tipos:», «estados:» y «etiquetas:» traen tareas, buscadas por su tipo, su estado o sus etiquetas en vez de por su texto.
   const byTypeOrStatus = filter === "taskType" || filter === "taskStatus";
   const hitKind = byTypeOrStatus || filter === "tag" ? "task" : filter;
   // Por etiqueta siempre viajan las categorías: el buscador las sugiere mientras se escribe.
-  const categories = filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : undefined;
+  const categories = active.filter === "tag" ? await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } }) : undefined;
   // Sin texto todavía: el buscador ofrece los tipos y estados (los conoce) o las categorías de etiqueta para elegir.
   if (hitKind === "task" && filter !== "task" && !searchText) return NextResponse.json({ hits: [] satisfies SearchHit[], categories });
 
@@ -66,32 +71,20 @@ export async function GET(request: Request) {
   // tipeo («contrasena», «calve»); con dos errores ya no, para no confundirla con «contrato».
   const allCredentials = credentialsOnly
     ? !searchText
-    : q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
-  // «etiquetas:Categoría:nombre» — antes de los dos puntos la categoría y después el nombre (cualquiera
-  // de los dos puede ir vacío). Sin dos puntos, el texto se busca en «Categoría | nombre» completo.
-  // «tipos:Tipo:texto» / «estados:Estado:texto» — igual: antes de los dos puntos el tipo o el estado y después lo que se busca dentro de sus tareas.
-  const colon = filter === "tag" || byTypeOrStatus ? searchText.indexOf(":") : -1;
-  const typeOrStatusText = byTypeOrStatus ? (colon < 0 ? searchText : searchText.slice(0, colon)).trim() : "";
+    : !combined && q.length >= 4 && !/\s/.test(q) && fuzzyScore(q, "contraseña contraseñas clave claves") >= 0.5;
+  // «tipos:Tipo:texto» / «estados:Estado:texto» — antes de los dos puntos el tipo o el estado y después lo que se busca dentro de sus tareas.
+  const typeOrStatus = splitFilterValue(byTypeOrStatus ? searchText : "");
+  const typeOrStatusText = typeOrStatus.value;
   // Lo que se compara contra el texto de cada resultado.
-  const needle = byTypeOrStatus ? (colon < 0 ? "" : searchText.slice(colon + 1).trim()) : searchText;
-  const tagCategoryText = colon < 0 ? null : searchText.slice(0, colon).trim();
-  // «etiquetas:categoría:etiqueta:texto» — lo que va después de un tercer «:» se busca en el contenido
-  // (título + descripción) de las tareas con esa etiqueta. Con un espacio justo después de
-  // «categoría:» («etiquetas:capacitación: figma») se salta la etiqueta y se busca directo en el contenido
-  // de las tareas de la categoría. Si lo escrito como etiqueta no es ninguna de esa categoría, también.
-  const tagRest = filter === "tag" && colon >= 0 ? searchText.slice(colon + 1) : null;
-  const restColon = tagRest?.indexOf(":") ?? -1;
-  const rawTagName = tagRest === null ? null : restColon < 0 ? tagRest : tagRest.slice(0, restColon);
-  let tagContentText = tagRest !== null && restColon >= 0 ? tagRest.slice(restColon + 1).trim() : "";
-  let tagNameText = rawTagName === null ? null : rawTagName.trim();
-  if (rawTagName !== null && /^\s/.test(rawTagName)) {
-    tagContentText = [rawTagName.trim(), tagContentText].filter(Boolean).join(" ");
-    tagNameText = "";
-  }
-  const matchesTag = (category: { name: string; emoji: string | null }, name: string) =>
-    tagCategoryText === null || tagNameText === null
-      ? fuzzyScore(searchText, tagLabel(category, name)) > 0
-      : (!tagCategoryText || fuzzyScore(tagCategoryText, category.name) > 0) && (!tagNameText || fuzzyScore(tagNameText, name) > 0);
+  const needle = byTypeOrStatus ? typeOrStatus.content : searchText;
+  // «etiquetas:Categoría:nombre:texto» (parseTagSegment).
+  const tagFilter = parseTagSegment(filter === "tag" ? searchText : "");
+  const matchesTag = (seg: ReturnType<typeof parseTagSegment>, category: { name: string; emoji: string | null }, name: string) =>
+    seg.category === null || seg.name === null
+      ? fuzzyScore(seg.text, tagLabel(category, name)) > 0
+      : (!seg.category || fuzzyScore(seg.category, category.name) > 0) && (!seg.name || fuzzyScore(seg.name, name) > 0);
+  // Categoría escrita en el tramo activo: sus etiquetas viajan para sugerirlas.
+  const suggestTagCategory = active.filter === "tag" ? parseTagSegment(active.text).category : null;
   const userId = session.user.id;
   const projectWhere: Prisma.ProjectWhereInput =
     session.user.role === "ADMIN"
@@ -138,15 +131,52 @@ export async function GET(request: Request) {
     },
   });
   // Lo escrito como etiqueta no coincide con ninguna de la categoría (en lo que la persona ve): es texto a buscar en las tareas.
-  if (tagCategoryText !== null && tagNameText) {
-    const anyTag = projects.some((p) => p.tasks.some((t) => t.taskTags.some(({ tag }) => matchesTag(tag.category, tag.name))));
-    if (!anyTag) {
-      tagContentText = [tagNameText, tagContentText].filter(Boolean).join(" ");
-      tagNameText = "";
+  const resolveTagName = (seg: ReturnType<typeof parseTagSegment>) => {
+    if (seg.category === null || !seg.name) return seg;
+    const anyTag = projects.some((p) => p.tasks.some((t) => t.taskTags.some(({ tag }) => matchesTag(seg, tag.category, tag.name))));
+    return anyTag ? seg : { ...seg, name: "", content: [seg.name, seg.content].filter(Boolean).join(" ") };
+  };
+  const tagSeg = resolveTagName(tagFilter);
+  const tagContentText = tagSeg.content;
+
+  // Modo combinado: cada filtro se prepara una vez. Cada uno devuelve el texto a buscar dentro de lo que
+  // deja pasar («» si no hay) o null si el resultado no cumple.
+  type Scope = { project: { name: string; clientName: string | null; description: string | null; parent: { name: string } | null }; task?: (typeof projects)[number]["tasks"][number] };
+  const prepareSegment = ({ filter: f, text }: SearchSegment): ((scope: Scope) => string | null) => {
+    if (f === "tag") {
+      const seg = resolveTagName(parseTagSegment(text));
+      const empty = !seg.text.trim();
+      return ({ task }) => (task && task.taskTags.some(({ tag }) => empty || matchesTag(seg, tag.category, tag.name)) ? seg.content : null);
     }
-  }
+    if (f === "taskType" || f === "taskStatus" || f === "project") {
+      const { value, content } = splitFilterValue(text);
+      const label = (scope: Scope) =>
+        f === "project" ? `${scope.project.parent?.name ?? ""} ${scope.project.name} ${scope.project.clientName ?? ""} ${stripHtml(scope.project.description ?? "")}`
+        : !scope.task ? null : f === "taskType" ? TASK_TYPE_LABEL[scope.task.type] ?? scope.task.type : TASK_STATUS_LABEL[scope.task.status];
+      return (scope) => {
+        const haystack = label(scope);
+        return haystack !== null && (!value || fuzzyScore(value, haystack) > 0) ? content : null;
+      };
+    }
+    return () => text;
+  };
+  const combinedGroups = combined?.map((group) => ({ kind: combinedGroupKind(group), matchers: group.map(prepareSegment) }));
+  // Un resultado entra si cumple todos los filtros de algún grupo; si los filtros traen texto, se busca en él.
+  const combinedScore = (kind: SearchHit["kind"], scope: Scope, title: string, text: string, contextText: string) => {
+    let best = 0;
+    for (const group of combinedGroups ?? []) {
+      if (group.kind !== kind) continue;
+      const contents = group.matchers.map((match) => match(scope));
+      if (contents.some((c) => c === null)) continue;
+      const content = contents.filter(Boolean).join(" ");
+      best = Math.max(best, content ? weightedScore(content, title, text, contextText) : 1);
+    }
+    return best;
+  };
+  const combinedKinds = new Set(combinedGroups?.map((g) => g.kind));
   const projectIds = projects.map((p) => p.id);
-  const messages = filter && filter !== "comment" ? [] : await prisma.internalMessage.findMany({
+  const skipMessages = combined ? !combinedKinds.has("comment") : !!filter && filter !== "comment";
+  const messages = skipMessages ? [] : await prisma.internalMessage.findMany({
     where: { projectId: { in: projectIds } },
     select: {
       id: true,
@@ -161,12 +191,14 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl" | "coverUrl">, contextText = "") => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl" | "coverUrl">, contextText = "", scope?: Scope) => {
     if (hitKind && kind !== hitKind) return;
     // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
     // Con pesos (weightedScore): el título cuenta más que la descripción, y esta más que el contexto
     // (nombre del proyecto de la tarea); la frase completa suma.
-    const score = filter === "tag" ? (tagContentText ? weightedScore(tagContentText, title, text, contextText) : 1) : filter && !needle ? 1 : weightedScore(needle, title, text, contextText);
+    // Combinada: solo entra lo que cumple algún grupo de filtros (los pasos nunca: no tienen grupo propio).
+    const score = combined ? (scope ? combinedScore(kind, scope, title, text, contextText) : 0)
+      : filter === "tag" ? (tagContentText ? weightedScore(tagContentText, title, text, contextText) : 1) : filter && !needle ? 1 : weightedScore(needle, title, text, contextText);
     const group: SearchGroup = kind === "step" ? "task" : kind === "link" || kind === "credential" ? "file" : kind;
     if (score > 0) hits.push({ kind, group, id, title, context, href, score, project, people, ...extra });
   };
@@ -176,22 +208,23 @@ export async function GET(request: Request) {
   const tagNames = new Set<string>();
   for (const p of projects) {
     const logo = { name: p.name, iconUrl: p.iconUrl, parent: p.parent };
-    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""} ${stripHtml(p.description ?? "")}`, logo, [p.pm]);
-    for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo, undefined, { preview: { url: l.url, mimeType: LINK_MIME_TYPE } });
+    const scope = { project: p };
+    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""} ${stripHtml(p.description ?? "")}`, logo, [p.pm], undefined, "", scope);
+    for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo, undefined, { preview: { url: l.url, mimeType: LINK_MIME_TYPE } }, "", scope);
     for (const a of p.attachments) {
       const isLink = a.mimeType === LINK_MIME_TYPE;
-      push(isLink ? "link" : "file", a.id, a.fileName, p.name, `/projects/${p.id}?view=definition`, a.fileName, logo, a.uploadedBy ? [a.uploadedBy] : undefined, { preview: { url: a.fileUrl, mimeType: a.mimeType } });
+      push(isLink ? "link" : "file", a.id, a.fileName, p.name, `/projects/${p.id}?view=definition`, a.fileName, logo, a.uploadedBy ? [a.uploadedBy] : undefined, { preview: { url: a.fileUrl, mimeType: a.mimeType } }, "", scope);
     }
     for (const t of p.tasks) {
       taskTitleById.set(t.id, t.title);
       const taskHref = `/projects/${p.id}/tasks/${t.id}`;
       const involved = [...t.assignees, ...t.reviewers].map((x) => x.user).filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i);
       // Por etiqueta: categoría y nombre tienen que coincidir en UNA misma etiqueta, no entre dos distintas.
-      if (tagCategoryText !== null) {
-        for (const { tag } of t.taskTags) if (tag.name && (!tagCategoryText || fuzzyScore(tagCategoryText, tag.category.name) > 0)) tagNames.add(tag.name);
+      if (suggestTagCategory !== null) {
+        for (const { tag } of t.taskTags) if (tag.name && (!suggestTagCategory || fuzzyScore(suggestTagCategory, tag.category.name) > 0)) tagNames.add(tag.name);
       }
       const tags = t.taskTags
-        .filter((tt) => filter !== "tag" || matchesTag(tt.tag.category, tt.tag.name))
+        .filter((tt) => filter !== "tag" || matchesTag(tagSeg, tt.tag.category, tt.tag.name))
         .map((tt) => tagLabel(tt.tag.category, tt.tag.name))
         .join(", ");
       const typeMatches =
@@ -205,23 +238,24 @@ export async function GET(request: Request) {
         // persona tiene ese rol, sin competir con el título ni la descripción.
         const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
         const teamText = p.roles.map((r) => `${r.user.name} ${r.user.cargo ?? ""} ${r.role}`).join(" ");
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`);
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`, { project: p, task: t });
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
         const isLink = a.mimeType === LINK_MIME_TYPE;
-        push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName, logo, [...(a.uploadedBy ? [a.uploadedBy] : []), ...involved].filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i), { preview: { url: a.fileUrl, mimeType: a.mimeType } });
+        push(isLink ? "link" : "file", a.id, a.fileName, `${t.title} · ${p.name}`, taskHref, isLink ? `${a.fileName} ${a.fileUrl}` : a.fileName, logo, [...(a.uploadedBy ? [a.uploadedBy] : []), ...involved].filter((u, i, all) => all.findIndex((v) => v.name === u.name) === i), { preview: { url: a.fileUrl, mimeType: a.mimeType } }, "", { project: p, task: t });
       }
     }
   }
   // Credenciales: solo las que esta persona puede ver; se busca por nombre, URL, usuario y notas (nunca por
   // la contraseña, que además está cifrada).
-  const credentials = filter && !credentialsOnly ? [] : await prisma.credential.findMany({
+  const skipCredentials = combined ? !combinedKinds.has("credential") : !!filter && !credentialsOnly;
+  const credentials = skipCredentials ? [] : await prisma.credential.findMany({
     where: { AND: [credentialVisibleWhere(session.user), { project: LIVE_PROJECT_WHERE }] },
-    select: { id: true, name: true, url: true, username: true, notes: true, project: { select: { name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } } } },
+    select: { id: true, name: true, url: true, username: true, notes: true, project: { select: { name: true, clientName: true, description: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } } } },
   });
   for (const c of credentials) {
-    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""} ${c.notes ?? ""}${allCredentials && !credentialsOnly ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl, parent: c.project.parent }, undefined, { siteUrl: c.url, preview: { url: `credential:${c.id}`, mimeType: CREDENTIAL_MIME_TYPE } });
+    push("credential", c.id, c.name, c.project.name, `/credentials/${c.id}`, `${c.name} ${c.url ?? ""} ${c.username ?? ""} ${c.notes ?? ""}${allCredentials && !credentialsOnly ? ` ${q}` : ""}`, { name: c.project.name, iconUrl: c.project.iconUrl, parent: c.project.parent }, undefined, { siteUrl: c.url, preview: { url: `credential:${c.id}`, mimeType: CREDENTIAL_MIME_TYPE } }, "", { project: c.project });
   }
   const projectById = new Map(projects.map((p) => [p.id, p]));
   for (const m of messages) {
@@ -236,7 +270,10 @@ export async function GET(request: Request) {
       m.taskId ? `/projects/${m.projectId}/tasks/${m.taskId}` : `/projects/${m.projectId}?view=conversation`,
       body,
       proj && { name: proj.name, iconUrl: proj.iconUrl, parent: proj.parent },
-      [m.author, ...m.mentions.map((x) => x.user).filter((u) => u.name !== m.author.name)]
+      [m.author, ...m.mentions.map((x) => x.user).filter((u) => u.name !== m.author.name)],
+      undefined,
+      "",
+      proj && { project: proj }
     );
   }
 
@@ -256,8 +293,8 @@ export async function GET(request: Request) {
     return inGroup
       .filter((h) => keepsUp(h, best))
       .sort((a, b) => secondary(a) - secondary(b) || b.score - a.score)
-      .slice(0, filter ? undefined : LIMIT[group] + (group === "file" ? credentialHits : 0));
+      .slice(0, filter || combined ? undefined : LIMIT[group] + (group === "file" ? credentialHits : 0));
   });
-  const tagNameChoices = tagCategoryText === null ? undefined : { category: tagCategoryText, names: [...tagNames].sort((a, b) => a.localeCompare(b, "es")).slice(0, 40) };
+  const tagNameChoices = suggestTagCategory === null ? undefined : { category: suggestTagCategory, names: [...tagNames].sort((a, b) => a.localeCompare(b, "es")).slice(0, 40) };
   return NextResponse.json({ hits: ordered, categories, tagNames: tagNameChoices });
 }
