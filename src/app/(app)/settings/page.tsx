@@ -319,6 +319,7 @@ export default async function SettingsPage({
 const APP_FEATURES = [
   { icon: "🎯", title: "Definir el proyecto", text: "Objetivos, requerimientos y fases, con el avance de cada uno calculado a partir de sus tareas." },
   { icon: "🗂️", title: "Planear y seguir tareas", text: "Tablero, Gantt con dependencias y calendario; tareas con checklist, insumos y resultados." },
+  { icon: "🔎", title: "Buscador avanzado", text: "Proyectos, tareas, comentarios, archivos y contraseñas; filtros como estados: o etiquetas:, unidos con «y además» u «o también»." },
   { icon: "✅", title: "Revisar la calidad", text: "Pruebas con plantillas y rondas de revisión, Ajustes y Aceptaciones que califica el cliente." },
   { icon: "🔗", title: "Trabajar con el cliente", text: "Links compartidos para ver el avance, comentar, responder preguntas y subir insumos." },
   { icon: "⏳", title: "Anticipar atrasos", text: "Alertas por tarea y el estado del proyecto: retraso u holgura frente a la fecha de cierre." },
