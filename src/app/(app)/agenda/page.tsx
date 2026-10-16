@@ -240,6 +240,7 @@ export default async function AgendaPage({
   );
   const sharedTaskIds = new Set<string | null>(shareTokenByTaskId.keys());
 
+  const todayKey = new Date().toISOString().slice(0, 10);
   const tasksWithAlert = await Promise.all(
     tasksRaw.map(async (t) => ({ ...t, alert: await getTaskAlert(t.project.countryCode, t) }))
   );
@@ -257,6 +258,8 @@ export default async function AgendaPage({
       });
     })
     .filter((t) => matchesDateRange(t, from, to))
+    // Completadas de días ya pasados no son deuda: se ocultan para dejar a la vista lo urgente (salvo al filtrar por «Completadas»).
+    .filter((t) => status === "COMPLETED" || t.status !== "COMPLETED" || t.plannedEnd.toISOString().slice(0, 10) >= todayKey)
     .filter((t) => matchesTaskSearch(t, q))
     .filter((t) => matchesTagFilter(tag, t.taskTags.map((tt) => ({ tagId: tt.tagId, categoryId: tt.tag.categoryId }))));
   // Opciones del filtro Etiqueta: las que usan las tareas de esta agenda (antes de filtrar).
