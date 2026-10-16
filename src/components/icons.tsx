@@ -99,7 +99,9 @@ export function UndoIcon({ className }: IconProps) {
 }
 
 // Sello de revisión (aviso «Revisiones» del encabezado y sello «En revisión» de la tarea).
-const REVIEW_SEAL_PATH = "M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z";
+const REVIEW_SEAL_CHECK = "M9 12.75 11.25 15 15 9.75";
+const REVIEW_SEAL_OUTLINE = "M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z";
+const REVIEW_SEAL_PATH = REVIEW_SEAL_CHECK + REVIEW_SEAL_OUTLINE;
 
 export function ReviewChecklistIcon({ className }: IconProps) {
   return (
@@ -379,11 +381,20 @@ export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-// Sello «En revisión» de la ficha de la tarea (junto a los asignados): el mismo del aviso «Revisiones» del encabezado.
+// Sello «En revisión» de la ficha de la tarea (junto a los asignados): el sello del aviso «Revisiones», con el
+// mismo acabado que EvidenceLoadedIcon (relleno blanco y globito en la esquina, acá un reloj: en proceso).
 export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   return (
-    <span title="En revisión" aria-label="En revisión" role="img" className={`inline-flex flex-shrink-0 text-teal-600 ${className}`}>
-      <ReviewChecklistIcon className="h-full w-full" />
+    <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
+        <path d={REVIEW_SEAL_OUTLINE} fill="white" />
+        <path d={REVIEW_SEAL_CHECK} />
+      </svg>
+      <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-teal-600 text-white ring-[1.5px] ring-white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" className="h-[66%] w-[66%]" aria-hidden>
+          <path d="M12 7v5l3 2" />
+        </svg>
+      </span>
     </span>
   );
 }
