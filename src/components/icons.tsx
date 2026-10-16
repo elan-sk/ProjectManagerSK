@@ -382,14 +382,20 @@ export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
 }
 
 // Sello «En revisión» de la ficha de la tarea (junto a los asignados): el sello del aviso «Revisiones», relleno en
-// blanco como EvidenceLoadedIcon.
+// blanco como EvidenceLoadedIcon, con un globito de reloj cuya aguja larga gira despacio (se está revisando).
 export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   return (
-    <span title="En revisión" aria-label="En revisión" role="img" className={`inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+    <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
         <path d={REVIEW_SEAL_OUTLINE} fill="white" />
         <path d={REVIEW_SEAL_CHECK} />
       </svg>
+      <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-teal-600 text-white ring-[1.5px] ring-white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" className="h-[70%] w-[70%]" aria-hidden>
+          <path d="M12 12h3.5" />
+          <path d="M12 12V6" className="origin-center animate-spin [animation-duration:3s] motion-reduce:animate-none" />
+        </svg>
+      </span>
     </span>
   );
 }
