@@ -98,7 +98,7 @@ export function UndoIcon({ className }: IconProps) {
   );
 }
 
-// Sello de revisión (aviso «Revisiones» del encabezado y sello «En revisión» de la tarea).
+// Sello de revisión (aviso «Revisiones» del encabezado; también en la esquina de ReviewApprovedIcon).
 const REVIEW_SEAL_CHECK = "M9 12.75 11.25 15 15 9.75";
 const REVIEW_SEAL_OUTLINE = "M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z";
 const REVIEW_SEAL_PATH = REVIEW_SEAL_CHECK + REVIEW_SEAL_OUTLINE;
@@ -362,16 +362,23 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
+// Hoja con la esquina doblada de los sellos de la ficha de la tarea (junto a los asignados).
+function DocumentSheet() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
+      <path d="M6.5 2.5h7L19 8v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5Z" fill="white" />
+      <path d="M13.5 2.5V8H19" />
+      <path d="M8.5 12h7M8.5 15.5h4" />
+    </svg>
+  );
+}
+
 // «Evidencia cargada» de un Entregable (tarjeta y ficha de la tarea): una hoja con la esquina doblada, sin
 // fondo (ocupa todo el tamaño), con un sello de chulo en la esquina. `className` da el tamaño (h-5 w-5, h-8 w-8…).
 export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <span title="Evidencia cargada" aria-label="Evidencia cargada" role="img" className={`relative inline-flex flex-shrink-0 text-emerald-700 ${className}`}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
-        <path d="M6.5 2.5h7L19 8v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5Z" fill="white" />
-        <path d="M13.5 2.5V8H19" />
-        <path d="M8.5 12h7M8.5 15.5h4" />
-      </svg>
+      <DocumentSheet />
       <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-emerald-600 text-white ring-[1.5px] ring-white">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden>
           <path d="m5 12.5 4.5 4.5L19 7.5" />
@@ -381,20 +388,28 @@ export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-// Sello «En revisión» de la ficha de la tarea (junto a los asignados): el sello del aviso «Revisiones», relleno en
-// blanco como EvidenceLoadedIcon, con un archivo adentro y una lupa que va y viene encima (se está revisando; .review-scan en globals.css).
+// Prueba «En revisión» (ficha de la tarea): la misma hoja, con una lupa que va y viene en la esquina
+// (.review-scan en globals.css). Al aprobarse, la lupa se cambia por el sello (ReviewApprovedIcon).
 export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
-        <path d={REVIEW_SEAL_OUTLINE} fill="white" />
-        {/* El archivo que se está revisando, en lugar del check. */}
-        <path d="M9.5 7.5h3.5l2 2v7a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-8.5a.5.5 0 0 1 .5-.5Z" />
-        <path d="M13 7.5v2h2M10.5 12.5h3M10.5 14.5h2" />
-      </svg>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" className="review-scan absolute -right-[12%] -bottom-[6%] h-[58%] w-[58%] text-teal-600" aria-hidden>
-        <circle cx="10.5" cy="10.5" r="6" fill="white" fillOpacity={0.55} />
+      <DocumentSheet />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" className="review-scan absolute -right-[18%] -bottom-[14%] h-[58%] w-[58%] text-teal-600" aria-hidden>
+        <circle cx="10.5" cy="10.5" r="6" fill="white" />
         <path d="m15.2 15.2 5 5" />
+      </svg>
+    </span>
+  );
+}
+
+// Prueba con su última ronda aprobada: la misma hoja, con el sello del aviso «Revisiones» en la esquina.
+export function ReviewApprovedIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <span title="Prueba aprobada" aria-label="Prueba aprobada" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+      <DocumentSheet />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[56%] w-[56%] text-teal-600" aria-hidden>
+        <path d={REVIEW_SEAL_OUTLINE} fill="white" />
+        <path d={REVIEW_SEAL_CHECK} />
       </svg>
     </span>
   );
