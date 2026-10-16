@@ -270,6 +270,16 @@ async function restore(request: Request, file: File, typedPassphrase: string, tm
     return redirectToSettings(request, { backupError: "No se pudieron restaurar los archivos; no se aplicaron cambios en la base" });
   }
 
+  const dateColumns = new Set(
+    (
+      await prisma.$queryRaw<Array<{ tableName: string; columnName: string }>>(
+        Prisma.sql`SELECT table_name AS tableName, column_name AS columnName
+          FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND data_type IN ('datetime', 'timestamp', 'date')`,
+      )
+    ).map((c) => `${c.tableName}.${c.columnName}`),
+  );
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
@@ -281,7 +291,11 @@ async function restore(request: Request, file: File, typedPassphrase: string, tm
             const columns = Object.keys(row).filter((column) => tableNameSchema.test(column));
             if (columns.length === 0) continue;
             const placeholders = columns.map(() => "?").join(", ");
-            const values = columns.map((column) => row[column] ?? null);
+            // En el JSON las fechas son texto ISO ("…Z"), que MySQL rechaza: se pasan como Date solo en columnas de fecha.
+            const values = columns.map((column) => {
+              const value = row[column] ?? null;
+              return typeof value === "string" && dateColumns.has(`${table}.${column}`) ? new Date(value) : value;
+            });
             await tx.$executeRawUnsafe(
               `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(", ")}) VALUES (${placeholders})`,
               ...values,
