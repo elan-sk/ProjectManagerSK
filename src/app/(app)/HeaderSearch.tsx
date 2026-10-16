@@ -362,8 +362,8 @@ export function HeaderSearch() {
   const connectorChoices: Choice[] =
     parsed.filter && splitFilterValue(parsed.text).value && (level === 0 || piece.endsWith(":"))
       ? [
-          { key: "&", label: "& y además", query: `${piece}&` },
-          { key: "|", label: "| o también", query: `${piece}|` },
+          { key: "&", label: "y además", query: `${piece}&` },
+          { key: "|", label: "o también", query: `${piece}|` },
         ]
       : [];
   const choices = filterChoices.length
