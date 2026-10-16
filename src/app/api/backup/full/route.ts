@@ -1,9 +1,18 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdtemp, open, readdir, rename, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { ZipArchive, type ZipEntryData } from "archiver";
+import unzipper from "unzipper";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { uploadWriteDir } from "@/lib/persistentUploads";
 
 const BACKUP_FORMAT = "ProjectManagerSK-full-backup";
 const tableNameSchema = /^[A-Za-z0-9_]+$/;
@@ -15,6 +24,18 @@ const backupSchema = z.object({
 
 type TableRow = Record<string, unknown>;
 
+// El respaldo es un .zip: respaldo.json (la base) + uploads/<nombre> (los archivos subidos, con el mismo
+// nombre con que la base los referencia: restaurarlos es copiarlos de vuelta, sin reescribir nada).
+// Con proyectos ocultos ajenos, el zip entero va cifrado (AES-256-GCM en flujo):
+//   MAGIC (8) + salt (16) + iv (12) + cifrado… + tag (16).
+// También se siguen aceptando los respaldos viejos, que eran solo el .json (cifrado o no).
+const ZIP_JSON = "respaldo.json";
+const ZIP_UPLOADS = "uploads/";
+const ENC_MAGIC = Buffer.from("PMSKBK2\n");
+const ENC_HEADER = ENC_MAGIC.length + 16 + 12;
+const ENC_TAG = 16;
+const UPLOAD_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 // Si hay proyectos ocultos de otro responsable, el respaldo viaja cifrado (AES-256-GCM):
 // el archivo no deja leer nada de ellos. La clave es BACKUP_PASSPHRASE (variable de entorno del
 // servidor; si falta, AUTH_SECRET) y nunca la conoce quien descarga. Se restaura en CUALQUIER
@@ -22,18 +43,50 @@ type TableRow = Record<string, unknown>;
 // en el formulario de restauración. Al restaurar, la marca de oculto y el PM vuelven tal cual.
 const serverPassphrase = () => process.env.BACKUP_PASSPHRASE || process.env.AUTH_SECRET || "";
 
-function encryptBackup(plain: string) {
+const passphraseCandidates = (typed: string) => [typed, process.env.BACKUP_PASSPHRASE, process.env.AUTH_SECRET].filter((c): c is string => Boolean(c));
+
+/** Cifra en flujo (el zip puede pesar cientos de MB: no se carga entero en memoria). */
+async function* encryptStream(source: AsyncIterable<Buffer>) {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", scryptSync(serverPassphrase(), salt, 32), iv);
-  const data = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return { format: BACKUP_FORMAT, version: 1, encrypted: true, salt: salt.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
+  yield Buffer.concat([ENC_MAGIC, salt, iv]);
+  for await (const chunk of source) yield cipher.update(chunk);
+  yield cipher.final();
+  yield cipher.getAuthTag();
+}
+
+/** Descifra `src` (zip cifrado) a `dest` probando las claves posibles; false si ninguna sirve o el archivo está dañado. */
+async function decryptZip(src: string, dest: string, typedPassphrase: string) {
+  const { size } = await stat(src);
+  if (size < ENC_HEADER + ENC_TAG) return false;
+  const handle = await open(src, "r");
+  const header = Buffer.alloc(ENC_HEADER);
+  const tag = Buffer.alloc(ENC_TAG);
+  try {
+    await handle.read(header, 0, ENC_HEADER, 0);
+    await handle.read(tag, 0, ENC_TAG, size - ENC_TAG);
+  } finally {
+    await handle.close();
+  }
+  const salt = header.subarray(ENC_MAGIC.length, ENC_MAGIC.length + 16);
+  const iv = header.subarray(ENC_MAGIC.length + 16);
+  for (const passphrase of passphraseCandidates(typedPassphrase)) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", scryptSync(passphrase, salt, 32), iv);
+      decipher.setAuthTag(tag);
+      await pipeline(createReadStream(src, { start: ENC_HEADER, end: size - ENC_TAG - 1 }), decipher, createWriteStream(dest));
+      return true;
+    } catch {
+      // clave incorrecta: se intenta la siguiente
+    }
+  }
+  return false;
 }
 
 function decryptBackup(envelope: { salt?: string; iv: string; tag: string; data: string }, typedPassphrase: string) {
   // Prueba la clave escrita en el formulario y las del servidor; el respaldo inicial (sin salt) usaba solo AUTH_SECRET.
-  const candidates = [typedPassphrase, process.env.BACKUP_PASSPHRASE, process.env.AUTH_SECRET].filter((c): c is string => Boolean(c));
-  for (const passphrase of candidates) {
+  for (const passphrase of passphraseCandidates(typedPassphrase)) {
     try {
       const key = envelope.salt
         ? scryptSync(passphrase, Buffer.from(envelope.salt, "base64"), 32)
@@ -75,7 +128,7 @@ function redirectToSettings(request: Request, params: Record<string, string>) {
   return NextResponse.redirect(url, 303);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Solo un administrador puede crear respaldos." }, { status: 403 });
@@ -94,11 +147,28 @@ export async function GET() {
     tables: Object.fromEntries(contents),
   };
 
-  const json = JSON.stringify(backup, null, 2);
-  return new NextResponse(foreignHidden > 0 ? JSON.stringify(encryptBackup(json)) : json, {
+  const uploadsDir = await uploadWriteDir();
+  const withFiles = new URL(request.url).searchParams.get("files") !== "0";
+  const names = (withFiles ? await readdir(uploadsDir, { withFileTypes: true }).catch(() => []) : [])
+    .filter((entry) => entry.isFile() && UPLOAD_NAME.test(entry.name))
+    .map((entry) => entry.name);
+
+  // Los archivos subidos ya vienen comprimidos (png, pdf…): se guardan sin recomprimir.
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  archive.append(JSON.stringify(backup, null, 2), { name: ZIP_JSON });
+  for (const name of names) {
+    // Los tipos de archiver.file() no declaran `store`, pero el plugin zip sí lo respeta.
+    const data: ZipEntryData = { name: `${ZIP_UPLOADS}${name}`, store: true };
+    archive.file(path.join(uploadsDir, name), data);
+  }
+  void archive.finalize();
+
+  const encrypted = foreignHidden > 0;
+  const source = encrypted ? Readable.from(encryptStream(archive)) : archive;
+  return new NextResponse(Readable.toWeb(source) as ReadableStream, {
     headers: {
-      "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename="projectmanagersk-respaldo-total-${new Date().toISOString().slice(0, 10)}.json"`,
+      "Content-Type": encrypted ? "application/octet-stream" : "application/zip",
+      "Content-Disposition": `attachment; filename="projectmanagersk-respaldo-total-${new Date().toISOString().slice(0, 10)}.zip${encrypted ? ".cifrado" : ""}"`,
       "Cache-Control": "no-store",
     },
   });
@@ -118,21 +188,59 @@ export async function POST(request: Request) {
   const file = formData.get("file");
   if (!(file instanceof File)) return redirectToSettings(request, { backupError: "Selecciona un respaldo" });
 
-  let raw: unknown;
+  const tmp = await mkdtemp(path.join(tmpdir(), "pmsk-restore-"));
   try {
-    raw = JSON.parse(await file.text());
-  } catch {
-    return redirectToSettings(request, { backupError: "El archivo no es JSON válido" });
-  }
-
-  const encrypted = encryptedSchema.safeParse(raw);
-  if (encrypted.success) {
     const typed = formData.get("passphrase");
-    const plain = decryptBackup(encrypted.data, typeof typed === "string" ? typed.trim() : "");
-    if (plain === null) {
-      return redirectToSettings(request, { backupError: "El respaldo está cifrado: escriba la clave del respaldo (BACKUP_PASSPHRASE del servidor donde se creó) o el archivo está dañado" });
+    return await restore(request, file, typeof typed === "string" ? typed.trim() : "", tmp);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+}
+
+async function restore(request: Request, file: File, typedPassphrase: string, tmp: string) {
+  const head = Buffer.from(await file.slice(0, ENC_MAGIC.length).arrayBuffer());
+  const isEncryptedZip = head.equals(ENC_MAGIC);
+  const isZip = isEncryptedZip || head.subarray(0, 2).toString() === "PK";
+
+  let raw: unknown;
+  let upload: { entry: unzipper.File; name: string }[] = [];
+  if (isZip) {
+    // ponytail: request.formData() deja el archivo en memoria; con respaldos de varios GB habría que leer el cuerpo en flujo.
+    const received = path.join(tmp, "received");
+    await pipeline(Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(received));
+    let zipPath = received;
+    if (isEncryptedZip) {
+      zipPath = path.join(tmp, "plain.zip");
+      if (!(await decryptZip(received, zipPath, typedPassphrase))) {
+        return redirectToSettings(request, { backupError: "El respaldo está cifrado: escriba la clave del respaldo (BACKUP_PASSPHRASE del servidor donde se creó) o el archivo está dañado" });
+      }
     }
-    raw = JSON.parse(plain);
+    try {
+      const directory = await unzipper.Open.file(zipPath);
+      const json = directory.files.find((entry) => entry.path === ZIP_JSON);
+      if (!json) return redirectToSettings(request, { backupError: "No es un respaldo total válido" });
+      raw = JSON.parse((await json.buffer()).toString("utf8"));
+      upload = directory.files
+        .filter((entry) => entry.type === "File" && entry.path.startsWith(ZIP_UPLOADS))
+        .map((entry) => ({ entry, name: entry.path.slice(ZIP_UPLOADS.length) }))
+        .filter(({ name }) => UPLOAD_NAME.test(name));
+    } catch {
+      return redirectToSettings(request, { backupError: "El archivo no es un respaldo válido o está dañado" });
+    }
+  } else {
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return redirectToSettings(request, { backupError: "El archivo no es JSON válido" });
+    }
+    const encrypted = encryptedSchema.safeParse(raw);
+    if (encrypted.success) {
+      const plain = decryptBackup(encrypted.data, typedPassphrase);
+      if (plain === null) {
+        return redirectToSettings(request, { backupError: "El respaldo está cifrado: escriba la clave del respaldo (BACKUP_PASSPHRASE del servidor donde se creó) o el archivo está dañado" });
+      }
+      raw = JSON.parse(plain);
+    }
   }
 
   const parsed = backupSchema.safeParse(raw);
@@ -145,6 +253,21 @@ export async function POST(request: Request) {
     return redirectToSettings(request, {
       backupError: "El respaldo corresponde a otra estructura. Aplica primero las migraciones de esta versión.",
     });
+  }
+
+  // Archivos primero: solo se agregan (nunca se borra ni se pisa nada: el nombre es la huella del contenido),
+  // así que si la base falla después no queda nada roto.
+  try {
+    const dir = await uploadWriteDir();
+    for (const { entry, name } of upload) {
+      if (await stat(path.join(dir, name)).catch(() => null)) continue;
+      const partial = path.join(dir, `.${name}.part`);
+      await pipeline(entry.stream(), createWriteStream(partial));
+      await rename(partial, path.join(dir, name));
+    }
+  } catch (error) {
+    console.error("No se pudieron restaurar los archivos del respaldo", error);
+    return redirectToSettings(request, { backupError: "No se pudieron restaurar los archivos; no se aplicaron cambios en la base" });
   }
 
   try {

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 export function FullBackupPanel() {
   const [confirmed, setConfirmed] = useState(false);
+  const [withFiles, setWithFiles] = useState(true);
 
   return (
     <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
@@ -14,12 +15,18 @@ export function FullBackupPanel() {
         </p>
       </div>
 
-      <a
-        href="/api/backup/full"
-        className="inline-block rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-      >
-        Descargar respaldo total
-      </a>
+      <div className="flex flex-wrap items-center gap-3">
+        <a
+          href={withFiles ? "/api/backup/full" : "/api/backup/full?files=0"}
+          className="inline-block rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Descargar respaldo total
+        </a>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={withFiles} onChange={(event) => setWithFiles(event.target.checked)} className="rounded border-slate-300" />
+          <span>Incluir archivos</span>
+        </label>
+      </div>
 
       <form
         action="/api/backup/full"
@@ -34,7 +41,7 @@ export function FullBackupPanel() {
         <input
           type="file"
           name="file"
-          accept="application/json"
+          accept=".zip,.cifrado,.json,application/json,application/zip"
           required
           className="block w-full text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-100"
         />
@@ -67,7 +74,6 @@ export function FullBackupPanel() {
 
       <p className="text-xs text-amber-800">
         El archivo contiene información sensible, incluidos hashes de contraseña y credenciales vinculadas. Guárdalo en un lugar seguro.
-        Los archivos subidos se respaldan aparte en <code>public/uploads</code> dentro del paquete de entrega.
       </p>
     </section>
   );
