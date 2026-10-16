@@ -550,7 +550,12 @@ export default async function TaskDetailPage({
                 canManage={canManage}
                 completionBlockedReason={completionBlockedReason}
               />
-              {isTaskInReview(task) && <InReviewBadge className="text-xs" />}
+              {isTaskInReview(task) && (
+                <>
+                  <span className="h-6 w-px bg-slate-300" aria-hidden />
+                  <InReviewBadge className="text-xs" />
+                </>
+              )}
             </div>
           </div>
           {canManage && (
