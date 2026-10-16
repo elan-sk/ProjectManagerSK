@@ -360,9 +360,10 @@ export function HeaderSearch() {
     !parsed.filter && !piece.includes(":") && !/\s/.test(piece.trim())
       ? HEADER_SEARCH_OPTIONS.filter((o) => normalizeSearchText(o.prefix).startsWith(partial)).map((o) => ({ key: o.prefix, label: `${o.prefix}:`, badge: KIND_COLOR[o.kind], query: `${o.prefix}:` }))
       : [];
-  // Filtro ya completo («estados:en curso:»): se ofrece sumar otro con «y» (&) o «o» (|), como una sugerencia más.
+  // Filtro con algo escrito («proyectos:panaca», «estados:en curso:»): se ofrece sumar otro con «y» (&) o «o» (|),
+  // como una sugerencia más. En tipos, estados y etiquetas, recién cuando el valor ya se eligió (termina en «:»).
   const connectorChoices: Choice[] =
-    parsed.filter && piece.endsWith(":") && splitFilterValue(parsed.text).value
+    parsed.filter && splitFilterValue(parsed.text).value && (level === 0 || piece.endsWith(":"))
       ? [
           { key: "&", label: "& y además", badge: CONNECTOR_BADGE, query: `${piece}&` },
           { key: "|", label: "| o también", badge: CONNECTOR_BADGE, query: `${piece}|` },
