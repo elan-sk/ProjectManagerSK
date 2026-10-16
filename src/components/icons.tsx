@@ -417,10 +417,10 @@ export function ReturnedDocumentIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-// Prueba con su última ronda aprobada: la misma hoja, con el sello del aviso «Revisiones» en la esquina.
+// Prueba o Aceptación con su última ronda aprobada: la misma hoja, con el sello del aviso «Revisiones» en la esquina.
 export function ReviewApprovedIcon({ className = "h-5 w-5" }: IconProps) {
   return (
-    <span title="Prueba aprobada" aria-label="Prueba aprobada" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+    <span title="Aprobada" aria-label="Aprobada" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
       <DocumentSheet />
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[56%] w-[56%] text-teal-600" aria-hidden>
         <path d={REVIEW_SEAL_OUTLINE} fill="white" />

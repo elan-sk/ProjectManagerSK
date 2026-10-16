@@ -371,13 +371,13 @@ export default async function TaskDetailPage({
           </div>
           <div className="order-3 flex flex-shrink-0 items-center gap-1.5 border-l border-slate-300 pl-2 sm:order-none sm:border-l-0 sm:pl-0">
             {deliverableEvidenceLoaded(task) && <EvidenceLoadedIcon className="mr-1.5 h-8 w-8" />}
-            {/* Hoja con lupa (Prueba en revisión), con bicho (Devuelta) o con sello (Prueba aprobada). */}
+            {/* Hoja con lupa (Prueba en revisión), con bicho (Devuelta) o con sello (Prueba o Aceptación aprobada). */}
             {isTaskInReview(task) ? (
               <InReviewIcon className="mr-1.5 h-8 w-8" />
             ) : task.status === "RETURNED" ? (
               <ReturnedDocumentIcon className="mr-1.5 h-8 w-8" />
             ) : (
-              task.type === "QA" && task.reviewRounds[0]?.outcome === "APPROVED" && <ReviewApprovedIcon className="mr-1.5 h-8 w-8" />
+              (task.type === "QA" || task.type === "ACCEPTANCE") && task.reviewRounds[0]?.outcome === "APPROVED" && <ReviewApprovedIcon className="mr-1.5 h-8 w-8" />
             )}
             <AvatarGroup people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))} size="h-8 w-8 text-xs" />
             {canEdit && (
