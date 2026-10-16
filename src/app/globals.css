@@ -409,7 +409,7 @@ button:not(:disabled):active {
   animation: typing-dot 900ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
-/* Sello «En revisión» de la tarea (InReviewIcon): la lupa del globito va y viene, como revisando. */
+/* Sellos de la ficha de la tarea: la lupa de InReviewIcon (revisando) y el bicho de ReturnedDocumentIcon van y vienen. */
 @keyframes review-scan {
   0%, 100% { transform: translate(-14%, 8%) rotate(-8deg); }
   50% { transform: translate(14%, -8%) rotate(8deg); }
