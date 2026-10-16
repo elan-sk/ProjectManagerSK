@@ -11,7 +11,7 @@ import { ReviewStateBadge, TaskStatusIcon } from "@/components/TaskIndicators";
 import type { SearchHit } from "@/app/api/search/route";
 import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch, splitActiveSegment, splitFilterValue } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
-import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
+import { KeyIcon, ProgressCircleIcon, SearchIcon, TagIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -67,7 +67,7 @@ type Choice = { key: string; label: string; query: string; badge?: string; emoji
 
 // Atajos con ícono dentro del campo: cada uno deja escrito su tipo de búsqueda.
 const FIELD_SHORTCUTS = [
-  { prefix: "tipos", label: "Buscar por tipo de tarea", Icon: TaskTypeIcon },
+  { prefix: "estados", label: "Buscar por estado de tarea", Icon: ProgressCircleIcon },
   { prefix: "etiquetas", label: "Buscar por etiqueta", Icon: TagIcon },
   { prefix: "contraseñas", label: "Buscar contraseñas", Icon: KeyIcon },
 ];
@@ -115,6 +115,10 @@ export function HeaderSearch() {
   const [focused, setFocused] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // Con flechas, el resultado elegido siempre queda a la vista dentro del panel (que tiene su propio scroll).
+  useEffect(() => {
+    rootRef.current?.querySelector(`[data-search-hit="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   // Portada de la tarea bajo el mouse: tarjeta flotante al costado del panel, nunca encima de los resultados.
   // Guarda la lista de resultados donde se pasó el mouse: si la fila desaparece sin «mouseleave» (cambian los resultados o se cierra el panel), se descarta.
   const [cover, setCover] = useState<{ url: string; top: number; left?: number; right?: number; hits: SearchHit[] } | null>(null);
@@ -516,6 +520,7 @@ export function HeaderSearch() {
                   )}
                   <button
                     type="button"
+                    data-search-hit={i}
                     onClick={() => go(h)}
                     onMouseEnter={(e) => {
                       setActive(i);
