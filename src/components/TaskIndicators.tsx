@@ -1,13 +1,13 @@
-import { CheckIcon, DocumentCheckIcon, PaperclipIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
+import { DocumentCheckIcon, HandshakeIcon, PaperclipIcon, ReviewChecklistIcon, SearchIcon, UndoIcon } from "@/components/icons";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { REVIEW_STATES, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, type ReviewState } from "@/lib/statusColors";
 
-/** Entregable con su evidencia cargada: etiqueta aparte, en el color del tipo (como «En revisión» en las Pruebas). */
+/** Entregable con su evidencia cargada («Entregada», en femenino como los demás estados de la tarea): etiqueta aparte, en el color del tipo (como «En revisión» en las Pruebas). */
 export function EvidenceLoadedBadge({ className = "text-[11px]" }: { className?: string }) {
   return (
     <span className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 font-medium ${TASK_TYPE_BADGE.MILESTONE} ${className}`}>
       <DocumentCheckIcon className="h-3.5 w-3.5" />
-      Evidencia cargada
+      Entregada
     </span>
   );
 }
@@ -27,12 +27,13 @@ export function TaskStatusIcon({ status, className = "h-3.5 w-3.5" }: { status: 
   return status === "RETURNED" ? <UndoIcon className={`inline-block flex-shrink-0 align-[-0.2em] ${className}`} /> : null;
 }
 
-/** Ícono de un estado derivado de Prueba: el sello de «Revisiones» (en revisión) o un check (aprobada). */
+/** Ícono de un estado derivado: lupa (en revisión), sello (Prueba aprobada) o apretón de manos (Aceptación aceptada). */
 export function ReviewStateIcon({ state, className = "h-3.5 w-3.5" }: { state: ReviewState; className?: string }) {
-  return state === "IN_REVIEW" ? <ReviewChecklistIcon className={className} /> : <CheckIcon className={className} />;
+  if (state === "IN_REVIEW") return <SearchIcon className={className} />;
+  return state === "REVIEW_ACCEPTED" ? <HandshakeIcon className={className} /> : <ReviewChecklistIcon className={className} />;
 }
 
-/** «En revisión» / «Aprobada» (ver taskReviewState): etiqueta con ícono en el color de cada estado. */
+/** «En revisión» / «Aprobada» / «Aceptada» (ver taskReviewState): etiqueta con ícono en el color de cada estado. */
 export function ReviewStateBadge({ state, className = "text-[11px]" }: { state: ReviewState; className?: string }) {
   return (
     <span className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 font-medium ${REVIEW_STATES[state].color.badge} ${className}`}>

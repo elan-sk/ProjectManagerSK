@@ -26,11 +26,12 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 };
 
 // Estados DERIVADOS de una Prueba (QA) o una Aceptación, sin TaskStatus propio (por debajo sigue «En curso»): solo se
-// muestran y se filtran (status=IN_REVIEW | REVIEW_APPROVED, «estados:en revisión» / «estados:aprobada»), nunca se asignan.
+// muestran y se filtran (status=IN_REVIEW | REVIEW_APPROVED | REVIEW_ACCEPTED, «estados:en revisión» / «estados:aprobada» / «estados:aceptada»), nunca se asignan.
 // - En revisión (solo Prueba): una ronda enviada y sin resultado todavía. En Aceptación la ronda la califica el
 //   cliente por el link y no se sigue como «en revisión» (decisión del usuario 2026-10-16).
-// - Aprobada (Prueba y Aceptación): la ronda quedó aprobada (es la última: tras una aprobada no hay reenvío) y la
-//   tarea aún no se completó. La devolución de ambas ya es un TaskStatus real (RETURNED).
+// - Aprobada (Prueba) / Aceptada (Aceptación): la ronda quedó aprobada (es la última: tras una aprobada no hay reenvío)
+//   y la tarea aún no se completó. Separadas a pedido del usuario (2026-10-16): «Aceptada» es más clara para el cliente.
+//   La devolución de ambas ya es un TaskStatus real (RETURNED).
 export const REVIEW_STATES = {
   IN_REVIEW: {
     label: "En revisión",
@@ -39,20 +40,27 @@ export const REVIEW_STATES = {
   },
   REVIEW_APPROVED: {
     label: "Aprobada",
-    color: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700" },
-    where: { type: { in: ["QA", "ACCEPTANCE"] }, status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
+    // Mismo teal que el tipo Prueba (TASK_TYPE_BADGE.QA): el ícono dice el estado, el color el tipo.
+    color: { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700", solid: "bg-teal-600 hover:bg-teal-700" },
+    where: { type: "QA", status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
+  },
+  REVIEW_ACCEPTED: {
+    label: "Aceptada",
+    // Mismo rosa que el tipo Aceptación (TASK_TYPE_BADGE.ACCEPTANCE).
+    color: { dot: "bg-pink-400", badge: "bg-pink-50 text-pink-700", solid: "bg-pink-600 hover:bg-pink-700" },
+    where: { type: "ACCEPTANCE", status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
   },
 } as const;
 export type ReviewState = keyof typeof REVIEW_STATES;
 
 export function isReviewState(status: string | undefined): status is ReviewState {
-  return status === "IN_REVIEW" || status === "REVIEW_APPROVED";
+  return status === "IN_REVIEW" || status === "REVIEW_APPROVED" || status === "REVIEW_ACCEPTED";
 }
 
 export function taskReviewState(task: { type: string; status: string; reviewRounds: { outcome: unknown }[] }): ReviewState | null {
   if (task.type !== "QA" && task.type !== "ACCEPTANCE") return null;
   if (task.reviewRounds.some((r) => r.outcome === null)) return task.type === "QA" ? "IN_REVIEW" : null;
-  if (task.status !== "COMPLETED" && task.reviewRounds.some((r) => r.outcome === "APPROVED")) return "REVIEW_APPROVED";
+  if (task.status !== "COMPLETED" && task.reviewRounds.some((r) => r.outcome === "APPROVED")) return task.type === "QA" ? "REVIEW_APPROVED" : "REVIEW_ACCEPTED";
   return null;
 }
 
@@ -82,7 +90,7 @@ export function matchesStatusFilter(status: string | undefined, task: { status: 
 export function taskStatusFilterOptions() {
   const real = (s: TaskStatus) => ({ id: s as string, label: TASK_STATUS_LABEL[s], dotColorClass: TASK_STATUS_COLOR[s].dot, badge: TASK_STATUS_COLOR[s].badge });
   const derived = (s: ReviewState) => ({ id: s as string, label: REVIEW_STATES[s].label, dotColorClass: REVIEW_STATES[s].color.dot, badge: REVIEW_STATES[s].color.badge });
-  return [real("NOT_STARTED"), real("IN_PROGRESS"), derived("IN_REVIEW"), derived("REVIEW_APPROVED"), real("BLOCKED"), real("RETURNED"), real("COMPLETED")];
+  return [real("NOT_STARTED"), real("IN_PROGRESS"), derived("IN_REVIEW"), derived("REVIEW_APPROVED"), derived("REVIEW_ACCEPTED"), real("BLOCKED"), real("RETURNED"), real("COMPLETED")];
 }
 
 export function statusFilterTriggerClass(status: string | undefined) {

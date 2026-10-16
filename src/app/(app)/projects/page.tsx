@@ -421,6 +421,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         projectIconUrl: t.project.iconUrl,
         projectParent: t.project.parent,
         title: t.title,
+        type: t.type,
         isUrgent: t.isUrgent,
         phaseId: t.phaseId,
         phaseName: t.phase.name,

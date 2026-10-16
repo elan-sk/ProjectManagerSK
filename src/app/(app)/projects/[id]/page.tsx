@@ -531,6 +531,7 @@ export default async function ProjectPage({
       projectIconUrl: info(t.projectId).iconUrl,
       projectParent: info(t.projectId).parent,
       title: t.title,
+      type: t.type,
       phaseId: t.phaseId,
       phaseName: allPhases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,

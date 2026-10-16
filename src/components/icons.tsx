@@ -90,10 +90,13 @@ export function LockIcon({ className }: IconProps) {
   );
 }
 
+// Flecha de devolución: «Devuelta», aviso «Devoluciones» y esquina de ReturnedDocumentIcon en Aceptación.
+const UNDO_PATH = "M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+
 export function UndoIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d={UNDO_PATH} />
     </svg>
   );
 }
@@ -111,6 +114,17 @@ export function ReviewChecklistIcon({ className }: IconProps) {
         strokeLinejoin="round"
         d={REVIEW_SEAL_PATH}
       />
+    </svg>
+  );
+}
+
+// Apretón de manos: Aceptación aprobada (el cliente la aceptó); en Prueba aprobada va el sello (ReviewChecklistIcon).
+const HANDSHAKE_PATH = "m11 17 2 2a1 1 0 1 0 3-3m-2-2 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4m0-1 1 11h-2M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3M3 4h8";
+
+export function HandshakeIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d={HANDSHAKE_PATH} />
     </svg>
   );
 }
@@ -362,10 +376,11 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
-// Hoja con la esquina doblada de los sellos de la ficha de la tarea (junto a los asignados).
+// Hoja con la esquina doblada de los sellos de la ficha de la tarea (junto a los asignados): siempre blanca con trazo
+// negro en todos los indicadores; el color lo lleva solo el ícono acompañante de la esquina.
 function DocumentSheet() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full text-slate-900" aria-hidden>
       <path d="M6.5 2.5h7L19 8v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5Z" fill="white" />
       <path d="M13.5 2.5V8H19" />
       <path d="M8.5 12h7M8.5 15.5h4" />
@@ -377,7 +392,7 @@ function DocumentSheet() {
 // fondo (ocupa todo el tamaño), con un sello de chulo en la esquina. `className` da el tamaño (h-5 w-5, h-8 w-8…).
 export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
   return (
-    <span title="Evidencia cargada" aria-label="Evidencia cargada" role="img" className={`relative inline-flex flex-shrink-0 text-emerald-700 ${className}`}>
+    <span title="Entregada" aria-label="Entregada" role="img" className={`relative inline-flex flex-shrink-0 ${className}`}>
       <DocumentSheet />
       <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-emerald-600 text-white ring-[1.5px] ring-white">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden>
@@ -392,7 +407,7 @@ export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
 // Al aprobarse, la lupa se cambia por el sello (ReviewApprovedIcon).
 export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   return (
-    <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+    <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 ${className}`}>
       <DocumentSheet />
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" className="absolute -right-[8%] -bottom-[5%] h-[58%] w-[58%] text-teal-600" aria-hidden>
         <circle cx="10.5" cy="10.5" r="6" fill="white" fillOpacity={0.55} />
@@ -402,29 +417,48 @@ export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-// Tarea «Devuelta» (ficha de la tarea): la misma hoja, en el naranja de Devuelta, con un bicho rojo y negro (error) en la esquina.
-export function ReturnedDocumentIcon({ className = "h-5 w-5" }: IconProps) {
+// Tarea «Devuelta» (ficha de la tarea): la misma hoja, con un bicho rojo y negro (error) sobre un círculo blanco en la esquina; en Aceptación
+// (`accepted`: el cliente pidió cambios, no es un error) la flecha de devolución en el rosa del tipo.
+export function ReturnedDocumentIcon({ className = "h-5 w-5", accepted = false }: IconProps & { accepted?: boolean }) {
   return (
-    <span title="Devuelta" aria-label="Devuelta" role="img" className={`relative inline-flex flex-shrink-0 text-orange-700 ${className}`}>
+    <span title="Devuelta" aria-label="Devuelta" role="img" className={`relative inline-flex flex-shrink-0 ${className}`}>
       <DocumentSheet />
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[58%] w-[58%] text-slate-900" aria-hidden>
-        <path d="M7 11 3.5 9M7 14.5H3M7.5 18 4 20.5M17 11l3.5-2M17 14.5h4M16.5 18l3.5 2.5M10.5 5.5 9 3M13.5 5.5 15 3" />
-        <circle cx="12" cy="7.5" r="2.5" fill="currentColor" />
-        <ellipse cx="12" cy="15" rx="5" ry="6" className="fill-red-600" />
-        <path d="M12 10v11" />
-      </svg>
+      {accepted ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[56%] w-[56%] text-pink-600" aria-hidden>
+          <circle cx="12" cy="12" r="11" fill="white" stroke="none" />
+          <path d={UNDO_PATH} transform="translate(2.4 2.4) scale(0.8)" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[58%] w-[58%] text-slate-900" aria-hidden>
+          <circle cx="12" cy="12" r="11" fill="white" stroke="none" />
+          <path d="M7 11 3.5 9M7 14.5H3M7.5 18 4 20.5M17 11l3.5-2M17 14.5h4M16.5 18l3.5 2.5M10.5 5.5 9 3M13.5 5.5 15 3" />
+          <circle cx="12" cy="7.5" r="2.5" fill="currentColor" />
+          <ellipse cx="12" cy="15" rx="5" ry="6" className="fill-red-600" />
+          <path d="M12 10v11" />
+        </svg>
+      )}
     </span>
   );
 }
 
-// Prueba o Aceptación con su última ronda aprobada: la misma hoja, con el sello del aviso «Revisiones» en la esquina.
-export function ReviewApprovedIcon({ className = "h-5 w-5" }: IconProps) {
+// Prueba o Aceptación con su última ronda aprobada: la misma hoja, con el sello del aviso «Revisiones» en la esquina
+// (Prueba) o el apretón de manos (Aceptación, `accepted`).
+export function ReviewApprovedIcon({ className = "h-5 w-5", accepted = false }: IconProps & { accepted?: boolean }) {
   return (
-    <span title="Aprobada" aria-label="Aprobada" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
+    <span title={accepted ? "Aceptada" : "Aprobada"} aria-label={accepted ? "Aceptada" : "Aprobada"} role="img" className={`relative inline-flex flex-shrink-0 ${className}`}>
       <DocumentSheet />
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[56%] w-[56%] text-teal-600" aria-hidden>
-        <path d={REVIEW_SEAL_OUTLINE} fill="white" />
-        <path d={REVIEW_SEAL_CHECK} />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`absolute -right-[16%] -bottom-[12%] h-[56%] w-[56%] ${accepted ? "text-pink-600" : "text-teal-600"}`} aria-hidden>
+        {accepted ? (
+          <>
+            <circle cx="12" cy="12" r="11" fill="white" stroke="none" />
+            <path d={HANDSHAKE_PATH} strokeWidth={2} />
+          </>
+        ) : (
+          <>
+            <path d={REVIEW_SEAL_OUTLINE} fill="white" />
+            <path d={REVIEW_SEAL_CHECK} />
+          </>
+        )}
       </svg>
     </span>
   );

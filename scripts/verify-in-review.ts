@@ -26,11 +26,14 @@ const approved = [{ outcome: "RETURNED" }, { outcome: "APPROVED" }];
 assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_APPROVED");
 assert.equal(taskReviewState({ type: "QA", status: "COMPLETED", reviewRounds: approved }), null);
 assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: open }), "IN_REVIEW");
-assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_APPROVED", "Aceptación aprobada también");
+assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_ACCEPTED", "Aceptación aprobada = «Aceptada»");
 assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: open }), null, "Aceptación no lleva «En revisión»");
 assert.equal(taskReviewState({ type: "SIMPLE", status: "IN_PROGRESS", reviewRounds: approved }), null);
 assert.equal(matchesStatusFilter("REVIEW_APPROVED", { type: "QA", status: "IN_PROGRESS", reviewRounds: approved }), true);
 assert.equal(matchesStatusFilter("REVIEW_APPROVED", inReview), false);
+assert.equal(matchesStatusFilter("REVIEW_APPROVED", { type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), false, "filtros separados");
+assert.equal(matchesStatusFilter("REVIEW_ACCEPTED", { type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), true);
+assert.deepEqual(taskStatusLabels({ status: "IN_PROGRESS", type: "ACCEPTANCE", reviewRounds: approved }), ["En curso", "Aceptada"]);
 assert.deepEqual(taskStatusLabels({ status: "IN_PROGRESS", type: "QA", reviewRounds: approved }), ["En curso", "Aprobada"]);
 
 // Respuestas guardadas: la categoría con el nombre de la prueba (sin importar tildes) o, si no hay, «Otro».

@@ -36,6 +36,8 @@ export type GanttTask = {
   /** Subproyecto (spec 004): proyecto principal, para el doble ícono. */
   projectParent?: ProjectIconParent;
   title: string;
+  /** Tipo de tarea: la flecha de «Devuelta» de la fila toma su color (teal Prueba, rosa Aceptación). */
+  type: string;
   // Urgente: el encabezado de la fila se resalta con icono y color.
   isUrgent: boolean;
   phaseId: string;
@@ -1099,8 +1101,8 @@ export function GanttView({
                       >
                         {t.isUrgent && t.status !== "COMPLETED" && <UrgentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-600" />}
                         <span className="truncate">{t.title}</span>
-                        {t.reviewState && <span title={REVIEW_STATES[t.reviewState].label} className={`flex-shrink-0 ${t.reviewState === "IN_REVIEW" ? "text-teal-600" : "text-emerald-600"}`}><ReviewStateIcon state={t.reviewState} /></span>}
-                        {t.status === "RETURNED" && <span title="Devuelta" className="flex-shrink-0"><UndoIcon className="h-3.5 w-3.5 text-orange-600" /></span>}
+                        {t.reviewState && <span title={REVIEW_STATES[t.reviewState].label} className={`flex-shrink-0 ${t.reviewState === "REVIEW_ACCEPTED" ? "text-pink-600" : "text-teal-600"}`}><ReviewStateIcon state={t.reviewState} /></span>}
+                        {t.status === "RETURNED" && <span title="Devuelta" className="flex-shrink-0"><UndoIcon className={`h-3.5 w-3.5 ${t.type === "QA" ? "text-teal-600" : t.type === "ACCEPTANCE" ? "text-pink-600" : "text-orange-600"}`} /></span>}
                       </a>
                       {t.bottleneckReason && (
                         <ReferencePopover
