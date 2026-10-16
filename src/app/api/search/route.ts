@@ -162,14 +162,14 @@ export async function GET(request: Request) {
     }
     return () => text;
   };
-  const combinedGroups = combined?.map((group) => {
-    // «proyectos:x&tareas:y»: los filtros de proyecto miran el proyecto y el resto, sus tareas (alguna debe cumplirlos).
-    const withTask = isProjectWithTaskGroup(group);
-    return {
-      kind: combinedGroupKind(group),
-      matchers: (withTask ? group.filter((s) => s.filter === "project") : group).map(prepareSegment),
-      taskMatchers: withTask ? group.filter((s) => s.filter !== "project").map(prepareSegment) : [],
-    };
+  const combinedGroups = combined?.flatMap((group) => {
+    const all = { kind: combinedGroupKind(group), matchers: group.map(prepareSegment), taskMatchers: [] as ((scope: Scope) => string | null)[] };
+    if (!isProjectWithTaskGroup(group)) return [all];
+    // «proyectos:x&tareas:y»: el proyecto (si alguna de sus tareas cumple) y, debajo, esas tareas.
+    return [
+      { kind: "project" as const, matchers: group.filter((s) => s.filter === "project").map(prepareSegment), taskMatchers: group.filter((s) => s.filter !== "project").map(prepareSegment) },
+      { ...all, kind: "task" as const },
+    ];
   });
   const hasMatchingTask = (scope: Scope, taskMatchers: ((scope: Scope) => string | null)[]) =>
     (scope.projectTasks ?? []).some((task) => {
