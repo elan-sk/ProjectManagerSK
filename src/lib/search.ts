@@ -88,7 +88,15 @@ export function splitActiveSegment(query: string) {
 // Qué devuelve un grupo Y: etiquetas, tipos, estados y tareas dan tareas; si solo tiene «proyecto:» da esos
 // proyectos, y junto a otro filtro «proyecto:» restringe a los de ese proyecto. Dos tipos distintos
 // («archivos:&comentarios:») no dan nada.
+// Excepción, manda el orden: «proyectos:x» PRIMERO y luego solo condiciones de tarea («proyectos:panaca&tareas:melo»)
+// da los proyectos que tienen alguna tarea que las cumple; al revés («tareas:melo&proyectos:panaca»), esas tareas.
+const TASK_FILTERS = new Set<HeaderSearchFilter>(["task", "tag", "taskType", "taskStatus"]);
+export function isProjectWithTaskGroup(group: SearchSegment[]) {
+  return group[0]?.filter === "project" && group.some((s) => s.filter !== "project") && group.every((s) => s.filter === "project" || TASK_FILTERS.has(s.filter));
+}
+
 export function combinedGroupKind(group: SearchSegment[]) {
+  if (isProjectWithTaskGroup(group)) return "project";
   const kinds = new Set(group.flatMap(({ filter }) =>
     filter === "project" ? [] : filter === "tag" || filter === "taskType" || filter === "taskStatus" ? ["task"] : [filter]));
   return kinds.size > 1 ? null : ([...kinds][0] ?? "project");

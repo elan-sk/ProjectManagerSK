@@ -496,7 +496,8 @@ export function HeaderSearch() {
               </div>
             )}
             {hits.length === 0 ? (
-              choices.length === 0 && (
+              // Las píldoras & y | no tapan el «Sin resultados».
+              choices.every((c) => connectorChoices.includes(c)) && (
                 <p className="px-3 py-2 text-sm text-slate-400">
                   {loading ? "Buscando…" : "Sin resultados."}
                 </p>

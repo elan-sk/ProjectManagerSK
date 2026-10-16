@@ -3,7 +3,7 @@ import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere } from "@/
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { RELATIVE_SCORE_CUTOFF, fuzzyScore, weightedScore } from "@/lib/fuzzy";
-import { combinedGroupKind, parseCombinedSearch, parseHeaderSearch, parseTagSegment, splitActiveSegment, splitFilterValue, type SearchSegment } from "@/lib/search";
+import { combinedGroupKind, isProjectWithTaskGroup, parseCombinedSearch, parseHeaderSearch, parseTagSegment, splitActiveSegment, splitFilterValue, type SearchSegment } from "@/lib/search";
 import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { taskCoverUrl } from "@/lib/taskCover";
@@ -143,7 +143,7 @@ export async function GET(request: Request) {
 
   // Modo combinado: cada filtro se prepara una vez. Cada uno devuelve el texto a buscar dentro de lo que
   // deja pasar («» si no hay) o null si el resultado no cumple.
-  type Scope = { project: { name: string; clientName: string | null; description: string | null; parent: { name: string } | null }; task?: (typeof projects)[number]["tasks"][number] };
+  type Scope = { project: { name: string; clientName: string | null; description: string | null; parent: { name: string } | null }; task?: (typeof projects)[number]["tasks"][number]; projectTasks?: (typeof projects)[number]["tasks"] };
   const prepareSegment = ({ filter: f, text }: SearchSegment): ((scope: Scope) => string | null) => {
     if (f === "tag") {
       const seg = resolveTagName(parseTagSegment(text));
@@ -162,7 +162,22 @@ export async function GET(request: Request) {
     }
     return () => text;
   };
-  const combinedGroups = combined?.map((group) => ({ kind: combinedGroupKind(group), matchers: group.map(prepareSegment) }));
+  const combinedGroups = combined?.map((group) => {
+    // «proyectos:x&tareas:y»: los filtros de proyecto miran el proyecto y el resto, sus tareas (alguna debe cumplirlos).
+    const withTask = isProjectWithTaskGroup(group);
+    return {
+      kind: combinedGroupKind(group),
+      matchers: (withTask ? group.filter((s) => s.filter === "project") : group).map(prepareSegment),
+      taskMatchers: withTask ? group.filter((s) => s.filter !== "project").map(prepareSegment) : [],
+    };
+  });
+  const hasMatchingTask = (scope: Scope, taskMatchers: ((scope: Scope) => string | null)[]) =>
+    (scope.projectTasks ?? []).some((task) => {
+      const contents = taskMatchers.map((match) => match({ project: scope.project, task }));
+      if (contents.some((c) => c === null)) return false;
+      const content = contents.filter(Boolean).join(" ");
+      return !content || weightedScore(content, task.title, stripHtml(task.description ?? ""), "") > 0;
+    });
   // Un resultado entra si cumple todos los filtros de algún grupo; si los filtros traen texto, se busca en él.
   const combinedScore = (kind: SearchHit["kind"], scope: Scope, title: string, text: string, contextText: string) => {
     let best = 0;
@@ -170,6 +185,7 @@ export async function GET(request: Request) {
       if (group.kind !== kind) continue;
       const contents = group.matchers.map((match) => match(scope));
       if (contents.some((c) => c === null)) continue;
+      if (group.taskMatchers.length > 0 && !hasMatchingTask(scope, group.taskMatchers)) continue;
       const content = contents.filter(Boolean).join(" ");
       best = Math.max(best, content ? weightedScore(content, title, text, contextText) : 1);
     }
@@ -211,7 +227,7 @@ export async function GET(request: Request) {
   for (const p of projects) {
     const logo = { name: p.name, iconUrl: p.iconUrl, parent: p.parent };
     const scope = { project: p };
-    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""} ${stripHtml(p.description ?? "")}`, logo, [p.pm], undefined, "", scope);
+    push("project", p.id, p.name, p.clientName, `/projects/${p.id}`, `${p.name} ${p.clientName ?? ""} ${stripHtml(p.description ?? "")}`, logo, [p.pm], undefined, "", { project: p, projectTasks: p.tasks });
     for (const l of p.links) push("link", l.id, l.title, p.name, `/projects/${p.id}?view=definition`, `${l.title} ${l.url}`, logo, undefined, { preview: { url: l.url, mimeType: LINK_MIME_TYPE } }, "", scope);
     for (const a of p.attachments) {
       const isLink = a.mimeType === LINK_MIME_TYPE;
