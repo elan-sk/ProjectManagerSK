@@ -1,6 +1,16 @@
-import { PaperclipIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
+import { EvidenceLoadedIcon, PaperclipIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { IN_REVIEW_COLOR, IN_REVIEW_LABEL, TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
+import { IN_REVIEW_COLOR, IN_REVIEW_LABEL, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE } from "@/lib/statusColors";
+
+/** Entregable con su evidencia cargada: etiqueta aparte, en el color del tipo (como «En revisión» en las Pruebas). */
+export function EvidenceLoadedBadge({ className = "text-[11px]" }: { className?: string }) {
+  return (
+    <span className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 font-medium ${TASK_TYPE_BADGE.MILESTONE} ${className}`}>
+      <EvidenceLoadedIcon className="h-3.5 w-3.5" />
+      Evidencia cargada
+    </span>
+  );
+}
 
 /** «Devuelta»: mismo ícono y color que el aviso «Devoluciones» del encabezado. */
 export function ReturnedBadge({ className = "text-[11px]" }: { className?: string }) {
