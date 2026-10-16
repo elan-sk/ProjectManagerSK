@@ -6,10 +6,9 @@ import { useRouter } from "@/lib/useAppRouter";
 import { Avatar } from "@/components/Avatar";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon } from "@/components/ProjectIcon";
-import { IN_REVIEW_COLOR, IN_REVIEW_STATUS, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL, taskStatusFilterOptions } from "@/lib/statusColors";
-import { InReviewBadge, TaskStatusIcon } from "@/components/TaskIndicators";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL, taskStatusFilterOptions } from "@/lib/statusColors";
+import { ReviewStateBadge, TaskStatusIcon } from "@/components/TaskIndicators";
 import type { SearchHit } from "@/app/api/search/route";
-import type { TaskStatus } from "@prisma/client";
 import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch, splitActiveSegment, splitFilterValue } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, TagIcon, TaskTypeIcon, XIcon } from "@/components/icons";
@@ -355,7 +354,7 @@ export function HeaderSearch() {
         : parsed.filter === "taskType"
           ? Object.entries(TASK_TYPE_LABEL).map(([type, label]) => ({ key: type, label, badge: TASK_TYPE_BADGE[type], query: firstLevel(label) }))
           : parsed.filter === "taskStatus"
-            ? taskStatusFilterOptions().map(({ id, label }) => ({ key: id, label, badge: id === IN_REVIEW_STATUS ? IN_REVIEW_COLOR.badge : TASK_STATUS_COLOR[id as TaskStatus].badge, query: firstLevel(label) }))
+            ? taskStatusFilterOptions().map(({ id, label, badge }) => ({ key: id, label, badge, query: firstLevel(label) }))
             : tagCategories.map((c) => ({ key: c.id, label: c.name, emoji: c.emoji, colorHex: c.colorHex, query: firstLevel(c.name) }));
   // Una sola palabra sin «:» que es el comienzo de un filtro («es» → «estados:»), o nada todavía tras «&»/«|»: se sugiere el filtro.
   const filterChoices: Choice[] =
@@ -568,7 +567,7 @@ export function HeaderSearch() {
                                 <TaskStatusIcon status={h.taskStatus} className="mr-0.5 h-3 w-3" />
                                 {TASK_STATUS_LABEL[h.taskStatus]}
                               </span>
-                              {h.taskInReview && <InReviewBadge className="text-[10px]" />}
+                              {h.taskReviewState && <ReviewStateBadge state={h.taskReviewState} className="text-[10px]" />}
                             </span>
                           )}
                           {h.people && (

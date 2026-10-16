@@ -18,7 +18,7 @@ import { getProjectSummaryRows } from "@/lib/projectSummaries";
 import { expandProjectFilter, projectFilterOptions } from "@/lib/subprojects";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { TASK_TYPE_LABEL, isTaskInReview, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, taskReviewState, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions, type ReviewState } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { TaskStatus, TaskType } from "@prisma/client";
@@ -46,7 +46,7 @@ export default async function ProjectsPage({
     view?: string;
     date?: string;
     mode?: string;
-    status?: TaskStatus | "IN_REVIEW";
+    status?: TaskStatus | ReviewState;
     type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE" | "NEW" | "WITH_FILES" | "SHARED";
     userId?: string;
     q?: string;
@@ -384,7 +384,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       type: t.type,
       isUrgent: t.isUrgent,
       status: t.status,
-      inReview: isTaskInReview(t),
+      reviewState: taskReviewState(t),
       riskLevel: t.riskLevel,
       canManage: canManageProject(t.projectId),
       updatedAt: t.updatedAt.toISOString(),
@@ -425,7 +425,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         phaseId: t.phaseId,
         phaseName: t.phase.name,
         status: t.status,
-        inReview: isTaskInReview(t),
+        reviewState: taskReviewState(t),
         canManage: canManageProject(t.projectId),
         updatedAt: t.updatedAt.toISOString(),
         startIndex,
@@ -472,7 +472,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,
-      inReview: isTaskInReview(t),
+      reviewState: taskReviewState(t),
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
     }));

@@ -25,47 +25,68 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   RETURNED: "Devuelta",
 };
 
-// «En revisión»: Prueba (QA) con una ronda enviada y sin resultado todavía. No es un TaskStatus (por debajo
-// sigue «En curso»): es un estado derivado que solo se muestra y se filtra (status=IN_REVIEW, «estados:en revisión»).
-export const IN_REVIEW_STATUS = "IN_REVIEW";
-export const IN_REVIEW_LABEL = "En revisión";
-export const IN_REVIEW_COLOR = { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700", solid: "bg-teal-600 hover:bg-teal-700" };
+// Estados DERIVADOS de una Prueba (QA), sin TaskStatus propio (por debajo sigue «En curso»): solo se muestran y se
+// filtran (status=IN_REVIEW | REVIEW_APPROVED, «estados:en revisión» / «estados:aprobada»), nunca se asignan.
+// - En revisión: una ronda enviada y sin resultado todavía.
+// - Aprobada: la ronda quedó aprobada (es la última: tras una aprobada no hay reenvío) y aún no se completó.
+export const REVIEW_STATES = {
+  IN_REVIEW: {
+    label: "En revisión",
+    color: { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700", solid: "bg-teal-600 hover:bg-teal-700" },
+    where: { type: "QA", reviewRounds: { some: { outcome: null } } },
+  },
+  REVIEW_APPROVED: {
+    label: "Aprobada",
+    color: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700", solid: "bg-emerald-600 hover:bg-emerald-700" },
+    where: { type: "QA", status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } },
+  },
+} as const;
+export type ReviewState = keyof typeof REVIEW_STATES;
+
+export function isReviewState(status: string | undefined): status is ReviewState {
+  return status === "IN_REVIEW" || status === "REVIEW_APPROVED";
+}
+
+export function taskReviewState(task: { type: string; status: string; reviewRounds: { outcome: unknown }[] }): ReviewState | null {
+  if (task.type !== "QA") return null;
+  if (task.reviewRounds.some((r) => r.outcome === null)) return "IN_REVIEW";
+  if (task.status !== "COMPLETED" && task.reviewRounds.some((r) => r.outcome === "APPROVED")) return "REVIEW_APPROVED";
+  return null;
+}
 
 export function isTaskInReview(task: { type: string; reviewRounds: { outcome: unknown }[] }) {
   return task.type === "QA" && task.reviewRounds.some((r) => r.outcome === null);
 }
 
-/** isTaskInReview como condición de Prisma (para filtrar en la consulta). */
-export const IN_REVIEW_WHERE = { type: "QA", reviewRounds: { some: { outcome: null } } } as const;
-
-/** Etiquetas de estado con las que se encuentra una tarea en el buscador («estados:…»): la real y, si aplica, «En revisión». */
-export function taskStatusLabels(task: { status: TaskStatus; type: string; reviewRounds: { outcome: unknown }[] }) {
-  return isTaskInReview(task) ? [TASK_STATUS_LABEL[task.status], IN_REVIEW_LABEL] : [TASK_STATUS_LABEL[task.status]];
+/** Filtro Estado como condición de Prisma: un estado derivado (taskReviewState) o el TaskStatus real. */
+export function taskStatusWhere(status: string | undefined) {
+  if (!status) return {};
+  return isReviewState(status) ? REVIEW_STATES[status].where : { status: status as TaskStatus };
 }
 
-/** Filtro Estado de las vistas: un TaskStatus real o «En revisión». */
+/** Etiquetas de estado con las que se encuentra una tarea en el buscador («estados:…»): la real y, si aplica, la derivada. */
+export function taskStatusLabels(task: { status: TaskStatus; type: string; reviewRounds: { outcome: unknown }[] }) {
+  const state = taskReviewState(task);
+  return state ? [TASK_STATUS_LABEL[task.status], REVIEW_STATES[state].label] : [TASK_STATUS_LABEL[task.status]];
+}
+
+/** Filtro Estado de las vistas: un TaskStatus real o un estado derivado de Prueba. */
 export function matchesStatusFilter(status: string | undefined, task: { status: string; type: string; reviewRounds: { outcome: unknown }[] }) {
   if (!status) return true;
-  return status === IN_REVIEW_STATUS ? isTaskInReview(task) : task.status === status;
+  return isReviewState(status) ? taskReviewState(task) === status : task.status === status;
 }
 
-/** Opciones del filtro Estado (proyecto, Panorama general, Agenda): fuente única. */
+/** Opciones del filtro Estado (proyecto, Panorama general, Agenda) y del buscador: fuente única. */
 export function taskStatusFilterOptions() {
-  const real = (s: TaskStatus) => ({ id: s as string, label: TASK_STATUS_LABEL[s], dotColorClass: TASK_STATUS_COLOR[s].dot });
-  return [
-    real("NOT_STARTED"),
-    real("IN_PROGRESS"),
-    { id: IN_REVIEW_STATUS, label: IN_REVIEW_LABEL, dotColorClass: IN_REVIEW_COLOR.dot },
-    real("BLOCKED"),
-    real("RETURNED"),
-    real("COMPLETED"),
-  ];
+  const real = (s: TaskStatus) => ({ id: s as string, label: TASK_STATUS_LABEL[s], dotColorClass: TASK_STATUS_COLOR[s].dot, badge: TASK_STATUS_COLOR[s].badge });
+  const derived = (s: ReviewState) => ({ id: s as string, label: REVIEW_STATES[s].label, dotColorClass: REVIEW_STATES[s].color.dot, badge: REVIEW_STATES[s].color.badge });
+  return [real("NOT_STARTED"), real("IN_PROGRESS"), derived("IN_REVIEW"), derived("REVIEW_APPROVED"), real("BLOCKED"), real("RETURNED"), real("COMPLETED")];
 }
 
 export function statusFilterTriggerClass(status: string | undefined) {
   if (!status) return undefined;
   if (status === "ARCHIVED") return "bg-amber-500 text-white";
-  return `${status === IN_REVIEW_STATUS ? IN_REVIEW_COLOR.solid : TASK_STATUS_COLOR[status as TaskStatus]?.solid ?? ""} text-white`;
+  return `${isReviewState(status) ? REVIEW_STATES[status].color.solid : TASK_STATUS_COLOR[status as TaskStatus]?.solid ?? ""} text-white`;
 }
 
 // Vive acá (no en KanbanBoard.tsx) a propósito: KanbanBoard es "use client",

@@ -8,8 +8,8 @@ import { AlertBadge } from "@/components/AlertBadge";
 import { Avatar } from "@/components/Avatar";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { PaperclipIcon, ShareIcon, UrgentIcon } from "@/components/icons";
-import { InReviewBadge, TaskStatusIcon } from "@/components/TaskIndicators";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { ReviewStateBadge, TaskStatusIcon } from "@/components/TaskIndicators";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL, type ReviewState } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { TaskStatus } from "@prisma/client";
 
@@ -21,7 +21,7 @@ export type CalendarPopoverTask = {
   title: string;
   type: string;
   status: TaskStatus;
-  inReview: boolean;
+  reviewState: ReviewState | null;
   isUrgent: boolean;
   projectName: string;
   projectIconUrl: string | null;
@@ -179,7 +179,7 @@ export function CalendarTaskLink({
                   <TaskStatusIcon status={task.status} className="mr-1 h-3.5 w-3.5" />
                   {TASK_STATUS_LABEL[task.status]}
                 </span>
-                {task.inReview && <InReviewBadge />}
+                {task.reviewState && <ReviewStateBadge state={task.reviewState} />}
                 <AlertBadge alert={alert} />
               </div>
 

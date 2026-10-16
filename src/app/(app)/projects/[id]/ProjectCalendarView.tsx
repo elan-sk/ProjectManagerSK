@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from "@/lib/statusColors";
+import { REVIEW_STATES, TASK_STATUS_COLOR, TASK_STATUS_LABEL, type ReviewState } from "@/lib/statusColors";
 import { rangeForMode, addDays, isoDay, type CalendarMode } from "@/lib/calendarGrid";
 import { AlertBadge } from "@/components/AlertBadge";
 import { ReferencePopover } from "@/components/ReferencePopover";
-import { OverlapIcon, PaperclipIcon, ReviewChecklistIcon, ShareIcon, UrgentIcon } from "@/components/icons";
-import { InReviewBadge, TaskIndicators, TaskStatusIcon } from "@/components/TaskIndicators";
+import { OverlapIcon, PaperclipIcon, ShareIcon, UrgentIcon } from "@/components/icons";
+import { ReviewStateBadge, ReviewStateIcon, TaskIndicators, TaskStatusIcon } from "@/components/TaskIndicators";
 import { CalendarTaskLink } from "./CalendarTaskLink";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -31,7 +31,7 @@ export type CalendarTask = {
   plannedStart: string;
   plannedEnd: string;
   status: TaskStatus;
-  inReview: boolean;
+  reviewState: ReviewState | null;
   alert: TaskAlert;
   collidesWith: CollisionInfo[] | null;
 };
@@ -148,7 +148,7 @@ export function ProjectCalendarView({
                         <span className="text-[11px] text-slate-400">vence en {t.alert.daysRemaining}d</span>
                       )}
                       <AlertBadge alert={t.alert} />
-                      {t.inReview && <InReviewBadge className="text-xs" />}
+                      {t.reviewState && <ReviewStateBadge state={t.reviewState} className="text-xs" />}
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ALERT_CHIP[t.alert.level] ?? TASK_STATUS_COLOR[t.status].badge}`}>
                         <TaskStatusIcon status={t.status} className="mr-1 h-3.5 w-3.5" />
                         {TASK_STATUS_LABEL[t.status]}
@@ -212,7 +212,7 @@ export function ProjectCalendarView({
                       {isUrgentOpen(t) && <UrgentIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {collision && <OverlapIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       <span className="truncate">{label}</span>
-                      {t.inReview && <span title="En revisión" className="flex-shrink-0"><ReviewChecklistIcon className="h-2.5 w-2.5" /></span>}
+                      {t.reviewState && <span title={REVIEW_STATES[t.reviewState].label} className="flex-shrink-0"><ReviewStateIcon state={t.reviewState} className="h-2.5 w-2.5" /></span>}
                       {t.status === "RETURNED" && <span title="Devuelta" className="flex-shrink-0"><TaskStatusIcon status="RETURNED" className="h-2.5 w-2.5" /></span>}
                       {t.shareToken && <ShareIcon className="h-2.5 w-2.5 flex-shrink-0" />}
                       {t.attachmentsCount > 0 && <PaperclipIcon className="h-2.5 w-2.5 flex-shrink-0" />}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { isTaskInReview, matchesStatusFilter, taskStatusLabels } from "../src/lib/statusColors";
+import { isTaskInReview, matchesStatusFilter, taskReviewState, taskStatusLabels } from "../src/lib/statusColors";
 import { pickResponseCategory, sameResponse } from "../src/lib/responseTemplates";
 
 const open = [{ outcome: "APPROVED" }, { outcome: null }];
@@ -21,6 +21,16 @@ assert.equal(matchesStatusFilter(undefined, inReview), true);
 // Buscador «estados:…»: la tarea se encuentra por su estado real y por «En revisión».
 assert.deepEqual(taskStatusLabels({ status: "IN_PROGRESS", type: "QA", reviewRounds: open }), ["En curso", "En revisión"]);
 assert.deepEqual(taskStatusLabels({ status: "RETURNED", type: "QA", reviewRounds: closed }), ["Devuelta"]);
+// «Aprobada»: Prueba con la ronda aprobada, sin ronda abierta y todavía sin completar.
+const approved = [{ outcome: "RETURNED" }, { outcome: "APPROVED" }];
+assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_APPROVED");
+assert.equal(taskReviewState({ type: "QA", status: "COMPLETED", reviewRounds: approved }), null);
+assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: open }), "IN_REVIEW");
+assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), null);
+assert.equal(matchesStatusFilter("REVIEW_APPROVED", { type: "QA", status: "IN_PROGRESS", reviewRounds: approved }), true);
+assert.equal(matchesStatusFilter("REVIEW_APPROVED", inReview), false);
+assert.deepEqual(taskStatusLabels({ status: "IN_PROGRESS", type: "QA", reviewRounds: approved }), ["En curso", "Aprobada"]);
+
 // Respuestas guardadas: la categoría con el nombre de la prueba (sin importar tildes) o, si no hay, «Otro».
 const cats = [{ name: "Diseño" }, { name: "Otro" }];
 assert.equal(pickResponseCategory(cats, "diseno")?.name, "Diseño");

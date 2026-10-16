@@ -2,7 +2,7 @@ import { credentialForApi, credentialVisibleWhere, logCredentialAccess } from "@
 import { NextResponse } from "next/server";
 import { archiveCompletedTasks, setTaskCover, setTaskUrgent, unarchiveTask } from "@/app/(app)/projects/[id]/taskOps";
 import { taskCoverUrl } from "@/lib/taskCover";
-import { isTaskInReview } from "@/lib/statusColors";
+import { taskReviewState } from "@/lib/statusColors";
 import { taskVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -55,7 +55,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       dependsOn: { include: { predecessor: true } },
       blocks: { include: { successor: { select: { id: true, title: true, status: true } } } },
       taskTags: { include: { tag: { include: { category: true } } } },
-      reviewRounds: { where: { outcome: null }, select: { outcome: true } },
+      reviewRounds: { select: { outcome: true } },
     },
   });
   if (!task) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
@@ -69,7 +69,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ).map(credentialForApi);
   await logCredentialAccess(credentials.map((c) => c.id), auth.actor, "VIEW", "api");
   const { reviewRounds, ...taskData } = task;
-  return NextResponse.json({ ...taskData, inReview: isTaskInReview({ ...taskData, reviewRounds }), coverUrl: taskCoverUrl(task), delayDays, credentials });
+  return NextResponse.json({ ...taskData, reviewState: taskReviewState({ ...taskData, reviewRounds }), coverUrl: taskCoverUrl(task), delayDays, credentials });
 }
 
 const updateTaskSchema = z.object({

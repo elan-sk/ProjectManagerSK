@@ -36,7 +36,7 @@ import { projectHealth } from "@/lib/projectHealth";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { getActiveShareLink } from "@/lib/shareLinks";
-import { TASK_TYPE_LABEL, isTaskInReview, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, taskReviewState, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions, type ReviewState } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { Prisma, TaskStatus, TaskType } from "@prisma/client";
@@ -96,7 +96,7 @@ export default async function ProjectPage({
     view?: string;
     date?: string;
     mode?: string;
-    status?: TaskStatus | "IN_REVIEW" | "ARCHIVED";
+    status?: TaskStatus | ReviewState | "ARCHIVED";
     type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE" | "NEW" | "WITH_FILES" | "SHARED";
     userId?: string;
     risk?: "overdue" | "warning" | "lateStart" | "startingSoon";
@@ -452,7 +452,7 @@ export default async function ProjectPage({
     title: t.title,
     type: t.type,
     status: t.status,
-    inReview: isTaskInReview(t),
+    reviewState: taskReviewState(t),
     riskLevel: t.riskLevel,
     canManage: canManageProject(t.projectId),
     updatedAt: t.updatedAt.toISOString(),
@@ -534,7 +534,7 @@ export default async function ProjectPage({
       phaseId: t.phaseId,
       phaseName: allPhases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,
-      inReview: isTaskInReview(t),
+      reviewState: taskReviewState(t),
       canManage: canManageProject(t.projectId),
       updatedAt: t.updatedAt.toISOString(),
       startIndex,
@@ -583,7 +583,7 @@ export default async function ProjectPage({
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,
-      inReview: isTaskInReview(t),
+      reviewState: taskReviewState(t),
       alert: alertByTaskId.get(t.id)!,
       collidesWith: null,
     }));

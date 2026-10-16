@@ -1,6 +1,6 @@
-import { DocumentCheckIcon, PaperclipIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
+import { CheckIcon, DocumentCheckIcon, PaperclipIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { IN_REVIEW_COLOR, IN_REVIEW_LABEL, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE } from "@/lib/statusColors";
+import { REVIEW_STATES, TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, type ReviewState } from "@/lib/statusColors";
 
 /** Entregable con su evidencia cargada: etiqueta aparte, en el color del tipo (como «En revisión» en las Pruebas). */
 export function EvidenceLoadedBadge({ className = "text-[11px]" }: { className?: string }) {
@@ -27,12 +27,17 @@ export function TaskStatusIcon({ status, className = "h-3.5 w-3.5" }: { status: 
   return status === "RETURNED" ? <UndoIcon className={`inline-block flex-shrink-0 align-[-0.2em] ${className}`} /> : null;
 }
 
-/** «En revisión» (ver isTaskInReview): mismo ícono y color que el aviso «Revisiones» del encabezado. */
-export function InReviewBadge({ className = "text-[11px]" }: { className?: string }) {
+/** Ícono de un estado derivado de Prueba: el sello de «Revisiones» (en revisión) o un check (aprobada). */
+export function ReviewStateIcon({ state, className = "h-3.5 w-3.5" }: { state: ReviewState; className?: string }) {
+  return state === "IN_REVIEW" ? <ReviewChecklistIcon className={className} /> : <CheckIcon className={className} />;
+}
+
+/** «En revisión» / «Aprobada» (ver taskReviewState): etiqueta con ícono en el color de cada estado. */
+export function ReviewStateBadge({ state, className = "text-[11px]" }: { state: ReviewState; className?: string }) {
   return (
-    <span className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 font-medium ${IN_REVIEW_COLOR.badge} ${className}`}>
-      <ReviewChecklistIcon className="h-3.5 w-3.5" />
-      {IN_REVIEW_LABEL}
+    <span className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 font-medium ${REVIEW_STATES[state].color.badge} ${className}`}>
+      <ReviewStateIcon state={state} />
+      {REVIEW_STATES[state].label}
     </span>
   );
 }

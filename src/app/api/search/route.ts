@@ -8,7 +8,7 @@ import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { taskCoverUrl } from "@/lib/taskCover";
 import { credentialVisibleWhere } from "@/lib/credentials";
-import { TASK_TYPE_LABEL, isTaskInReview, taskStatusLabels } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, taskReviewState, taskStatusLabels, type ReviewState } from "@/lib/statusColors";
 import { tagLabel } from "@/lib/tagFilter";
 import type { Prisma, TaskStatus } from "@prisma/client";
 
@@ -31,7 +31,7 @@ export type SearchHit = {
   // Solo en resultados de tarea: tipo y estado (el cliente los traduce a etiqueta y color).
   taskType?: string;
   taskStatus?: TaskStatus;
-  taskInReview?: boolean;
+  taskReviewState?: ReviewState | null;
   // Archivos, links y contraseñas: el buscador los abre en su visor (como AttachmentGrid) en vez de navegar.
   preview?: { url: string; mimeType: string };
   siteUrl?: string | null;
@@ -120,7 +120,7 @@ export async function GET(request: Request) {
           description: true,
           type: true,
           status: true,
-          reviewRounds: { where: { outcome: null }, select: { outcome: true } },
+          reviewRounds: { select: { outcome: true } },
           steps: { select: { id: true, description: true } },
           taskTags: { select: { tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
@@ -209,7 +209,7 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "taskInReview" | "preview" | "siteUrl" | "coverUrl">, contextText = "", scope?: Scope) => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "taskReviewState" | "preview" | "siteUrl" | "coverUrl">, contextText = "", scope?: Scope) => {
     if (hitKind && kind !== hitKind) return;
     // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
     // Con pesos (weightedScore): el título cuenta más que la descripción, y esta más que el contexto
@@ -256,7 +256,7 @@ export async function GET(request: Request) {
         // persona tiene ese rol, sin competir con el título ni la descripción.
         const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
         const teamText = p.roles.map((r) => `${r.user.name} ${r.user.cargo ?? ""} ${r.role}`).join(" ");
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, taskInReview: isTaskInReview(t), coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`, { project: p, task: t });
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, taskReviewState: taskReviewState(t), coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`, { project: p, task: t });
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
