@@ -11,7 +11,7 @@ import { ReviewStateBadge, TaskStatusIcon } from "@/components/TaskIndicators";
 import type { SearchHit } from "@/app/api/search/route";
 import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, normalizeSearchText, parseHeaderSearch, splitActiveSegment, splitFilterValue } from "@/lib/search";
 import { Hotkey } from "@/components/Hotkey";
-import { KeyIcon, ProgressCircleIcon, SearchIcon, TagIcon, XIcon } from "@/components/icons";
+import { KeyIcon, SearchIcon, StatusGridIcon, TagIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
@@ -67,7 +67,7 @@ type Choice = { key: string; label: string; query: string; badge?: string; emoji
 
 // Atajos con ícono dentro del campo: cada uno deja escrito su tipo de búsqueda.
 const FIELD_SHORTCUTS = [
-  { prefix: "estados", label: "Buscar por estado de tarea", Icon: ProgressCircleIcon },
+  { prefix: "estados", label: "Buscar por estado de tarea", Icon: StatusGridIcon },
   { prefix: "etiquetas", label: "Buscar por etiqueta", Icon: TagIcon },
   { prefix: "contraseñas", label: "Buscar contraseñas", Icon: KeyIcon },
 ];
