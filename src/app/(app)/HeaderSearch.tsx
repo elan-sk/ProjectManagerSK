@@ -306,6 +306,11 @@ export function HeaderSearch() {
       e.preventDefault();
       return choose(choices[0]);
     }
+    // Shift+Tab: «o también» (|), así las dos píldoras de unir filtros quedan a mano desde el teclado.
+    if (e.key === "Tab" && e.shiftKey && connectorChoices.length > 0) {
+      e.preventDefault();
+      return choose(connectorChoices[1]);
+    }
     if (e.key === "Escape") setOpen(false);
     else if (e.key === "ArrowDown" && hits.length) {
       e.preventDefault();
