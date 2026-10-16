@@ -98,13 +98,16 @@ export function UndoIcon({ className }: IconProps) {
   );
 }
 
+// Sello de revisión (aviso «Revisiones» del encabezado); también va dentro de InReviewIcon.
+const REVIEW_SEAL_PATH = "M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z";
+
 export function ReviewChecklistIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z"
+        d={REVIEW_SEAL_PATH}
       />
     </svg>
   );
@@ -348,22 +351,42 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
-// «Evidencia cargada» de un Entregable (tarjeta y ficha de la tarea): una hoja con la esquina doblada, sin
-// fondo (ocupa todo el tamaño), con un sello de chulo en la esquina. `className` da el tamaño (h-5 w-5, h-8 w-8…).
-export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
+// Documento con un globito abajo a la derecha (sellos junto a los asignados de la tarea).
+function DocumentSeal({ label, textClass, badgeClass, className, children }: { label: string; textClass: string; badgeClass: string; className: string; children: React.ReactNode }) {
   return (
-    <span title="Evidencia cargada" aria-label="Evidencia cargada" role="img" className={`relative inline-flex flex-shrink-0 text-emerald-700 ${className}`}>
+    <span title={label} aria-label={label} role="img" className={`relative inline-flex flex-shrink-0 ${textClass} ${className}`}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-full w-full" aria-hidden>
         <path d="M6.5 2.5h7L19 8v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5Z" fill="white" />
         <path d="M13.5 2.5V8H19" />
         <path d="M8.5 12h7M8.5 15.5h4" />
       </svg>
-      <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-emerald-600 text-white ring-[1.5px] ring-white">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden>
-          <path d="m5 12.5 4.5 4.5L19 7.5" />
-        </svg>
+      <span className={`absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full text-white ring-[1.5px] ring-white ${badgeClass}`}>
+        {children}
       </span>
     </span>
+  );
+}
+
+// «Evidencia cargada» de un Entregable (tarjeta y ficha de la tarea): una hoja con la esquina doblada, sin
+// fondo (ocupa todo el tamaño), con un sello de chulo en la esquina. `className` da el tamaño (h-5 w-5, h-8 w-8…).
+export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <DocumentSeal label="Evidencia cargada" textClass="text-emerald-700" badgeClass="bg-emerald-600" className={className}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden>
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </svg>
+    </DocumentSeal>
+  );
+}
+
+// Prueba «En revisión» (ronda enviada, sin resultado): el globito lleva el sello del aviso «Revisiones».
+export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <DocumentSeal label="En revisión" textClass="text-teal-700" badgeClass="bg-teal-600" className={className}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-[78%] w-[78%]" aria-hidden>
+        <path d={REVIEW_SEAL_PATH} />
+      </svg>
+    </DocumentSeal>
   );
 }
 

@@ -36,10 +36,10 @@ import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { InlineRequirement } from "./InlineRequirement";
 import { LevelField } from "@/components/LevelField";
-import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass, isTaskInReview, IN_REVIEW_LABEL } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass, isTaskInReview } from "@/lib/statusColors";
 import { ProgressFill } from "@/components/ProgressFill";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
-import { EvidenceLoadedIcon, ReviewChecklistIcon, UrgentIcon } from "@/components/icons";
+import { EvidenceLoadedIcon, InReviewIcon, UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
@@ -370,11 +370,7 @@ export default async function TaskDetailPage({
           <div className="order-3 flex flex-shrink-0 items-center gap-1.5 border-l border-slate-300 pl-2 sm:order-none sm:border-l-0 sm:pl-0">
             {deliverableEvidenceLoaded(task) && <EvidenceLoadedIcon className="mr-1.5 h-8 w-8" />}
             {/* Sello «En revisión» junto a los asignados, como el de evidencia cargada del Entregable. */}
-            {isTaskInReview(task) && (
-              <span title={IN_REVIEW_LABEL} aria-label={IN_REVIEW_LABEL} role="img" className="mr-1.5 inline-flex flex-shrink-0 text-teal-600">
-                <ReviewChecklistIcon className="h-8 w-8" />
-              </span>
-            )}
+            {isTaskInReview(task) && <InReviewIcon className="mr-1.5 h-8 w-8" />}
             <AvatarGroup people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))} size="h-8 w-8 text-xs" />
             {canEdit && (
               <ModalTrigger label="" ariaLabel="Cambiar asignados" title="Asignar tarea" variant="secondary" className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" icon={<PencilIcon className="h-4 w-4" />}>
