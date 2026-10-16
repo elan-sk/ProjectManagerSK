@@ -407,7 +407,7 @@ export function ReturnedDocumentIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <span title="Devuelta" aria-label="Devuelta" role="img" className={`relative inline-flex flex-shrink-0 text-orange-700 ${className}`}>
       <DocumentSheet />
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="review-scan absolute -right-[16%] -bottom-[12%] h-[58%] w-[58%] text-slate-900" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-[16%] -bottom-[12%] h-[58%] w-[58%] text-slate-900" aria-hidden>
         <path d="M7 11 3.5 9M7 14.5H3M7.5 18 4 20.5M17 11l3.5-2M17 14.5h4M16.5 18l3.5 2.5M10.5 5.5 9 3M13.5 5.5 15 3" />
         <circle cx="12" cy="7.5" r="2.5" fill="currentColor" />
         <ellipse cx="12" cy="15" rx="5" ry="6" className="fill-red-600" />
