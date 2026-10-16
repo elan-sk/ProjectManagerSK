@@ -4,9 +4,30 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useModalClose } from "@/components/Modal";
 import { UserCheckList } from "@/components/UserCheckList";
-import { EyeIcon, EyeOffIcon } from "@/components/icons";
-import { createCredential, listCredentialCandidates, updateCredential, type CredentialDetails } from "./actions";
+import { EyeIcon, EyeOffIcon, SparklesIcon } from "@/components/icons";
+import { createCredential, listCredentialCandidates, recordCredentialEvent, updateCredential, type CredentialDetails } from "./actions";
 import type { CredentialPlace } from "@/lib/credentialPlace";
+
+const PASSWORD_SETS = ["abcdefghijkmnopqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789", "!@#$%^&*-_=+?"];
+
+/** 20 caracteres con CSPRNG, al menos uno de cada grupo (sin caracteres ambiguos como l/1/O/0). */
+function generatePassword(length = 20) {
+  const all = PASSWORD_SETS.join("");
+  const rnd = (max: number) => {
+    const limit = Math.floor(0x100000000 / max) * max; // evita sesgo de módulo
+    const buf = new Uint32Array(1);
+    do crypto.getRandomValues(buf);
+    while (buf[0] >= limit);
+    return buf[0] % max;
+  };
+  const chars = PASSWORD_SETS.map((set) => set[rnd(set.length)]);
+  while (chars.length < length) chars.push(all[rnd(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = rnd(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
 
 type Visibility = "ME" | "ALL" | "PROJECT" | "USERS";
 
@@ -41,7 +62,7 @@ export function CredentialForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(initial?.password ?? "");
   const [showPassword, setShowPassword] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? "ME");
@@ -100,11 +121,27 @@ export function CredentialForm({
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
             placeholder={initial ? "Dejar vacía para conservar la actual" : ""}
-            className={`${INPUT} pr-10`}
+            className={`${INPUT} pr-20`}
           />
           <button
             type="button"
-            onClick={() => setShowPassword((v) => !v)}
+            onClick={() => {
+              setPassword(generatePassword());
+              setShowPassword(true);
+            }}
+            aria-label="Generar contraseña segura"
+            title="Generar contraseña segura"
+            className="absolute inset-y-0 right-9 flex items-center px-1 text-slate-400 hover:text-slate-700"
+          >
+            <SparklesIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Mostrar la contraseña guardada (sin cambios) queda en el historial, igual que en el visor.
+              if (initial && !showPassword && password === initial.password) recordCredentialEvent(initial.id, "REVEAL").catch(() => {});
+              setShowPassword((v) => !v);
+            }}
             aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-700"
           >
