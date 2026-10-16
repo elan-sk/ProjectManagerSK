@@ -41,6 +41,7 @@ import {
 import type { CheckResult, TaskStatus } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { LinkFavicon } from "@/components/LinkFavicon";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -746,7 +747,8 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
   // Punto 10 confirmado con el usuario: la plantilla de respuestas de
   // Configuración > Pruebas conviven con el texto libre, nunca lo
-  // reemplazan — un <datalist> nativo alcanza: sugiere sin obligar. Se
+  // reemplazan — SearchableSelect con allowCustom: sugiere y deja «Usar «…»»
+  // (el <datalist> nativo no se entendía: parecía que solo se podía elegir). Se
   // busca por el nombre de categoría de la prueba (viene de la plantilla de
   // pruebas) y, si no hay una categoría con ese nombre exacto, cae a "Otro".
   const matchingResponses =
@@ -878,22 +880,16 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
       )}
 
       {check.result === "FAILED" && canEdit && (
-        <>
-          <input
-            list={matchingResponses.length > 0 ? `responses-${check.id}` : undefined}
-            defaultValue={check.responseCategory ?? ""}
-            onBlur={(e) => e.target.value !== (check.responseCategory ?? "") && handleResponseCategory(e.target.value)}
-            placeholder="Categoría de tu corrección (ej. Error de lógica)…"
-            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
-          />
-          {matchingResponses.length > 0 && (
-            <datalist id={`responses-${check.id}`}>
-              {matchingResponses.map((r) => (
-                <option key={r} value={r} />
-              ))}
-            </datalist>
-          )}
-        </>
+        <SearchableSelect
+          name={`response-${check.id}`}
+          options={matchingResponses.map((r) => ({ id: r, label: r }))}
+          defaultValue={check.responseCategory ?? ""}
+          onChange={(value) => value !== (check.responseCategory ?? "") && handleResponseCategory(value)}
+          allowCustom
+          placeholder="Elegir una respuesta o escribir otra (ej. Error de lógica)…"
+          searchPlaceholder="Buscar o escribir otra respuesta…"
+          className="px-2 py-1 text-[17px]"
+        />
       )}
       {check.result === "FAILED" && check.responseCategory && !canEdit && (
         <p className="text-[17px] text-slate-500">Respuesta: {check.responseCategory}</p>

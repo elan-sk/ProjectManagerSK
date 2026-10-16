@@ -8,6 +8,7 @@ import { normalizeSearchText } from "@/lib/search";
  * (autocomplete para listas que pueden crecer), pero en vez de navegar por
  * URL guarda la elección en un <input type="hidden"> para que viaje con el
  * resto del form al hacer submit.
+ * `allowCustom`: además de las opciones, acepta lo escrito («Usar «…»»); el valor es el texto mismo.
  */
 export function SearchableSelect({
   name,
@@ -15,12 +16,19 @@ export function SearchableSelect({
   placeholder = "Elegir…",
   defaultValue,
   onChange,
+  allowCustom = false,
+  searchPlaceholder = "Buscar…",
+  className = "px-3 py-2 text-sm",
 }: {
   name: string;
   options: { id: string; label: string }[];
   placeholder?: string;
   defaultValue?: string;
   onChange?: (id: string) => void;
+  allowCustom?: boolean;
+  searchPlaceholder?: string;
+  /** Tamaño y relleno del botón (por defecto el de los formularios). */
+  className?: string;
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
   const [query, setQuery] = useState("");
@@ -41,6 +49,8 @@ export function SearchableSelect({
 
   const selected = options.find((o) => o.id === value);
   const filtered = query ? options.filter((o) => normalizeSearchText(o.label).includes(normalizeSearchText(query))) : options;
+  const custom = query.trim();
+  const showCustom = allowCustom && custom !== "" && !options.some((o) => normalizeSearchText(o.label) === normalizeSearchText(custom));
 
   function choose(id: string) {
     setValue(id);
@@ -55,9 +65,9 @@ export function SearchableSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-left text-sm text-slate-900"
+        className={`w-full rounded-lg border border-slate-300 text-left text-slate-900 ${className}`}
       >
-        {selected ? selected.label : <span className="text-slate-400">{placeholder}</span>}
+        {selected ? selected.label : allowCustom && value ? value : <span className="text-slate-400">{placeholder}</span>}
       </button>
 
       {open && (
@@ -66,7 +76,13 @@ export function SearchableSelect({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar…"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              if (filtered[0]) choose(filtered[0].id);
+              else if (showCustom) choose(custom);
+            }}
+            placeholder={searchPlaceholder}
             className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-slate-400"
           />
           <div className="mt-1 max-h-56 overflow-x-hidden overflow-y-auto">
@@ -87,7 +103,16 @@ export function SearchableSelect({
                 {o.label}
               </button>
             ))}
-            {filtered.length === 0 && <p className="px-2.5 py-1.5 text-xs text-slate-400">Sin resultados.</p>}
+            {showCustom && (
+              <button
+                type="button"
+                onClick={() => choose(custom)}
+                className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-[#0a6b78] hover:bg-slate-50"
+              >
+                Usar «{custom}»
+              </button>
+            )}
+            {filtered.length === 0 && !showCustom && <p className="px-2.5 py-1.5 text-xs text-slate-400">Sin resultados.</p>}
           </div>
         </div>
       )}
