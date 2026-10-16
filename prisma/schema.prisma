@@ -185,6 +185,7 @@ model User {
   reviewChecksReviewed  ReviewCheck[]             @relation("ReviewCheckReviewer")
   reviewMessages        ReviewMessage[]
   botMessages           BotMessage[]
+  botUsage              BotUsage?
   internalMessages      InternalMessage[]
   internalMessageReads  InternalMessageRead[]
   mentionedIn           InternalMessageMention[]  @relation("MentionedUser")
@@ -890,6 +891,15 @@ model BotMessage {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// Cuántas preguntas le hizo cada persona al bot. Solo quién y cuántas veces: nunca guarda el contenido
+// del chat (BotMessage sí, y se borra al limpiar la conversación; esto no).
+model BotUsage {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions  Int      @default(0)
+  lastUsedAt DateTime
 }
 
 // Marca qué grupos de WhatsApp ya recibieron la foto de perfil del bot.

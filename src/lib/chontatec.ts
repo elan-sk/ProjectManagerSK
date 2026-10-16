@@ -377,6 +377,10 @@ export async function sendChontatecMessage(userId: string, userText: string, pat
     return currentHistory(userId);
   }
 
+  // Registro de uso (solo quién y cuántas veces): una falla aquí nunca debe frenar la respuesta.
+  await prisma.botUsage
+    .upsert({ where: { userId }, create: { userId, questions: 1, lastUsedAt: new Date() }, update: { questions: { increment: 1 }, lastUsedAt: new Date() } })
+    .catch((error) => console.error("No se pudo registrar el uso del bot", error));
   await persistRow(userId, "user", [{ type: "text", text: userText }]);
   await runConversationLoop(userId, pathname);
   return currentHistory(userId);

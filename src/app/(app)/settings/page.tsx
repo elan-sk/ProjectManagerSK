@@ -10,7 +10,7 @@ import { ProfileForm } from "./ProfileForm";
 import { UsersAdmin } from "./UsersAdmin";
 import { CountrySettingForm } from "./CountrySettingForm";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
-import { getBotSettings } from "@/lib/botSettings";
+import { getBotSettings, getBotUsageByUser } from "@/lib/botSettings";
 import { getAvailableCountries } from "@/lib/holidays";
 import { WhatsAppConnectPanel } from "./WhatsAppConnectPanel";
 import { BotSettingsForm } from "./BotSettingsForm";
@@ -34,7 +34,7 @@ export default async function SettingsPage({
 
   const { google_calendar, imported, usersCreated, importFailed, importError, backupRestored, backupError } = await searchParams;
   const isAdmin = session.user.role === "ADMIN";
-  const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings] = await Promise.all([
+  const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings, botUsage] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
       select: { name: true, email: true, username: true, avatarUrl: true, phone: true },
@@ -52,6 +52,7 @@ export default async function SettingsPage({
     isAdmin ? getAvailableCountries() : Promise.resolve(null),
     isAdmin ? getWhatsAppSettings() : Promise.resolve(null),
     isAdmin ? getBotSettings() : Promise.resolve(null),
+    isAdmin ? getBotUsageByUser() : Promise.resolve([]),
   ]);
   const googleConfigured = isGoogleCalendarConfigured();
 
@@ -115,6 +116,7 @@ export default async function SettingsPage({
             model={botSettings.model}
             monthlyLimit={botSettings.monthlyLimit}
             usedThisPeriod={botSettings.usedThisPeriod}
+            usageByUser={botUsage}
             personaPrompt={botSettings.personaPrompt}
             personaIsCustom={botSettings.personaIsCustom}
             introMessage={botSettings.introMessage}

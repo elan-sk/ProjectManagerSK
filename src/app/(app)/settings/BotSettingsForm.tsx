@@ -25,6 +25,7 @@ export function BotSettingsForm({
   model,
   monthlyLimit,
   usedThisPeriod,
+  usageByUser,
   personaPrompt,
   personaIsCustom,
   introMessage,
@@ -39,6 +40,7 @@ export function BotSettingsForm({
   model: string | null;
   monthlyLimit: number;
   usedThisPeriod: number;
+  usageByUser: { userId: string; name: string; questions: number; lastUsedAt: string }[];
   personaPrompt: string;
   personaIsCustom: boolean;
   introMessage: string;
@@ -349,6 +351,26 @@ export function BotSettingsForm({
         <p className="text-xs text-slate-400">
           Usadas este mes: {usedThisPeriod} / {monthlyLimit}
         </p>
+        {usageByUser.length > 0 && (
+          <table className="w-full max-w-md text-left text-xs text-slate-600">
+            <thead className="text-slate-400">
+              <tr>
+                <th className="py-1 font-normal">Persona</th>
+                <th className="py-1 text-right font-normal">Preguntas</th>
+                <th className="py-1 text-right font-normal">Última vez</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usageByUser.map((u) => (
+                <tr key={u.userId} className="border-t border-slate-100">
+                  <td className="py-1">{u.name}</td>
+                  <td className="py-1 text-right tabular-nums">{u.questions}</td>
+                  <td className="py-1 text-right">{new Date(u.lastUsedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

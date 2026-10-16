@@ -40,6 +40,12 @@ export async function getBotSettings() {
   };
 }
 
+/** Quién usa el bot y cuántas preguntas ha hecho (sin contenido del chat), de más a menos. */
+export async function getBotUsageByUser() {
+  const rows = await prisma.botUsage.findMany({ include: { user: { select: { name: true } } }, orderBy: [{ questions: "desc" }, { lastUsedAt: "desc" }] });
+  return rows.map((r) => ({ userId: r.userId, name: r.user.name, questions: r.questions, lastUsedAt: r.lastUsedAt.toISOString() }));
+}
+
 // Server-only, usado por chontatec.ts al armar el system prompt.
 export async function getBotPersonaPrompt(): Promise<string> {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID } });
