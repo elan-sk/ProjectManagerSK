@@ -8,7 +8,7 @@ import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, allowsSelfRe
 import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
-import { setDefaultTestTemplate } from "@/lib/taskDesign";
+import { setCheckResponse, setDefaultTestTemplate } from "@/lib/taskDesign";
 import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
 import { autoStartTask } from "@/lib/taskAutoStart";
 import type { CheckResult } from "@prisma/client";
@@ -399,12 +399,11 @@ export async function revertReviewCheckResult(checkId: string, actor?: Actor) {
   return { ok: true as const };
 }
 
+// La regla vive en setCheckResponse (taskDesign.ts), compartida con la API y el bot.
 export async function setCheckResponseCategory(checkId: string, category: string) {
-  const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, include: { reviewRound: true } });
-  if (!(await canEditTask(check.reviewRound.taskId))) {
-    return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
-  }
-  await prisma.reviewCheck.update({ where: { id: checkId }, data: { responseCategory: category.trim() || null } });
+  const r = await setCheckResponse(checkId, undefined, category);
+  if (!r.ok) return { ok: false as const, error: r.error };
+  const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, select: { reviewRound: { select: { taskId: true } } } });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };
 }

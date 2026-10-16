@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { isTaskInReview, matchesStatusFilter, taskStatusLabels } from "../src/lib/statusColors";
+import { pickResponseCategory, sameResponse } from "../src/lib/responseTemplates";
 
 const open = [{ outcome: "APPROVED" }, { outcome: null }];
 const closed = [{ outcome: "RETURNED" }];
@@ -20,4 +21,12 @@ assert.equal(matchesStatusFilter(undefined, inReview), true);
 // Buscador «estados:…»: la tarea se encuentra por su estado real y por «En revisión».
 assert.deepEqual(taskStatusLabels({ status: "IN_PROGRESS", type: "QA", reviewRounds: open }), ["En curso", "En revisión"]);
 assert.deepEqual(taskStatusLabels({ status: "RETURNED", type: "QA", reviewRounds: closed }), ["Devuelta"]);
-console.log("OK: estado «En revisión»");
+// Respuestas guardadas: la categoría con el nombre de la prueba (sin importar tildes) o, si no hay, «Otro».
+const cats = [{ name: "Diseño" }, { name: "Otro" }];
+assert.equal(pickResponseCategory(cats, "diseno")?.name, "Diseño");
+assert.equal(pickResponseCategory(cats, "Seguridad")?.name, "Otro");
+assert.equal(pickResponseCategory(cats, null)?.name, "Otro");
+assert.equal(pickResponseCategory([{ name: "Diseño" }], "Seguridad"), undefined);
+assert.equal(sameResponse("Validación  faltante", "validacion faltante "), true);
+assert.equal(sameResponse("Validación faltante", "Texto cortado"), false);
+console.log("OK: estado «En revisión» y respuestas guardadas");

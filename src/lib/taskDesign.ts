@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { FALLBACK_RESPONSE_CATEGORY, pickResponseCategory, sameResponse } from "@/lib/responseTemplates";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, PM_SCOPE_SELECT, type Actor } from "@/lib/permissions";
@@ -62,7 +63,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
 
   // Cambios y rondas se devuelven siempre que existan, no solo según el tipo actual:
   // si a la tarea le cambiaron el tipo, lo cargado antes (y sus archivos) sigue a la vista.
-  const [items, rounds] = await Promise.all([
+  const [items, rounds, responseCategories] = await Promise.all([
     prisma.adjustmentItem.findMany({
       where: { taskId },
       orderBy: { order: "asc" },
@@ -81,6 +82,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
         _count: { select: { messages: true } },
       },
     }),
+    prisma.responseCategory.findMany({ select: { name: true, responses: { select: { text: true } } } }),
   ]);
   return {
     ok: true as const,
@@ -120,6 +122,10 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           result: c.result,
           note: c.note,
           responseCategory: c.responseCategory,
+          // Prueba «Con errores»: respuestas ya guardadas para esta categoría; reutilizar antes de escribir otra.
+          ...(task.type === "QA" && c.result === "FAILED" && {
+            suggestedResponses: pickResponseCategory(responseCategories, c.category)?.responses.map((x) => x.text) ?? [],
+          }),
           evidence: c.evidence.map(fileOut),
           reviewedBy: c.reviewedBy?.name ?? null,
           // Aceptación: quién calificó desde el link (cliente sin cuenta).
@@ -314,6 +320,32 @@ export async function addCheckEvidence(checkId: string, actor: Actor, files: Fil
   }
   touch(task);
   return { ok: true as const, added: fresh.length, skipped };
+}
+
+// Respuesta de quien corrige (asignado, PM o administrador) a una prueba que quedó «Con errores»: texto libre;
+// la plantilla de Configuración → Pruebas solo sugiere. Sin actor, la sesión (app).
+export async function setCheckResponse(checkId: string, actor: Actor | undefined, response: string) {
+  const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, select: { result: true, category: true, reviewRound: { select: { task: { select: { id: true, projectId: true, type: true } } } } } });
+  if (!check) return fail(404, "Esa prueba o característica no existe.");
+  const task = check.reviewRound.task;
+  if (!(await canEditTask(task.id, actor))) return fail(403, NO_EDIT);
+  if (task.type !== "QA" || check.result !== "FAILED") return fail(409, "Solo se responde una prueba que quedó «Con errores».");
+  const text = response.trim();
+  await prisma.reviewCheck.update({ where: { id: checkId }, data: { responseCategory: text || null } });
+  if (text) await rememberResponse(check.category, text);
+  touch(task);
+  return { ok: true as const };
+}
+
+// Toda respuesta nueva queda en el sistema (decisión del usuario 2026-10-16): en la categoría que le corresponde a la
+// prueba (pickResponseCategory) o en «Otro», para sugerirla la próxima vez y agrupar las estadísticas.
+async function rememberResponse(checkCategory: string | null, text: string) {
+  const categories = await prisma.responseCategory.findMany({ select: { id: true, name: true, responses: { select: { text: true } } } });
+  const target =
+    pickResponseCategory(categories, checkCategory) ??
+    (await prisma.responseCategory.create({ data: { name: FALLBACK_RESPONSE_CATEGORY }, select: { id: true, name: true, responses: { select: { text: true } } } }));
+  if (target.responses.some((r) => sameResponse(r.text, text))) return;
+  await prisma.responseTemplate.create({ data: { categoryId: target.id, text } });
 }
 
 export async function addRoundDeliverables(roundId: string, actor: Actor, files: FileRef[]) {

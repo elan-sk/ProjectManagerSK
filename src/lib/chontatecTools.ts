@@ -17,7 +17,7 @@ import { addProjectAttachment, addProjectLink, updateProjectDescription, updateP
 import { reorderPhases, setTaskCover } from "@/app/(app)/projects/[id]/taskOps";
 import { taskCoverUrl } from "@/lib/taskCover";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
-import { setTaskReviewers } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
+import { setTaskReviewers, submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
 import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
 import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
@@ -26,6 +26,7 @@ import {
   addAdjustmentItems,
   addAdjustmentAttachments,
   addCheckEvidence,
+  setCheckResponse,
   addRoundDeliverables,
   addTaskAttachments,
   adjustmentItemSchema,
@@ -450,13 +451,20 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "submit_review_round",
+    description:
+      "Envía una Prueba (QA) a revisión o la reenvía tras una devolución (abre la ronda siguiente y avisa a los revisores). Conserva los entregables de la ronda anterior. Al reenviar, toda prueba «Con errores» necesita respuesta (manage_design_item set_check_response) y evidencia (add_check_evidence). Solo asignado, PM o administrador.",
+    input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
+  },
+  {
     name: "manage_design_item",
     description:
-      "Edita un ítem ya diseñado. action: update_adjustment (itemId; description? note?), add_adjustment_files (itemId; kind BEFORE|AFTER; files), reopen_adjustment_review (itemId; deja que el cliente califique de nuevo ese cambio), add_check_evidence (checkId; files), add_round_files (roundId; files), delete (itemId = un cambio de Ajuste, o checkId = una prueba/característica sin resultado; es irreversible). Los ids salen de get_task_design.",
+      "Edita un ítem ya diseñado. action: update_adjustment (itemId; description? note?), add_adjustment_files (itemId; kind BEFORE|AFTER; files), reopen_adjustment_review (itemId; deja que el cliente califique de nuevo ese cambio), add_check_evidence (checkId; files), set_check_response (checkId; response = respuesta de quien corrige una prueba «Con errores»; con respuesta y evidencia en todas, se reenvía con submit_review_round o desde la app), add_round_files (roundId; files), delete (itemId = un cambio de Ajuste, o checkId = una prueba/característica sin resultado; es irreversible). Los ids salen de get_task_design.",
     input_schema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "update_adjustment | add_adjustment_files | reopen_adjustment_review | add_check_evidence | add_round_files | delete" },
+        action: { type: "string", description: "update_adjustment | add_adjustment_files | reopen_adjustment_review | add_check_evidence | set_check_response | add_round_files | delete" },
+        response: { type: "string", description: "Solo set_check_response: la respuesta (texto libre)." },
         itemId: { type: "string" },
         checkId: { type: "string" },
         roundId: { type: "string" },
@@ -1373,6 +1381,8 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       const n = (d.items?.length ?? 0) + (d.checks?.length ?? 0);
       return `Cargar el diseño de la tarea (${n} ítem${n === 1 ? "" : "s"}${d.deliverables?.length ? ` y ${d.deliverables.length} entregable(s)` : ""})`;
     }
+    case "submit_review_round":
+      return "Enviar la prueba a revisión";
     case "manage_design_item": {
       const { action } = input as { action?: string };
       return (
@@ -1381,6 +1391,7 @@ export function summarizeWriteTool(name: string, input: unknown): string {
           add_adjustment_files: "Agregar archivos al antes/después de un cambio",
           reopen_adjustment_review: "Habilitar una nueva revisión del cliente en un cambio",
           add_check_evidence: "Agregar evidencia a una prueba o característica",
+          set_check_response: "Responder una prueba con errores",
           add_round_files: "Agregar entregables a la ronda",
           delete: "⚠️ Eliminar un cambio, prueba o característica",
         }[action ?? ""] ?? "Editar el diseño de la tarea"
@@ -1856,7 +1867,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const actor = await currentActor();
         const d = z
           .object({
-            action: z.enum(["update_adjustment", "add_adjustment_files", "reopen_adjustment_review", "add_check_evidence", "add_round_files", "delete"]),
+            action: z.enum(["update_adjustment", "add_adjustment_files", "reopen_adjustment_review", "add_check_evidence", "set_check_response", "add_round_files", "delete"]),
             itemId: z.string().optional(),
             checkId: z.string().optional(),
             roundId: z.string().optional(),
@@ -1864,6 +1875,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             note: z.string().max(2000).optional(),
             kind: z.enum(["BEFORE", "AFTER"]).optional(),
             files: z.array(fileRefSchema).max(20).optional(),
+            response: z.string().max(500).optional(),
           })
           .parse(input);
         const need = (v: unknown, what: string) => {
@@ -1884,6 +1896,9 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           case "add_check_evidence":
             r = await addCheckEvidence(need(d.checkId, "checkId"), actor, d.files ?? []);
             break;
+          case "set_check_response":
+            r = await setCheckResponse(need(d.checkId, "checkId"), actor, need(d.response?.trim(), "response"));
+            break;
           case "add_round_files":
             r = await addRoundDeliverables(need(d.roundId, "roundId"), actor, d.files ?? []);
             break;
@@ -1891,6 +1906,22 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             r = d.itemId ? await deleteAdjustmentItem(d.itemId, actor) : await removeCheck(need(d.checkId, "itemId o checkId"), actor);
         }
         return { ok: r.ok, message: r.ok ? `Listo, quedó hecho.${skippedNote(r.skipped)}` : (r.error ?? "No se pudo completar la acción.") };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+    case "submit_review_round": {
+      try {
+        const actor = await currentActor();
+        const { taskId } = z.object({ taskId: z.string() }).parse(input);
+        const last = await prisma.reviewRound.findFirst({
+          where: { taskId },
+          orderBy: { roundNumber: "desc" },
+          select: { deliverables: { select: { id: true, fileName: true, fileUrl: true, mimeType: true } } },
+        });
+        const deliverables = (last?.deliverables ?? []).map((d) => ({ id: d.id, name: d.fileName, url: d.fileUrl, mimeType: d.mimeType }));
+        const r = await submitReviewRound(taskId, deliverables, actor);
+        return { ok: r.ok, message: r.ok ? "Listo, quedó enviada a revisión." : r.error };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

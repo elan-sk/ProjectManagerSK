@@ -42,6 +42,7 @@ import type { CheckResult, TaskStatus } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { pickResponseCategory } from "@/lib/responseTemplates";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -751,10 +752,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
   // (el <datalist> nativo no se entendía: parecía que solo se podía elegir). Se
   // busca por el nombre de categoría de la prueba (viene de la plantilla de
   // pruebas) y, si no hay una categoría con ese nombre exacto, cae a "Otro".
-  const matchingResponses =
-    responseCategories.find((c) => c.name.toLowerCase() === (check.category ?? "").trim().toLowerCase())?.responses ??
-    responseCategories.find((c) => c.name.toLowerCase() === "otro")?.responses ??
-    [];
+  const matchingResponses = pickResponseCategory(responseCategories, check.category)?.responses ?? [];
 
   return (
     <li className="space-y-1.5 rounded-xl border border-slate-300 border-l-4 border-l-[#0a6b78] bg-white p-3 shadow-sm">
