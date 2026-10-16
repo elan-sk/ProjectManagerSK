@@ -39,7 +39,7 @@ import { LevelField } from "@/components/LevelField";
 import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass, isTaskInReview } from "@/lib/statusColors";
 import { ProgressFill } from "@/components/ProgressFill";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
-import { EvidenceLoadedIcon, InReviewIcon, ReviewApprovedIcon, UrgentIcon } from "@/components/icons";
+import { EvidenceLoadedIcon, InReviewIcon, ReturnedDocumentIcon, ReviewApprovedIcon, UrgentIcon } from "@/components/icons";
 import { TaskOpsButtons } from "./TaskOpsButtons";
 import { DeleteTaskButton } from "./DeleteTaskButton";
 import { ModalTrigger } from "@/components/Modal";
@@ -369,9 +369,11 @@ export default async function TaskDetailPage({
           </div>
           <div className="order-3 flex flex-shrink-0 items-center gap-1.5 border-l border-slate-300 pl-2 sm:order-none sm:border-l-0 sm:pl-0">
             {deliverableEvidenceLoaded(task) && <EvidenceLoadedIcon className="mr-1.5 h-8 w-8" />}
-            {/* Prueba: hoja con lupa mientras está en revisión y con sello cuando la última ronda quedó aprobada. */}
+            {/* Hoja con lupa (Prueba en revisión), con bicho (Devuelta) o con sello (Prueba aprobada). */}
             {isTaskInReview(task) ? (
               <InReviewIcon className="mr-1.5 h-8 w-8" />
+            ) : task.status === "RETURNED" ? (
+              <ReturnedDocumentIcon className="mr-1.5 h-8 w-8" />
             ) : (
               task.type === "QA" && task.reviewRounds[0]?.outcome === "APPROVED" && <ReviewApprovedIcon className="mr-1.5 h-8 w-8" />
             )}
