@@ -382,7 +382,7 @@ export function EvidenceLoadedIcon({ className = "h-5 w-5" }: IconProps) {
 }
 
 // Sello «En revisión» de la ficha de la tarea (junto a los asignados): el sello del aviso «Revisiones», relleno en
-// blanco como EvidenceLoadedIcon, con un globito de lupa que va y viene (se está revisando; .review-scan en globals.css).
+// blanco como EvidenceLoadedIcon, con una lupa en la esquina que va y viene (se está revisando; .review-scan en globals.css).
 export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <span title="En revisión" aria-label="En revisión" role="img" className={`relative inline-flex flex-shrink-0 text-teal-700 ${className}`}>
@@ -390,12 +390,10 @@ export function InReviewIcon({ className = "h-5 w-5" }: IconProps) {
         <path d={REVIEW_SEAL_OUTLINE} fill="white" />
         <path d={REVIEW_SEAL_CHECK} />
       </svg>
-      <span className="absolute -right-[12%] -bottom-[8%] flex h-[48%] w-[48%] items-center justify-center rounded-full bg-teal-600 text-white ring-[1.5px] ring-white">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" className="review-scan h-[64%] w-[64%]" aria-hidden>
-          <circle cx="10.5" cy="10.5" r="5.5" />
-          <path d="m15 15 4.5 4.5" />
-        </svg>
-      </span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" className="review-scan absolute -right-[18%] -bottom-[14%] h-[58%] w-[58%] text-teal-600" aria-hidden>
+        <circle cx="10.5" cy="10.5" r="6" fill="white" />
+        <path d="m15.2 15.2 5 5" />
+      </svg>
     </span>
   );
 }
