@@ -27,6 +27,7 @@ import { AcceptancePanel } from "./AcceptancePanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
 import { isGoogleCalendarConfigured } from "@/lib/googleCalendar";
 import { TaskStatusControl } from "./TaskStatusControl";
+import { InReviewBadge } from "@/components/TaskIndicators";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
 import { InlineMeetingUrl } from "./InlineMeetingUrl";
@@ -36,7 +37,7 @@ import { InlineType } from "./InlineType";
 import { InlinePhase } from "./InlinePhase";
 import { InlineRequirement } from "./InlineRequirement";
 import { LevelField } from "@/components/LevelField";
-import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_FILL, DEFINITION_LEVEL_HEX, taskTypeTextClass, isTaskInReview } from "@/lib/statusColors";
 import { ProgressFill } from "@/components/ProgressFill";
 import { ReassignAssigneesForm } from "./ReassignAssigneesForm";
 import { EvidenceLoadedIcon, UrgentIcon } from "@/components/icons";
@@ -541,6 +542,7 @@ export default async function TaskDetailPage({
                 canManage={canManage}
                 completionBlockedReason={completionBlockedReason}
               />
+              {isTaskInReview(task) && <InReviewBadge className="text-xs" />}
             </div>
           </div>
           {canManage && (

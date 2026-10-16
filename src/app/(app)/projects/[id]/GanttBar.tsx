@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "@/lib/useAppRouter";
 import { resizeTask, moveTask } from "./actions";
 import { AlertBadge } from "@/components/AlertBadge";
+import { InReviewBadge, ReturnedBadge } from "@/components/TaskIndicators";
 import { LockIcon } from "@/components/icons";
 import { Avatar } from "@/components/Avatar";
 import { TagChip } from "@/components/TagChip";
@@ -41,6 +42,7 @@ export function GanttBar({
   title,
   color,
   status,
+  inReview,
   startIndex,
   span,
   minStartIndex,
@@ -73,6 +75,7 @@ export function GanttBar({
   title: string;
   color: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
+  inReview: boolean;
   startIndex: number;
   span: number;
   minStartIndex: number;
@@ -453,6 +456,8 @@ export function GanttBar({
             )}
             <p className="font-medium text-slate-900">{title}</p>
             <div className="mt-1 flex flex-wrap gap-1 empty:mt-0">
+              {status === "RETURNED" && <ReturnedBadge />}
+              {inReview && <InReviewBadge />}
               <AlertBadge alert={taskAlert} />
             </div>
             <p className="mt-1 text-slate-500">

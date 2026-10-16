@@ -10,7 +10,7 @@ import { auth } from "@/auth";
 import { normalizeSearchText, matchesTaskSearch } from "@/lib/search";
 import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
-import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase } from "@/lib/statusColors";
+import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase, IN_REVIEW_STATUS, IN_REVIEW_WHERE, isTaskInReview } from "@/lib/statusColors";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { addProjectAttachment, addProjectLink, updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
@@ -84,6 +84,9 @@ const NO_ACCESS = { error: "No tenés acceso a ese proyecto." };
 const NO_TAG_CATEGORY = "Esa categoría de etiqueta ya no existe.";
 
 // Etiquetas de una tarea para el bot, con el mismo texto que la ficha de la app: «Categoría | etiqueta», o solo la categoría.
+// Solo rondas abiertas: alcanza para saber si una Prueba está «En revisión» (isTaskInReview).
+const OPEN_ROUNDS_SELECT = { where: { outcome: null }, select: { outcome: true } } as const;
+const taskStatusWhere = (status?: string) => (!status ? {} : status === IN_REVIEW_STATUS ? IN_REVIEW_WHERE : { status: status as TaskStatus });
 const TASK_TAGS_SELECT = { select: { categoryId: true, tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } } as const;
 type TaskTagForBot = { categoryId: string; tag: { name: string; category: { name: string; emoji: string | null } } };
 const tagLabel = ({ tag }: TaskTagForBot) => sharedTagLabel(tag.category, tag.name);
@@ -149,7 +152,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     description: "Lista las tareas del usuario que está preguntando. Si es admin, todas las tareas; si es PM de algún proyecto, las de sus proyectos; si es miembro, las que tiene asignadas.",
     input_schema: {
       type: "object",
-      properties: { status: { type: "string", description: "Filtrar por estado (opcional): NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETED, RETURNED" } },
+      properties: { status: { type: "string", description: "Filtrar por estado (opcional): NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETED, RETURNED, o IN_REVIEW (Prueba enviada a revisar y sin resultado; no es un estado que se pueda asignar)" } },
     },
   },
   {
@@ -975,12 +978,12 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const { status } = z.object({ status: z.string().optional() }).parse(input);
       const where = await myTasksWhere(userId);
       const tasks = await prisma.task.findMany({
-        where: { ...where, ...(status ? { status: status as TaskStatus } : {}) },
-        select: { id: true, title: true, status: true, plannedEnd: true, projectId: true, project: { select: { name: true } }, taskTags: TASK_TAGS_SELECT },
+        where: { ...where, ...taskStatusWhere(status) },
+        select: { id: true, title: true, status: true, type: true, reviewRounds: OPEN_ROUNDS_SELECT, plannedEnd: true, projectId: true, project: { select: { name: true } }, taskTags: TASK_TAGS_SELECT },
         orderBy: { plannedEnd: "asc" },
         take: 50,
       });
-      return JSON.stringify(tasks.map(({ taskTags, ...t }) => ({ ...t, statusLabel: TASK_STATUS_LABEL[t.status], tags: taskTags.map(tagLabel) })));
+      return JSON.stringify(tasks.map(({ taskTags, reviewRounds, ...t }) => ({ ...t, statusLabel: TASK_STATUS_LABEL[t.status], inReview: isTaskInReview({ ...t, reviewRounds }), tags: taskTags.map(tagLabel) })));
     }
 
     case "list_project_tasks": {
@@ -988,11 +991,13 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const accessibleIds = await getAccessibleProjectIds(userId);
       if (!hasAccess(accessibleIds, projectId)) return JSON.stringify(NO_ACCESS);
       const tasks = await prisma.task.findMany({
-        where: { projectId, ...(status ? { status: status as TaskStatus } : {}) },
+        where: { projectId, ...taskStatusWhere(status) },
         select: {
           id: true,
           title: true,
           status: true,
+          type: true,
+          reviewRounds: OPEN_ROUNDS_SELECT,
           plannedStart: true,
           plannedEnd: true,
           assignees: { include: { user: { select: { name: true, avatarUrl: true } } } },
@@ -1006,6 +1011,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           title: t.title,
           status: t.status,
           statusLabel: TASK_STATUS_LABEL[t.status],
+          inReview: isTaskInReview(t),
           plannedStart: t.plannedStart,
           plannedEnd: t.plannedEnd,
           assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),

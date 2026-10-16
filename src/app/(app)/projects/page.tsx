@@ -18,7 +18,7 @@ import { getProjectSummaryRows } from "@/lib/projectSummaries";
 import { expandProjectFilter, projectFilterOptions } from "@/lib/subprojects";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, isTaskInReview, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { TaskStatus, TaskType } from "@prisma/client";
@@ -46,7 +46,7 @@ export default async function ProjectsPage({
     view?: string;
     date?: string;
     mode?: string;
-    status?: TaskStatus;
+    status?: TaskStatus | "IN_REVIEW";
     type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE" | "NEW" | "WITH_FILES" | "SHARED";
     userId?: string;
     q?: string;
@@ -337,6 +337,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
     plannedEnd: Date;
   }) =>
     matchesRiskFilter(boardAlertById.get(t.id)!, risk) &&
+    matchesStatusFilter(status, t) &&
     matchesDateRange(t, from, to) &&
     matchesType(t) &&
     matchesAssigneeFilter(userId, t.assignees) &&
@@ -383,6 +384,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       type: t.type,
       isUrgent: t.isUrgent,
       status: t.status,
+      inReview: isTaskInReview(t),
       riskLevel: t.riskLevel,
       canManage: canManageProject(t.projectId),
       updatedAt: t.updatedAt.toISOString(),
@@ -423,6 +425,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         phaseId: t.phaseId,
         phaseName: t.phase.name,
         status: t.status,
+        inReview: isTaskInReview(t),
         canManage: canManageProject(t.projectId),
         updatedAt: t.updatedAt.toISOString(),
         startIndex,
@@ -469,6 +472,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,
+      inReview: isTaskInReview(t),
       alert: boardAlertById.get(t.id)!,
       collidesWith: canSeeCollisions ? collisionsById.get(t.id) ?? null : null,
     }));
@@ -670,15 +674,11 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
               <ComboFilter
                 allLabel="Todos los estados"
                 value={status}
-                options={(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
-                  id: s,
-                  label: TASK_STATUS_LABEL[s],
-                  dotColorClass: TASK_STATUS_COLOR[s].dot,
-                }))}
+                options={taskStatusFilterOptions()}
                 paramKey="status"
                 basePath="/projects"
                 currentParams={{ from, to, risk, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, q, proj, tag, collision }}
-                triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+                triggerColorClass={statusFilterTriggerClass(status)}
               />
             </div>
             <div className="flex flex-col gap-1">

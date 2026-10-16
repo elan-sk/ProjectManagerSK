@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { updateTaskStatus } from "../../actions";
 import { useConfirm } from "@/components/Confirm";
+import { TaskStatusIcon } from "@/components/TaskIndicators";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR } from "@/lib/statusColors";
 import type { TaskStatus, TaskType } from "@prisma/client";
 
@@ -106,7 +107,8 @@ export function TaskStatusControl({
             a mano) pero mientras la tarea está en ese estado sigue habiendo
             que mostrarlo — si no, la fila de botones no resalta nada. */}
         {(type === "QA" || type === "ACCEPTANCE") && status === "RETURNED" && (
-          <span className={`overflow-hidden rounded-lg px-0.5 py-1.5 text-center text-xs font-medium tracking-tight whitespace-nowrap text-white sm:px-3 sm:text-sm sm:tracking-normal ${TASK_STATUS_COLOR.RETURNED.solid}`}>
+          <span className={`inline-flex items-center justify-center gap-1 overflow-hidden rounded-lg px-0.5 py-1.5 text-center text-xs font-medium tracking-tight whitespace-nowrap text-white sm:px-3 sm:text-sm sm:tracking-normal ${TASK_STATUS_COLOR.RETURNED.solid}`}>
+            <TaskStatusIcon status="RETURNED" />
             {TASK_STATUS_LABEL.RETURNED}
           </span>
         )}

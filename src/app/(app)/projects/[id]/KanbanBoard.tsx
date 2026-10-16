@@ -22,6 +22,7 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
 import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon, EvidenceLoadedIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
+import { InReviewBadge, ReturnedBadge } from "@/components/TaskIndicators";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, TASK_TYPE_BADGE, taskCardTint, isStartingSoon } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
@@ -41,6 +42,8 @@ export type TaskCard = {
   /** Tarea archivada (completada que salió del flujo normal). */
   isArchived?: boolean;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
+  /** Prueba enviada a revisar, sin resultado todavía (isTaskInReview). */
+  inReview: boolean;
   riskLevel: string;
   // Punto 9: permiso de ESTA tarea puntual (según el proyecto al que
   // pertenece) — nunca un booleano único para todo el tablero, que en el
@@ -168,11 +171,8 @@ function CardBody({
               Archivada
             </span>
           )}
-          {task.status === "RETURNED" && (
-            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TASK_STATUS_COLOR.RETURNED.badge}`}>
-              {TASK_STATUS_LABEL.RETURNED}
-            </span>
-          )}
+          {task.status === "RETURNED" && <ReturnedBadge />}
+          {task.inReview && <InReviewBadge />}
         </div>
         <div className="mt-1 flex flex-shrink-0 items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
           {task.collidesWith && task.collidesWith.length > 0 && (

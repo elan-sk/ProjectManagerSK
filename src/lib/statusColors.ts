@@ -25,6 +25,49 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   RETURNED: "Devuelta",
 };
 
+// «En revisión»: Prueba (QA) con una ronda enviada y sin resultado todavía. No es un TaskStatus (por debajo
+// sigue «En curso»): es un estado derivado que solo se muestra y se filtra (status=IN_REVIEW, «estados:en revisión»).
+export const IN_REVIEW_STATUS = "IN_REVIEW";
+export const IN_REVIEW_LABEL = "En revisión";
+export const IN_REVIEW_COLOR = { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700", solid: "bg-teal-600 hover:bg-teal-700" };
+
+export function isTaskInReview(task: { type: string; reviewRounds: { outcome: unknown }[] }) {
+  return task.type === "QA" && task.reviewRounds.some((r) => r.outcome === null);
+}
+
+/** isTaskInReview como condición de Prisma (para filtrar en la consulta). */
+export const IN_REVIEW_WHERE = { type: "QA", reviewRounds: { some: { outcome: null } } } as const;
+
+/** Etiquetas de estado con las que se encuentra una tarea en el buscador («estados:…»): la real y, si aplica, «En revisión». */
+export function taskStatusLabels(task: { status: TaskStatus; type: string; reviewRounds: { outcome: unknown }[] }) {
+  return isTaskInReview(task) ? [TASK_STATUS_LABEL[task.status], IN_REVIEW_LABEL] : [TASK_STATUS_LABEL[task.status]];
+}
+
+/** Filtro Estado de las vistas: un TaskStatus real o «En revisión». */
+export function matchesStatusFilter(status: string | undefined, task: { status: string; type: string; reviewRounds: { outcome: unknown }[] }) {
+  if (!status) return true;
+  return status === IN_REVIEW_STATUS ? isTaskInReview(task) : task.status === status;
+}
+
+/** Opciones del filtro Estado (proyecto, Panorama general, Agenda): fuente única. */
+export function taskStatusFilterOptions() {
+  const real = (s: TaskStatus) => ({ id: s as string, label: TASK_STATUS_LABEL[s], dotColorClass: TASK_STATUS_COLOR[s].dot });
+  return [
+    real("NOT_STARTED"),
+    real("IN_PROGRESS"),
+    { id: IN_REVIEW_STATUS, label: IN_REVIEW_LABEL, dotColorClass: IN_REVIEW_COLOR.dot },
+    real("BLOCKED"),
+    real("RETURNED"),
+    real("COMPLETED"),
+  ];
+}
+
+export function statusFilterTriggerClass(status: string | undefined) {
+  if (!status) return undefined;
+  if (status === "ARCHIVED") return "bg-amber-500 text-white";
+  return `${status === IN_REVIEW_STATUS ? IN_REVIEW_COLOR.solid : TASK_STATUS_COLOR[status as TaskStatus]?.solid ?? ""} text-white`;
+}
+
 // Vive acá (no en KanbanBoard.tsx) a propósito: KanbanBoard es "use client",
 // y un Server Component que importe una constante plana desde un archivo
 // "use client" recibe una referencia opaca, no el valor real — TYPE_LABEL[x]

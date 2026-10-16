@@ -15,7 +15,7 @@ import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/compon
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { ProgressFill } from "@/components/ProgressFill";
-import { TaskIndicators } from "@/components/TaskIndicators";
+import { InReviewBadge, TaskIndicators, TaskStatusIcon } from "@/components/TaskIndicators";
 import { SearchBox } from "@/components/SearchBox";
 import { TagChip } from "@/components/TagChip";
 import { getPmProjectsSummary, groupPmSummaries, tallyAgendaCounts, type AgendaCounts } from "@/lib/agendaSummary";
@@ -28,7 +28,7 @@ import { matchesTaskSearch } from "@/lib/search";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabel";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon } from "@/lib/statusColors";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon, IN_REVIEW_STATUS, IN_REVIEW_WHERE, isTaskInReview, statusFilterTriggerClass, taskStatusFilterOptions } from "@/lib/statusColors";
 import { ProjectCardsOrder } from "../projects/ProjectCardsOrder";
 import type { TaskStatus } from "@prisma/client";
 import Link from "next/link";
@@ -60,6 +60,7 @@ type AgendaCard = {
   attachmentsCount: number;
   shareToken: string | null;
   status: TaskStatus;
+  inReview: boolean;
   tags: { id: string; categoryId: string; categoryName: string; name: string; colorHex: string; emoji: string | null }[];
   assignees: { name: string; avatarUrl: string | null }[];
   plannedStart: string;
@@ -157,7 +158,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<{
     projectId?: string;
-    status?: TaskStatus;
+    status?: TaskStatus | "IN_REVIEW";
     userId?: string;
     risk?: "lateStart" | "overdue" | "warning" | "startingSoon";
     type?: string;
@@ -204,7 +205,7 @@ export default async function AgendaPage({
       where: {
         assignees: { some: { userId: effectiveUserId } },
         projectId: scopedProjectIds ? { in: scopedProjectIds } : projectId || undefined,
-        status: status || undefined,
+        ...(status === IN_REVIEW_STATUS ? IN_REVIEW_WHERE : { status: status || undefined }),
         archivedAt: null,
         project: hiddenPref.projectWhere,
       },
@@ -213,6 +214,7 @@ export default async function AgendaPage({
         assignees: { include: { user: true } },
         taskTags: { include: { tag: { include: { category: true } } } },
         attachments: { select: { fileName: true, mimeType: true } },
+        reviewRounds: { select: { outcome: true } },
       },
       orderBy: { plannedStart: "asc" },
     }),
@@ -278,6 +280,7 @@ export default async function AgendaPage({
     attachmentsCount: t.attachments.length,
     shareToken: shareTokenByTaskId.get(t.id) ?? null,
     status: t.status,
+    inReview: isTaskInReview(t),
     tags: t.taskTags.map((tt) => ({ id: tt.tagId, categoryId: tt.tag.categoryId, categoryName: tt.tag.category.name, name: tt.tag.name, colorHex: tt.tag.category.colorHex, emoji: tt.tag.category.emoji })),
     assignees: t.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl })),
     plannedStart: t.plannedStart.toISOString(),
@@ -493,15 +496,11 @@ export default async function AgendaPage({
           <ComboFilter
             allLabel="Todos los estados"
             value={status}
-            options={(Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).map((s) => ({
-              id: s,
-              label: TASK_STATUS_LABEL[s],
-              dotColorClass: TASK_STATUS_COLOR[s].dot,
-            }))}
+            options={taskStatusFilterOptions()}
             paramKey="status"
             basePath="/agenda"
             currentParams={{ projectId, userId, risk, type, q, tag, from, to }}
-            triggerColorClass={status ? `${TASK_STATUS_COLOR[status].solid} text-white` : undefined}
+            triggerColorClass={statusFilterTriggerClass(status)}
           />
         </div>
 
@@ -651,7 +650,9 @@ export default async function AgendaPage({
                         </span>
                       )}
                       <TaskIndicators attachmentsCount={card.attachmentsCount} shareToken={card.shareToken} />
+                      {card.inReview && <InReviewBadge className="text-xs" />}
                       <span className={`rounded-full px-2 py-1 text-xs font-medium ${TASK_STATUS_COLOR[card.status].badge}`}>
+                        <TaskStatusIcon status={card.status} className="mr-1 h-3.5 w-3.5" />
                         {TASK_STATUS_LABEL[card.status]}
                       </span>
                       {/* Asignado siempre al final (pedido explícito) —

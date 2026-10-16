@@ -36,7 +36,7 @@ import { projectHealth } from "@/lib/projectHealth";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
 import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { getActiveShareLink } from "@/lib/shareLinks";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, isTaskInReview, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
 import type { Prisma, TaskStatus, TaskType } from "@prisma/client";
@@ -96,7 +96,7 @@ export default async function ProjectPage({
     view?: string;
     date?: string;
     mode?: string;
-    status?: TaskStatus;
+    status?: TaskStatus | "IN_REVIEW" | "ARCHIVED";
     type?: TaskType | "RETURNED_MINE" | "REVIEWING_MINE" | "NEW" | "WITH_FILES" | "SHARED";
     userId?: string;
     risk?: "overdue" | "warning" | "lateStart" | "startingSoon";
@@ -433,7 +433,7 @@ export default async function ProjectPage({
   }) =>
     matchesRisk(t.id) &&
     matchesDateRange(t, from, to) &&
-    (!status || (status as string) === "ARCHIVED" || t.status === status) &&
+    ((status as string) === "ARCHIVED" || matchesStatusFilter(status, t)) &&
     matchesType(t) &&
     matchesAssigneeFilter(userId, t.assignees) &&
     matchesTagFilter(tag, t.taskTags) &&
@@ -452,6 +452,7 @@ export default async function ProjectPage({
     title: t.title,
     type: t.type,
     status: t.status,
+    inReview: isTaskInReview(t),
     riskLevel: t.riskLevel,
     canManage: canManageProject(t.projectId),
     updatedAt: t.updatedAt.toISOString(),
@@ -533,6 +534,7 @@ export default async function ProjectPage({
       phaseId: t.phaseId,
       phaseName: allPhases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,
+      inReview: isTaskInReview(t),
       canManage: canManageProject(t.projectId),
       updatedAt: t.updatedAt.toISOString(),
       startIndex,
@@ -581,6 +583,7 @@ export default async function ProjectPage({
       plannedStart: t.plannedStart.toISOString(),
       plannedEnd: t.plannedEnd.toISOString(),
       status: t.status,
+      inReview: isTaskInReview(t),
       alert: alertByTaskId.get(t.id)!,
       collidesWith: null,
     }));
@@ -933,18 +936,14 @@ export default async function ProjectPage({
             allLabel="Todos los estados"
             value={status}
             options={[
-              ...(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "RETURNED", "COMPLETED"] as const).map((s) => ({
-                id: s as string,
-                label: TASK_STATUS_LABEL[s],
-                dotColorClass: TASK_STATUS_COLOR[s].dot,
-              })),
+              ...taskStatusFilterOptions(),
               // Ver las tareas archivadas es para todos; desarchivar sigue siendo solo de Admin/PM.
               { id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500" },
             ]}
             paramKey="status"
             basePath={`/projects/${project.id}`}
             currentParams={{ from, to, view, mode: calendarMode !== "month" ? calendarMode : undefined, date: anchorKey(anchor), userId, type, risk, q, proj, tag }}
-            triggerColorClass={status ? ((status as string) === "ARCHIVED" ? "bg-amber-500 text-white" : `${TASK_STATUS_COLOR[status].solid} text-white`) : undefined}
+            triggerColorClass={statusFilterTriggerClass(status)}
           />
         </div>
 

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TASK_STATUS_COLOR } from "@/lib/statusColors";
-import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon, UrgentIcon } from "@/components/icons";
+import { PaperclipIcon, SearchIcon, WarningIcon, OverlapIcon, UrgentIcon, ReviewChecklistIcon, UndoIcon } from "@/components/icons";
 import { GanttBar, GANTT_TOOLTIP_LAYER_ID } from "./GanttBar";
 import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
@@ -40,6 +40,7 @@ export type GanttTask = {
   phaseId: string;
   phaseName: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
+  inReview: boolean;
   // Punto 9: permiso de ESTA tarea (según su proyecto) — igual que en
   // KanbanBoard, nunca un booleano único para todo el panorama general.
   canManage: boolean;
@@ -1097,6 +1098,8 @@ export function GanttView({
                       >
                         {t.isUrgent && t.status !== "COMPLETED" && <UrgentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-600" />}
                         <span className="truncate">{t.title}</span>
+                        {t.inReview && <span title="En revisión" className="flex-shrink-0"><ReviewChecklistIcon className="h-3.5 w-3.5 text-teal-600" /></span>}
+                        {t.status === "RETURNED" && <span title="Devuelta" className="flex-shrink-0"><UndoIcon className="h-3.5 w-3.5 text-orange-600" /></span>}
                       </a>
                       {t.bottleneckReason && (
                         <ReferencePopover
@@ -1145,6 +1148,7 @@ export function GanttView({
                         taskId={t.id}
                         projectId={t.projectId}
                         status={t.status}
+                        inReview={t.inReview}
                         title={t.title}
                         color={barColor(t)}
                         startIndex={t.startIndex}

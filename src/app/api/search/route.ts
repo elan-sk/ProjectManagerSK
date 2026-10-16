@@ -8,7 +8,7 @@ import { commentPreview } from "@/lib/commentBody";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE } from "@/lib/attachments";
 import { taskCoverUrl } from "@/lib/taskCover";
 import { credentialVisibleWhere } from "@/lib/credentials";
-import { TASK_STATUS_LABEL, TASK_TYPE_LABEL } from "@/lib/statusColors";
+import { TASK_TYPE_LABEL, isTaskInReview, taskStatusLabels } from "@/lib/statusColors";
 import { tagLabel } from "@/lib/tagFilter";
 import type { Prisma, TaskStatus } from "@prisma/client";
 
@@ -31,6 +31,7 @@ export type SearchHit = {
   // Solo en resultados de tarea: tipo y estado (el cliente los traduce a etiqueta y color).
   taskType?: string;
   taskStatus?: TaskStatus;
+  taskInReview?: boolean;
   // Archivos, links y contraseñas: el buscador los abre en su visor (como AttachmentGrid) en vez de navegar.
   preview?: { url: string; mimeType: string };
   siteUrl?: string | null;
@@ -119,6 +120,7 @@ export async function GET(request: Request) {
           description: true,
           type: true,
           status: true,
+          reviewRounds: { where: { outcome: null }, select: { outcome: true } },
           steps: { select: { id: true, description: true } },
           taskTags: { select: { tag: { select: { name: true, category: { select: { name: true, emoji: true } } } } } },
           assignees: { select: { user: { select: { name: true, avatarUrl: true } } } },
@@ -152,10 +154,10 @@ export async function GET(request: Request) {
       const { value, content } = splitFilterValue(text);
       const label = (scope: Scope) =>
         f === "project" ? `${scope.project.parent?.name ?? ""} ${scope.project.name} ${scope.project.clientName ?? ""} ${stripHtml(scope.project.description ?? "")}`
-        : !scope.task ? null : f === "taskType" ? TASK_TYPE_LABEL[scope.task.type] ?? scope.task.type : TASK_STATUS_LABEL[scope.task.status];
+        : !scope.task ? null : f === "taskType" ? TASK_TYPE_LABEL[scope.task.type] ?? scope.task.type : taskStatusLabels(scope.task);
       return (scope) => {
         const haystack = label(scope);
-        return haystack !== null && (!value || fuzzyScore(value, haystack) > 0) ? content : null;
+        return haystack !== null && (!value || [haystack].flat().some((h) => fuzzyScore(value, h) > 0)) ? content : null;
       };
     }
     return () => text;
@@ -191,7 +193,7 @@ export async function GET(request: Request) {
   });
 
   const hits: SearchHit[] = [];
-  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "preview" | "siteUrl" | "coverUrl">, contextText = "", scope?: Scope) => {
+  const push = (kind: SearchHit["kind"], id: string, title: string, context: string | null, href: string, text: string, project?: SearchHit["project"], people?: SearchHit["people"], extra?: Pick<SearchHit, "taskType" | "taskStatus" | "taskInReview" | "preview" | "siteUrl" | "coverUrl">, contextText = "", scope?: Scope) => {
     if (hitKind && kind !== hitKind) return;
     // Por etiqueta ya llegan solo las tareas que coinciden (matchesTag).
     // Con pesos (weightedScore): el título cuenta más que la descripción, y esta más que el contexto
@@ -229,7 +231,7 @@ export async function GET(request: Request) {
         .join(", ");
       const typeMatches =
         filter === "taskType" ? fuzzyScore(typeOrStatusText, TASK_TYPE_LABEL[t.type] ?? t.type) > 0
-        : filter === "taskStatus" ? fuzzyScore(typeOrStatusText, TASK_STATUS_LABEL[t.status]) > 0
+        : filter === "taskStatus" ? taskStatusLabels(t).some((l) => fuzzyScore(typeOrStatusText, l) > 0)
         : true;
       if (typeMatches && (filter !== "tag" || tags)) {
         const taskText = filter === "tag" && !tagContentText ? tags : `${t.title} ${stripHtml(t.description ?? "")}`;
@@ -238,7 +240,7 @@ export async function GET(request: Request) {
         // persona tiene ese rol, sin competir con el título ni la descripción.
         const projectText = `${p.parent?.name ?? ""} ${p.name} ${p.clientName ?? ""}`;
         const teamText = p.roles.map((r) => `${r.user.name} ${r.user.cargo ?? ""} ${r.role}`).join(" ");
-        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`, { project: p, task: t });
+        push("task", t.id, t.title, filter === "tag" ? `${tags} · ${p.name}` : p.name, taskHref, taskText, logo, involved, { taskType: t.type, taskStatus: t.status, taskInReview: isTaskInReview(t), coverUrl: taskCoverUrl(t) }, `${projectText} ${teamText}`, { project: p, task: t });
       }
       for (const s of t.steps) push("step", s.id, snippet(s.description.replace(/\*([^*\n]+)\*/g, "$1")), `${t.title} · ${p.name}`, taskHref, s.description, logo, involved);
       for (const a of t.attachments) {
