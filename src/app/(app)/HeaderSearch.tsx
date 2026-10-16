@@ -73,9 +73,6 @@ const FIELD_SHORTCUTS = [
   { prefix: "contraseñas", label: "Buscar contraseñas", Icon: KeyIcon },
 ];
 
-// Píldoras «& y además» / «| o también» (ver connectorChoices).
-const CONNECTOR_BADGE = "bg-slate-700 text-white";
-
 // Punto de color de cada tipo en el menú «Buscar por tipo» (mismos tonos que las etiquetas).
 const KIND_DOT: Record<(typeof HEADER_SEARCH_OPTIONS)[number]["kind"], string> = {
   project: "bg-[#0a6b78]",
@@ -365,8 +362,8 @@ export function HeaderSearch() {
   const connectorChoices: Choice[] =
     parsed.filter && splitFilterValue(parsed.text).value && (level === 0 || piece.endsWith(":"))
       ? [
-          { key: "&", label: "& y además", badge: CONNECTOR_BADGE, query: `${piece}&` },
-          { key: "|", label: "| o también", badge: CONNECTOR_BADGE, query: `${piece}|` },
+          { key: "&", label: "& y además", query: `${piece}&` },
+          { key: "|", label: "| o también", query: `${piece}|` },
         ]
       : [];
   const choices = filterChoices.length
