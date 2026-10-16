@@ -27,6 +27,7 @@ import { AcceptancePanel } from "./AcceptancePanel";
 import { GoogleCalendarButton } from "./GoogleCalendarButton";
 import { isGoogleCalendarConfigured } from "@/lib/googleCalendar";
 import { TaskStatusControl } from "./TaskStatusControl";
+import { InReviewBadge } from "@/components/TaskIndicators";
 import { InlineTitle } from "./InlineTitle";
 import { InlineDescription } from "./InlineDescription";
 import { InlineMeetingUrl } from "./InlineMeetingUrl";
@@ -549,6 +550,7 @@ export default async function TaskDetailPage({
                 canManage={canManage}
                 completionBlockedReason={completionBlockedReason}
               />
+              {isTaskInReview(task) && <InReviewBadge className="text-xs" />}
             </div>
           </div>
           {canManage && (
