@@ -27,6 +27,7 @@ import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, TA
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
 import type { TaskStatus } from "@prisma/client";
+import { holdPageAtBottom } from "@/lib/holdPageAtBottom";
 
 export type TaskCard = {
   id: string;
@@ -591,6 +592,7 @@ export function KanbanBoard({
   // seleccionada, las casillas y la barra de combinar quedan fijas hasta cancelar o combinar.
   const [ctrlHeld, setCtrlHeld] = useState(false);
   const selectMode = ctrlHeld || selectedIds.size > 0;
+  useEffect(holdPageAtBottom, []);
   useEffect(() => {
     const sync = (e: KeyboardEvent) => setCtrlHeld(e.ctrlKey || e.metaKey);
     const off = () => setCtrlHeld(false);

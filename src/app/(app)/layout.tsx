@@ -127,6 +127,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <NavigationProgress />
     </Suspense>
     <div className="pacific-shell min-h-screen bg-slate-50">
+      {/* Imanes de scroll del tablero y el Gantt (ver globals.css). */}
+      <div aria-hidden className="snap-point-start" />
       <header className="pacific-header sticky top-0 z-50 relative flex items-center gap-2 px-4 py-1 sm:px-6">
         <div className="flex flex-shrink-0 items-center gap-2 text-sm font-medium">
           <BackButton />
@@ -180,6 +182,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </MobileMenuToggle>
       </header>
       <main className="p-4 sm:p-6">{children}</main>
+      <div aria-hidden className="snap-point-end" />
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
       <HotkeyHints />
     </div>

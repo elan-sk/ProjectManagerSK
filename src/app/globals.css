@@ -167,6 +167,16 @@ h1, h2 {
     radial-gradient(circle at -8% 108%, rgba(23, 102, 78, 0.1), transparent 38rem),
     linear-gradient(180deg, #d9eeea 0, var(--background) 22rem);
 }
+/* Tablero y Gantt: la página tiende a quedarse abajo del todo (panel completo
+   en pantalla) o arriba del todo; si se suelta el scroll cerca de uno de los
+   dos, se acomoda solo. Para salir de esa zona hace falta un scroll decidido.
+   Los imanes son marcadores de alto 0 (layout.tsx): uno más alto que la
+   pantalla (el shell, el panel) deja el scroll libre y no imanta. */
+@media (min-width: 640px) {
+  html:has(.sticky-view-panel-kanban, .sticky-view-panel-gantt) { scroll-snap-type: y proximity; }
+}
+.snap-point-start { scroll-snap-align: start; }
+.snap-point-end { scroll-snap-align: end; }
 .pacific-header {
   background: linear-gradient(115deg, var(--pacific-deep) 0%, #0a5866 62%, var(--pacific-tide) 100%);
   box-shadow: 0 10px 28px rgba(7, 59, 76, 0.18);

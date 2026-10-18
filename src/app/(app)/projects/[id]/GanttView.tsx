@@ -21,6 +21,7 @@ import { CRITICAL_PATH_EVENT } from "./CriticalPathButton";
 import { useToast } from "@/components/Toast";
 import type { TaskAlert } from "@/lib/delays";
 import type { CollisionInfo } from "@/lib/collisions";
+import { holdPageAtBottom } from "@/lib/holdPageAtBottom";
 
 const DAY_WIDTH = 28;
 const LABEL_WIDTH = 260;
@@ -330,6 +331,8 @@ export function GanttView({
   const closeHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const criticalTasksOrderedRef = useRef<GanttTask[]>([]);
+
+  useEffect(holdPageAtBottom, []);
 
   // Punto 2: "Ver mis colisiones" ya filtra `tasks` (server-side, vía
   // matchesBoardFilters) a solo las tareas que chocan entre sí — acá solo
