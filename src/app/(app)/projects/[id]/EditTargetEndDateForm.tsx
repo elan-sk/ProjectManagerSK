@@ -38,6 +38,24 @@ export function EditTargetEndDateForm({
         solo: no tiene relación con las fechas planeadas de las tareas.
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {/* Proyectos permanentes no tienen cierre: si se creó con fecha por error, se quita acá. */}
+      {currentTargetEndDate && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const result = await updateProjectTargetEndDate(projectId, new FormData());
+              if (result.ok) onDone();
+              else setError(result.error ?? "No se pudo quitar la fecha.");
+            });
+          }}
+          className="w-full rounded-lg border border-slate-300 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+        >
+          Quitar fecha de cierre
+        </button>
+      )}
       <button
         disabled={isPending}
         className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
