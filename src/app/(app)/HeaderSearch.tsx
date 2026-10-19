@@ -489,8 +489,10 @@ export function HeaderSearch() {
             {choices.length > 0 && (
               <div className="flex flex-wrap gap-1.5 p-1.5">
                 {choices.map((c, i) => (
+                  <Fragment key={c.key}>
+                  {/* «y además» / «o también» siempre en su propia fila, debajo de las sugerencias. */}
+                  {c === connectorChoices[0] && i > 0 && <span className="-mb-1.5 h-0 basis-full" aria-hidden />}
                   <button
-                    key={c.key}
                     type="button"
                     onClick={() => choose(c)}
                     className={`flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:brightness-95 ${c.badge ?? (c.colorHex ? "" : "bg-slate-100 text-slate-700")} ${i === 0 && partial ? "ring-2 ring-[#0a6b78]/50" : ""}`}
@@ -500,6 +502,7 @@ export function HeaderSearch() {
                     {c.emoji ? <span aria-hidden>{c.emoji}</span> : c.colorHex ? <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: c.colorHex }} aria-hidden /> : null}
                     {c.label}
                   </button>
+                  </Fragment>
                 ))}
               </div>
             )}
