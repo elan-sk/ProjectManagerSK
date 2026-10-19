@@ -1033,20 +1033,24 @@ export default async function ProjectPage({
             <CriticalPathButton />
           </div>
         )}
-      </MobileFiltersToggle>
-      )}
 
-      {/* Las archivadas no salen en Tablero/Gantt/Calendario: sin este aviso, un proyecto con
-          todas sus tareas archivadas se ve vacío como si no tuviera ninguna. */}
-      {!archivedView && archivedCount > 0 && (!view || view === "kanban" || view === "gantt" || view === "calendar") && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <span>
-            {archivedCount === 1 ? "Hay 1 tarea archivada" : `Hay ${archivedCount} tareas archivadas`} en este proyecto.
-          </span>
-          <Link href={filterHref({ status: "ARCHIVED", archived: undefined })} className="font-medium underline underline-offset-2 hover:text-amber-950">
-            Ver archivadas
-          </Link>
-        </div>
+        {/* Las archivadas no salen en Tablero/Gantt/Calendario: sin este aviso, un proyecto con
+            todas sus tareas archivadas se ve vacío como si no tuviera ninguna. Va en la fila de
+            filtros para no robarle alto al panel del tablero/Gantt. */}
+        {!archivedView && archivedCount > 0 && (!view || view === "kanban" || view === "gantt" || view === "calendar") && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400">&nbsp;</span>
+            <Link
+              href={filterHref({ status: "ARCHIVED", archived: undefined })}
+              title={archivedCount === 1 ? "Hay 1 tarea archivada en este proyecto" : `Hay ${archivedCount} tareas archivadas en este proyecto`}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+            >
+              Ver archivadas
+              <span className="rounded-full bg-amber-200 px-1.5 text-xs">{archivedCount}</span>
+            </Link>
+          </div>
+        )}
+      </MobileFiltersToggle>
       )}
 
       {view === "calendar" && (
