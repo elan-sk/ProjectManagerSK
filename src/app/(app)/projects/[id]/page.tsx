@@ -20,7 +20,7 @@ import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
 import { getActiveClaudeLink } from "@/lib/apiAuth";
-import { EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
+import { ArchiveIcon, EyeOffIcon, ShareIcon, SparklesIcon } from "@/components/icons";
 import { attachmentFileType, CREDENTIAL_MIME_TYPE, credentialRef, credentialUrlLabel, LINK_MIME_TYPE, repoLinkName } from "@/lib/attachments";
 import { rangeForMode, stepAnchor, utcDate, type CalendarMode } from "@/lib/calendarGrid";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
@@ -1045,6 +1045,7 @@ export default async function ProjectPage({
               title={archivedCount === 1 ? "Hay 1 tarea archivada en este proyecto" : `Hay ${archivedCount} tareas archivadas en este proyecto`}
               className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
             >
+              <ArchiveIcon className="h-3.5 w-3.5 flex-shrink-0" />
               Ver archivadas
               <span className="rounded-full bg-amber-200 px-1.5 text-xs">{archivedCount}</span>
             </Link>
