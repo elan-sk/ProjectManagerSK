@@ -14,7 +14,7 @@
 const CUSHION_PX = 600; // ~5-6 muescas de rueda
 const TOUCH_CUSHION_PX = 90; // dedo: alcanza con un arrastre corto, o dos seguidos
 const TOUCH_MEMORY_MS = 1200; // el empuje del dedo se recuerda este tiempo entre arrastres
-const BAR_PX = 3; // alto de la barrita del aviso del imán
+const BAR_PX = 2; // alto de la barrita del aviso del imán
 const GESTURE_GAP_MS = 300; // pausa entre eventos de rueda que separa un gesto del siguiente
 const PANEL = ".sticky-view-panel-kanban, .sticky-view-panel-gantt";
 
@@ -70,10 +70,9 @@ export function holdPageAtBottom() {
       bar = document.createElement("div");
       Object.assign(bar.style, {
         height: `${BAR_PX}px`,
-        borderRadius: "9999px",
-        // Neón con la paleta de la app (globals.css): núcleo blue-400, halo blue-500 y pacific-tide.
+        // Neón con la paleta de la app (globals.css): núcleo blue-400 y halo suave blue-500.
         background: "var(--color-blue-400)",
-        boxShadow: "0 0 3px var(--color-blue-500), 0 0 8px var(--pacific-tide)",
+        boxShadow: "0 0 4px color-mix(in srgb, var(--color-blue-500) 45%, transparent)",
         transform: "scaleX(0)",
       });
       overlay.appendChild(bar);
