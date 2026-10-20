@@ -48,6 +48,8 @@ Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid
 
 5. **El build de producción usa webpack, no Turbopack** (`"build": "... && next build --webpack"`). El 2026-10-02 dos deploys seguidos fallaron con `TurbopackInternalError: [project]/src/app/globals.css ... node process exited before we could connect to it with exit status: 0`: Turbopack crea un proceso Node aparte para el PostCSS/Tailwind y el entorno de build de Hostinger lo mata al arrancar (el 25-sep, mismo Next y mismo CSS, había compilado). Webpack procesa el CSS en el mismo proceso. No es un error de código: no volver a quitar `--webpack` del build. `next dev` local sigue con Turbopack, ahí funciona.
 
+6. **El build limita a 2 los workers de Next** (`next.config.ts`: `experimental: { cpus: 2 }`). El 2026-10-19/20 cuatro deploys seguidos fallaron en `Collecting page data using 63 workers ...` con `OS can't spawn worker thread: Resource temporarily unavailable (os error 11)` y `SIGABRT`: el servidor reporta 64 núcleos pero la cuenta tiene límite de procesos. El zip estaba bien. No quitar esa línea.
+
 ## Registro de la app (persistent-logs)
 
 Desde el deploy que incluye `src/lib/logger.ts`, la app escribe su propio registro en `~/domains/<sitio>/persistent-logs/app-AAAA-MM-DD.log` (JSON por línea; sobrevive a los despliegues). Es lo primero que hay que mirar para problemas de WhatsApp, del programador de tareas o errores de páginas: `tail -n 200 ~/domains/<sitio>/persistent-logs/app-$(date +%F).log`. Un administrador también lo puede leer por API: `GET /api/v1/logs` (ver la skill project-manager-sk).
