@@ -175,6 +175,10 @@ h1, h2 {
 @media (min-width: 640px) {
   html:has(.sticky-view-panel-kanban, .sticky-view-panel-gantt) { scroll-snap-type: y proximity; }
 }
+/* Botón «subir» del tablero y el Gantt: solo existe donde hay uno de esos paneles
+   (ScrollTopHandle.tsx decide si se ve según el scroll). */
+.scroll-top-handle { display: none; }
+html:has(.sticky-view-panel-kanban, .sticky-view-panel-gantt) .scroll-top-handle { display: flex; }
 .snap-point-start { scroll-snap-align: start; }
 .snap-point-end { scroll-snap-align: end; }
 .pacific-header {

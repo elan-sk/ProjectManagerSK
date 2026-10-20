@@ -20,6 +20,7 @@ import { HotkeyHints } from "@/components/Hotkey";
 import { PushSubscribeButton } from "./PushSubscribeButton";
 import { NavLinkWithMemory } from "./NavLinkWithMemory";
 import { BackButton } from "./BackButton";
+import { ScrollTopHandle } from "./ScrollTopHandle";
 import { MobileMenuToggle } from "./MobileMenuToggle";
 import { Avatar } from "@/components/Avatar";
 import { ToastProvider } from "@/components/Toast";
@@ -183,6 +184,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <main className="p-4 sm:p-6">{children}</main>
       <div aria-hidden className="snap-point-end" />
+      <ScrollTopHandle />
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
       <HotkeyHints />
     </div>
