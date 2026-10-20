@@ -509,7 +509,6 @@ function Column({
         if (el) el.scrollTop = columnScrollPositions.get(scrollKey) ?? 0;
       }}
       onScroll={(e) => columnScrollPositions.set(scrollKey, e.currentTarget.scrollTop)}
-      data-pull-target
       className={`flex h-full min-w-0 flex-col overflow-y-auto rounded-2xl transition-colors ${
         isOver ? "bg-slate-200/70" : "bg-slate-100"
       }`}

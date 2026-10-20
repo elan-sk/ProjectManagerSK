@@ -962,7 +962,6 @@ export function GanttView({
         tabs, filtros) — el Gantt scrollea internamente en ambos ejes dentro
         de ese alto. */}
     <div
-      data-pull-target
       ref={scrollRef}
       onScroll={onGanttScroll}
       onPointerDown={onContainerPointerDown}

@@ -7,14 +7,14 @@
 // - Un gesto nuevo, empezado con todo en el tope, mueve la página solo después
 //   de empujar CUSHION_PX hacia arriba (rueda) o TOUCH_CUSHION_PX (dedo). El dedo
 //   usa un colchón corto y lo recuerda entre arrastres seguidos (TOUCH_MEMORY_MS).
-// - Mientras se empuja, las columnas del tablero y el Gantt se deforman como una goma (el borde de arriba baja MAX_PULL_PX
-//   con el de abajo fijo, con un resplandor teal en su borde superior) para que se vea que el
-//   imán retiene y que seguir empujando lo suelta.
+// - Mientras se empuja, una franja teal sobre el borde superior del panel se llena y brilla
+//   más (sin deformar las columnas) para que se vea que el imán retiene y que seguir
+//   empujando lo suelta.
 // Devuelve la función de limpieza (para useEffect).
 const CUSHION_PX = 600; // ~5-6 muescas de rueda
 const TOUCH_CUSHION_PX = 90; // dedo: alcanza con un arrastre corto, o dos seguidos
 const TOUCH_MEMORY_MS = 1200; // el empuje del dedo se recuerda este tiempo entre arrastres
-const MAX_PULL_PX = 36; // cuánto baja el borde de arriba al llegar al colchón
+const MAX_PULL_PX = 36; // alto del resplandor del aviso del imán
 const GESTURE_GAP_MS = 300; // pausa entre eventos de rueda que separa un gesto del siguiente
 const PANEL = ".sticky-view-panel-kanban, .sticky-view-panel-gantt";
 
@@ -35,11 +35,12 @@ export function holdPageAtBottom() {
   };
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // ratio: 0 = en reposo, 1 = justo antes de soltar la página.
-  // El efecto va directo en lo que se ve: cada columna del tablero y el cuerpo
-  // del Gantt (marcados con data-pull-target). El borde de abajo queda fijo y el de
-  // arriba baja hasta MAX_PULL_PX: así nada se sale del tablero (que recorta en vertical).
+  // Aviso del imán: una franja teal sobre el borde superior del panel que se llena desde el
+  // centro, con un resplandor que se intensifica. Va en una capa aparte (fija, sin eventos)
+  // y solo anima opacity/transform: las columnas no se deforman ni se vuelven a pintar.
   // Un cambio por cuadro (rAF) y siempre con transición corta: sin saltos en el dedo.
-  let targets: { el: HTMLElement; h: number }[] = [];
+  let overlay: HTMLDivElement | null = null;
+  let bar: HTMLDivElement | null = null;
   let shown = 0;
   let pending = 0;
   let frame = 0;
@@ -50,31 +51,47 @@ export function holdPageAtBottom() {
     if (ratio === shown) return;
     if (!shown) {
       clearTimeout(cleanTimer);
-      targets = [...document.querySelectorAll<HTMLElement>(`:is(${PANEL}) [data-pull-target]`)].map((el) => ({ el, h: el.offsetHeight }));
-      for (const { el } of targets) {
-        el.style.transformOrigin = "bottom";
-        el.style.willChange = "transform";
-        // Interior (inset): el tablero recorta lo que sale de las columnas.
-        el.style.boxShadow = "inset 0 12px 16px -10px rgba(10, 107, 120, 0.45)";
-      }
+      const panel = document.querySelector<HTMLElement>(PANEL);
+      if (!panel) return;
+      const box = panel.getBoundingClientRect();
+      overlay?.remove();
+      overlay = document.createElement("div");
+      overlay.setAttribute("aria-hidden", "true");
+      Object.assign(overlay.style, {
+        position: "fixed",
+        top: `${box.top}px`,
+        left: `${box.left}px`,
+        width: `${box.width}px`,
+        height: `${MAX_PULL_PX}px`,
+        pointerEvents: "none",
+        zIndex: "30",
+        borderRadius: "1rem 1rem 0 0",
+        background: "linear-gradient(to bottom, rgba(10, 107, 120, 0.3), rgba(10, 107, 120, 0))",
+        opacity: "0",
+      });
+      bar = document.createElement("div");
+      Object.assign(bar.style, {
+        height: "3px",
+        borderRadius: "9999px",
+        background: "rgb(10, 107, 120)",
+        transform: "scaleX(0)",
+      });
+      overlay.appendChild(bar);
+      document.body.appendChild(overlay);
     }
+    if (!overlay || !bar) return;
     const ms = ratio ? 120 : 220;
-    for (const { el, h } of targets) {
-      el.style.transition = `transform ${ms}ms ease-out, box-shadow 220ms ease-out`;
-      el.style.transform = `scaleY(${h ? 1 - (ratio * MAX_PULL_PX) / h : 1})`;
-      if (!ratio) el.style.boxShadow = "";
-    }
+    overlay.style.transition = `opacity ${ms}ms ease-out`;
+    bar.style.transition = `transform ${ms}ms ease-out`;
+    overlay.style.opacity = String(ratio ? 0.35 + 0.65 * ratio : 0);
+    bar.style.transform = `scaleX(${ratio})`;
     shown = ratio;
-    // En reposo se quitan los estilos para no pisar los propios del elemento.
+    // En reposo, la capa se quita cuando termina de apagarse.
     if (!ratio) {
-      const done = targets;
+      const done = overlay;
       cleanTimer = setTimeout(() => {
-        for (const { el } of done) {
-          el.style.transition = "";
-          el.style.transform = "";
-          el.style.transformOrigin = "";
-          el.style.willChange = "";
-        }
+        done.remove();
+        if (overlay === done) overlay = bar = null;
       }, 240);
     }
   };
@@ -139,8 +156,7 @@ export function holdPageAtBottom() {
     clearTimeout(relaxTimer);
     clearTimeout(cleanTimer);
     cancelAnimationFrame(frame);
-    pending = 0;
-    paint();
+    overlay?.remove();
     window.removeEventListener("touchend", onTouchEnd);
     window.removeEventListener("touchcancel", onTouchEnd);
     window.removeEventListener("wheel", onWheel);
