@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { contributionPct, taskContribution, TASK_CONTRIBUTION_SELECT } from "@/lib/taskProgress";
 import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere, type Actor } from "@/lib/permissions";
 import { groupRows, worstVariance } from "@/lib/subprojects";
 import { getTaskAlert, type TaskAlert } from "@/lib/delays";
@@ -65,6 +66,7 @@ export type PmProjectSummary = {
   iconUrl: string | null;
   total: number;
   completed: number;
+  progressSum: number;
   blockedCount: number;
   health: "ok" | "warn" | "bad";
   lateStartCount: number;
@@ -95,7 +97,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSu
       parent: { select: { name: true, iconUrl: true } },
       pm: { select: { name: true, avatarUrl: true } },
       countryCode: true,
-      tasks: { select: { status: true, plannedStart: true, plannedEnd: true } },
+      tasks: { select: { plannedStart: true, plannedEnd: true, ...TASK_CONTRIBUTION_SELECT } },
     },
     orderBy: { createdAt: "desc" }, // mismo orden que el resumen de Proyectos: el más reciente primero
   });
@@ -117,6 +119,7 @@ export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSu
       iconUrl: p.iconUrl,
       total: p.tasks.length,
       completed,
+      progressSum: p.tasks.reduce((sum, t) => sum + taskContribution(t), 0),
       blockedCount: p.tasks.filter((t) => t.status === "BLOCKED").length,
       health: projectHealth(overdueCount, p.tasks.length),
       lateStartCount,
@@ -147,17 +150,18 @@ export function groupPmSummaries(rows: PmProjectSummary[]): PmProjectSummary[] {
     const overdueCount = sum((x) => x.overdueCount);
     return {
       ...r,
-      // Mismo % que la lista «Subproyectos» de la Definición (completadas / total, redondeado).
+      // Mismo % que la lista «Subproyectos» de la Definición (promedio del aporte de sus tareas, spec 011).
       subprojects: kids.map((k) => ({
         id: k.id,
         name: k.name,
         iconUrl: k.iconUrl,
         pmName: k.pm.name,
         pmAvatarUrl: k.pm.avatarUrl,
-        pct: k.total > 0 ? Math.round((k.completed / k.total) * 100) : 0,
+        pct: contributionPct(k),
       })),
       total,
       completed: sum((x) => x.completed),
+      progressSum: sum((x) => x.progressSum),
       blockedCount: sum((x) => x.blockedCount),
       lateStartCount: sum((x) => x.lateStartCount),
       overdueCount,

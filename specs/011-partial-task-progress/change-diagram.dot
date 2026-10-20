@@ -1,0 +1,25 @@
+digraph G {
+  rankdir=LR; graph [fontname="Helvetica", nodesep=0.35, ranksep=0.6, pad=0.3];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_after { label="Después"; fontname="Helvetica"; color="#BDBDBD";
+    a_task [label="Tarea\n(estado, tipo, checklist,\npuntos, rondas, evidencia)", fillcolor="#E0E0E0", color="#757575"];
+    a_rule [label="Aporte de la tarea (regla única)\nCompletada 100 · Sin iniciar 0\nEn revisión 90\nEn curso/Devuelta/Bloqueada:\nbarrita (tope 90) o 25 sin checklist", fillcolor="#C8E6C9", color="#2E7D32"];
+    a_pct [label="% = promedio de aportes\n(fase, requerimiento, objetivo,\nproyecto, subproyectos)", fillcolor="#FFE0B2", color="#EF6C00"];
+    a_fc [label="Retraso: vencida en curso\n= hoy + duración × lo que falta\n(mín. 1 día; en revisión 1 día)", fillcolor="#FFE0B2", color="#EF6C00"];
+    a_count [label="Conteo «N/M completadas»", fillcolor="#E0E0E0", color="#757575"];
+    a_screens [label="Resumen · Definición · Gantt\nTarjetas · Agenda · Link cliente\nWhatsApp · Bot", fillcolor="#E0E0E0", color="#757575"];
+    a_task -> a_rule; a_rule -> a_pct; a_rule -> a_fc; a_task -> a_count;
+    a_pct -> a_screens; a_fc -> a_screens; a_count -> a_screens;
+  }
+
+  subgraph cluster_before { label="Antes"; fontname="Helvetica"; color="#BDBDBD";
+    b_task [label="Tarea\n(estado)", fillcolor="#E0E0E0", color="#757575"];
+    b_rule [label="¿Completada?\nsí = 1 · no = 0", fillcolor="#FFCDD2", color="#C62828"];
+    b_pct [label="% = completadas ÷ total", fillcolor="#FFCDD2", color="#C62828"];
+    b_fc [label="Retraso: vencida en curso\n= hoy + duración completa", fillcolor="#FFCDD2", color="#C62828"];
+    b_task -> b_rule [style=dashed]; b_rule -> b_pct [style=dashed]; b_task -> b_fc [style=dashed];
+  }
+
+}

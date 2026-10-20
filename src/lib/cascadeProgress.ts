@@ -3,11 +3,12 @@ import { todayUTC, businessDaysBetween } from "@/lib/holidays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { getProjectForecast, groupDelayDays, type ProjectForecast } from "@/lib/scheduleForecast";
 import type { TaskStatus } from "@prisma/client";
+import { averageContribution, TASK_CONTRIBUTION_SELECT, type ContributionTask } from "@/lib/taskProgress";
 
 /**
  * Avance en cascada de la pestaña "Definición" (punto confirmado con el
- * usuario: promedio simple). % de una fase = tareas completadas / total de
- * esa fase (0 si no tiene tareas todavía). % de un requerimiento = promedio
+ * usuario: promedio simple). % de una fase = promedio del aporte de sus tareas
+ * (spec 011, taskContribution; 0 si no tiene tareas todavía). % de un requerimiento = promedio
  * del % de sus fases vinculadas (0 si no tiene ninguna vinculada todavía).
  * % de un objetivo = promedio del % de sus requerimientos vinculados.
  *
@@ -29,10 +30,8 @@ function dedupeById(items: TaskRef[]): TaskRef[] {
   });
 }
 
-function phasePct(phase: { tasks: { status: string }[] }) {
-  if (phase.tasks.length === 0) return 0;
-  const completed = phase.tasks.filter((t) => t.status === "COMPLETED").length;
-  return Math.round((completed / phase.tasks.length) * 100);
+function phasePct(phase: { tasks: ContributionTask[] }) {
+  return averageContribution(phase.tasks);
 }
 
 // Misma definición de "atrasada" que getTaskAlert (src/lib/delays.ts): abierta
@@ -90,7 +89,7 @@ const worstOrNull = minOrNull;
 type GroupSummary = { pct: number; atRisk: boolean; overdueTasks: TaskRef[] };
 
 export function summarizeRequirement(
-  ownTasks: { id: string; title: string; status: string; plannedEnd: Date }[],
+  ownTasks: ({ id: string; title: string; plannedEnd: Date } & ContributionTask)[],
   linkedPhases: GroupSummary[],
   projectId: string,
 ) {
@@ -177,7 +176,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         phases: { select: { id: true } },
         tasks: {
           orderBy: { plannedStart: "asc" },
-          select: { id: true, title: true, status: true, plannedEnd: true, actualEnd: true, phaseId: true },
+          select: { id: true, title: true, plannedEnd: true, actualEnd: true, phaseId: true, ...TASK_CONTRIBUTION_SELECT },
         },
       },
     }),
@@ -185,7 +184,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       where: { projectId },
       orderBy: { order: "asc" },
       include: {
-        tasks: { select: { id: true, title: true, status: true, plannedEnd: true, actualEnd: true, requirements: { select: { id: true } } } },
+        tasks: { select: { id: true, title: true, plannedEnd: true, actualEnd: true, requirements: { select: { id: true } }, ...TASK_CONTRIBUTION_SELECT } },
       },
     }),
     getProjectTaskSlack(projectId),
@@ -207,7 +206,7 @@ export async function getProjectCascadeProgress(projectId: string) {
   const toPhaseSummary = async (p: {
     id: string;
     name: string;
-    tasks: { id: string; title: string; status: string; plannedEnd: Date; actualEnd: Date | null; requirements: { id: string }[] }[];
+    tasks: ({ id: string; title: string; plannedEnd: Date; actualEnd: Date | null; requirements: { id: string }[] } & ContributionTask)[];
   }) => {
     const counts = phaseTaskCounts(p, projectId);
     return {

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { contributionPct } from "@/lib/taskProgress";
 import { progressBar } from "@/lib/progressBar";
 import { commentMentionIds, splitCommentBody } from "@/lib/commentBody";
 import { prisma } from "@/lib/prisma";
@@ -468,7 +469,7 @@ export async function buildDailyDigestText(userId: string, name: string) {
         p.overdueCount > 0 ? `⌛ ${p.overdueCount} final retrasado` : null,
         p.blockedCount > 0 ? `🔒 ${p.blockedCount} bloqueada(s)` : null,
       ].filter((f): f is string => f !== null);
-      const progress = p.total === 0 ? 0 : Math.round((p.completed / p.total) * 100);
+      const progress = contributionPct(p);
       lines.push(
         "",
         `• *${p.name}*`,

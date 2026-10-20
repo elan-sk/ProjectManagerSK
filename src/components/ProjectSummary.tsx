@@ -108,13 +108,14 @@ export function ProjectProgress({
   bottlenecks,
   total,
   completed,
+  pct,
 }: {
   projectId: string;
   bottlenecks: Awaited<ReturnType<typeof getBottlenecks>>;
   total: number;
   completed: number;
+  pct: number;
 }) {
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
     <div>

@@ -1,4 +1,4 @@
-import { deliverableEvidenceLoaded, taskProgress } from "@/lib/taskProgress";
+import { deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -427,6 +427,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         phaseName: t.phase.name,
         status: t.status,
         reviewState: taskReviewState(t),
+        contribution: taskContribution(t),
         canManage: canManageProject(t.projectId),
         updatedAt: t.updatedAt.toISOString(),
         startIndex,

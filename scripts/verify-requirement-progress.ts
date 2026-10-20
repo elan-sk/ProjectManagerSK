@@ -3,7 +3,7 @@ import { summarizeRequirement } from "../src/lib/cascadeProgress";
 
 const past = new Date("2020-01-01");
 const future = new Date("2999-01-01");
-const task = (id: string, status: string, plannedEnd = future) => ({ id, title: id, status, plannedEnd });
+const task = (id: string, status: string, plannedEnd = future) => ({ id, title: id, status, plannedEnd, type: "SIMPLE", steps: [], adjustmentItems: [], reviewRounds: [], attachments: [] });
 const phase = (pct: number, overdueIds: string[] = []) => ({
   pct,
   atRisk: overdueIds.length > 0,
@@ -14,7 +14,7 @@ const sharedPhase = [phase(50)];
 const done = summarizeRequirement([task("a", "COMPLETED"), task("b", "COMPLETED")], sharedPhase, "p");
 const pending = summarizeRequirement([task("c", "NOT_STARTED"), task("d", "IN_PROGRESS")], sharedPhase, "p");
 assert.equal(done.pct, 100, "dos requerimientos de la misma fase: cada uno con el avance de sus tareas");
-assert.equal(pending.pct, 0);
+assert.equal(pending.pct, 13, "spec 011: en curso sin checklist aporta 25 %, sin iniciar 0 %");
 assert.equal(done.usesPhaseFallback, false);
 
 const partial = summarizeRequirement([task("a", "COMPLETED"), task("b", "NOT_STARTED"), task("c", "NOT_STARTED")], [phase(100)], "p");

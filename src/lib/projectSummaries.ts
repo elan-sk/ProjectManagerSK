@@ -7,6 +7,7 @@ import { projectHealth, HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectPhase, PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import { groupRows, worstVariance } from "@/lib/subprojects";
 import type { Prisma } from "@prisma/client";
+import { contributionPct, taskContribution, TASK_CONTRIBUTION_SELECT } from "@/lib/taskProgress";
 
 // Extraído de /projects/page.tsx para poder reusar EXACTAMENTE la misma
 // "vista resumen" (card de proyecto con salud/progreso/alertas) en otro
@@ -18,7 +19,7 @@ const projectInclude = {
   pm: true,
   // Spec 004: principal de un subproyecto (doble ícono cuando el subproyecto sale suelto).
   parent: { select: { id: true, name: true, iconUrl: true } },
-  tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
+  tasks: { select: { id: true, title: true, plannedStart: true, plannedEnd: true, actualEnd: true, ...TASK_CONTRIBUTION_SELECT } },
   attachments: { orderBy: { uploadedAt: "asc" as const } },
   links: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.ProjectInclude;
@@ -38,6 +39,7 @@ export type ProjectSummaryRow = {
     bottlenecks: Awaited<ReturnType<typeof getBottlenecks>>;
     total: number;
     completed: number;
+    progressSum: number;
     health: keyof typeof HEALTH_LABEL;
     phase: keyof typeof PROJECT_PHASE_LABEL;
     collisionTasks: { id: string; title: string }[];
@@ -105,6 +107,7 @@ export async function getProjectSummaryRows(
       const bottlenecks = await getBottlenecks(p.id);
       const total = p.tasks.length;
       const completed = p.tasks.filter((t) => t.status === "COMPLETED").length;
+      const progressSum = p.tasks.reduce((sum, t) => sum + taskContribution(t), 0);
       const started = p.tasks.some((t) => t.status !== "NOT_STARTED");
       const collisionTasks = canSeeCollisions
         ? p.tasks.filter((t) => collisionsById.has(t.id)).map((t) => ({ id: t.id, title: t.title }))
@@ -132,6 +135,7 @@ export async function getProjectSummaryRows(
           bottlenecks,
           total,
           completed,
+          progressSum,
           health: projectHealth(overdueTasks.length, total),
           phase: projectPhase(total, completed, started),
           collisionTasks,
@@ -164,14 +168,14 @@ export function groupSummaryRows(rows: ProjectSummaryRow[]): GroupedSummaryRow[]
     const slack = all.map((x) => x.openSlackDays).filter((v): v is number => v !== null);
     return {
       project: row.project,
-      // Mismo % que la lista «Subproyectos» de la Definición (tareas completadas / total, redondeado).
+      // Mismo % que la lista «Subproyectos» de la Definición (promedio del aporte de sus tareas, spec 011).
       subprojects: kids.map((k) => ({
         id: k.project.id,
         name: k.project.name,
         iconUrl: k.project.iconUrl,
         pmName: k.project.pm.name,
         pmAvatarUrl: k.project.pm.avatarUrl,
-        pct: k.summary.total > 0 ? Math.round((k.summary.completed / k.summary.total) * 100) : 0,
+        pct: contributionPct(k.summary),
       })),
       summary: {
         overdueCount,
@@ -183,6 +187,7 @@ export function groupSummaryRows(rows: ProjectSummaryRow[]): GroupedSummaryRow[]
         bottlenecks: all.flatMap((x) => x.bottlenecks),
         total,
         completed,
+        progressSum: sum((x) => x.progressSum),
         health: projectHealth(overdueCount, total),
         phase: projectPhase(total, completed, all.some((x) => x.phase !== "PLANNING")),
         collisionTasks: all.flatMap((x) => x.collisionTasks),

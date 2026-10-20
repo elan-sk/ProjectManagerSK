@@ -1,4 +1,4 @@
-import { deliverableEvidenceLoaded, taskProgress } from "@/lib/taskProgress";
+import { averageContribution, deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
 import { canSeeProject, managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
@@ -306,7 +306,7 @@ export default async function ProjectPage({
   const projectFilterOptions = [{ id: project.id, label: project.name }, ...children.map((c) => ({ id: c.id, label: c.name }))];
   const childPct = (cid: string) => {
     const own = childTasks.filter((t) => t.projectId === cid);
-    return own.length > 0 ? Math.round((own.filter((t) => t.status === "COMPLETED").length / own.length) * 100) : 0;
+    return averageContribution(own);
   };
 
   // Sin ?view= en la URL: un proyecto sin nada definido (sin descripción, objetivos
@@ -375,6 +375,7 @@ export default async function ProjectPage({
     .map((t) => ({ id: t.id, title: t.title }));
   const summaryTotal = allTasks.length;
   const summaryCompleted = allTasks.filter((t) => t.status === "COMPLETED").length;
+  const summaryPct = averageContribution(allTasks);
   const summaryHealth = projectHealth(summaryOverdueTasks.length, summaryTotal);
   const phaseSlackValues = cascadeProgress.phases.map((p) => p.openSlackDays).filter((v): v is number => v !== null);
   const summaryOpenSlackDays = phaseSlackValues.length > 0 ? Math.min(...phaseSlackValues) : null;
@@ -536,6 +537,7 @@ export default async function ProjectPage({
       phaseName: allPhases.find((p) => p.id === t.phaseId)?.name ?? "—",
       status: t.status,
       reviewState: taskReviewState(t),
+      contribution: taskContribution(t),
       canManage: canManageProject(t.projectId),
       updatedAt: t.updatedAt.toISOString(),
       startIndex,
@@ -815,6 +817,7 @@ export default async function ProjectPage({
             bottlenecks={groupBottlenecks}
             total={summaryTotal}
             completed={summaryCompleted}
+            pct={summaryPct}
           />
           <div className="flex flex-wrap items-center gap-2">
             <Link href={`/performance?projectId=${project.id}`} className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200">
@@ -1125,7 +1128,7 @@ export default async function ProjectPage({
             users: users.map((u) => ({ id: u.id, name: u.name })),
           }}
           parentObjectives={parentObjectives}
-          taskProgress={{ completed: summaryCompleted, total: summaryTotal }}
+          taskProgress={{ completed: summaryCompleted, total: summaryTotal, pct: summaryPct }}
           roles={projectRoles.map((r) => ({ userId: r.userId, name: r.user.name, avatarUrl: r.user.avatarUrl, cargo: r.user.cargo, role: r.role }))}
           members={users.map((u) => ({ id: u.id, name: u.name, cargo: u.cargo }))}
         />

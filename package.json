@@ -42,6 +42,7 @@
     "verify:persistent-uploads": "tsx scripts/verify-persistent-uploads.ts",
     "verify:svg-upload": "tsx scripts/verify-svg-upload.ts",
     "verify:task-progress": "tsx scripts/verify-task-progress.ts",
+    "verify:task-contribution": "tsx scripts/verify-task-contribution.ts",
     "verify:app-url": "tsx scripts/verify-app-url.ts",
     "verify:project-roles": "tsx scripts/verify-project-roles.ts",
     "example:digest": "tsx scripts/example-daily-digest.mts",

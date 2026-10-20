@@ -10,6 +10,7 @@ import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummar
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { groupSummaryRows, type ProjectSummaryRow } from "@/lib/projectSummaries";
+import { contributionPct } from "@/lib/taskProgress";
 import { PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import Link from "next/link";
 import { NavLinkWithMemory } from "../NavLinkWithMemory";
@@ -135,7 +136,7 @@ export async function ProjectSummaryGrid({
         <ProjectCardsOrder
           limit={limit}
           items={visibleRows.map(({ project: p, summary, subprojects }) => {
-            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
+            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, progressSum, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return {
               id: p.id,
               node: (
@@ -200,7 +201,7 @@ export async function ProjectSummaryGrid({
                     </div>
                   </div>
                   <div className="mt-2">
-                    <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} />
+                    <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} pct={contributionPct({ progressSum, total })} />
                   </div>
                 </NavLinkWithMemory>
               ),

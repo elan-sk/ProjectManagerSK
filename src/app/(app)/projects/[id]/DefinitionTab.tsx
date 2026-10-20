@@ -56,7 +56,7 @@ export function DefinitionTab({
   subprojects: Omit<ComponentProps<typeof SubprojectsPanel>, "projectId" | "canManage">;
   parentObjectives?: { id: string; title: string }[];
   /** Tareas completadas / total (en un principal, de todo el grupo). */
-  taskProgress: { completed: number; total: number };
+  taskProgress: { completed: number; total: number; pct: number };
   /** Roles del equipo en este proyecto (informativos, no dan permisos). */
   roles: ProjectRoleRow[];
   members: { id: string; name: string; cargo: string | null }[];

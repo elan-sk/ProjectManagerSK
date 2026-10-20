@@ -35,3 +35,43 @@ export const progressPct = (p: { done: number; total: number }) => Math.round((p
 export function deliverableEvidenceLoaded(task: { type: string; attachments: { kind: string }[] }) {
   return task.type === "MILESTONE" && task.attachments.some((a) => a.kind === "RESULTADO");
 }
+
+export const TASK_CONTRIBUTION_SELECT = {
+  type: true,
+  status: true,
+  steps: { select: { done: true } },
+  adjustmentItems: { select: { attachments: { select: { kind: true } } } },
+  reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } },
+  attachments: { where: { kind: "RESULTADO" as const }, select: { kind: true } },
+};
+
+export type ContributionTask = {
+  type: string;
+  status: string;
+  steps: { done: boolean }[];
+  adjustmentItems: { attachments: { kind: string }[] }[];
+  reviewRounds: { outcome: unknown; checks: { result: string | null }[] }[];
+  attachments: { kind: string }[];
+};
+
+export function taskInReview(task: ContributionTask) {
+  if (task.status === "COMPLETED" || task.status === "RETURNED" || task.status === "NOT_STARTED") return false;
+  if (task.type === "QA" || task.type === "ACCEPTANCE") return task.reviewRounds.some((r) => r.outcome === null || r.outcome === "APPROVED");
+  return deliverableEvidenceLoaded(task);
+}
+
+export function taskContribution(task: ContributionTask) {
+  if (task.status === "COMPLETED") return 100;
+  if (task.status === "NOT_STARTED") return 0;
+  if (taskInReview(task)) return 90;
+  const progress = taskProgress(task);
+  return progress ? Math.min(90, progressPct(progress)) : 25;
+}
+
+export function averageContribution(tasks: ContributionTask[]) {
+  return tasks.length > 0 ? Math.round(tasks.reduce((sum, t) => sum + taskContribution(t), 0) / tasks.length) : 0;
+}
+
+export const contributionPct = (s: { progressSum: number; total: number }) => (s.total > 0 ? Math.round(s.progressSum / s.total) : 0);
+
+export const forecastRemainingShare = (task: ContributionTask) => (taskInReview(task) ? 0 : 1 - taskContribution(task) / 100);

@@ -45,6 +45,7 @@ export type GanttTask = {
   phaseName: string;
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "RETURNED";
   reviewState: ReviewState | null;
+  contribution: number;
   // Punto 9: permiso de ESTA tarea (según su proyecto) — igual que en
   // KanbanBoard, nunca un booleano único para todo el panorama general.
   canManage: boolean;
@@ -1020,8 +1021,7 @@ export function GanttView({
 
         <div className="relative">
           {Array.from(grouped.entries()).map(([groupKey, phaseTasks]) => {
-            const completed = phaseTasks.filter((t) => t.status === "COMPLETED").length;
-            const phasePct = Math.round((completed / phaseTasks.length) * 100);
+            const phasePct = Math.round(phaseTasks.reduce((sum, t) => sum + t.contribution, 0) / phaseTasks.length);
             const phaseStart = Math.min(...phaseTasks.map((t) => t.startIndex));
             const phaseEnd = Math.max(...phaseTasks.map((t) => t.startIndex + t.span));
             const phaseHasOverdue = phaseTasks.some((t) => t.alert.level === "overdue");

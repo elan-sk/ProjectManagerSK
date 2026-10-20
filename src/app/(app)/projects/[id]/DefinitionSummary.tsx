@@ -52,14 +52,14 @@ export function DefinitionSummary({
   subprojects,
   unassignedTasks,
 }: {
-  taskProgress: { completed: number; total: number };
+  taskProgress: { completed: number; total: number; pct: number };
   objectives: Row[];
   requirements: Row[];
   phases: Row[];
   subprojects: Row[];
   unassignedTasks: { id: string; title: string; href: string; phaseId: string }[];
 }) {
-  const pct = taskProgress.total > 0 ? Math.round((taskProgress.completed / taskProgress.total) * 100) : 0;
+  const pct = taskProgress.pct;
   const atRisk = [...objectives, ...requirements, ...phases].filter((r) => r.atRisk).length;
   const unassignedByPhase = phases
     .map((p) => ({ id: p.id, name: p.label, tasks: unassignedTasks.filter((t) => t.phaseId === p.id) }))

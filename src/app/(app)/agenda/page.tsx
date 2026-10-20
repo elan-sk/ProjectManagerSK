@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { contributionPct } from "@/lib/taskProgress";
 import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
 import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
 import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
@@ -371,7 +372,7 @@ export default async function AgendaPage({
                     el resto por creación (más reciente primero). */}
                 <ProjectCardsOrder
                   items={pmSummary.map((p) => {
-                  const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0;
+                  const pct = contributionPct(p);
                   return { id: p.id, node: (
                   <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-1.5 py-1 hover:bg-slate-50 md:flex-nowrap">
                     <Link href={`/projects/${p.id}`} className="flex min-w-0 items-center gap-1.5 md:flex-shrink-0">

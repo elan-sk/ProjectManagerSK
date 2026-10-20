@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { addBusinessDays, businessDaysBetween, isBusinessDay } from "@/lib/holidays";
 import { calendarDay } from "@/lib/delays";
 import { scheduleVarianceText } from "@/lib/scheduleVarianceLabel";
+import { TASK_CONTRIBUTION_SELECT, forecastRemainingShare } from "@/lib/taskProgress";
 import type { DependencyType, TaskStatus } from "@prisma/client";
 
 /**
@@ -9,7 +10,7 @@ import type { DependencyType, TaskStatus } from "@prisma/client";
  * cuándo terminaría de verdad. Las fechas planeadas ya se corren en cascada
  * cuando una tarea se COMPLETA (propagateToSuccessors), pero una tarea
  * abierta que ya se pasó de su fecha no corre nada — eso es lo que agrega acá:
- *  - en curso / bloqueada / devuelta y vencida → termina hoy + su duración;
+ *  - en curso / bloqueada / devuelta y vencida → termina hoy + lo que le falta según su avance (spec 011);
  *  - sin iniciar con el inicio ya pasado → arranca hoy y dura lo planeado;
  *  - y sus sucesoras SIN INICIAR se corren en cadena (fin a inicio: el día
  *    hábil siguiente; inicio a inicio: junto con ella), manteniendo su duración.
@@ -23,6 +24,7 @@ export type ForecastTask = {
   plannedStart: Date;
   plannedEnd: Date;
   actualEnd: Date | null;
+  remainingShare?: number;
 };
 export type ForecastEdge = { predecessorId: string; successorId: string; type: DependencyType };
 export type TaskForecast = { start: Date; end: Date; driverId: string | null };
@@ -62,7 +64,10 @@ export async function forecastTasks(countryCode: string, tasks: ForecastTask[], 
       if (start < today) return { start: firstWorkday, end: await endFrom(firstWorkday, await durationOf(t)), driverId: t.id };
       return { start, end, driverId: null };
     }
-    if (end < today) return { start, end: await addBusinessDays(countryCode, today, await durationOf(t)), driverId: t.id };
+    if (end < today) {
+      const remaining = Math.max(1, Math.ceil((await durationOf(t)) * (t.remainingShare ?? 1)));
+      return { start, end: await addBusinessDays(countryCode, today, remaining), driverId: t.id };
+    }
     return { start, end, driverId: null };
   }
 
@@ -119,14 +124,15 @@ export async function getProjectForecast(projectId: string): Promise<ProjectFore
     select: {
       countryCode: true,
       targetEndDate: true,
-      tasks: { select: { id: true, title: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true } },
+      tasks: { select: { id: true, title: true, plannedStart: true, plannedEnd: true, actualEnd: true, ...TASK_CONTRIBUTION_SELECT } },
     },
   });
+  const tasks = project.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, plannedStart: t.plannedStart, plannedEnd: t.plannedEnd, actualEnd: t.actualEnd, remainingShare: forecastRemainingShare(t) }));
   const edges = await prisma.taskDependency.findMany({
     where: { successor: { projectId } },
     select: { predecessorId: true, successorId: true, type: true },
   });
-  return buildProjectForecast(project.countryCode, project.targetEndDate, project.tasks, edges, calendarDay(new Date()));
+  return buildProjectForecast(project.countryCode, project.targetEndDate, tasks, edges, calendarDay(new Date()));
 }
 
 export async function buildProjectForecast(

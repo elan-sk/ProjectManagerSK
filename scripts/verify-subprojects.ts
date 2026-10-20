@@ -57,12 +57,14 @@ assert.equal(worstVariance([null]), null);
 // RF-23 / RF-24: la fila del principal suma su grupo; el subproyecto no sale aparte.
 const row = (id: string, parentId: string | null, total: number, completed: number, overdue: number, variance: number | null): PmProjectSummary => ({
   id, name: id, iconUrl: null, parentId, parent: parentId ? { name: parentId, iconUrl: null } : null, pm: { name: "PM", avatarUrl: null },
-  total, completed, blockedCount: 0, health: "ok", lateStartCount: 0, overdueCount: overdue, warningCount: 0, startingSoonCount: 0, scheduleVarianceDays: variance,
+  total, completed, progressSum: completed * 100 + 50, blockedCount: 0, health: "ok", lateStartCount: 0, overdueCount: overdue, warningCount: 0, startingSoonCount: 0, scheduleVarianceDays: variance,
 });
 const pm = groupPmSummaries([row("p", null, 4, 2, 0, 3), row("h1", "p", 6, 1, 2, -4), row("suelto", "otro", 2, 2, 0, null)]);
 assert.deepEqual(pm.map((r) => r.id), ["p", "suelto"]);
 assert.equal(pm[0].total, 10);
 assert.equal(pm[0].completed, 3);
+assert.equal(pm[0].progressSum, 400, "spec 011: el grupo suma el aporte de todas sus tareas");
+assert.equal(pm[0].subprojects![0].pct, 25, "spec 011: % del subproyecto = aporte promedio (150 / 6)");
 assert.equal(pm[0].overdueCount, 2);
 assert.equal(pm[0].scheduleVarianceDays, -4);
 assert.deepEqual(pm[0].subprojects!.map((s) => s.id), ["h1"]);
