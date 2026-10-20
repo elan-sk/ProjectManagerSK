@@ -7,14 +7,14 @@
 // - Un gesto nuevo, empezado con todo en el tope, mueve la página solo después
 //   de empujar CUSHION_PX hacia arriba (rueda) o TOUCH_CUSHION_PX (dedo). El dedo
 //   usa un colchón corto y lo recuerda entre arrastres seguidos (TOUCH_MEMORY_MS).
-// - Mientras se empuja, una franja teal sobre el borde superior del panel se llena y brilla
-//   más (sin deformar las columnas) para que se vea que el imán retiene y que seguir
+// - Mientras se empuja, una barrita teal neón sobre el borde superior del panel se llena
+//   (sin deformar las columnas) para que se vea que el imán retiene y que seguir
 //   empujando lo suelta.
 // Devuelve la función de limpieza (para useEffect).
 const CUSHION_PX = 600; // ~5-6 muescas de rueda
 const TOUCH_CUSHION_PX = 90; // dedo: alcanza con un arrastre corto, o dos seguidos
 const TOUCH_MEMORY_MS = 1200; // el empuje del dedo se recuerda este tiempo entre arrastres
-const MAX_PULL_PX = 36; // alto del resplandor del aviso del imán
+const BAR_PX = 3; // alto de la barrita del aviso del imán
 const GESTURE_GAP_MS = 300; // pausa entre eventos de rueda que separa un gesto del siguiente
 const PANEL = ".sticky-view-panel-kanban, .sticky-view-panel-gantt";
 
@@ -35,8 +35,8 @@ export function holdPageAtBottom() {
   };
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // ratio: 0 = en reposo, 1 = justo antes de soltar la página.
-  // Aviso del imán: una franja teal sobre el borde superior del panel que se llena desde el
-  // centro, con un resplandor que se intensifica. Va en una capa aparte (fija, sin eventos)
+  // Aviso del imán: una barrita teal neón sobre el borde superior del panel que se llena desde el
+  // centro. Va en una capa aparte (fija, sin eventos)
   // y solo anima opacity/transform: las columnas no se deforman ni se vuelven a pintar.
   // Un cambio por cuadro (rAF) y siempre con transición corta: sin saltos en el dedo.
   let overlay: HTMLDivElement | null = null;
@@ -62,18 +62,19 @@ export function holdPageAtBottom() {
         top: `${box.top}px`,
         left: `${box.left}px`,
         width: `${box.width}px`,
-        height: `${MAX_PULL_PX}px`,
+        height: `${BAR_PX}px`,
         pointerEvents: "none",
         zIndex: "30",
-        borderRadius: "1rem 1rem 0 0",
-        background: "linear-gradient(to bottom, rgba(10, 107, 120, 0.3), rgba(10, 107, 120, 0))",
         opacity: "0",
       });
       bar = document.createElement("div");
       Object.assign(bar.style, {
-        height: "3px",
+        height: `${BAR_PX}px`,
         borderRadius: "9999px",
-        background: "rgb(10, 107, 120)",
+        // Neón: núcleo claro con halo corto pegado a la barra.
+        background: "rgb(94, 234, 212)",
+        boxShadow:
+          "0 0 2px rgb(45, 212, 191), 0 0 6px rgba(20, 184, 166, 0.9), 0 0 12px rgba(10, 107, 120, 0.7)",
         transform: "scaleX(0)",
       });
       overlay.appendChild(bar);
@@ -83,7 +84,7 @@ export function holdPageAtBottom() {
     const ms = ratio ? 120 : 220;
     overlay.style.transition = `opacity ${ms}ms ease-out`;
     bar.style.transition = `transform ${ms}ms ease-out`;
-    overlay.style.opacity = String(ratio ? 0.35 + 0.65 * ratio : 0);
+    overlay.style.opacity = ratio ? "1" : "0";
     bar.style.transform = `scaleX(${ratio})`;
     shown = ratio;
     // En reposo, la capa se quita cuando termina de apagarse.
