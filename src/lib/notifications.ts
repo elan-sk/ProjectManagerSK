@@ -9,7 +9,8 @@ import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
-import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary } from "@/lib/agendaSummary";
+import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary, type PmProjectSummary } from "@/lib/agendaSummary";
+import type { Actor } from "@/lib/permissions";
 import { getProjectForecast } from "@/lib/scheduleForecast";
 import { projectStatus } from "@/lib/scheduleVarianceLabel";
 
@@ -459,35 +460,47 @@ export async function buildDailyDigestText(userId: string, name: string) {
 
   if (managedProjects.length > 0) {
     lines.push("", user.role === "ADMIN" ? "📁 *Resumen de todos los proyectos:*" : "📁 *Tus proyectos administrados:*");
-    for (const p of managedProjects) {
-      const flags = [
-        // Preventivo primero (todavía a tiempo de evitarlo) — solo le llega a
-        // quien administra el proyecto, por eso vive acá y no en el conteo
-        // personal de arriba.
-        p.startingSoonCount > 0 ? `🔜 ${p.startingSoonCount} empiezan pronto` : null,
-        p.lateStartCount > 0 ? `⏰ ${p.lateStartCount} inicio retrasado` : null,
-        p.overdueCount > 0 ? `⌛ ${p.overdueCount} final retrasado` : null,
-        p.blockedCount > 0 ? `🔒 ${p.blockedCount} bloqueada(s)` : null,
-      ].filter((f): f is string => f !== null);
-      const progress = contributionPct(p);
-      lines.push(
-        "",
-        `• *${p.name}*`,
-        // Estado único primero (mismo badge que en la app): con fecha de cierre, el cronograma.
-        `  ↳ _Estado_ · ${statusWaText(p.health, p.scheduleVarianceDays)}`,
-        `  ↳ _Avance_`,
-        `      ${progressBar(progress)} ${progress}%`,
-        `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
-        // Sin alertas: una sola línea. Con alertas: el título solo y cada
-        // alerta en su propia fila debajo (se lee de un vistazo, en vez de una
-        // lista larga separada por comas que se parte mal en el celular).
-        ...(flags.length === 0 ? [`  ↳ _Alertas_ · sin alertas`] : [`  ↳ _Alertas_`, ...flags.map((f) => `      ${f}`)])
-      );
-    }
+    for (const p of managedProjects) lines.push(...projectDigestLines(p));
   }
 
   lines.push("", `🔗 ${absoluteUrl("/agenda")}`);
   return lines.join("\n");
+}
+
+// Bloque de un proyecto del resumen diario. Lo usan el diario y el resumen de un solo proyecto
+// (buildProjectSummaryText), para que los dos mensajes tengan siempre el mismo formato.
+function projectDigestLines(p: PmProjectSummary) {
+    const flags = [
+      // Preventivo primero (todavía a tiempo de evitarlo) — solo le llega a
+      // quien administra el proyecto, por eso vive acá y no en el conteo
+      // personal de arriba.
+      p.startingSoonCount > 0 ? `🔜 ${p.startingSoonCount} empiezan pronto` : null,
+      p.lateStartCount > 0 ? `⏰ ${p.lateStartCount} inicio retrasado` : null,
+      p.overdueCount > 0 ? `⌛ ${p.overdueCount} final retrasado` : null,
+      p.blockedCount > 0 ? `🔒 ${p.blockedCount} bloqueada(s)` : null,
+    ].filter((f): f is string => f !== null);
+    const progress = contributionPct(p);
+    return [
+      "",
+      `• *${p.name}*`,
+      // Estado único primero (mismo badge que en la app): con fecha de cierre, el cronograma.
+      `  ↳ _Estado_ · ${statusWaText(p.health, p.scheduleVarianceDays)}`,
+      `  ↳ _Avance_`,
+      `      ${progressBar(progress)} ${progress}%`,
+      `  ↳ _Completadas_ · ${p.completed}/${p.total}`,
+      // Sin alertas: una sola línea. Con alertas: el título solo y cada
+      // alerta en su propia fila debajo (se lee de un vistazo, en vez de una
+      // lista larga separada por comas que se parte mal en el celular).
+      ...(flags.length === 0 ? [`  ↳ _Alertas_ · sin alertas`] : [`  ↳ _Alertas_`, ...flags.map((f) => `      ${f}`)]),
+    ];
+}
+
+// Resumen de UN proyecto con el mismo bloque del resumen diario y el link al proyecto (el bot lo
+// envía por WhatsApp a una persona o al grupo). null si el proyecto no existe o esta persona no lo ve.
+export async function buildProjectSummaryText(projectId: string, viewer: Actor) {
+  const [p] = await getProjectsSummary(undefined, viewer, { projectId });
+  if (!p) return null;
+  return ["📁 *Resumen del proyecto:*", ...projectDigestLines(p), "", `🔗 ${absoluteUrl(`/projects/${p.id}`)}`].join("\n");
 }
 
 // Ventana en la que se sigue intentando entregar el resumen tras su hora

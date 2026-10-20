@@ -50,7 +50,7 @@ import { mentionMarker } from "@/lib/commentBody";
 import { addBusinessDays } from "@/lib/holidays";
 import { getWorkingCalendar, WORKING_CALENDAR_MAX_DAYS } from "@/lib/botCalendar";
 import { getAppCountryCode } from "@/lib/appSettings";
-import { sendDailyDigestNow } from "@/lib/notifications";
+import { buildDailyDigestText, buildProjectSummaryText, sendDailyDigestNow } from "@/lib/notifications";
 import { readFile, stat } from "node:fs/promises";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { absoluteUrl } from "@/lib/appUrl";
@@ -165,6 +165,20 @@ export const READ_TOOLS: Anthropic.Tool[] = [
         status: { type: "string", description: "Filtrar por estado (opcional)." },
       },
       required: ["projectId"],
+    },
+  },
+  {
+    name: "get_whatsapp_message",
+    description:
+      "Devuelve el texto EXACTO de un mensaje de WhatsApp de la app, armado por el mismo código que los envía. Úsala SIEMPRE que pidan mandar un mensaje «como el resumen diario» o un resumen de un proyecto: nunca redactes ni imites ese formato a mano. Después se envía tal cual con send_whatsapp_message (a una persona) o send_whatsapp_group_message (al grupo del proyecto, sin taskId). Tipos: `project_summary` (projectId; encabezado «📁 Resumen del proyecto», el mismo bloque del diario —estado, avance con barra de 10 bloques █░ y %, completadas, alertas— y el link al proyecto; solo un administrador o el PM del proyecto) y `daily_digest` (userId opcional, por defecto quien pide; agenda del día + proyectos que administra + link a la agenda; el de otra persona solo un administrador; null si no tiene nada pendiente). Otros mensajes que manda la app solos y que el chat no arma: alertas pendientes al grupo (🔔), recordatorio de reunión (📅), avisos de tareas, bienvenida, reporte del resumen fallido, prueba de entrega y recuperación de contraseña.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["project_summary", "daily_digest"] },
+        projectId: { type: "string", description: "Requerido para project_summary." },
+        userId: { type: "string", description: "Solo daily_digest: de quién es el resumen (opcional)." },
+      },
+      required: ["kind"],
     },
   },
   {
@@ -366,15 +380,15 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "send_whatsapp_group_message",
     description:
-      "Envía un mensaje al grupo de WhatsApp de un proyecto y menciona automáticamente al PM, asignados y revisores de la tarea indicada. El mensaje debe incluir el link absoluto de la tarea (APP_URL + /projects/{projectId}/tasks/{taskId}) si la persona lo quiere compartir. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
+      "Envía un mensaje al grupo de WhatsApp de un proyecto. Con taskId menciona automáticamente al PM, asignados y revisores de esa tarea; sin taskId (ej. el resumen del proyecto de get_whatsapp_message) no menciona a nadie. Con tarea, el mensaje debe incluir el link absoluto de la tarea (APP_URL + /projects/{projectId}/tasks/{taskId}) si la persona lo quiere compartir. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
     input_schema: {
       type: "object",
       properties: {
         projectId: { type: "string" },
-        taskId: { type: "string", description: "Tarea cuyos implicados deben ser mencionados." },
+        taskId: { type: "string", description: "Opcional: tarea cuyos implicados deben ser mencionados." },
         message: { type: "string", description: "Texto del mensaje, sin contraseña ni secretos." },
       },
-      required: ["projectId", "taskId", "message"],
+      required: ["projectId", "message"],
     },
   },
   {
@@ -1027,6 +1041,27 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       );
     }
 
+    case "get_whatsapp_message": {
+      const { kind, projectId, userId: targetId } = z
+        .object({ kind: z.enum(["project_summary", "daily_digest"]), projectId: z.string().optional(), userId: z.string().optional() })
+        .parse(input);
+      const actor = await currentActor();
+      if (kind === "project_summary") {
+        if (!projectId) return JSON.stringify({ error: "Falta indicar el proyecto." });
+        const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true, parent: { select: { pmId: true } } } });
+        if (!project || (actor.role !== "ADMIN" && !isProjectPm(project, userId))) {
+          return JSON.stringify({ error: "Solo un administrador o el PM de ese proyecto pueden armar su resumen." });
+        }
+        const text = await buildProjectSummaryText(projectId, actor);
+        return JSON.stringify(text ? { text } : { error: "No se encontró ese proyecto o está archivado." });
+      }
+      const forId = targetId ?? userId;
+      if (forId !== userId && actor.role !== "ADMIN") return JSON.stringify({ error: "Solo un administrador puede ver el resumen diario de otra persona." });
+      const person = await prisma.user.findFirst({ where: { id: forId, active: true }, select: { name: true } });
+      if (!person) return JSON.stringify({ error: "No se encontró esa persona." });
+      const text = await buildDailyDigestText(forId, person.name);
+      return JSON.stringify(text ? { text } : { error: "Esa persona no tiene nada pendiente hoy: no hay resumen para enviar." });
+    }
     case "get_project_status": {
       const { projectId } = z.object({ projectId: z.string() }).parse(input);
       const accessibleIds = await getAccessibleProjectIds(userId);
@@ -1318,7 +1353,7 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     case "send_whatsapp_message":
       return "Enviar un mensaje directo por WhatsApp";
     case "send_whatsapp_group_message":
-      return "Enviar un mensaje al grupo del proyecto y mencionar a los implicados";
+      return (input as { taskId?: string }).taskId ? "Enviar un mensaje al grupo del proyecto y mencionar a los implicados" : "Enviar un mensaje al grupo del proyecto";
     case "update_task_status": {
       const { status } = input as { status?: string };
       return `Cambiar el estado de la tarea a "${status ?? "?"}"`;
@@ -1495,7 +1530,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     case "send_whatsapp_group_message": {
       try {
         const { projectId, taskId, message } = z
-          .object({ projectId: z.string(), taskId: z.string(), message: z.string().trim().min(1).max(2000) })
+          .object({ projectId: z.string(), taskId: z.string().optional(), message: z.string().trim().min(1).max(2000) })
           .parse(input);
         if (/contrase(?:ñ|n)a|password/i.test(message)) {
           return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
@@ -1505,7 +1540,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const [sender, project, task, whatsapp] = await Promise.all([
           prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
           prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, parent: { select: { pmId: true } }, whatsappGroupJid: true, hidden: true } }),
-          prisma.task.findFirst({
+          taskId === undefined ? null : prisma.task.findFirst({
             where: { id: taskId, projectId },
             select: { title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } },
           }),
@@ -1515,20 +1550,21 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         if (sender.role !== "ADMIN" && !isProjectPm(project, senderId)) {
           return { ok: false, message: "Solo el PM de este proyecto o un administrador pueden escribir en su grupo." };
         }
-        if (!task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
+        if (taskId !== undefined && !task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
         if (project.hidden) return { ok: false, message: "Este proyecto está oculto y no envía mensajes a grupos de WhatsApp." };
 
         const groupJid = project.whatsappGroupJid ?? whatsapp.groupJid;
         if (!groupJid) return { ok: false, message: "Este proyecto no tiene un grupo de WhatsApp configurado." };
-        const implicatedUserIds = Array.from(new Set([project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]));
+        const implicatedUserIds = task ? Array.from(new Set([project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])) : [];
         const sent = await sendGroupAlert(groupJid, message, implicatedUserIds);
-        return {
-          ok: sent,
-          message: sent
-            ? `Listo, se envió el mensaje al grupo de ${project.name} y se mencionó a los implicados de “${task.title}”.`
-            : "WhatsApp no está conectado; no se pudo enviar el mensaje al grupo.",
-          taskLink: absoluteUrl(`/projects/${projectId}/tasks/${taskId}`),
-        };
+        if (!sent) return { ok: false, message: "WhatsApp no está conectado; no se pudo enviar el mensaje al grupo." };
+        return task
+          ? {
+              ok: true,
+              message: `Listo, se envió el mensaje al grupo de ${project.name} y se mencionó a los implicados de “${task.title}”.`,
+              taskLink: absoluteUrl(`/projects/${projectId}/tasks/${taskId}`),
+            }
+          : { ok: true, message: `Listo, se envió el mensaje al grupo de ${project.name}.` };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

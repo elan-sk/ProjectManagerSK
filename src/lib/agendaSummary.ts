@@ -86,9 +86,14 @@ export type PmProjectSummary = {
 // (viewer); para cualquier otra persona quedan fuera.
 // `withSubprojects` (spec 004, solo Agenda): también los subproyectos de los principales que administra.
 // El resumen diario de WhatsApp no lo usa: sus avisos no cambian (RF-32).
-export async function getProjectsSummary(pmId?: string, viewer?: Actor, { withSubprojects = false } = {}): Promise<PmProjectSummary[]> {
+// `projectId`: solo ese proyecto (resumen de un proyecto que arma el bot, ver buildProjectSummaryText).
+export async function getProjectsSummary(
+  pmId?: string,
+  viewer?: Actor,
+  { withSubprojects = false, projectId }: { withSubprojects?: boolean; projectId?: string } = {}
+): Promise<PmProjectSummary[]> {
   const projects = await prisma.project.findMany({
-    where: { ...(pmId ? (withSubprojects ? managedProjectWhere(pmId) : { pmId }) : {}), ...(viewer ? visibleProjectWhere(viewer) : { hidden: false, ...LIVE_PROJECT_WHERE }) },
+    where: { ...(projectId ? { id: projectId } : {}), ...(pmId ? (withSubprojects ? managedProjectWhere(pmId) : { pmId }) : {}), ...(viewer ? visibleProjectWhere(viewer) : { hidden: false, ...LIVE_PROJECT_WHERE }) },
     select: {
       id: true,
       name: true,
