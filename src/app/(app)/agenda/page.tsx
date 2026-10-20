@@ -29,7 +29,7 @@ import { matchesTaskSearch } from "@/lib/search";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabel";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon, taskStatusWhere, taskReviewState, statusFilterTriggerClass, type ReviewState, taskStatusFilterOptions } from "@/lib/statusColors";
+import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon, matchesStatusFilter, taskReviewState, statusFilterTriggerClass, type ReviewState, taskStatusFilterOptions } from "@/lib/statusColors";
 import { ProjectCardsOrder } from "../projects/ProjectCardsOrder";
 import type { TaskStatus } from "@prisma/client";
 import Link from "next/link";
@@ -205,8 +205,7 @@ export default async function AgendaPage({
     prisma.task.findMany({
       where: {
         assignees: { some: { userId: effectiveUserId } },
-        projectId: scopedProjectIds ? { in: scopedProjectIds } : projectId || undefined,
-        ...taskStatusWhere(status),
+        projectId: viewingOther && canViewOthers && !isAdmin ? { in: pmProjectIds! } : undefined,
         archivedAt: null,
         project: hiddenPref.projectWhere,
       },
@@ -245,7 +244,10 @@ export default async function AgendaPage({
   const tasksWithAlert = await Promise.all(
     tasksRaw.map(async (t) => ({ ...t, alert: await getTaskAlert(t.project.countryCode, t) }))
   );
-  const tasks = tasksWithAlert
+  const scopedTasks = tasksWithAlert
+    .filter((t) => (scopedProjectIds ? scopedProjectIds.includes(t.projectId) : !projectId || t.projectId === projectId))
+    .filter((t) => matchesStatusFilter(status, t));
+  const tasks = scopedTasks
     .filter((t) => matchesRiskFilter(t.alert, risk))
     // Tipo: un tipo de tarea, o una opción de atributo (Nuevas / Archivos
     // adjuntos / Compartidas — ver taskTypeFilter.ts).
@@ -264,13 +266,13 @@ export default async function AgendaPage({
     .filter((t) => matchesTaskSearch(t, q))
     .filter((t) => matchesTagFilter(tag, t.taskTags.map((tt) => ({ tagId: tt.tagId, categoryId: tt.tag.categoryId }))));
   // Opciones del filtro Etiqueta: las que usan las tareas de esta agenda (antes de filtrar).
-  const agendaTagCategories = [...new Map(tasksRaw.flatMap((t) => t.taskTags.map((tt) => [tt.tag.category.id, tt.tag.category] as const))).values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
-  const agendaTags = [...new Map(tasksRaw.flatMap((t) => t.taskTags.map((tt) => [tt.tagId, { id: tt.tagId, categoryId: tt.tag.categoryId, name: tt.tag.name }] as const))).values()];
+  const agendaTagCategories = [...new Map(scopedTasks.flatMap((t) => t.taskTags.map((tt) => [tt.tag.category.id, tt.tag.category] as const))).values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const agendaTags = [...new Map(scopedTasks.flatMap((t) => t.taskTags.map((tt) => [tt.tagId, { id: tt.tagId, categoryId: tt.tag.categoryId, name: tt.tag.name }] as const))).values()];
 
-  // Los tiles reflejan la lista filtrada de abajo (misma regla de conteo que
-  // el resumen diario de WhatsApp, ver tallyAgendaCounts).
+  // Los tiles cuentan toda la agenda de la persona, sin filtros (solo respetan
+  // «Incluir proyectos ocultos»); misma regla de conteo que el resumen diario de WhatsApp.
   const counts = tallyAgendaCounts(
-    tasks.map((t) => ({ status: t.status, alert: t.alert, viewedAt: t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt }))
+    tasksWithAlert.map((t) => ({ status: t.status, alert: t.alert, viewedAt: t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt }))
   );
 
   const cards: AgendaCard[] = tasks.map((t) => ({
@@ -308,7 +310,7 @@ export default async function AgendaPage({
 
   function agendaHref(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
-    const merged: Record<string, string | undefined> = { projectId, status, userId, risk, type, q, from, to, ...overrides };
+    const merged: Record<string, string | undefined> = { projectId, status, userId, risk, type, q, from, to, tag, ...overrides };
     for (const [k, v] of Object.entries(merged)) {
       if (v) p.set(k, v);
       else p.delete(k);
@@ -322,14 +324,17 @@ export default async function AgendaPage({
       <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {/* Cada indicador solo activa/quita su propia condición y respeta los
-            demás filtros activos (proyecto, persona, fechas, búsqueda…). */}
+        {/* Un indicador a la vez: activarlo borra los demás filtros (salvo la persona);
+            quitarlo deja los filtros que se agregaron después. */}
         {TILES.map((tile) => {
           const active = tile.isActive({ status, risk, type });
+          const href = active
+            ? agendaHref(tile.overrides(true))
+            : `/agenda?${new URLSearchParams(Object.entries({ userId, ...tile.overrides(false) }).filter((e): e is [string, string] => Boolean(e[1]))).toString()}`;
           return (
             <Link
               key={tile.key}
-              href={agendaHref(tile.overrides(active))}
+              href={href}
               className={`flex flex-col gap-1 rounded-xl border-2 px-3 py-2.5 transition hover:shadow-sm ${tile.border} ${
                 active ? tile.activeBg : "bg-white"
               }`}
