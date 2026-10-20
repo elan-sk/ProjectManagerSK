@@ -71,10 +71,9 @@ export function holdPageAtBottom() {
       Object.assign(bar.style, {
         height: `${BAR_PX}px`,
         borderRadius: "9999px",
-        // Neón: núcleo claro con halo corto pegado a la barra.
-        background: "rgb(94, 234, 212)",
-        boxShadow:
-          "0 0 2px rgb(45, 212, 191), 0 0 6px rgba(20, 184, 166, 0.9), 0 0 12px rgba(10, 107, 120, 0.7)",
+        // Neón con la paleta de la app (globals.css): núcleo blue-400, halo blue-500 y pacific-tide.
+        background: "var(--color-blue-400)",
+        boxShadow: "0 0 3px var(--color-blue-500), 0 0 8px var(--pacific-tide)",
         transform: "scaleX(0)",
       });
       overlay.appendChild(bar);
