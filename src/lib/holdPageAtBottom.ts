@@ -49,7 +49,7 @@ export function holdPageAtBottom({ holdUp = true }: { holdUp?: boolean } = {}) {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // ratio: 0 = en reposo, 1 = justo antes de soltar la página.
   // Aviso del imán: una barrita teal neón sobre el borde superior del panel que se llena desde el
-  // centro. Va en una capa aparte (fija, sin eventos)
+  // centro. Va en una capa aparte dentro del panel (sin eventos)
   // y solo anima opacity/transform: las columnas no se deforman ni se vuelven a pintar.
   // Un cambio por cuadro (rAF) y siempre con transición corta: sin saltos en el dedo.
   let overlay: HTMLDivElement | null = null;
@@ -66,15 +66,16 @@ export function holdPageAtBottom({ holdUp = true }: { holdUp?: boolean } = {}) {
       clearTimeout(cleanTimer);
       const panel = document.querySelector<HTMLElement>(PANEL);
       if (!panel) return;
-      const box = panel.getBoundingClientRect();
       overlay?.remove();
       overlay = document.createElement("div");
       overlay.setAttribute("aria-hidden", "true");
+      // Dentro del panel (que es sticky, o sea posicionado): se mueve con él aunque la página
+      // se desplace rápido. Antes era fija en pantalla y quedaba arriba con el panel ya abajo.
       Object.assign(overlay.style, {
-        position: "fixed",
-        top: `${box.top}px`,
-        left: `${box.left}px`,
-        width: `${box.width}px`,
+        position: "absolute",
+        top: "0",
+        left: "0",
+        width: "100%",
         height: `${BAR_PX}px`,
         pointerEvents: "none",
         zIndex: "30",
@@ -89,7 +90,7 @@ export function holdPageAtBottom({ holdUp = true }: { holdUp?: boolean } = {}) {
         transform: "scaleX(0)",
       });
       overlay.appendChild(bar);
-      document.body.appendChild(overlay);
+      panel.appendChild(overlay);
     }
     if (!overlay || !bar) return;
     const ms = ratio ? 120 : 220;
