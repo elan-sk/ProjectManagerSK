@@ -24,6 +24,43 @@ export function ScheduleVarianceBadge({ days, hideOnTime = false }: { days: numb
   );
 }
 
+const DAY_MS = 86400000;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// Distancia en calendario entre dos fechas UTC (from <= to): hasta 30 días en
+// días; más, en meses de calendario + días («2 meses y 5 días»).
+export function calendarSpanText(from: Date, to: Date) {
+  const days = Math.round((to.getTime() - from.getTime()) / DAY_MS);
+  if (days <= 30) return plural(days, "día", "días");
+  let months = (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth();
+  // Mismo día del mes, ajustado al último día si no existe (31 ene + 1 mes = 28/29 feb).
+  const addMonths = (m: number) => {
+    const y = from.getUTCFullYear(), mo = from.getUTCMonth() + m;
+    return Date.UTC(y, mo, Math.min(from.getUTCDate(), new Date(Date.UTC(y, mo + 1, 0)).getUTCDate()));
+  };
+  if (addMonths(months) > to.getTime()) months--;
+  const rest = Math.round((to.getTime() - addMonths(months)) / DAY_MS);
+  return rest ? `${plural(months, "mes", "meses")} y ${plural(rest, "día", "días")}` : plural(months, "mes", "meses");
+}
+
+// Conteo regresivo al cierre comprometido, en días calendario (hoy en Bogotá;
+// la fecha de cierre se guarda como medianoche UTC del día elegido).
+export function CloseCountdown({ targetEndDate, boxed = false }: { targetEndDate: Date | null; boxed?: boolean }) {
+  if (!targetEndDate) return null;
+  const today = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" }));
+  const end = new Date(targetEndDate.toISOString().slice(0, 10));
+  const days = Math.round((end.getTime() - today.getTime()) / DAY_MS);
+  const value = days > 0 ? calendarSpanText(today, end) : days === 0 ? "Hoy" : `Vencido hace ${calendarSpanText(end, today)}`;
+  const tone = days > 0 ? "text-slate-900" : days === 0 ? "text-amber-600" : "text-red-600";
+  const title = `Cierre: ${targetEndDate.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}`;
+  return (
+    <div title={title} className={boxed ? "rounded-xl border border-slate-200 bg-white px-3 py-2" : "flex-shrink-0 text-right"}>
+      <p className="text-[11px] text-slate-400">{days < 0 ? "Cierre" : "Cierre en"}</p>
+      <p className={`text-sm font-semibold tabular-nums ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
 export function ProjectHealthBadges({
   projectId,
   health,

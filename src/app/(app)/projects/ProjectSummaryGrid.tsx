@@ -6,7 +6,7 @@ import { EyeOffIcon, OverlapIcon } from "@/components/icons";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
-import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { CloseCountdown, ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { ReferencePopover } from "@/components/ReferencePopover";
 import { HEALTH_LABEL } from "@/lib/projectHealth";
 import { groupSummaryRows, type ProjectSummaryRow } from "@/lib/projectSummaries";
@@ -171,6 +171,7 @@ export async function ProjectSummaryGrid({
                         </p>
                         <p className="text-sm text-slate-500">{p.clientName ?? "Interno"}</p>
                       </div>
+                      {phase !== "COMPLETED" && !p.archivedAt && <CloseCountdown targetEndDate={p.targetEndDate} />}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <ProjectHealthBadges

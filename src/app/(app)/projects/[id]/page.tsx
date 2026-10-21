@@ -15,7 +15,7 @@ import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { InternalConversation } from "@/components/InternalConversation";
-import { ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
+import { CloseCountdown, ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
@@ -826,6 +826,8 @@ export default async function ProjectPage({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-stretch gap-3">
+        {!project.archivedAt && !(summaryTotal > 0 && summaryCompleted === summaryTotal) && <CloseCountdown targetEndDate={project.targetEndDate} boxed />}
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
           <Avatar name={project.pm.name} avatarUrl={project.pm.avatarUrl} />
           <div>
@@ -837,6 +839,7 @@ export default async function ProjectPage({
               <ReassignPMForm projectId={project.id} currentPmId={project.pmId} users={users} />
             </ModalTrigger>
           )}
+        </div>
         </div>
       </div>
 
