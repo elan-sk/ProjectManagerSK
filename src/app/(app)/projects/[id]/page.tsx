@@ -827,7 +827,7 @@ export default async function ProjectPage({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-stretch gap-3">
+        <div className="flex flex-wrap items-stretch gap-3 sm:ml-auto sm:justify-end">
         {!project.archivedAt && !(summaryTotal > 0 && summaryCompleted === summaryTotal) && <CloseCountdown targetEndDate={project.targetEndDate} boxed />}
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
           <Avatar name={project.pm.name} avatarUrl={project.pm.avatarUrl} />
