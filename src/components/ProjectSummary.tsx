@@ -28,7 +28,7 @@ const DAY_MS = 86400000;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // Distancia en calendario entre dos fechas UTC (from <= to): hasta 30 días en
-// días; más, en meses de calendario + días («2 meses y 5 días»).
+// días; más, en años, meses de calendario y días («1 año, 2 meses y 5 días»).
 export function calendarSpanText(from: Date, to: Date) {
   const days = Math.round((to.getTime() - from.getTime()) / DAY_MS);
   if (days <= 30) return plural(days, "día", "días");
@@ -40,7 +40,13 @@ export function calendarSpanText(from: Date, to: Date) {
   };
   if (addMonths(months) > to.getTime()) months--;
   const rest = Math.round((to.getTime() - addMonths(months)) / DAY_MS);
-  return rest ? `${plural(months, "mes", "meses")} y ${plural(rest, "día", "días")}` : plural(months, "mes", "meses");
+  // Desde 12 meses: años, meses y días; las partes en cero no se nombran.
+  const parts = [
+    months >= 12 && plural(Math.floor(months / 12), "año", "años"),
+    months % 12 > 0 && plural(months % 12, "mes", "meses"),
+    rest > 0 && plural(rest, "día", "días"),
+  ].filter((p): p is string => !!p);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} y ${parts.at(-1)}` : parts[0];
 }
 
 // Conteo regresivo al cierre comprometido, en días calendario (hoy en Bogotá;
