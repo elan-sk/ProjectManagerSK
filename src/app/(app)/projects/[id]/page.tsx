@@ -15,6 +15,7 @@ import { ModalTrigger } from "@/components/Modal";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { InternalConversation } from "@/components/InternalConversation";
+import { ScrollFitPanel } from "@/components/ScrollFitPanel";
 import { CloseCountdown, ProjectHealthBadges, ProjectProgress } from "@/components/ProjectSummary";
 import { SearchBox } from "@/components/SearchBox";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
@@ -1147,7 +1148,9 @@ export default async function ProjectPage({
           />
         </div>
       ) : view === "calendar" ? (
-        <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} showProjectName={isParent} />
+        <ScrollFitPanel>
+          <ProjectCalendarView tasks={calendarTasks} mode={calendarMode} anchor={anchor} showProjectName={isParent} />
+        </ScrollFitPanel>
       ) : (
         /* Mobile (< sm): columnas apiladas (grid-cols-1 en KanbanBoard) — sin altura fija para
            que cada una crezca con su contenido en vez de repartirse una altura de escritorio

@@ -17,17 +17,30 @@ const TOUCH_MEMORY_MS = 1200; // el empuje del dedo se recuerda este tiempo entr
 const BAR_PX = 2; // alto de la barrita del aviso del imán
 const GESTURE_GAP_MS = 300; // pausa entre eventos de rueda que separa un gesto del siguiente
 const PANEL = ".sticky-view-panel-kanban, .sticky-view-panel-gantt";
+// Vistas donde bajar (rueda o dedo) lleva la página abajo del todo: también el calendario.
+const FIT_PANEL = `${PANEL}, .scroll-fit-panel`;
 
-export function holdPageAtBottom() {
+// `holdUp: false` (calendario) solo baja la página; no la retiene al subir.
+export function holdPageAtBottom({ holdUp = true }: { holdUp?: boolean } = {}) {
   let pushed = 0;
   let lastWheel = -Infinity;
   let startedHeld = false;
   let touchY = 0;
   const root = document.documentElement;
   const atBottom = () => window.innerHeight + window.scrollY >= root.scrollHeight - 2;
+  // Bajar dentro de la vista = quiere trabajar ahí: la página baja hasta dejarla completa,
+  // aunque la columna scrollee. Solo si entra en la pantalla (si no, se saltaría su parte de arriba).
+  const fitDown = (target: EventTarget | null) => {
+    if (atBottom()) return;
+    const panel = (target as Element | null)?.closest?.(FIT_PANEL);
+    if (panel && panel.getBoundingClientRect().height <= window.innerHeight) {
+      window.scrollTo({ top: root.scrollHeight, behavior: "smooth" });
+    }
+  };
+  let touchFitted = false;
   // true = subir movería la página estando abajo del todo.
   const held = (target: EventTarget | null) => {
-    if (!atBottom()) return false;
+    if (!holdUp || !atBottom()) return false;
     for (let n = target as Element | null; n && n !== root; n = n.parentElement) {
       if (n.scrollTop > 0) return false; // ese elemento todavía puede subir
     }
@@ -123,11 +136,7 @@ export function holdPageAtBottom() {
     lastWheel = e.timeStamp;
     if (e.deltaY > 0) {
       pushed = 0;
-      // Bajar con el puntero sobre el panel = quiere trabajar ahí: la página
-      // baja también hasta dejarlo completo, aunque la columna scrollee.
-      if (!atBottom() && (e.target as Element).closest?.(PANEL)) {
-        window.scrollTo({ top: root.scrollHeight, behavior: "smooth" });
-      }
+      fitDown(e.target);
     }
     if (e.deltaY >= 0 || !held(e.target)) return;
     // deltaMode 1 = líneas (Firefox): se pasa a píxeles aproximados.
@@ -135,12 +144,18 @@ export function holdPageAtBottom() {
   };
   const onTouchStart = (e: TouchEvent) => {
     touchY = e.touches[0].clientY;
+    touchFitted = false;
     startedHeld = held(e.target); // pushed se conserva: lo limpia relaxAfter si pasa la pausa
   };
   const onTouchMove = (e: TouchEvent) => {
     const y = e.touches[0].clientY;
     const down = y - touchY; // el dedo baja = el contenido sube
     touchY = y;
+    // El dedo sube = el contenido baja: una vez por gesto, igual que la rueda.
+    if (down < 0 && !touchFitted) {
+      touchFitted = true;
+      fitDown(e.target);
+    }
     if (down <= 0 || !held(e.target)) return;
     if (hold(down, TOUCH_CUSHION_PX, TOUCH_MEMORY_MS) && e.cancelable) e.preventDefault();
   };

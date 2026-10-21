@@ -37,6 +37,7 @@ import { ProjectCalendarView, type CalendarTask } from "./[id]/ProjectCalendarVi
 import { AllProjectsFilesView } from "./AllProjectsFilesView";
 import { getDesignFiles } from "@/lib/designFiles";
 import { ProjectSummaryGrid } from "./ProjectSummaryGrid";
+import { ScrollFitPanel } from "@/components/ScrollFitPanel";
 
 export default async function ProjectsPage({
   searchParams,
@@ -821,13 +822,15 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
             />
           </div>
         ) : view === "calendar" ? (
-          <ProjectCalendarView
-            tasks={boardCalendarTasks}
-            mode={calendarMode}
-            anchor={anchor}
-            showProjectName
-            collisionUrlBase={collisionUrlBase}
-          />
+          <ScrollFitPanel>
+            <ProjectCalendarView
+              tasks={boardCalendarTasks}
+              mode={calendarMode}
+              anchor={anchor}
+              showProjectName
+              collisionUrlBase={collisionUrlBase}
+            />
+          </ScrollFitPanel>
         ) : (
           /* Mobile (< sm): columnas apiladas (grid-cols-1 en KanbanBoard) — sin altura fija, ver
              mismo comentario en projects/[id]/page.tsx. */
