@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 type Position = { left: number; top: number; width: number; maxHeight: number };
@@ -72,4 +72,33 @@ export function AnchoredPopover({ pos, panelRef, children }: { pos: Position | n
     </div>,
     document.body
   );
+}
+
+// Desplegable fijo pegado debajo de su botón (para usar con createPortal a body): así no lo
+// recorta una fila con scroll horizontal, como los filtros en tablet. Sigue al botón si la
+// página o la fila se desplazan.
+export function useFixedBelow(anchorRef: RefObject<HTMLElement | null>, open: boolean, alignRight: boolean) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    function place() {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        minWidth: rect.width,
+        ...(alignRight ? { right: Math.max(window.innerWidth - rect.right, MARGIN) } : { left: Math.max(rect.left, MARGIN) }),
+      });
+    }
+    place();
+    window.addEventListener("scroll", place, { capture: true, passive: true });
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, { capture: true });
+      window.removeEventListener("resize", place);
+      setStyle(null); // al reabrir no aparece un instante en la posición vieja
+    };
+  }, [anchorRef, open, alignRight]);
+  return open ? style : null;
 }

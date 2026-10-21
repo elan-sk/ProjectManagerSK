@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useFixedBelow } from "@/components/AnchoredPopover";
 import { CheckIcon } from "@/components/icons";
 
 export type TabMenuItem = { label: string; href: string; active: boolean };
@@ -15,6 +17,8 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
   const [open, setOpen] = useState(false);
   const [fitsLeft, setFitsLeft] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelStyle = useFixedBelow(rootRef, open, !fitsLeft);
 
   function toggle() {
     const rect = rootRef.current?.getBoundingClientRect();
@@ -26,7 +30,8 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -65,8 +70,8 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
             <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
           </svg>
         </button>
-        {open && (
-          <div className={`absolute ${fitsLeft ? "left-0" : "right-0"} z-40 mt-1 max-h-[60vh] w-max min-w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]`}>
+        {open && panelStyle && createPortal(
+          <div ref={panelRef} style={panelStyle} className="z-[70] max-h-[60vh] w-max max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-white p-1.5 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
             {items.map((item) => (
               <Link
                 key={item.label}
@@ -78,7 +83,8 @@ export function TabMenu({ items, prefix, variant = "tab" }: { items: TabMenuItem
                 {item.active && <CheckIcon className="h-4 w-4 flex-shrink-0" />}
               </Link>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </>

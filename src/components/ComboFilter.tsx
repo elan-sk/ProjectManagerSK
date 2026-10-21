@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useFixedBelow } from "@/components/AnchoredPopover";
 import { useRouter } from "@/lib/useAppRouter";
 import { normalizeSearchText } from "@/lib/search";
 
@@ -45,6 +47,8 @@ export function ComboFilter({
   const [open, setOpen] = useState(false);
   const [fitsLeft, setFitsLeft] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelStyle = useFixedBelow(rootRef, open, align === "right" || !fitsLeft);
 
   function toggle() {
     const rect = rootRef.current?.getBoundingClientRect();
@@ -65,7 +69,8 @@ export function ComboFilter({
   useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false);
         setQuery("");
       }
@@ -104,11 +109,11 @@ export function ComboFilter({
         {selected ? selected.label : allLabel}
       </button>
 
-      {open && (
+      {open && panelStyle && createPortal(
         <div
-          className={`absolute z-50 mt-1 w-64 max-w-[calc(100vw-1rem)] rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)] ${
-            align === "right" || !fitsLeft ? "right-0" : "left-0"
-          }`}
+          ref={panelRef}
+          style={panelStyle}
+          className="z-[70] w-64 max-w-[calc(100vw-1rem)] rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]"
         >
           <input
             autoFocus
@@ -154,7 +159,8 @@ export function ComboFilter({
             ))}
             {filtered.length === 0 && <p className="px-2.5 py-1.5 text-xs text-slate-400">Sin resultados.</p>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
