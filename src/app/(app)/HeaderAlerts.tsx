@@ -80,7 +80,7 @@ export function HeaderAlerts({ urgent, returned, pendingReviews }: { urgent: Hea
     <>
       {/* Urgentes: la lista no tiene "descartar" — solo cambia al completar o desmarcar la tarea. */}
       <AlertButton
-        icon={<UrgentIcon className="h-5 w-5 text-white" />}
+        icon={<UrgentIcon className="h-5 w-5" />}
         label="Tareas urgentes"
         emptyLabel="Sin tareas urgentes."
         colorClass="bg-red-600"
