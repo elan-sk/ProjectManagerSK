@@ -352,6 +352,11 @@ textarea:focus-visible {
   outline-color: rgba(229, 201, 121, 0.6);
 }
 
+/* Un <select> toma el ancho de su opción más larga: nunca más ancho que su contenedor. */
+@layer base {
+  select { max-width: 100%; text-overflow: ellipsis; }
+}
+
 button, a, input, select, textarea { transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 
 /* Tacto sutil en botones rellenos (fondo propio, no transparente): un leve
