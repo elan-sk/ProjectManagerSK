@@ -140,7 +140,16 @@ export async function requireAnyUser(request: Request): Promise<{ error: NextRes
 // Evita que un body no-JSON (o vacío) tire un 500 crudo en vez de un 400 limpio.
 export async function safeJson(request: Request): Promise<{ data: unknown } | { error: NextResponse }> {
   try {
-    return { data: await request.json() };
+    // Clientes de Windows (PowerShell/curl) a veces mandan el texto en windows-1252:
+    // si no es UTF-8 válido se lee como windows-1252 para no guardar las tildes como «�».
+    const bytes = new Uint8Array(await request.arrayBuffer());
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      text = new TextDecoder("windows-1252").decode(bytes);
+    }
+    return { data: JSON.parse(text) };
   } catch {
     return { error: NextResponse.json({ error: "Body inválido, se esperaba JSON" }, { status: 400 }) };
   }
