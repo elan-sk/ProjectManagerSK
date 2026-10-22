@@ -30,7 +30,7 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 // - En revisión (solo Prueba): una ronda enviada y sin resultado todavía. En Aceptación la ronda la califica el
 //   cliente por el link y no se sigue como «en revisión» (decisión del usuario 2026-10-16).
 // - Aprobada (Prueba) / Aceptada (Aceptación): la ronda quedó aprobada (es la última: tras una aprobada no hay reenvío)
-//   y la tarea aún no se completó. Separadas a pedido del usuario (2026-10-16): «Aceptada» es más clara para el cliente.
+//   y se mantiene aunque la tarea se complete (pedido del usuario 2026-10-22: la etiqueta se ve en todas las vistas y estados). Separadas a pedido del usuario (2026-10-16): «Aceptada» es más clara para el cliente.
 //   La devolución de ambas ya es un TaskStatus real (RETURNED).
 export const REVIEW_STATES = {
   IN_REVIEW: {
@@ -42,13 +42,13 @@ export const REVIEW_STATES = {
     label: "Aprobada",
     // Mismo teal que el tipo Prueba (TASK_TYPE_BADGE.QA): el ícono dice el estado, el color el tipo.
     color: { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700", solid: "bg-teal-600 hover:bg-teal-700" },
-    where: { type: "QA", status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
+    where: { type: "QA", reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
   },
   REVIEW_ACCEPTED: {
     label: "Aceptada",
     // Mismo rosa que el tipo Aceptación (TASK_TYPE_BADGE.ACCEPTANCE).
     color: { dot: "bg-pink-400", badge: "bg-pink-50 text-pink-700", solid: "bg-pink-600 hover:bg-pink-700" },
-    where: { type: "ACCEPTANCE", status: { not: "COMPLETED" }, reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
+    where: { type: "ACCEPTANCE", reviewRounds: { some: { outcome: "APPROVED" }, none: { outcome: null } } } as Prisma.TaskWhereInput,
   },
 } as const;
 export type ReviewState = keyof typeof REVIEW_STATES;
@@ -60,7 +60,7 @@ export function isReviewState(status: string | undefined): status is ReviewState
 export function taskReviewState(task: { type: string; status: string; reviewRounds: { outcome: unknown }[] }): ReviewState | null {
   if (task.type !== "QA" && task.type !== "ACCEPTANCE") return null;
   if (task.reviewRounds.some((r) => r.outcome === null)) return task.type === "QA" ? "IN_REVIEW" : null;
-  if (task.status !== "COMPLETED" && task.reviewRounds.some((r) => r.outcome === "APPROVED")) return task.type === "QA" ? "REVIEW_APPROVED" : "REVIEW_ACCEPTED";
+  if (task.reviewRounds.some((r) => r.outcome === "APPROVED")) return task.type === "QA" ? "REVIEW_APPROVED" : "REVIEW_ACCEPTED";
   return null;
 }
 

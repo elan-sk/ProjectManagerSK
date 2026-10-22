@@ -24,7 +24,7 @@ assert.deepEqual(taskStatusLabels({ status: "RETURNED", type: "QA", reviewRounds
 // «Aprobada»: Prueba con la ronda aprobada, sin ronda abierta y todavía sin completar.
 const approved = [{ outcome: "RETURNED" }, { outcome: "APPROVED" }];
 assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_APPROVED");
-assert.equal(taskReviewState({ type: "QA", status: "COMPLETED", reviewRounds: approved }), null);
+assert.equal(taskReviewState({ type: "QA", status: "COMPLETED", reviewRounds: approved }), "REVIEW_APPROVED", "la etiqueta se mantiene al completar");
 assert.equal(taskReviewState({ type: "QA", status: "IN_PROGRESS", reviewRounds: open }), "IN_REVIEW");
 assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: approved }), "REVIEW_ACCEPTED", "Aceptación aprobada = «Aceptada»");
 assert.equal(taskReviewState({ type: "ACCEPTANCE", status: "IN_PROGRESS", reviewRounds: open }), null, "Aceptación no lleva «En revisión»");

@@ -152,7 +152,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     description: "Lista las tareas del usuario que está preguntando. Si es admin, todas las tareas; si es PM de algún proyecto, las de sus proyectos; si es miembro, las que tiene asignadas.",
     input_schema: {
       type: "object",
-      properties: { status: { type: "string", description: "Filtrar por estado (opcional): NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETED, RETURNED, IN_REVIEW (Prueba enviada a revisar, sin resultado) REVIEW_APPROVED (Prueba aprobada, aún sin completar) o REVIEW_ACCEPTED (Aceptación aceptada por el cliente, aún sin completar); estos tres no se pueden asignar" } },
+      properties: { status: { type: "string", description: "Filtrar por estado (opcional): NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETED, RETURNED, IN_REVIEW (Prueba enviada a revisar, sin resultado) REVIEW_APPROVED (Prueba aprobada) o REVIEW_ACCEPTED (Aceptación aceptada por el cliente); estos tres no se pueden asignar" } },
     },
   },
   {
