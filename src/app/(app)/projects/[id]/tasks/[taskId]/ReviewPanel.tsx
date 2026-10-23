@@ -884,27 +884,29 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
         </div>
       )}
 
-      {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={check.note} /></p>}
-
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          {check.evidence.length > 0 && (
+          {/* Todo lo del revisor junto: nota de la ronda anterior, nota de esta ronda y su evidencia. */}
+          {(check.evidence.length > 0 || check.previousNote || (check.result && check.note)) && (
             <EvidenceGroup label="Revisor">
-              <div className="flex flex-wrap gap-1.5">
-                <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
-              </div>
+              {check.previousNote && (
+                <p className="text-[15px] text-slate-500">
+                  Ronda anterior: <Linkify text={check.previousNote} />
+                </p>
+              )}
+              {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={check.note} /></p>}
+              {check.evidence.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
+                </div>
+              )}
             </EvidenceGroup>
           )}
           {canReview && evidenceAdder}
         </div>
 
-      {((check.result === "FAILED" && canEdit) || check.previousNote || check.responseCategory || check.responseEvidence.length > 0) && (
+      {((check.result === "FAILED" && canEdit) || check.responseCategory || check.responseEvidence.length > 0) && (
         <EvidenceGroup label="Respuesta">
-          {check.previousNote && (
-            <p className="text-[15px] text-slate-500">
-              Error señalado en la ronda anterior: <Linkify text={check.previousNote} />
-            </p>
-          )}
           {canEdit && check.result === "FAILED" ? (
             <SearchableSelect
               name={`response-${check.id}`}
