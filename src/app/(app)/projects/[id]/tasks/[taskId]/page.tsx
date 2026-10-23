@@ -747,6 +747,7 @@ export default async function TaskDetailPage({
                 category: c.category,
                 result: c.result,
                 note: c.note,
+                previousNote: c.previousNote,
                 responseCategory: c.responseCategory,
                 reviewedByName: c.reviewedBy?.name ?? null,
                 evidence: c.evidence.filter((e) => !e.isResponse).map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),

@@ -121,6 +121,7 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           category: c.category,
           result: c.result,
           note: c.note,
+          previousNote: c.previousNote,
           responseCategory: c.responseCategory,
           // Prueba «Con errores»: respuestas ya guardadas para esta categoría; reutilizar antes de escribir otra.
           ...(task.type === "QA" && c.result === "FAILED" && {

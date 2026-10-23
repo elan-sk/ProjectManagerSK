@@ -53,6 +53,7 @@ type Check = {
   category: string | null;
   result: CheckResult | null;
   note: string | null;
+  previousNote: string | null;
   responseCategory: string | null;
   reviewedByName: string | null;
   /** Evidencia de quien revisa. */
@@ -846,11 +847,16 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
       {canReview && !check.result && (
         <div className="space-y-1.5">
-          <input
+          <textarea
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            rows={1}
+            ref={fitToContent}
+            onChange={(e) => {
+              setNote(e.target.value);
+              fitToContent(e.target);
+            }}
             placeholder="Nota (opcional)…"
-            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
+            className="block w-full resize-none overflow-hidden rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
           />
           <div className="flex flex-wrap gap-1.5">
             {/* Punto 6: calificar «Con errores» o «Recomendación» exige evidencia ya
@@ -880,17 +886,25 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
       {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={check.note} /></p>}
 
-      {check.evidence.length > 0 && (
-        <EvidenceGroup label="Revisor">
-          <div className="flex flex-wrap gap-1.5">
-            <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
-          </div>
-        </EvidenceGroup>
-      )}
-      {canReview && evidenceAdder}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          {check.evidence.length > 0 && (
+            <EvidenceGroup label="Revisor">
+              <div className="flex flex-wrap gap-1.5">
+                <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
+              </div>
+            </EvidenceGroup>
+          )}
+          {canReview && evidenceAdder}
+        </div>
 
-      {((check.result === "FAILED" && canEdit) || check.responseCategory || check.responseEvidence.length > 0) && (
+      {((check.result === "FAILED" && canEdit) || check.previousNote || check.responseCategory || check.responseEvidence.length > 0) && (
         <EvidenceGroup label="Respuesta">
+          {check.previousNote && (
+            <p className="text-[15px] text-slate-500">
+              Error señalado en la ronda anterior: <Linkify text={check.previousNote} />
+            </p>
+          )}
           {canEdit && check.result === "FAILED" ? (
             <SearchableSelect
               name={`response-${check.id}`}
@@ -913,6 +927,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
           {!canReview && check.result === "FAILED" && evidenceAdder}
         </EvidenceGroup>
       )}
+      </div>
 
       {check.reviewedByName && <p className="text-[13px] text-slate-400">Revisado por {check.reviewedByName}</p>}
 
@@ -1027,4 +1042,10 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
       <RichTextEditor key={criteriaKey} name="criteria" defaultValue="" />
     </form>
   );
+}
+
+function fitToContent(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
 }

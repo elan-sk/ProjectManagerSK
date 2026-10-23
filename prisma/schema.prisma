@@ -1023,6 +1023,7 @@ model ReviewCheck {
   category             String?
   result               CheckResult?
   note                 String?      @db.Text
+  previousNote         String?      @db.Text
   responseCategory     String?      @db.Text
   reviewedById         String?
   reviewedBy           User?        @relation("ReviewCheckReviewer", fields: [reviewedById], references: [id])

@@ -185,7 +185,7 @@ export async function submitReviewRound(
     for (const check of carryForwardChecks) {
       await tx.reviewCheck.update({
         where: { id: check.id },
-        data: { reviewRoundId: created.id, result: null, reviewedById: null },
+        data: { reviewRoundId: created.id, result: null, reviewedById: null, note: null, previousNote: check.note },
       });
     }
     return created;
