@@ -882,7 +882,9 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
 
       {check.evidence.length > 0 && (
         <EvidenceGroup label="Revisor">
-          <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
+          <div className="flex flex-wrap gap-1.5">
+            <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
+          </div>
         </EvidenceGroup>
       )}
       {canReview && evidenceAdder}
