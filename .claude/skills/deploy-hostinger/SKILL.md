@@ -23,10 +23,18 @@ Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid
 
 ## Pasos para desplegar
 
+"Desplegá" / "subí a producción" = **commit + push a `master`**. No se arma zip ni se entra a hPanel.
+
 1. Commitear lo que va a salir (revisar `git status`: no mezclar cambios de otra sesión que no estén listos).
-2. `git push origin master`. Eso dispara el deploy.
-3. Esperar ~4 min a que el build pase a "Se ha completado" (hPanel → Despliegues, o `GET .../nodejs/builds` si hay token).
-4. Probar el sitio real.
+2. `git push origin master`. Eso dispara el deploy solo (~3-4 min).
+3. Seguir el build:
+   - **Con token** (`~/.config/hostinger/token`, nunca mostrarlo): consultar cada ~15 s hasta `completed`/`failed`, buscando el build cuyo `source_options.commit.hash` sea el commit subido:
+     ```bash
+     T=$(cat ~/.config/hostinger/token); curl -s -H "Authorization: Bearer $T" \
+       https://developers.hostinger.com/api/hosting/v1/accounts/u305350578/websites/mediumorchid-donkey-632879.hostingersite.com/nodejs/builds
+     ```
+   - **Sin token** (archivo ausente o respuesta 401: el token se borró o venció): no pedir uno nuevo solo para esto. Indicar al usuario que lo vea en hPanel → el sitio → [Despliegues](https://hpanel.hostinger.com/websites/mediumorchid-donkey-632879.hostingersite.com/node/deployments) (cada push aparece con su commit; la flecha › abre el log del build). El token solo hace falta para volver a configurar la conexión por API.
+4. Probar el sitio real y dar el link a la pantalla afectada.
 
 Respaldo manual (solo si GitHub no despliega): `npm run package:hostinger` (exige árbol limpio; genera `projectmanagersk-deploy.zip` con `git archive`) → hPanel → Despliegues → subir el zip → Deploy.
 

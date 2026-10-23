@@ -194,10 +194,10 @@ export function CredentialView({
           type="button"
           onClick={copyLink}
           title={linkCopied ? "¡Copiado!" : "Copiar link de esta contraseña"}
-          className="flex flex-shrink-0 items-center gap-1 self-start rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+          aria-label={linkCopied ? "Copiado" : "Copiar link de esta contraseña"}
+          className="flex flex-shrink-0 items-center self-start rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
         >
-          {linkCopied ? <CheckIcon className="h-3.5 w-3.5 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
-          {linkCopied ? "Copiado" : "Copiar link"}
+          {linkCopied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : <LinkIcon className="h-4 w-4" />}
         </button>
       </div>
 
