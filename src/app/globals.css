@@ -491,3 +491,43 @@ html.show-hotkeys .hotkey {
     max-width: 100%;
   }
 }
+
+/* Novedades (FeatureHints, driver.js): globo con los colores de la app; sin animación en bucle. */
+.driver-popover.feature-hint {
+  border-radius: 0.75rem;
+  background-color: #fff;
+  color: var(--color-slate-700);
+  box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+.driver-popover.feature-hint .driver-popover-title {
+  font-size: 0.95rem;
+  color: var(--color-slate-900);
+}
+.driver-popover.feature-hint .driver-popover-description {
+  font-size: 0.85rem;
+  color: var(--color-slate-600);
+}
+.driver-popover.feature-hint .driver-popover-footer button {
+  border: 0;
+  border-radius: 0.5rem;
+  background-color: var(--pacific-tide);
+  color: #fff;
+  text-shadow: none;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.8rem;
+}
+.driver-popover.feature-hint .driver-popover-footer button:hover {
+  background-color: var(--pacific-deep);
+}
+.driver-popover.feature-hint .driver-popover-close-btn {
+  color: var(--color-slate-400);
+  /* driver.js le da el foco al abrir: sin esto se veía un recuadro alrededor de la X. */
+  outline: none;
+}
+.driver-popover.feature-hint .driver-popover-footer button:focus-visible {
+  outline: 2px solid var(--pacific-deep);
+  outline-offset: 2px;
+}
+.driver-popover.feature-hint .driver-popover-close-btn:hover {
+  color: var(--color-slate-900);
+}

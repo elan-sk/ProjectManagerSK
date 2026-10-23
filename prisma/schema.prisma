@@ -196,6 +196,7 @@ model User {
   credentialAccess      CredentialUser[]
   credentialAccessLogs  CredentialAccessLog[]
   projectRoles          ProjectRole[]
+  featureHintsSeen      UserFeatureHint[]
 }
 
 // Rol de una persona DENTRO de un proyecto (pestaña Definición): quién hace
@@ -421,14 +422,14 @@ model Task {
   actualEnd    DateTime?
 
   // Urgente: la marcan Admin/PM; ancla la tarea arriba y avisa de inmediato.
-  isUrgent   Boolean   @default(false)
+  isUrgent          Boolean   @default(false)
   // Portada (imagen de la card, como Trello): nulo = la primera imagen adjunta;
   // si el adjunto elegido ya no existe, también vale la primera (ver taskCover.ts).
   // coverHidden = la persona eligió «Sin portada».
   coverAttachmentId String?
   coverHidden       Boolean   @default(false)
   // Archivada: sale del flujo visual pero sigue en la base (completada).
-  archivedAt DateTime?
+  archivedAt        DateTime?
 
   createdAt DateTime @default(now())
   // Punto 12 (tiempo real sin pisadas): marca de tiempo de la última
@@ -1232,4 +1233,14 @@ model CredentialAccessLog {
   createdAt    DateTime        @default(now())
 
   @@index([credentialId, createdAt])
+}
+
+/// Novedades de la app ya vistas por cada persona (src/lib/featureHints.ts): cada aviso sale una sola vez.
+model UserFeatureHint {
+  userId String
+  hintId String   @db.VarChar(100)
+  seenAt DateTime @default(now())
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, hintId])
 }

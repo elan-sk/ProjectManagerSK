@@ -530,8 +530,8 @@ export function HeaderSearch() {
                     <p className={`flex items-center justify-between gap-2 px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide ${GROUP_COLOR[h.group].title} uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
                       {GROUP_LABEL[h.group]}
                       {h.group === "file" && parsed.filter === "credential" && !head && (
-                        <button type="button" onClick={goAllCredentials} className="cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] font-medium tracking-normal text-red-700 normal-case hover:bg-red-50">
-                          Ver todas →
+                        <button type="button" onClick={goAllCredentials} className="cursor-pointer px-1.5 py-0.5 text-[11px] font-medium tracking-normal text-red-700 underline underline-offset-2 normal-case hover:text-red-800">
+                          Ver todas
                         </button>
                       )}
                     </p>

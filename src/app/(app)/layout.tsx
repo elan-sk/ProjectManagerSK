@@ -25,6 +25,8 @@ import { MobileMenuToggle } from "./MobileMenuToggle";
 import { Avatar } from "@/components/Avatar";
 import { ToastProvider } from "@/components/Toast";
 import { ConfirmProvider } from "@/components/Confirm";
+import { FeatureHints } from "@/components/FeatureHints";
+import { activeFeatureHints } from "@/lib/featureHints";
 
 // Next.js 16: proxy.ts (ex-middleware) ya no es el lugar para auth — la
 // verificación de sesión va en el layout/route handler, como pide la guía
@@ -48,6 +50,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // layout con findUniqueOrThrow.
   if (!me) redirect("/login");
   await checkDeadlineAlerts(session.user.id);
+  // Novedades vigentes que esta persona todavía no vio (cada una sale una sola vez).
+  const activeHints = activeFeatureHints().map((h) => h.id);
+  const seenHints = activeHints.length
+    ? await prisma.userFeatureHint
+        .findMany({ where: { userId: session.user.id, hintId: { in: activeHints } }, select: { hintId: true } })
+        .catch(() => activeHints.map((hintId) => ({ hintId })))
+    : [];
+  const pendingHints = activeHints.filter((id) => !seenHints.some((s) => s.hintId === id));
   // Admin/PM van al informe grupal; un miembro normal va directo a su propio
   // rendimiento (ver performance/page.tsx y performance/[userId]/page.tsx).
   const performanceHref = isAdmin || pmProjectCount > 0 ? "/performance" : `/performance/${session.user.id}`;
@@ -153,6 +163,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <ScrollTopHandle />
       <ChontatecWidget botName={botSettings.name} botAvatarUrl={botSettings.avatarUrl} />
       <HotkeyHints />
+      <FeatureHints pending={pendingHints} />
     </div>
     </ConfirmProvider>
     </ToastProvider>

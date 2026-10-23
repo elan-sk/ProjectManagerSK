@@ -7,7 +7,7 @@ import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { useConfirm } from "@/components/Confirm";
 import { useToast } from "@/components/Toast";
-import { CheckIcon, CopyIcon, ExternalLinkIcon, KeyIcon, PencilIcon, SearchIcon, TrashIcon } from "@/components/icons";
+import { CheckIcon, ExternalLinkIcon, KeyIcon, PencilIcon, SearchIcon, TrashIcon, UserIcon } from "@/components/icons";
 import { normalizeSearchText } from "@/lib/search";
 import { credentialUrlLabel } from "@/lib/attachments";
 import { CredentialLoader } from "./CredentialView";
@@ -94,7 +94,7 @@ function CredentialRow({ credential, onOpen }: { credential: BoardCredential; on
       <span className="flex flex-shrink-0 items-center">
         {credential.username && (
           <button type="button" onClick={() => copy("user")} title="Copiar usuario" aria-label="Copiar usuario" className={iconButton}>
-            {copied === "user" ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : <CopyIcon className="h-4 w-4" />}
+            {copied === "user" ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : <UserIcon className="h-4 w-4" />}
           </button>
         )}
         <button type="button" onClick={() => copy("password")} title="Copiar contraseña" aria-label="Copiar contraseña" className={`${iconButton} text-red-600/70 hover:text-red-700`}>

@@ -323,8 +323,8 @@ export default async function AgendaPage({
       <RememberViewState storageKey="lastAgendaView" />
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
-        <Link href="/credentials" title="Ver todas las contraseñas" className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-          <KeyIcon className="h-3.5 w-3.5" />
+        <Link href="/credentials" data-feature-hint="agenda-credentials-page" title="Ver todas las contraseñas" className="flex items-center gap-1.5 rounded-lg border border-red-600/30 bg-red-600/10 px-2.5 py-1 text-sm font-medium text-red-700 transition-colors hover:border-red-600 hover:bg-red-600/20">
+          <KeyIcon className="h-4 w-4" />
           Contraseñas
         </Link>
       </div>
