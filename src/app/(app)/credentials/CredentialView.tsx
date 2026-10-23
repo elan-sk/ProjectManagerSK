@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useConfirm } from "@/components/Confirm";
-import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon, KeyIcon } from "@/components/icons";
+import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon, KeyIcon, LinkIcon } from "@/components/icons";
 import { CredentialForm } from "./CredentialForm";
 import { deleteCredential, getCredentialAccessLog, getCredentialDetails, recordCredentialEvent, unlinkCredential, type CredentialDetails, type CredentialLogEntry } from "./actions";
 import { CREDENTIAL_EVENT_LABEL, removeFromPlaceLabel, type CredentialPlace } from "@/lib/credentialPlace";
@@ -123,6 +123,18 @@ export function CredentialView({
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Link a /credentials/[id]: esa página ya valida quién puede verla.
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/credentials/${credential.id}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      setError("No se pudo copiar el link. Intente de nuevo.");
+    }
+  }
 
   if (editing) {
     return (
@@ -174,10 +186,19 @@ export function CredentialView({
         <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border border-red-600/30 bg-red-600/10 text-red-700">
           <KeyIcon className="h-7 w-7" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-slate-900">{credential.name}</p>
           <p className="truncate text-xs text-slate-500">Proyecto: {credential.projectName}</p>
         </div>
+        <button
+          type="button"
+          onClick={copyLink}
+          title={linkCopied ? "¡Copiado!" : "Copiar link de esta contraseña"}
+          className="flex flex-shrink-0 items-center gap-1 self-start rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+        >
+          {linkCopied ? <CheckIcon className="h-3.5 w-3.5 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
+          {linkCopied ? "Copiado" : "Copiar link"}
+        </button>
       </div>
 
       <div className="space-y-3">
