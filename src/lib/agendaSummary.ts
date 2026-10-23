@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { contributionPct, taskContribution, TASK_CONTRIBUTION_SELECT } from "@/lib/taskProgress";
+import { contributionPct, contributionSums, TASK_CONTRIBUTION_SELECT } from "@/lib/taskProgress";
 import { visibleProjectWhere, LIVE_PROJECT_WHERE, managedProjectWhere, type Actor } from "@/lib/permissions";
 import { groupRows, worstVariance } from "@/lib/subprojects";
 import { getTaskAlert, type TaskAlert } from "@/lib/delays";
@@ -67,6 +67,7 @@ export type PmProjectSummary = {
   total: number;
   completed: number;
   progressSum: number;
+  weightSum: number;
   blockedCount: number;
   health: "ok" | "warn" | "bad";
   lateStartCount: number;
@@ -102,7 +103,7 @@ export async function getProjectsSummary(
       parent: { select: { name: true, iconUrl: true } },
       pm: { select: { name: true, avatarUrl: true } },
       countryCode: true,
-      tasks: { select: { plannedStart: true, plannedEnd: true, ...TASK_CONTRIBUTION_SELECT } },
+      tasks: { select: TASK_CONTRIBUTION_SELECT },
     },
     orderBy: { createdAt: "desc" }, // mismo orden que el resumen de Proyectos: el más reciente primero
   });
@@ -124,7 +125,7 @@ export async function getProjectsSummary(
       iconUrl: p.iconUrl,
       total: p.tasks.length,
       completed,
-      progressSum: p.tasks.reduce((sum, t) => sum + taskContribution(t), 0),
+      ...contributionSums(p.tasks),
       blockedCount: p.tasks.filter((t) => t.status === "BLOCKED").length,
       health: projectHealth(overdueCount, p.tasks.length),
       lateStartCount,
@@ -167,6 +168,7 @@ export function groupPmSummaries(rows: PmProjectSummary[]): PmProjectSummary[] {
       total,
       completed: sum((x) => x.completed),
       progressSum: sum((x) => x.progressSum),
+      weightSum: sum((x) => x.weightSum),
       blockedCount: sum((x) => x.blockedCount),
       lateStartCount: sum((x) => x.lateStartCount),
       overdueCount,

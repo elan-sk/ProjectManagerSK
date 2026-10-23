@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { taskContribution, averageContribution, forecastRemainingShare, type ContributionTask } from "../src/lib/taskProgress";
+import { taskContribution, averageContribution, contributionSums, contributionPct, taskWeight, weightedAverage, forecastRemainingShare, type ContributionTask } from "../src/lib/taskProgress";
 import { buildProjectForecast, type ForecastTask } from "../src/lib/scheduleForecast";
 
 const t = (over: Partial<ContributionTask>): ContributionTask => ({
   type: "SIMPLE",
   status: "IN_PROGRESS",
+  plannedStart: new Date("2026-10-19T00:00:00Z"),
+  plannedEnd: new Date("2026-10-19T00:00:00Z"),
   steps: [],
   adjustmentItems: [],
   reviewRounds: [],
@@ -43,6 +45,20 @@ assert.equal(
   ]),
   63
 );
+
+// Peso = días hábiles planeados (lun–vie, inicio y fin incluidos).
+const span = (from: string, to: string) => ({ plannedStart: new Date(`${from}T00:00:00Z`), plannedEnd: new Date(`${to}T00:00:00Z`) });
+assert.equal(taskWeight(span("2026-10-19", "2026-10-19")), 1, "un día");
+assert.equal(taskWeight(span("2026-10-19", "2026-10-30")), 10, "dos semanas sin contar el fin de semana");
+assert.equal(taskWeight(span("2026-10-24", "2026-10-25")), 1, "mínimo 1 aunque caiga en fin de semana");
+// Una tarea de 10 días a la mitad pesa más que una de 1 día completada: (50×10 + 100×1) / 11 = 55 (antes 75).
+const weighted = [t({ ...span("2026-10-19", "2026-10-30"), steps: steps(1, 2) }), t({ status: "COMPLETED" })];
+assert.equal(averageContribution(weighted), 55);
+assert.deepEqual(contributionSums(weighted), { progressSum: 600, weightSum: 11 });
+// Nunca pasa de 100 %, aunque todo esté completo y con pesos distintos.
+assert.equal(averageContribution([t({ ...span("2026-10-19", "2026-10-30"), status: "COMPLETED" }), t({ status: "COMPLETED" })]), 100);
+assert.equal(contributionPct({ progressSum: 0, weightSum: 0 }), 0);
+assert.equal(weightedAverage([{ pct: 100, weight: 1 }, { pct: 0, weight: 3 }]), 25);
 
 assert.equal(forecastRemainingShare(t({ type: "QA", reviewRounds: [round(null, null)] })), 0);
 assert.equal(forecastRemainingShare(t({})), 0.75);

@@ -3,9 +3,10 @@ import { summarizeRequirement } from "../src/lib/cascadeProgress";
 
 const past = new Date("2020-01-01");
 const future = new Date("2999-01-01");
-const task = (id: string, status: string, plannedEnd = future) => ({ id, title: id, status, plannedEnd, type: "SIMPLE", steps: [], adjustmentItems: [], reviewRounds: [], attachments: [] });
-const phase = (pct: number, overdueIds: string[] = []) => ({
+const task = (id: string, status: string, plannedEnd = future) => ({ id, title: id, status, plannedStart: plannedEnd, plannedEnd, type: "SIMPLE", steps: [], adjustmentItems: [], reviewRounds: [], attachments: [] });
+const phase = (pct: number, overdueIds: string[] = [], weight = 1) => ({
   pct,
+  weight,
   atRisk: overdueIds.length > 0,
   overdueTasks: overdueIds.map((id) => ({ id, title: id, href: `/projects/p/tasks/${id}` })),
 });
@@ -27,11 +28,12 @@ assert.deepEqual(late.atRiskTasks, [{ id: "late", title: "late", href: "/project
 const fallback = summarizeRequirement([], [phase(40, ["x"]), phase(80, ["x", "y"])], "p");
 assert.equal(fallback.usesPhaseFallback, true);
 assert.equal(fallback.pct, 60, "sin tareas propias: promedio de sus fases");
+assert.equal(summarizeRequirement([], [phase(40, [], 3), phase(80, [], 1)], "p").pct, 50, "fases ponderadas por su trabajo: (40×3 + 80×1) / 4");
 assert.equal(fallback.atRisk, true);
 assert.deepEqual(fallback.atRiskTasks.map((t) => t.id), ["x", "y"], "tareas atrasadas sin repetir");
 
 const empty = summarizeRequirement([], [], "p");
-assert.deepEqual(empty, { usesPhaseFallback: true, pct: 0, atRisk: false, atRiskTasks: [] }, "sin fases ni tareas: 0 %");
+assert.deepEqual(empty, { usesPhaseFallback: true, pct: 0, weight: 1, atRisk: false, atRiskTasks: [] }, "sin fases ni tareas: 0 %");
 
 console.log("verify-requirement-progress: OK");
 process.exit(0);

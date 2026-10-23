@@ -136,7 +136,7 @@ export async function ProjectSummaryGrid({
         <ProjectCardsOrder
           limit={limit}
           items={visibleRows.map(({ project: p, summary, subprojects }) => {
-            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, progressSum, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
+            const { overdueCount, warningCount, lateStartCount, overdueTasks, warningTasks, lateStartTasks, bottlenecks, total, completed, progressSum, weightSum, health: projHealth, phase, collisionTasks, openSlackDays, scheduleVarianceDays } = summary;
             return {
               id: p.id,
               node: (
@@ -202,7 +202,7 @@ export async function ProjectSummaryGrid({
                     </div>
                   </div>
                   <div className="mt-2">
-                    <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} pct={contributionPct({ progressSum, total })} />
+                    <ProjectProgress projectId={p.id} bottlenecks={bottlenecks} total={total} completed={completed} pct={contributionPct({ progressSum, weightSum })} />
                   </div>
                 </NavLinkWithMemory>
               ),

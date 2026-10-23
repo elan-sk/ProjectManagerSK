@@ -3,11 +3,11 @@ import { todayUTC, businessDaysBetween } from "@/lib/holidays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { getProjectForecast, groupDelayDays, type ProjectForecast } from "@/lib/scheduleForecast";
 import type { TaskStatus } from "@prisma/client";
-import { averageContribution, TASK_CONTRIBUTION_SELECT, type ContributionTask } from "@/lib/taskProgress";
+import { averageContribution, taskWeight, TASK_CONTRIBUTION_SELECT, weightedAverage, type ContributionTask } from "@/lib/taskProgress";
 
 /**
- * Avance en cascada de la pestaña "Definición" (punto confirmado con el
- * usuario: promedio simple). % de una fase = promedio del aporte de sus tareas
+ * Avance en cascada de la pestaña "Definición": promedio PONDERADO por el
+ * trabajo (días hábiles planeados de cada tarea, ver taskWeight). % de una fase = promedio del aporte de sus tareas
  * (spec 011, taskContribution; 0 si no tiene tareas todavía). % de un requerimiento = promedio
  * del % de sus fases vinculadas (0 si no tiene ninguna vinculada todavía).
  * % de un objetivo = promedio del % de sus requerimientos vinculados.
@@ -33,6 +33,11 @@ function dedupeById(items: TaskRef[]): TaskRef[] {
 function phasePct(phase: { tasks: ContributionTask[] }) {
   return averageContribution(phase.tasks);
 }
+
+// Peso de un grupo = días de trabajo de sus tareas. Mínimo 1: un requerimiento u objetivo sin tareas
+// todavía cuenta como un pendiente chico al 0 %, en vez de desaparecer del promedio.
+const tasksWeight = (tasks: ContributionTask[]) => Math.max(1, tasks.reduce((s, t) => s + taskWeight(t), 0));
+const groupsWeight = (groups: { weight: number }[]) => Math.max(1, groups.reduce((s, g) => s + g.weight, 0));
 
 // Misma definición de "atrasada" que getTaskAlert (src/lib/delays.ts): abierta
 // (ni completada ni bloqueada) y ya pasó su fecha fin planeada. Se reimplementa
@@ -71,11 +76,6 @@ async function phaseDueInfo(
   return { dueInDays: await businessDaysBetween(countryCode, today, new Date(maxEnd)), dueTasks };
 }
 
-function average(values: number[]) {
-  if (values.length === 0) return 0;
-  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
-}
-
 function minOrNull(values: (number | null)[]): number | null {
   const valid = values.filter((v): v is number => v !== null);
   return valid.length > 0 ? Math.min(...valid) : null;
@@ -86,7 +86,7 @@ function minOrNull(values: (number | null)[]): number | null {
 // paralelo no hacen 6 días de retraso.
 const worstOrNull = minOrNull;
 
-type GroupSummary = { pct: number; atRisk: boolean; overdueTasks: TaskRef[] };
+type GroupSummary = { pct: number; weight: number; atRisk: boolean; overdueTasks: TaskRef[] };
 
 export function summarizeRequirement(
   ownTasks: ({ id: string; title: string; plannedEnd: Date } & ContributionTask)[],
@@ -95,11 +95,12 @@ export function summarizeRequirement(
 ) {
   if (ownTasks.length > 0) {
     const { overdueTasks } = phaseTaskCounts({ tasks: ownTasks }, projectId);
-    return { usesPhaseFallback: false, pct: phasePct({ tasks: ownTasks }), atRisk: overdueTasks.length > 0, atRiskTasks: overdueTasks };
+    return { usesPhaseFallback: false, pct: phasePct({ tasks: ownTasks }), weight: tasksWeight(ownTasks), atRisk: overdueTasks.length > 0, atRiskTasks: overdueTasks };
   }
   return {
     usesPhaseFallback: true,
-    pct: average(linkedPhases.map((p) => p.pct)),
+    pct: weightedAverage(linkedPhases),
+    weight: groupsWeight(linkedPhases),
     atRisk: linkedPhases.some((p) => p.atRisk),
     atRiskTasks: dedupeById(linkedPhases.flatMap((p) => p.overdueTasks)),
   };
@@ -112,6 +113,7 @@ export type PhaseSummary = {
   id: string;
   name: string;
   pct: number;
+  weight: number;
   atRisk: boolean;
   overdueTasks: TaskRef[];
   requirementIds: string[];
@@ -123,6 +125,7 @@ export type RequirementSummary = {
   title: string;
   description: string | null;
   pct: number;
+  weight: number;
   atRisk: boolean;
   usesPhaseFallback: boolean;
   atRiskTasks: TaskRef[];
@@ -138,6 +141,7 @@ export type ObjectiveSummary = {
   title: string;
   description: string | null;
   pct: number;
+  weight: number;
   atRiskRequirementCount: number;
   atRiskTasks: TaskRef[];
   requirementTitles: string[];
@@ -176,7 +180,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         phases: { select: { id: true } },
         tasks: {
           orderBy: { plannedStart: "asc" },
-          select: { id: true, title: true, plannedEnd: true, actualEnd: true, phaseId: true, ...TASK_CONTRIBUTION_SELECT },
+          select: { id: true, title: true, actualEnd: true, phaseId: true, ...TASK_CONTRIBUTION_SELECT },
         },
       },
     }),
@@ -184,7 +188,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       where: { projectId },
       orderBy: { order: "asc" },
       include: {
-        tasks: { select: { id: true, title: true, plannedEnd: true, actualEnd: true, requirements: { select: { id: true } }, ...TASK_CONTRIBUTION_SELECT } },
+        tasks: { select: { id: true, title: true, actualEnd: true, requirements: { select: { id: true } }, ...TASK_CONTRIBUTION_SELECT } },
       },
     }),
     getProjectTaskSlack(projectId),
@@ -213,6 +217,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       id: p.id,
       name: p.name,
       pct: phasePct(p),
+      weight: tasksWeight(p.tasks),
       atRisk: counts.overdue > 0,
       overdueTasks: counts.overdueTasks,
       requirementIds: [...new Set(p.tasks.flatMap((t) => t.requirements.map((r) => r.id)))],
@@ -249,7 +254,7 @@ export async function getProjectCascadeProgress(projectId: string) {
       };
     })
   );
-  const requirementPctById = new Map(requirements.map((r) => [r.id, r.pct]));
+  const requirementById = new Map(requirements.map((r) => [r.id, r]));
   const requirementAtRiskById = new Map(requirements.map((r) => [r.id, r.atRisk]));
   const requirementAtRiskTasksById = new Map(requirements.map((r) => [r.id, r.atRiskTasks]));
   const requirementSlackById = new Map(requirements.map((r) => [r.id, r.openSlackDays]));
@@ -258,7 +263,7 @@ export async function getProjectCascadeProgress(projectId: string) {
   // Avance de los objetivos de subproyectos que aportan (un subproyecto no tiene subproyectos: no hay recursión infinita).
   const contributorProjectIds = [...new Set(objectivesRaw.flatMap((o) => o.contributions.map((c) => c.projectId)))];
   const contributorPct = new Map(
-    (await Promise.all(contributorProjectIds.map((id) => getProjectCascadeProgress(id)))).flatMap((c) => c.objectives.map((o) => [o.id, o.pct] as const))
+    (await Promise.all(contributorProjectIds.map((id) => getProjectCascadeProgress(id)))).flatMap((c) => c.objectives.map((o) => [o.id, o] as const))
   );
 
   const objectives: ObjectiveSummary[] = objectivesRaw.map((o) => ({
@@ -267,9 +272,15 @@ export async function getProjectCascadeProgress(projectId: string) {
     description: o.description,
     parentObjectiveId: o.parentObjective?.id ?? null,
     parentObjectiveTitle: o.parentObjective?.title ?? null,
-    contributions: o.contributions.map((c) => ({ id: c.id, title: c.title, pct: contributorPct.get(c.id) ?? 0, projectId: c.projectId, projectName: c.project.name, projectIconUrl: c.project.iconUrl })),
-    // Promedio simple entre sus requerimientos y los objetivos de subproyectos que aportan (RF-15).
-    pct: average([...o.requirements.map((r) => requirementPctById.get(r.id) ?? 0), ...o.contributions.map((c) => contributorPct.get(c.id) ?? 0)]),
+    contributions: o.contributions.map((c) => ({ id: c.id, title: c.title, pct: contributorPct.get(c.id)?.pct ?? 0, projectId: c.projectId, projectName: c.project.name, projectIconUrl: c.project.iconUrl })),
+    // Promedio ponderado (por trabajo) entre sus requerimientos y los objetivos de subproyectos que aportan (RF-15).
+    ...(() => {
+      const parts = [
+        ...o.requirements.map((r) => requirementById.get(r.id) ?? { pct: 0, weight: 1 }),
+        ...o.contributions.map((c) => contributorPct.get(c.id) ?? { pct: 0, weight: 1 }),
+      ];
+      return { pct: weightedAverage(parts), weight: groupsWeight(parts) };
+    })(),
     atRiskRequirementCount: o.requirements.filter((r) => requirementAtRiskById.get(r.id)).length,
     atRiskTasks: dedupeById(o.requirements.flatMap((r) => requirementAtRiskTasksById.get(r.id) ?? [])),
     requirementTitles: o.requirements.map((r) => r.title),
@@ -287,6 +298,7 @@ export async function getProjectCascadeProgress(projectId: string) {
         id: p.id,
         name: p.name,
         pct: phasePct(p),
+        weight: tasksWeight(p.tasks),
         atRisk: counts.overdue > 0,
         overdueTasks: counts.overdueTasks,
         requirementTitles: requirementIds.flatMap((id) => requirementTitleById.get(id) ?? []),

@@ -38,6 +38,8 @@ export function deliverableEvidenceLoaded(task: { type: string; attachments: { k
 
 export const TASK_CONTRIBUTION_SELECT = {
   type: true,
+  plannedStart: true,
+  plannedEnd: true,
   status: true,
   steps: { select: { done: true } },
   adjustmentItems: { select: { attachments: { select: { kind: true } } } },
@@ -47,6 +49,8 @@ export const TASK_CONTRIBUTION_SELECT = {
 
 export type ContributionTask = {
   type: string;
+  plannedStart: Date;
+  plannedEnd: Date;
   status: string;
   steps: { done: boolean }[];
   adjustmentItems: { attachments: { kind: string }[] }[];
@@ -68,10 +72,42 @@ export function taskContribution(task: ContributionTask) {
   return progress ? Math.min(90, progressPct(progress)) : 25;
 }
 
-export function averageContribution(tasks: ContributionTask[]) {
-  return tasks.length > 0 ? Math.round(tasks.reduce((sum, t) => sum + taskContribution(t), 0) / tasks.length) : 0;
+const DAY_MS = 86_400_000;
+
+/** Peso de una tarea en el avance = su duración planeada en días hábiles (inicio y fin incluidos, mínimo 1):
+ * una tarea de una semana aporta 5 veces lo que una de un día. */
+// ponytail: cuenta lunes a viernes sin festivos; la diferencia de un festivo no cambia el reparto de forma visible.
+export function taskWeight(task: { plannedStart: Date; plannedEnd: Date }) {
+  const start = Math.floor(task.plannedStart.getTime() / DAY_MS);
+  const end = Math.floor(task.plannedEnd.getTime() / DAY_MS);
+  let days = 0;
+  for (let d = start; d <= end; d++) {
+    const weekday = new Date(d * DAY_MS).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) days++;
+  }
+  return Math.max(1, days);
 }
 
-export const contributionPct = (s: { progressSum: number; total: number }) => (s.total > 0 ? Math.round(s.progressSum / s.total) : 0);
+/** Suma ponderada del aporte de las tareas: avance = progressSum / weightSum, nunca más de 100. */
+export function contributionSums(tasks: ContributionTask[]) {
+  return tasks.reduce(
+    (acc, t) => {
+      const w = taskWeight(t);
+      return { progressSum: acc.progressSum + taskContribution(t) * w, weightSum: acc.weightSum + w };
+    },
+    { progressSum: 0, weightSum: 0 },
+  );
+}
+
+export const contributionPct = (s: { progressSum: number; weightSum: number }) => (s.weightSum > 0 ? Math.round(s.progressSum / s.weightSum) : 0);
+
+/** Avance de un grupo de tareas, ponderado por duración (proyecto, fase, requerimiento). */
+export const averageContribution = (tasks: ContributionTask[]) => contributionPct(contributionSums(tasks));
+
+/** Promedio ponderado de grupos ya calculados (objetivo = sus requerimientos según el trabajo de cada uno). */
+export function weightedAverage(items: { pct: number; weight: number }[]) {
+  const weightSum = items.reduce((s, i) => s + i.weight, 0);
+  return weightSum > 0 ? Math.round(items.reduce((s, i) => s + i.pct * i.weight, 0) / weightSum) : 0;
+}
 
 export const forecastRemainingShare = (task: ContributionTask) => (taskInReview(task) ? 0 : 1 - taskContribution(task) / 100);

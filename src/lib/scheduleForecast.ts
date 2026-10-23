@@ -124,7 +124,7 @@ export async function getProjectForecast(projectId: string): Promise<ProjectFore
     select: {
       countryCode: true,
       targetEndDate: true,
-      tasks: { select: { id: true, title: true, plannedStart: true, plannedEnd: true, actualEnd: true, ...TASK_CONTRIBUTION_SELECT } },
+      tasks: { select: { id: true, title: true, actualEnd: true, ...TASK_CONTRIBUTION_SELECT } },
     },
   });
   const tasks = project.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, plannedStart: t.plannedStart, plannedEnd: t.plannedEnd, actualEnd: t.actualEnd, remainingShare: forecastRemainingShare(t) }));
