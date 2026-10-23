@@ -548,7 +548,8 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
     });
   }
 
-  const allResolved = round.checks.length > 0 && round.checks.every((c) => c.result);
+  // Ronda 2+ sin pruebas = reenvío sin errores pendientes: se puede cerrar (queda Aprobada).
+  const allResolved = (round.checks.length > 0 || !isFirstRound) && round.checks.every((c) => c.result);
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3">
