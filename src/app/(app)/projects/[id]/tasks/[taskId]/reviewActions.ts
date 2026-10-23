@@ -7,8 +7,8 @@ import { auth } from "@/auth";
 import { getProjectAdmin, canEditTask, canReviewTask, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
-import { notifyReturned, notifyReviewRequested } from "@/lib/notifications";
-import { setCheckResponse, setDefaultTestTemplate } from "@/lib/taskDesign";
+import { notifyReturned, notifyReviewApproved, notifyReviewRequested } from "@/lib/notifications";
+import { setCheckResponse, setDefaultTestTemplate, isResponseEvidence } from "@/lib/taskDesign";
 import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
 import { autoStartTask } from "@/lib/taskAutoStart";
 import type { CheckResult } from "@prisma/client";
@@ -48,7 +48,7 @@ export async function setTaskReviewers(taskId: string, formData: FormData, actor
   const assigneeIds = task.assignees.map((a) => a.userId);
   // Excepción: proyecto de una sola persona (ver allowsSelfReview).
   if (reviewerIds.some((id) => assigneeIds.includes(id)) && !(await allowsSelfReview(task.projectId, [...assigneeIds, ...reviewerIds]))) {
-    return { ok: false as const, error: "Un asignado a la tarea no puede ser también su revisor." };
+    return { ok: false as const, error: "Un responsable de la tarea no puede ser también su revisor." };
   }
 
   if (!isAdminOrPm && !isCurrentReviewer) {
@@ -133,11 +133,12 @@ export async function submitReviewRound(
       return { ok: false as const, error: "No hay ninguna ronda devuelta para reenviar." };
     }
     const failedChecks = lastRound.checks.filter((c) => c.result === "FAILED");
-    const unanswered = failedChecks.filter((c) => !c.responseCategory?.trim() || c.evidence.length === 0);
+    // La respuesta escrita es obligatoria; la evidencia no (a veces no era un error y basta con explicarlo).
+    const unanswered = failedChecks.filter((c) => !c.responseCategory?.trim());
     if (unanswered.length > 0) {
       return {
         ok: false as const,
-        error: `Todavía hay ${unanswered.length} prueba(s) con error sin respuesta o sin evidencia de corrección.`,
+        error: `Todavía hay ${unanswered.length} prueba(s) con error sin respuesta.`,
       };
     }
     carryForwardChecks = failedChecks;
@@ -384,7 +385,7 @@ export async function setReviewCheckResult(checkId: string, result: CheckResult,
   if (!(await canReviewTask(round.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
-  if ((result === "FAILED" || result === "FLAGGED") && check.evidence.length === 0) {
+  if ((result === "FAILED" || result === "FLAGGED") && !check.evidence.some((e) => !e.isResponse)) {
     return { ok: false as const, error: "Para calificar «Con errores» o «Recomendación», primero se debe subir evidencia." };
   }
   if (round.outcome !== null) {
@@ -397,6 +398,7 @@ export async function setReviewCheckResult(checkId: string, result: CheckResult,
   }
   const reviewedById = (await resolveActor(actor))?.id;
   let returnedNow = false;
+  let approvedNow = false;
   await prisma.$transaction(async (tx) => {
     await tx.reviewCheck.update({
       where: { id: checkId },
@@ -410,11 +412,13 @@ export async function setReviewCheckResult(checkId: string, result: CheckResult,
     if (hasFailed) {
       await tx.task.update({ where: { id: round.taskId }, data: { status: "RETURNED" } });
       returnedNow = true;
-    } else if (round.task.status === "RETURNED") {
-      await tx.task.update({ where: { id: round.taskId }, data: { status: "IN_PROGRESS" } });
+    } else {
+      approvedNow = true;
+      if (round.task.status === "RETURNED") await tx.task.update({ where: { id: round.taskId }, data: { status: "IN_PROGRESS" } });
     }
   });
   if (returnedNow) await notifyReturned(round.taskId);
+  if (approvedNow) await notifyReviewApproved(round.taskId);
   await revalidateTask(round.taskId);
   return { ok: true as const };
 }
@@ -463,7 +467,7 @@ export async function addReviewCheckEvidence(
   }
   if (await inSection({ reviewCheckId: checkId }, file.url)) return DUPLICATE;
   await prisma.reviewCheckEvidence.create({
-    data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
+    data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, isResponse: isResponseEvidence("QA", { result: check.result, roundClosed: check.reviewRound.outcome !== null }, canReview) },
   });
   await revalidateTask(check.reviewRound.taskId);
 }
@@ -487,7 +491,7 @@ export async function addReviewCheckEvidenceLink(checkId: string, url: string, n
   if (!parsedName.success) return { ok: false as const, error: "Ponele un nombre al link." };
   if (await inSection({ reviewCheckId: checkId }, parsedUrl.data)) return { ok: true as const, duplicate: true as const };
   await prisma.reviewCheckEvidence.create({
-    data: { reviewCheckId: checkId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE },
+    data: { reviewCheckId: checkId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE, isResponse: isResponseEvidence("QA", { result: check.result, roundClosed: check.reviewRound.outcome !== null }, canReview) },
   });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };
@@ -540,6 +544,7 @@ export async function closeReviewRound(reviewRoundId: string, actor?: Actor) {
     }
   });
   if (hasFailed) await notifyReturned(round.taskId);
+  else await notifyReviewApproved(round.taskId);
   await revalidateTask(round.taskId);
   return { ok: true as const };
 }

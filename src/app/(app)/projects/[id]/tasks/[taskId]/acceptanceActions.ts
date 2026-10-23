@@ -10,6 +10,7 @@ import { LINK_MIME_TYPE, linkKey } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned } from "@/lib/notifications";
 import { autoStartTask } from "@/lib/taskAutoStart";
+import { canAddAcceptanceEvidence, isResponseEvidence, setCheckResponse } from "@/lib/taskDesign";
 
 // Tarea tipo ACCEPTANCE: mismo motor de rondas que Prueba (QA) — ReviewRound/
 // ReviewCheck — pero quien arma la lista de características es el equipo
@@ -79,11 +80,12 @@ export async function submitAcceptanceRound(
       return { ok: false as const, error: "No hay ninguna ronda devuelta para reenviar." };
     }
     const returnedItems = lastRound.checks.filter((c) => c.result === "FAILED");
-    const unanswered = returnedItems.filter((c) => c.evidence.length === 0);
+    // La respuesta escrita es obligatoria (el cliente la ve); la evidencia no.
+    const unanswered = returnedItems.filter((c) => !c.responseCategory?.trim());
     if (unanswered.length > 0) {
       return {
         ok: false as const,
-        error: `Todavía hay ${unanswered.length} característica(s) devuelta(s) sin evidencia de corrección.`,
+        error: `Todavía hay ${unanswered.length} característica(s) devuelta(s) sin respuesta.`,
       };
     }
     carryForwardChecks = returnedItems;
@@ -222,7 +224,7 @@ export async function updateAcceptanceItem(checkId: string, input: { title: stri
   const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, include: { reviewRound: true } });
   if (!check) return { ok: false as const, error: "Esa característica ya no existe." };
   if (!(await canEditTask(check.reviewRound.taskId))) {
-    return { ok: false as const, error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden editarla." };
+    return { ok: false as const, error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden editarla." };
   }
   if (check.result !== null || check.reviewRound.outcome !== null) {
     return { ok: false as const, error: "Esta característica ya fue calificada o su ronda está cerrada, por lo que no se puede editar." };
@@ -239,9 +241,11 @@ export async function updateAcceptanceItem(checkId: string, input: { title: stri
 export async function addAcceptanceItemEvidence(checkId: string, file: { url: string; name: string; mimeType: string }) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, include: { reviewRound: true } });
   if (!(await canEditTask(check.reviewRound.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
+  const state = { result: check.result, roundClosed: check.reviewRound.outcome !== null };
+  if (!canAddAcceptanceEvidence(state)) throw new Error("Esta característica ya fue calificada.");
   if (await inSection({ reviewCheckId: checkId }, file.url)) return DUPLICATE;
   await prisma.reviewCheckEvidence.create({
-    data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType },
+    data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, isResponse: isResponseEvidence("ACCEPTANCE", state, false) },
   });
   await revalidateTask(check.reviewRound.taskId);
 }
@@ -251,14 +255,25 @@ export async function addAcceptanceItemEvidenceLink(checkId: string, url: string
   if (!(await canEditTask(check.reviewRound.taskId))) {
     return { ok: false as const, error: "No tenés permiso para editar esta tarea." };
   }
+  const state = { result: check.result, roundClosed: check.reviewRound.outcome !== null };
+  if (!canAddAcceptanceEvidence(state)) return { ok: false as const, error: "Esta característica ya fue calificada." };
   const parsedUrl = z.string().trim().url().safeParse(url);
   if (!parsedUrl.success) return { ok: false as const, error: "Ese link no parece válido — revisá que sea una dirección web completa (con https://)." };
   const parsedName = z.string().trim().min(1).safeParse(name);
   if (!parsedName.success) return { ok: false as const, error: "Ponele un nombre al link." };
   if (await inSection({ reviewCheckId: checkId }, parsedUrl.data)) return { ok: true as const, duplicate: true as const };
   await prisma.reviewCheckEvidence.create({
-    data: { reviewCheckId: checkId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE },
+    data: { reviewCheckId: checkId, fileUrl: parsedUrl.data, fileName: parsedName.data, mimeType: LINK_MIME_TYPE, isResponse: isResponseEvidence("ACCEPTANCE", state, false) },
   });
+  await revalidateTask(check.reviewRound.taskId);
+  return { ok: true as const };
+}
+
+// Respuesta del responsable a una característica devuelta (la ve el cliente). Regla en setCheckResponse.
+export async function setAcceptanceItemResponse(checkId: string, response: string) {
+  const r = await setCheckResponse(checkId, undefined, response);
+  if (!r.ok) return { ok: false as const, error: r.error };
+  const check = await prisma.reviewCheck.findUniqueOrThrow({ where: { id: checkId }, select: { reviewRound: { select: { taskId: true } } } });
   await revalidateTask(check.reviewRound.taskId);
   return { ok: true as const };
 }

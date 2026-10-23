@@ -469,7 +469,7 @@ export function GanttBar({
             {attachmentsCount > 0 && <p className="mt-1 text-slate-500">{attachmentsCount} adjunto(s)</p>}
             {assignees.length > 0 && (
               <div className="mt-1.5 flex items-center gap-1">
-                <span className="text-slate-400">Asignados:</span>
+                <span className="text-slate-400">Responsables:</span>
                 <div className="flex -space-x-1.5">
                   {assignees.map((a) => (
                     <Avatar key={a.name} name={a.name} avatarUrl={a.avatarUrl} size="h-5 w-5 text-[9px]" />

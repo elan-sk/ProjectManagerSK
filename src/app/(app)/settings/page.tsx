@@ -149,7 +149,7 @@ export default async function SettingsPage({
         <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">Exportar / Importar datos</h2>
           <p className="text-xs text-slate-400">
-            Backup técnico (JSON) de proyecto(s): fases, tareas, asignados, checklist y dependencias; los usuarios
+            Backup técnico (JSON) de proyecto(s): fases, tareas, responsables, checklist y dependencias; los usuarios
             son opcionales (casilla de abajo). No incluye archivos adjuntos, imágenes ni notificaciones. Importar
             siempre CREA proyectos nuevos — nunca sobrescribe uno existente — y, si el archivo trae usuarios, solo
             crea los que todavía no existen.

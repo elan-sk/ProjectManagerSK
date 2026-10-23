@@ -314,7 +314,7 @@ export default async function IndividualPerformancePage({
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Por proyecto</h2>
         {byProject.length === 0 ? (
-          <p className="text-sm text-slate-500">Sin tareas asignadas en el alcance visible.</p>
+          <p className="text-sm text-slate-500">Sin tareas a su cargo en el alcance visible.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="w-full text-sm">

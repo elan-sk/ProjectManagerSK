@@ -194,9 +194,9 @@ export function CalendarTaskLink({
                     <span className="line-clamp-3">{task.requirementTitles.join(" · ")}</span>
                   </Row>
                 )}
-                <Row label="Asignados">
+                <Row label="Responsables">
                   {task.assignees.length === 0 ? (
-                    <span className="text-slate-400">Sin asignar</span>
+                    <span className="text-slate-400">Sin responsable</span>
                   ) : (
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="flex -space-x-1.5">

@@ -120,7 +120,11 @@ export type PublicAcceptanceItem = {
   note: string | null;
   reviewedByName: string | null;
   reviewedByRole: string | null;
+  /** Evidencia de la entrega. */
   evidence: PublicFile[];
+  /** Respuesta del responsable a una devolución anterior: texto y evidencia. */
+  response: string | null;
+  responseEvidence: PublicFile[];
   /** Hilo del cliente sobre esta característica; se cierra al calificarla. */
   comments: PublicCommentWithReplies[];
 };
@@ -296,7 +300,9 @@ export async function getPublicTask(taskId: string): Promise<{
               note: c.note,
               reviewedByName: c.externalReviewerName,
               reviewedByRole: c.externalReviewerRole,
-              evidence: c.evidence.map(toFile),
+              evidence: c.evidence.filter((e) => !e.isResponse).map(toFile),
+              response: c.responseCategory,
+              responseEvidence: c.evidence.filter((e) => e.isResponse).map(toFile),
               comments: c.shareComments.map(toPublicCommentWithReplies),
             })),
           }))

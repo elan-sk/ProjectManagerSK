@@ -4,6 +4,7 @@ import { Linkify, linkifyHtml } from "@/lib/linkify";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PublicFileGrid } from "./PublicFileGrid";
+import { EvidenceGroup } from "@/components/EvidenceGroup";
 import { setPublicAcceptanceDecision } from "./shareActions";
 import { useShareIdentity } from "./shareIdentity";
 import { ShareIdentityBar } from "./ShareIdentityBar";
@@ -160,7 +161,17 @@ function PendingItemRow({
       {item.criteria && (
         <div className="prose prose-sm max-w-none text-slate-500 [&_img]:max-w-full [&_img]:rounded-lg" dangerouslySetInnerHTML={{ __html: linkifyHtml(item.criteria) }} />
       )}
-      {item.evidence.length > 0 && <PublicFileGrid files={item.evidence} />}
+      {item.evidence.length > 0 && (
+        <EvidenceGroup label="Entrega">
+          <PublicFileGrid files={item.evidence} />
+        </EvidenceGroup>
+      )}
+      {(item.response || item.responseEvidence.length > 0) && (
+        <EvidenceGroup label="Respuesta">
+          {item.response && <p className="text-[17px] text-slate-600"><Linkify text={item.response} /></p>}
+          {item.responseEvidence.length > 0 && <PublicFileGrid files={item.responseEvidence} />}
+        </EvidenceGroup>
+      )}
 
       <PublicCommentThread token={token} reviewCheckId={item.id} contextLabel={`Característica ${number}`} identityAbove allowAttachments comments={item.comments} />
 

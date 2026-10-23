@@ -50,7 +50,7 @@ export function Avatar({
 }
 
 export function AvatarGroup({ people, size = "h-6 w-6 text-[10px]" }: { people: { name: string; avatarUrl?: string | null }[]; size?: string }) {
-  if (people.length === 0) return <span className="text-xs text-slate-400">Sin asignar</span>;
+  if (people.length === 0) return <span className="text-xs text-slate-400">Sin responsable</span>;
   return (
     <div className="flex -space-x-1.5">
       {people.map((p) => (

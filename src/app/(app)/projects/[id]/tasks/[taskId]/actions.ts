@@ -288,7 +288,7 @@ export async function setTaskAssignees(taskId: string, formData: FormData, actor
   const reviewerIds = task.reviewers.map((r) => r.userId);
   // Excepción: proyecto de una sola persona (ver allowsSelfReview).
   if (assigneeIds.some((id) => reviewerIds.includes(id)) && !(await allowsSelfReview(task.projectId, [...assigneeIds, ...reviewerIds]))) {
-    return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
+    return { ok: false, error: "Un responsable de la tarea no puede ser también su revisor." };
   }
   const currentIds = task.assignees.map((a) => a.userId);
   const newlyAdded = assigneeIds.filter((id) => !currentIds.includes(id));

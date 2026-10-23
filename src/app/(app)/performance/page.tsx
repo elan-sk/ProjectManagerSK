@@ -349,7 +349,7 @@ export default async function PerformancePage({
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Carga de equipo</h2>
         <p className="text-sm text-slate-500">
-          Aporte relativo de cada integrante: qué parte del trabajo entregado hizo (una tarea compartida se reparte entre sus asignados). A la derecha, sus tareas abiertas.
+          Aporte relativo de cada integrante: qué parte del trabajo entregado hizo (una tarea compartida se reparte entre sus responsables). A la derecha, sus tareas abiertas.
         </p>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <BarChart data={contributionBars} valueSuffix="%" emptyLabel="Todavía no hay tareas completadas ni abiertas con este filtro." />
@@ -380,7 +380,7 @@ export default async function PerformancePage({
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Persona</th>
-                <th className="px-4 py-2 font-medium">Asignadas</th>
+                <th className="px-4 py-2 font-medium">A cargo</th>
                 <th className="px-4 py-2 font-medium">Completadas</th>
                 <th className="px-4 py-2 font-medium">A tiempo</th>
                 <th className="px-4 py-2 font-medium">% cumplimiento</th>

@@ -98,7 +98,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (!(await canEditTask(id, auth.actor))) {
     return NextResponse.json(
-      { error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden editarla." },
+      { error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden editarla." },
       { status: 403 }
     );
   }

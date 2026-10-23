@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveShareToken } from "@/lib/shareLinks";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { fetchPageTitle } from "@/lib/pageTitle";
-import { notify, notifyShareActivity, notifyReturned } from "@/lib/notifications";
+import { notify, notifyShareActivity, notifyReturned, notifyReviewApproved, notifyClientComment } from "@/lib/notifications";
 
 // Todas estas acciones son públicas a propósito (punto 15/16 confirmado con
 // el usuario): las llama /share/[token] sin sesión — el token del link ES la
@@ -158,7 +158,10 @@ export async function setPublicAcceptanceDecision(
       }
     });
     if (hasReturned) await notifyReturned(taskId);
-    else await notifyShareActivity(taskId, `El cliente aceptó toda la entrega de "${task.title}" ✅`);
+    else {
+      await notifyShareActivity(taskId, `El cliente aceptó toda la entrega de "${task.title}" ✅`);
+      await notifyReviewApproved(taskId);
+    }
   }
 
   revalidatePath(`/share/${token}`);
@@ -274,6 +277,7 @@ export async function addShareComment(
     const taskTitle = (await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { title: true } })).title;
     const verb = data.parentId ? "respondió en" : "comentó en";
     await notifyShareActivity(taskId, `${parsed.data.authorName} ${verb} "${taskTitle}" (link compartido)`);
+    await notifyClientComment(taskId, parsed.data.authorName, parsed.data.body);
   } else if (projectId) {
     const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { name: true, pmId: true } });
     const verb = data.parentId ? "respondió en la Definición de" : "comentó en la Definición de";

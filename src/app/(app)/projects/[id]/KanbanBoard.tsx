@@ -247,7 +247,7 @@ function CardBody({
         {canManage ? (
           <div className="flex min-w-0 items-center gap-1.5">
             <AvatarGroup people={task.assignees} />
-            <ModalTrigger label="Asignar" title="Asignar tarea" variant="secondary" compact>
+            <ModalTrigger label="Responsables" title="Cambiar responsables" variant="secondary" compact>
               <ReassignAssigneesForm taskId={task.id} currentAssigneeIds={task.assigneeIds} users={users} />
             </ModalTrigger>
             {task.type === "QA" && task.reviewers.length > 0 && (

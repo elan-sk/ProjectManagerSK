@@ -1054,6 +1054,9 @@ model ReviewCheckEvidence {
   fileName      String
   mimeType      String
   uploadedAt    DateTime    @default(now())
+  // false = la subió quien califica (revisor en Prueba; en Aceptación, la entrega del equipo).
+  // true = respuesta del responsable a una prueba «Con errores» o a una característica devuelta.
+  isResponse    Boolean     @default(false)
 }
 
 // Chat de devolución — editable, no borrable, sin menciones (decisión ya

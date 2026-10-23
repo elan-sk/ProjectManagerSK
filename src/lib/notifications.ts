@@ -9,6 +9,7 @@ import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
+import { getHeaderAlertTasks } from "@/lib/headerAlerts";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary, type PmProjectSummary } from "@/lib/agendaSummary";
 import type { Actor } from "@/lib/permissions";
 import { getProjectForecast } from "@/lib/scheduleForecast";
@@ -38,7 +39,7 @@ const GROUP_SECTIONS: { type: NotificationType; title: string }[] = [
   { type: "OVERDUE", title: "🔴 *VENCIDAS*" },
   { type: "LATE_START_CRITICAL", title: "🟡 *INICIO RETRASADO HACE DÍAS*" },
   { type: "BLOCKED", title: "🔒 *BLOQUEADAS*" },
-  { type: "RETURNED", title: "🟠 *DEVUELTAS*" },
+  { type: "RETURNED", title: "↩️ *DEVUELTAS*" },
 ];
 
 // El link va SIEMPRE al final (después de las menciones, ver sendGroupAlert)
@@ -123,7 +124,7 @@ async function sessionUserId() {
 export async function notifyAssignment(taskId: string, userIds: string[], actorId?: string | null) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   const url = `/projects/${task.projectId}/tasks/${taskId}`;
-  await notify(userIds, "ASSIGNED", `Te asignaron la tarea "${task.title}"`, taskId, url, {
+  await notify(userIds, "ASSIGNED", `Quedó como responsable de la tarea "${task.title}"`, taskId, url, {
     excludeUserId: actorId ?? (await sessionUserId()),
   });
 }
@@ -151,10 +152,111 @@ export async function notifyReturned(taskId: string) {
   const involvedIds = Array.from(
     new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])
   );
+  const actorId = await sessionUserId();
   await notify(involvedIds, "RETURNED", `La tarea "${task.title}" fue devuelta en revisión`, taskId, url, {
     projectId: task.projectId,
-    excludeUserId: await sessionUserId(),
+    excludeUserId: actorId,
   });
+  await sendReviewWhatsApp(taskId, "returned", actorId);
+}
+
+// Prueba aprobada por el revisor o Aceptación aceptada completa por el cliente: WhatsApp al responsable.
+export async function notifyReviewApproved(taskId: string) {
+  await sendReviewWhatsApp(taskId, "approved", await sessionUserId());
+}
+
+// Textos de WhatsApp del ciclo de revisión (exportados para poder previsualizarlos).
+export function reviewWhatsAppText(
+  kind: "returned" | "approved" | "requested",
+  task: { title: string; type: string; projectName: string; roundNumber: number; failedCount: number },
+  link: string
+) {
+  const where = `"${task.title}" (${task.projectName})`;
+  const acceptance = task.type === "ACCEPTANCE";
+  const body =
+    kind === "returned"
+      ? acceptance
+        ? `↩️ *El cliente devolvió características*\nEn ${where} el cliente devolvió ${task.failedCount} característica(s). Cada una necesita una respuesta antes de reenviar.`
+        : `↩️ *Prueba devuelta*\n${where} volvió con ${task.failedCount} prueba(s) con errores. Cada una necesita una respuesta antes de reenviar.`
+      : kind === "approved"
+        ? acceptance
+          ? `✅ *Entrega aceptada*\nEl cliente aceptó toda la entrega de ${where}.`
+          : `✅ *Prueba aprobada*\n${where} fue aprobada en la ronda ${task.roundNumber}.`
+        : task.roundNumber > 1
+          ? `🔎 *Prueba corregida*\n${where} volvió a revisión (ronda ${task.roundNumber}) con las respuestas del responsable.`
+          : `🔎 *Prueba por revisar*\n${where} está esperando su revisión.`;
+  return `${body}\n\n🔗 ${link}`;
+}
+
+// WhatsApp directo del ciclo de revisión: devuelta / aprobada → responsables; enviada a revisión → revisores.
+// Nunca a quien hizo la acción.
+async function sendReviewWhatsApp(taskId: string, kind: "returned" | "approved" | "requested", actorId: string | null) {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      title: true,
+      type: true,
+      projectId: true,
+      project: { select: { name: true } },
+      assignees: { select: { userId: true } },
+      reviewers: { select: { userId: true } },
+      reviewRounds: {
+        orderBy: { roundNumber: "desc" },
+        take: 2,
+        select: {
+          roundNumber: true,
+          submittedAt: true,
+          closedAt: true,
+          checks: { select: { result: true, evidence: { select: { fileUrl: true, mimeType: true, isResponse: true, uploadedAt: true } } } },
+        },
+      },
+    },
+  });
+  if (!task) return;
+  const [round, previous] = task.reviewRounds;
+  // Aceptación: el cliente no sube evidencia a la característica (la que hay es la entrega del equipo).
+  const images = task.type === "QA" ? reviewImages(kind, round, previous) : [];
+  const text = reviewWhatsAppText(
+    kind,
+    {
+      title: task.title,
+      type: task.type,
+      projectName: task.project.name,
+      roundNumber: round?.roundNumber ?? 1,
+      failedCount: round?.checks.filter((c) => c.result === "FAILED").length ?? 0,
+    },
+    absoluteUrl(`/projects/${task.projectId}/tasks/${taskId}`)!
+  );
+  const ids = new Set((kind === "requested" ? task.reviewers : task.assignees).map((p) => p.userId));
+  if (actorId) ids.delete(actorId);
+  const extra = images.length > MAX_REVIEW_IMAGES ? `\n📷 ${images.length - MAX_REVIEW_IMAGES} imagen(es) más en la app.` : "";
+  for (const id of ids) await dispatchDirect(id, text.replace(/\n\n🔗 /, `${extra}\n\n🔗 `), false, images.slice(0, MAX_REVIEW_IMAGES));
+}
+
+const MAX_REVIEW_IMAGES = 5;
+
+type ReviewRoundImages = {
+  submittedAt: Date;
+  closedAt: Date | null;
+  checks: { result: string | null; evidence: { fileUrl: string; mimeType: string; isResponse: boolean; uploadedAt: Date }[] }[];
+};
+
+// Imágenes que acompañan el aviso: devuelta → las del revisor en las pruebas con errores de esta ronda;
+// reenviada → las de la respuesta del responsable subidas desde la devolución. Solo imágenes subidas a la app.
+export function reviewImages(kind: "returned" | "approved" | "requested", round?: ReviewRoundImages, previous?: ReviewRoundImages) {
+  if (!round) return [];
+  const isImage = (e: { mimeType: string }) => e.mimeType.startsWith("image/");
+  if (kind === "returned") {
+    return round.checks
+      .filter((c) => c.result === "FAILED")
+      .flatMap((c) => c.evidence.filter((e) => isImage(e) && !e.isResponse && e.uploadedAt >= round.submittedAt))
+      .map((e) => e.fileUrl);
+  }
+  if (kind === "requested" && previous?.closedAt) {
+    const since = previous.closedAt;
+    return round.checks.flatMap((c) => c.evidence.filter((e) => isImage(e) && e.isResponse && e.uploadedAt >= since)).map((e) => e.fileUrl);
+  }
+  return [];
 }
 
 // Ronda nueva enviada a revisión — a los revisores de la tarea, no al PM ni
@@ -164,14 +266,29 @@ export async function notifyReviewRequested(taskId: string) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { reviewers: true } });
   if (task.reviewers.length === 0) return;
   const url = `/projects/${task.projectId}/tasks/${taskId}`;
+  const actorId = await sessionUserId();
   await notify(
     task.reviewers.map((r) => r.userId),
     "REVIEW_REQUESTED",
     `"${task.title}" está esperando tu revisión`,
     taskId,
     url,
-    { excludeUserId: await sessionUserId() }
+    { excludeUserId: actorId }
   );
+  await sendReviewWhatsApp(taskId, "requested", actorId);
+}
+
+// Comentario o respuesta del cliente en el link compartido de una Aceptación: WhatsApp a los responsables,
+// con el texto completo (mismo formato que los comentarios internos).
+export async function notifyClientComment(taskId: string, authorName: string, body: string) {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { title: true, type: true, projectId: true, project: { select: { name: true } }, assignees: { select: { userId: true } } },
+  });
+  if (!task || task.type !== "ACCEPTANCE") return;
+  const { text: content, images } = commentWhatsAppParts(body);
+  const text = commentText("comment", `${authorName} (cliente)`, commentWhere(task.project.name, task.title), content, absoluteUrl(`/projects/${task.projectId}/tasks/${taskId}`)!);
+  for (const a of task.assignees) await dispatchDirect(a.userId, text, false, images);
 }
 
 // Alguien comentó o subió un archivo desde el link compartido de la tarea
@@ -436,13 +553,21 @@ export async function checkDeadlineAlerts(userId: string) {
 // que ve la persona en los tiles de /agenda (ver agendaSummary.ts).
 export async function buildDailyDigestText(userId: string, name: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
-  const [counts, managedProjects] = await Promise.all([
+  const [counts, special, managedProjects] = await Promise.all([
     getAgendaCounts(userId),
+    getHeaderAlertTasks({ id: userId, role: user.role }),
     user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId),
   ]);
   const firstName = name.split(" ")[0];
   // Nada pendiente propio ni proyectos que administrar: no se manda un resumen lleno de ceros.
-  if (managedProjects.length === 0 && Object.values(counts).every((n) => n === 0)) return null;
+  // Alertas del encabezado (urgentes, devueltas, por revisar): solo se agregan si hay alguna, para
+  // no llenar el mensaje de ceros.
+  const extra = [
+    special.urgent.length > 0 ? `• ${special.urgent.length} urgente(s)` : null,
+    special.returned.length > 0 ? `• ${special.returned.length} devuelta(s)` : null,
+    special.pendingReviews.length > 0 ? `• ${special.pendingReviews.length} por revisar` : null,
+  ].filter((l): l is string => l !== null);
+  if (managedProjects.length === 0 && extra.length === 0 && Object.values(counts).every((n) => n === 0)) return null;
 
   // Mismo orden de importancia que en /agenda y /projects: inicio retrasado
   // (todavía se puede evitar el daño) → por vencer → final retrasado (ya es
@@ -455,7 +580,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
     `• ${counts.warning} por vencer`,
     `• ${counts.overdue} con final retrasado`,
     `• ${counts.blocked} bloqueada(s)`,
-    `• ${counts.unopened} tarea(s) nueva(s) sin abrir`,
+    `• ${counts.unopened} tarea(s) nueva(s)`,
+    ...extra,
   ];
 
   if (managedProjects.length > 0) {
@@ -540,6 +666,8 @@ function groupAlertStillValid(type: string, status: TaskStatus | undefined) {
   if (type === "BLOCKED") return status === "BLOCKED";
   if (type === "RETURNED") return status === "RETURNED";
   if (type === "LATE_START_CRITICAL") return status === "NOT_STARTED";
+  // Una tarea devuelta ya sale en «Devueltas»: no se repite en «Vencidas».
+  if (type === "OVERDUE") return status !== "RETURNED";
   return true;
 }
 

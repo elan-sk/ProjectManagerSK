@@ -161,7 +161,7 @@ export async function addTask(projectId: string, formData: FormData) {
     return {
       ok: false,
       error: missingAssignee
-        ? "Elegí al menos un asignado."
+        ? "Elegí al menos un responsable."
         : missingDate
           ? "Elegí una fecha de inicio válida."
           : parsed.error.issues[0]?.message ?? "Datos inválidos.",
@@ -177,7 +177,7 @@ export async function addTask(projectId: string, formData: FormData) {
     data.reviewerIds.some((id) => data.assigneeIds.includes(id)) &&
     !(await allowsSelfReview(projectId, [...data.assigneeIds, ...data.reviewerIds]))
   ) {
-    return { ok: false, error: "Un asignado a la tarea no puede ser también su revisor." };
+    return { ok: false, error: "Un responsable de la tarea no puede ser también su revisor." };
   }
 
   const requirement = await requirementsForProject(data.requirementIds, projectId);
@@ -365,7 +365,7 @@ export async function insertAdjacentTask(originTaskId: string, role: "predecesso
     return {
       ok: false,
       error: missingAssignee
-        ? "Elegí al menos un asignado."
+        ? "Elegí al menos un responsable."
         : missingDate
           ? "Elegí una fecha de inicio válida."
           : parsed.error.issues[0]?.message ?? "Datos inválidos.",
@@ -426,7 +426,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
       error:
         status === "COMPLETED" && task.type === "QA"
           ? "Solo el revisor, el PM del proyecto o un administrador pueden completar esta prueba."
-          : "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden cambiar su estado.",
+          : "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden cambiar su estado.",
     };
   }
 

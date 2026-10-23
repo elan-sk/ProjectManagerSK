@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { redirect } from "next/navigation";
-import { visibleProjectWhere } from "@/lib/permissions";
+import { getHeaderAlertTasks } from "@/lib/headerAlerts";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -76,43 +76,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     credentialId: n.credentialId,
   }));
 
-  // Alertas fijas del header (punto 10 confirmado con el usuario): siempre
-  // visibles, no hay que entrar a un proyecto para verlas. "Devuelta" es
-  // pura mía (soy asignado); "Revisión" cuenta toda ronda activa donde soy
-  // revisor, tenga o no plantilla aplicada todavía — es un recordatorio para
-  // entrar a revisarla, no solo un aviso de "ya está lista para marcar".
-  // Ordenadas por urgencia: plannedEnd ascendente ya deja primero lo más
-  // atrasado/próximo a vencer.
-  // Urgentes: no completadas ni archivadas. Admin ve todas; el resto, las de
-  // los proyectos que administra o donde es asignado/revisor (proyectos
-  // ocultos, solo admin). No hay "marcar como leída": salen al completarse
-  // o desmarcarse.
-  const uid = session.user.id;
-  const [urgentTasks, returnedTasks, pendingReviewTasks] = await Promise.all([
-    prisma.task.findMany({
-      where: {
-        isUrgent: true,
-        status: { not: "COMPLETED" },
-        archivedAt: null,
-        project: visibleProjectWhere(session.user),
-        ...(isAdmin
-          ? {}
-          : { OR: [{ project: { pmId: uid } }, { assignees: { some: { userId: uid } } }, { reviewers: { some: { userId: uid } } }] }),
-      },
-      select: { id: true, title: true, projectId: true, plannedEnd: true },
-      orderBy: { plannedEnd: "asc" },
-    }),
-    prisma.task.findMany({
-      where: { status: "RETURNED", assignees: { some: { userId: session.user.id } }, project: visibleProjectWhere(session.user) },
-      select: { id: true, title: true, projectId: true, plannedEnd: true },
-      orderBy: { plannedEnd: "asc" },
-    }),
-    prisma.task.findMany({
-      where: { reviewers: { some: { userId: session.user.id } }, reviewRounds: { some: { outcome: null } }, project: visibleProjectWhere(session.user) },
-      select: { id: true, title: true, projectId: true, plannedEnd: true },
-      orderBy: { plannedEnd: "asc" },
-    }),
-  ]);
+  // Alertas fijas del header (punto 10 confirmado con el usuario): siempre visibles. Misma regla
+  // que el resumen diario de WhatsApp (ver headerAlerts.ts). No hay "marcar como leída".
+  const { urgent: urgentTasks, returned: returnedTasks, pendingReviews: pendingReviewTasks } = await getHeaderAlertTasks(session.user);
 
   return (
     <ToastProvider>

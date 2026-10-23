@@ -203,7 +203,7 @@ export function CredentialView({
       )}
 
       <div className="space-y-0.5 text-xs text-slate-500">
-        <p>Quién la ve: {VISIBILITY_TEXT[credential.visibility]}{credential.tasks.length > 0 && credential.visibility !== "ME" ? ", y los asignados de las tareas donde está" : ""}.</p>
+        <p>Quién la ve: {VISIBILITY_TEXT[credential.visibility]}{credential.tasks.length > 0 && credential.visibility !== "ME" ? ", y los responsables de las tareas donde está" : ""}.</p>
         {credential.tasks.length > 0 && (
           <p>
             En las tareas:{" "}

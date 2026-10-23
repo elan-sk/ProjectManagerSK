@@ -30,6 +30,8 @@ const GROUP_BADGE: Record<string, string> = {
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.5;
+// Alto que ocupa la barra superior (top-4 + su alto): la imagen con zoom no se esconde debajo.
+const VISOR_TOP_PX = 64;
 
 const barButton = "flex h-8 items-center justify-center rounded-md px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent";
 const navButton = "absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2.5 text-slate-700 shadow-md hover:bg-white";
@@ -74,12 +76,22 @@ export function AttachmentLightbox({
   const groupImages = current?.group ? images.filter((i) => i.group === current.group) : images;
   const groupIndex = current ? groupImages.findIndex((i) => i.id === current.id) : 0;
 
-  // Mantiene la imagen dentro del marco: no se puede arrastrar más allá de sus bordes.
+  // Con zoom la imagen usa toda la pantalla (debajo de la barra superior). Si es más grande que la
+  // pantalla en un eje, se arrastra hasta sus bordes sin dejar hueco; si es más chica, se mueve sin salirse.
   function clamp(scale: number, x: number, y: number) {
-    const rect = frameRef.current?.getBoundingClientRect();
-    const maxX = rect ? (rect.width * (scale - 1)) / 2 : 0;
-    const maxY = rect ? (rect.height * (scale - 1)) / 2 : 0;
-    return { scale, x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+    const frame = frameRef.current?.getBoundingClientRect();
+    const stage = stageRef.current?.getBoundingClientRect();
+    if (!frame || !stage) return { scale, x: 0, y: 0 };
+    const axis = (v: number, start: number, end: number, center: number, half: number) => {
+      const a = start + half - center;
+      const b = end - half - center;
+      return Math.max(Math.min(a, b), Math.min(Math.max(a, b), v));
+    };
+    return {
+      scale,
+      x: axis(x, stage.left, stage.right, frame.left + frame.width / 2, (frame.width * scale) / 2),
+      y: axis(y, stage.top + VISOR_TOP_PX, stage.bottom, frame.top + frame.height / 2, (frame.height * scale) / 2),
+    };
   }
   function zoomTo(next: number) {
     const scale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
@@ -203,10 +215,11 @@ export function AttachmentLightbox({
       )}
 
       {/* Escenario: la imagen va centrada; un clic fuera de ella cierra el visor. */}
-      <div ref={stageRef} className="absolute inset-0 flex items-center justify-center px-20 pt-20 pb-6">
+      {/* Con zoom, el recorte lo hace el escenario (toda la pantalla), no el marco de la imagen. */}
+      <div ref={stageRef} className="absolute inset-0 flex items-center justify-center overflow-hidden px-20 pt-20 pb-6">
         <div
           ref={frameRef}
-          className="relative overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(15,23,42,0.3)]"
+          className={`relative rounded-xl ${zoomed ? "overflow-visible" : "overflow-hidden shadow-[0_8px_30px_rgba(15,23,42,0.3)]"}`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

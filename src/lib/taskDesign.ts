@@ -50,7 +50,7 @@ async function loadTask(taskId: string) {
   return prisma.task.findUnique({ where: { id: taskId }, select: { id: true, projectId: true, type: true, status: true, project: { select: PM_SCOPE_SELECT } } });
 }
 const touch = (task: { projectId: string; id: string }) => revalidatePath(`/projects/${task.projectId}/tasks/${task.id}`);
-const NO_EDIT = "No se cuenta con permiso para editar esta tarea (se necesita ser asignado, PM del proyecto o administrador).";
+const NO_EDIT = "No se cuenta con permiso para editar esta tarea (se necesita ser responsable, PM del proyecto o administrador).";
 const NO_REVIEW = "No se cuenta con permiso para revisar esta tarea (se necesita ser revisor, PM del proyecto o administrador).";
 
 // ---------- Lectura: estructura completa de una tarea ----------
@@ -126,7 +126,9 @@ export async function getTaskDesign(taskId: string, actor: Actor) {
           ...(task.type === "QA" && c.result === "FAILED" && {
             suggestedResponses: pickResponseCategory(responseCategories, c.category)?.responses.map((x) => x.text) ?? [],
           }),
-          evidence: c.evidence.map(fileOut),
+          // evidence: la del revisor (Prueba) o la de la entrega (Aceptación); responseEvidence: la respuesta del responsable.
+          evidence: c.evidence.filter((e) => !e.isResponse).map(fileOut),
+          responseEvidence: c.evidence.filter((e) => e.isResponse).map(fileOut),
           reviewedBy: c.reviewedBy?.name ?? null,
           // Aceptación: quién calificó desde el link (cliente sin cuenta).
           externalReviewer: c.externalReviewerName ? { name: c.externalReviewerName, role: c.externalReviewerRole } : null,
@@ -304,35 +306,50 @@ export async function updateCheck(checkId: string, actor: Actor, data: { title?:
   return { ok: true as const };
 }
 
+// ¿La evidencia que se sube ahora es respuesta del responsable? Prueba: lo que sube quien no revisa,
+// o cualquiera con la ronda ya cerrada (corrección). Aceptación: lo que se sube a una característica
+// devuelta (antes de calificar es la entrega). Única regla para la app, la API y el bot.
+export function isResponseEvidence(type: string, check: { result: string | null; roundClosed: boolean }, canReview: boolean) {
+  return type === "QA" ? check.roundClosed || !canReview : check.result === "FAILED";
+}
+
+// Aceptación: se agrega evidencia a la entrega (sin calificar, ronda abierta) o como respuesta a una característica devuelta.
+export function canAddAcceptanceEvidence(check: { result: string | null; roundClosed: boolean }) {
+  return check.result === "FAILED" || (check.result === null && !check.roundClosed);
+}
+
 export async function addCheckEvidence(checkId: string, actor: Actor, files: FileRef[]) {
   const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, select: { result: true, reviewRound: { select: { outcome: true, task: { select: { id: true, projectId: true, type: true } } } } } });
   if (!check) return fail(404, "Esa prueba o característica no existe.");
   const task = check.reviewRound.task;
   const [canReview, canEdit] = await Promise.all([canReviewTask(task.id, actor), canEditTask(task.id, actor)]);
   // Prueba: quien revisa; también quien la corrige (asignado) cuando quedó "Con errores". Aceptación: el equipo, mientras el cliente no la califique.
-  const allowed = task.type === "QA" ? canReview || (canEdit && check.result === "FAILED") : canEdit && check.result === null;
+  const state = { result: check.result, roundClosed: check.reviewRound.outcome !== null };
+  const allowed = task.type === "QA" ? canReview || (canEdit && check.result === "FAILED") : canEdit && canAddAcceptanceEvidence(state);
   if (!allowed) return fail(403, "No se cuenta con permiso para agregar evidencia acá.");
-  if (check.reviewRound.outcome !== null && !(task.type === "QA" && check.result === "FAILED")) return fail(409, "La ronda ya está cerrada.");
+  if (state.roundClosed && check.result !== "FAILED") return fail(409, "La ronda ya está cerrada.");
+  const isResponse = isResponseEvidence(task.type, state, canReview);
   const { fresh, skipped } = await splitNew({ reviewCheckId: checkId }, files);
   for (const f of fresh) {
     const file = toFile(f);
-    await prisma.reviewCheckEvidence.create({ data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType } });
+    await prisma.reviewCheckEvidence.create({ data: { reviewCheckId: checkId, fileUrl: file.url, fileName: file.name, mimeType: file.mimeType, isResponse } });
   }
   touch(task);
   return { ok: true as const, added: fresh.length, skipped };
 }
 
-// Respuesta de quien corrige (asignado, PM o administrador) a una prueba que quedó «Con errores»: texto libre;
-// la plantilla de Configuración → Pruebas solo sugiere. Sin actor, la sesión (app).
+// Respuesta de quien corrige (responsable, PM o administrador) a una prueba «Con errores» o a una característica
+// devuelta por el cliente (el cliente la ve en su link): texto libre; en Prueba, la plantilla de Configuración →
+// Pruebas solo sugiere. Sin actor, la sesión (app).
 export async function setCheckResponse(checkId: string, actor: Actor | undefined, response: string) {
   const check = await prisma.reviewCheck.findUnique({ where: { id: checkId }, select: { result: true, category: true, reviewRound: { select: { task: { select: { id: true, projectId: true, type: true } } } } } });
   if (!check) return fail(404, "Esa prueba o característica no existe.");
   const task = check.reviewRound.task;
   if (!(await canEditTask(task.id, actor))) return fail(403, NO_EDIT);
-  if (task.type !== "QA" || check.result !== "FAILED") return fail(409, "Solo se responde una prueba que quedó «Con errores».");
+  if (check.result !== "FAILED") return fail(409, task.type === "QA" ? "Solo se responde una prueba que quedó «Con errores»." : "Solo se responde una característica devuelta.");
   const text = response.trim();
   await prisma.reviewCheck.update({ where: { id: checkId }, data: { responseCategory: text || null } });
-  if (text) await rememberResponse(check.category, text);
+  if (text && task.type === "QA") await rememberResponse(check.category, text);
   touch(task);
   return { ok: true as const };
 }
@@ -535,7 +552,7 @@ export async function createShare(target: { taskId?: string; projectId?: string 
   if (target.taskId) {
     const task = await loadTask(target.taskId);
     if (!task) return fail(404, "La tarea no existe.");
-    if (!(await canEditTask(target.taskId, actor))) return fail(403, "Solo un asignado, el PM del proyecto o un administrador pueden compartir la tarea.");
+    if (!(await canEditTask(target.taskId, actor))) return fail(403, "Solo un responsable, el PM del proyecto o un administrador pueden compartir la tarea.");
     const link = await createShareLink("TASK", target.taskId, actor.id);
     touch(task);
     return { ok: true as const, token: link.token, path: `/share/${link.token}` };

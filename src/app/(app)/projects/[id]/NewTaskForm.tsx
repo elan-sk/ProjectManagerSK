@@ -154,7 +154,7 @@ export function NewTaskForm({
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm text-slate-600">Asignados</label>
+        <label className="text-sm text-slate-600">Responsables</label>
         <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-lg border border-slate-300 p-1">
           {users.map((u) => (
             <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">

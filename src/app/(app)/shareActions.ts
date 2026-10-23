@@ -40,7 +40,7 @@ export async function createTaskShareLink(taskId: string) {
   const session = await auth();
   if (!session?.user) return { ok: false as const, error: "Necesitás iniciar sesión para hacer esto." };
   if (!(await canEditTask(taskId))) {
-    return { ok: false as const, error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden compartirla." };
+    return { ok: false as const, error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden compartirla." };
   }
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   const link = await createShareLink("TASK", taskId, session.user.id);
@@ -50,7 +50,7 @@ export async function createTaskShareLink(taskId: string) {
 
 export async function revokeTaskShareLink(taskId: string, linkId: string) {
   if (!(await canEditTask(taskId))) {
-    return { ok: false as const, error: "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden dejar de compartirla." };
+    return { ok: false as const, error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden dejar de compartirla." };
   }
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   await revokeShareLink(linkId);

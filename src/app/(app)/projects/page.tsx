@@ -613,7 +613,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
             ? "Todos los proyectos."
             : isPM
             ? "Los proyectos que administrás."
-            : "Tus tareas asignadas en todos los proyectos."}
+            : "Tus tareas como responsable en todos los proyectos."}
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">

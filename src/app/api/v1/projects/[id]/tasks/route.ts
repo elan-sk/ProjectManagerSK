@@ -74,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     data.reviewerIds.some((id) => data.assigneeIds.includes(id)) &&
     !(await allowsSelfReview(projectId, [...data.assigneeIds, ...data.reviewerIds]))
   ) {
-    return NextResponse.json({ error: "Un asignado a la tarea no puede ser también su revisor." }, { status: 409 });
+    return NextResponse.json({ error: "Un responsable de la tarea no puede ser también su revisor." }, { status: 409 });
   }
 
   const requirement = await requirementsForProject(data.requirementIds, projectId);

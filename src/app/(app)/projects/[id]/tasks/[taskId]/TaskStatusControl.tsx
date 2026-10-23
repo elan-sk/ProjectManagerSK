@@ -30,7 +30,7 @@ function getDisabledReason(
   if (!baseCanChange) {
     return ctx.type === "QA" && target === "COMPLETED"
       ? "Solo el revisor, el PM del proyecto o un administrador pueden completar esta prueba."
-      : "Solo un asignado a esta tarea, el PM del proyecto o un administrador pueden cambiar su estado.";
+      : "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden cambiar su estado.";
   }
 
   if (ctx.type === "QA" && current === "RETURNED") {

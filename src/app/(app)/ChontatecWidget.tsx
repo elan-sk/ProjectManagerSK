@@ -30,6 +30,18 @@ type ChatUiMessage = {
 // alerta, ver buildOperatingRules en chontatec.ts) — nada de librerías,
 // alcanza con un split por regex. Los saltos de línea del texto se
 // resuelven aparte con whitespace-pre-wrap.
+// A veces el modelo arma la marca sin tipo ([[Nombre|/projects/…]] o [[Nombre|projectId|iconUrl]]):
+// se traduce a link o miniatura de proyecto para no mostrarle rutas ni ids a la persona.
+function fixMalformedMarkers(text: string): string {
+  return text.replace(/\[\[(?![a-z]+:)([^\]|]+)\|([^\]]*)\]\]/g, (_m, name: string, rawArgs: string) => {
+    const args = rawArgs.split("|");
+    const path = args.find((a) => a.startsWith("/projects/") || a.startsWith("http"));
+    if (path) return `[${name.trim()}](${path})`;
+    if (/^c[a-z0-9]{20,}$/.test(args[0])) return `[[project:${name.trim()}|${rawArgs}]]`;
+    return name.trim();
+  });
+}
+
 const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|\[\[[a-z]+:[^\]]*\]\])/g;
 
 function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
@@ -74,7 +86,7 @@ function tableCells(line: string) {
 }
 
 function renderMessage(text: string, openFile: (f: ViewFile) => void) {
-  const lines = text.split("\n");
+  const lines = fixMalformedMarkers(text).split("\n");
   const blocks: ({ kind: "text"; lines: string[] } | { kind: "table"; header: string[]; rows: string[][] })[] = [];
   for (let i = 0; i < lines.length; i++) {
     if (TABLE_ROW.test(lines[i]) && TABLE_SEPARATOR.test(lines[i + 1] ?? "")) {
@@ -196,7 +208,7 @@ function renderChip(key: number, type: string, args: string[]) {
 // Markdown — de persona/proyecto solo interesa el nombre; de estado/alerta,
 // la etiqueta en español (no el código crudo en inglés).
 function stripMarkdownForSpeech(text: string): string {
-  return text
+  return fixMalformedMarkers(text)
     .replace(/\[\[([a-z]+):([^\]]*)\]\]/g, (_match, type: string, rawArgs: string) => {
       const [first] = rawArgs.split("|");
       if (type === "status") return TASK_STATUS_LABEL[first as TaskStatus] ?? PROJECT_PHASE_LABEL[first as keyof typeof PROJECT_PHASE_LABEL] ?? first;

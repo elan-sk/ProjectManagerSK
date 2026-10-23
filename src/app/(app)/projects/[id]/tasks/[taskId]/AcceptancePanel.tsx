@@ -25,8 +25,10 @@ import {
   addAcceptanceItemEvidence,
   addAcceptanceItemEvidenceLink,
   removeAcceptanceItemEvidence,
+  setAcceptanceItemResponse,
   completeAcceptanceTask,
 } from "./acceptanceActions";
+import { EvidenceGroup } from "@/components/EvidenceGroup";
 import type { TaskStatus } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { useToast } from "@/components/Toast";
@@ -42,7 +44,12 @@ type Item = {
   note: string | null;
   reviewedByExternalName: string | null;
   reviewedByExternalRole: string | null;
+  /** Respuesta escrita del responsable a una característica devuelta (la ve el cliente). */
+  responseCategory: string | null;
+  /** Evidencia de la entrega. */
   evidence: FileRef[];
+  /** Evidencia de la respuesta del responsable a una característica devuelta. */
+  responseEvidence: FileRef[];
   /** Hilo del link compartido sobre esta característica (cliente y equipo). */
   comments: TeamThreadComment[];
 };
@@ -198,14 +205,14 @@ export function AcceptancePanel({ taskId, userId, canEdit, canVote, rounds, task
 function CorrectionPanel({ taskId, round, canVote }: { taskId: string; round: Round; canVote: boolean }) {
   const returnedItems = round.items.filter((i) => i.result === "FAILED");
   if (returnedItems.length === 0) return null;
-  const allWithEvidence = returnedItems.every((i) => i.evidence.length > 0);
+  const allAnswered = returnedItems.every((i) => i.responseCategory?.trim());
   return (
     <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
       <p className="text-[18px] font-medium text-orange-800">
-        El cliente devolvió {returnedItems.length} característica(s) — subí evidencia de la corrección antes de reenviar (ronda {round.roundNumber})
+        El cliente devolvió {returnedItems.length} característica(s); cada una necesita una respuesta antes de reenviar, la evidencia es opcional (ronda {round.roundNumber})
       </p>
       <ItemList taskId={taskId} items={returnedItems} canEdit canVote={canVote} />
-      {!allWithEvidence && <p className="text-[17px] text-orange-600">Faltan características por corregir con evidencia.</p>}
+      {!allAnswered && <p className="text-[17px] text-orange-600">Faltan características por responder.</p>}
     </div>
   );
 }
@@ -398,9 +405,9 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
   const [addingLink, setAddingLink] = useState(false);
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  // Solo se puede agregar/quitar evidencia mientras el cliente no calificó
-  // esta característica — una vez decidida, queda fija.
+  // Entrega: se agrega/quita mientras el cliente no calificó. Respuesta: solo en una característica devuelta.
   const canAttachEvidence = canEdit && !item.result;
+  const canRespond = canEdit && item.result === "FAILED";
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(item.title);
   const [draftCategory, setDraftCategory] = useState(item.category ?? "");
@@ -467,6 +474,44 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
     router.refresh();
   }
 
+  function handleResponse(value: string) {
+    if (value.trim() === (item.responseCategory ?? "")) return;
+    startTransition(async () => {
+      const result = await setAcceptanceItemResponse(item.id, value);
+      if (!result.ok) showToast(result.error);
+      router.refresh();
+    });
+  }
+
+  // «+ Evidencia / + Link»: en la entrega o en la respuesta; el servidor decide a cuál pertenece.
+  const evidenceAdder = (
+    <>
+      {!addingLink && (
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
+            {uploading ? "Subiendo…" : "+ Evidencia"}
+            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
+          </label>
+          <button type="button" onClick={() => setAddingLink(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
+            + Link
+          </button>
+        </div>
+      )}
+      {addingLink && (
+        <div className="flex gap-1">
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
+            OK
+          </button>
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
+            ✕
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <li className={`space-y-1.5 rounded-xl border border-l-4 p-3 shadow-sm ${item.result === "FAILED" ? "border-amber-400 border-l-amber-500 bg-amber-50" : "border-slate-300 border-l-[#0a6b78] bg-white"}`}>
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a6b78]">Característica {index + 1} de {total}</p>
@@ -529,33 +574,38 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
         </p>
       )}
 
-      {item.evidence.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <FileChips files={item.evidence} onRemove={canAttachEvidence ? handleRemoveEvidence : undefined} />
-        </div>
+      {(item.evidence.length > 0 || canAttachEvidence) && (
+        <EvidenceGroup label="Entrega">
+          {item.evidence.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <FileChips files={item.evidence} onRemove={canAttachEvidence ? handleRemoveEvidence : undefined} />
+            </div>
+          )}
+          {canAttachEvidence && evidenceAdder}
+        </EvidenceGroup>
       )}
-      {canAttachEvidence && !addingLink && (
-        <div className="flex items-center gap-2">
-          <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
-            {uploading ? "Subiendo…" : "+ Evidencia"}
-            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
-          </label>
-          <button type="button" onClick={() => setAddingLink(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
-            + Link
-          </button>
-        </div>
-      )}
-      {canAttachEvidence && addingLink && (
-        <div className="flex gap-1">
-          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
-          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
-            OK
-          </button>
-          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
-            ✕
-          </button>
-        </div>
+
+      {item.result === "FAILED" && (canRespond || item.responseCategory || item.responseEvidence.length > 0) && (
+        <EvidenceGroup label="Respuesta">
+          {canRespond ? (
+            <textarea
+              defaultValue={item.responseCategory ?? ""}
+              onBlur={(e) => handleResponse(e.target.value)}
+              rows={2}
+              aria-label="Respuesta al cliente"
+              placeholder="Respuesta al cliente (ej. Se corrigió el color del botón)…"
+              className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
+            />
+          ) : (
+            item.responseCategory && <p className="text-[17px] text-slate-600"><Linkify text={item.responseCategory} /></p>
+          )}
+          {item.responseEvidence.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <FileChips files={item.responseEvidence} onRemove={canRespond ? handleRemoveEvidence : undefined} />
+            </div>
+          )}
+          {canRespond && evidenceAdder}
+        </EvidenceGroup>
       )}
       {(item.comments.length > 0 || canEdit) && (
         <TeamShareThread taskId={taskId} reviewCheckId={item.id} contextLabel={`Característica ${index + 1}`} comments={item.comments} canReply={canEdit} canVote={canVote} canAttach />

@@ -21,7 +21,7 @@ async function main() {
     `🟡 *Por vencer*\n"${task.title}" vence el 15/09/2026.\n\n🔗 ${url}`,
     `🔴 *Tarea vencida* (grupo simulado)\n"${task.title}" está vencida (debía terminar el 10/09/2026).\n👤 @${max.phone}\n\n🔗 ${url}`,
     `🔴 *Tarea bloqueada* (grupo simulado)\nLa tarea "${task.title}" fue marcada como bloqueada\n👤 @${max.phone}\n\n🔗 ${url}`,
-    `🟠 *Tarea devuelta* (grupo simulado)\nLa tarea "${task.title}" fue devuelta en revisión\n👤 @${max.phone}\n\n🔗 ${url}`,
+    `↩️ *Tarea devuelta* (grupo simulado)\nLa tarea "${task.title}" fue devuelta en revisión\n👤 @${max.phone}\n\n🔗 ${url}`,
     `📅 *Recordatorio de reunión* (grupo simulado)\n"${task.title}"\n🕐 lunes, 14 de septiembre, 7:00 a.m.\n👤 @${max.phone}\n\n🔗 https://meet.google.com/ejemplo-reunion`,
     // Diagnóstico: comparar si WhatsApp reconoce como clickeable un link con
     // dominio real (con punto/TLD) vs uno con "localhost" (sin punto) — para

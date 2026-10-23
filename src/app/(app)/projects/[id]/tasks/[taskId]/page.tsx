@@ -381,7 +381,7 @@ export default async function TaskDetailPage({
             )}
             <AvatarGroup people={task.assignees.map((a) => ({ name: a.user.name, avatarUrl: a.user.avatarUrl }))} size="h-8 w-8 text-xs" />
             {canEdit && (
-              <ModalTrigger label="" ariaLabel="Cambiar asignados" title="Asignar tarea" variant="secondary" className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" icon={<PencilIcon className="h-4 w-4" />}>
+              <ModalTrigger label="" ariaLabel="Cambiar responsables" title="Cambiar responsables" variant="secondary" className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" icon={<PencilIcon className="h-4 w-4" />}>
                 <ReassignAssigneesForm taskId={taskId} currentAssigneeIds={task.assignees.map((a) => a.userId)} users={users} />
               </ModalTrigger>
             )}
@@ -749,7 +749,8 @@ export default async function TaskDetailPage({
                 note: c.note,
                 responseCategory: c.responseCategory,
                 reviewedByName: c.reviewedBy?.name ?? null,
-                evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+                evidence: c.evidence.filter((e) => !e.isResponse).map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+                responseEvidence: c.evidence.filter((e) => e.isResponse).map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
               })),
               messages: round.messages.map((m) => toRoundMessage(m, session?.user?.id ?? null)),
             }))}
@@ -781,7 +782,9 @@ export default async function TaskDetailPage({
               note: c.note,
               reviewedByExternalName: c.externalReviewerName,
               reviewedByExternalRole: c.externalReviewerRole,
-              evidence: c.evidence.map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+              responseCategory: c.responseCategory,
+              evidence: c.evidence.filter((e) => !e.isResponse).map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
+                responseEvidence: c.evidence.filter((e) => e.isResponse).map((e) => ({ id: e.id, url: e.fileUrl, name: e.fileName, mimeType: e.mimeType })),
               comments: c.shareComments.map((cm) => toThread(cm, session?.user?.id ?? null)),
             })),
             messages: round.messages.map((m) => toRoundMessage(m, session?.user?.id ?? null)),

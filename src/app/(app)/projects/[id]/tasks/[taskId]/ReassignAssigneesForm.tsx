@@ -15,7 +15,7 @@ export function ReassignAssigneesForm({
   users,
   action = setTaskAssignees,
   fieldName = "assigneeIds",
-  errorFallback = "No se pudo actualizar los asignados.",
+  errorFallback = "No se pudieron actualizar los responsables.",
 }: {
   taskId: string;
   currentAssigneeIds: string[];

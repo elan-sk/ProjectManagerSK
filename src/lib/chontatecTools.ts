@@ -149,7 +149,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_my_tasks",
-    description: "Lista las tareas del usuario que está preguntando. Si es admin, todas las tareas; si es PM de algún proyecto, las de sus proyectos; si es miembro, las que tiene asignadas.",
+    description: "Lista las tareas del usuario que está preguntando. Si es admin, todas las tareas; si es PM de algún proyecto, las de sus proyectos; si es miembro, aquellas de las que es responsable.",
     input_schema: {
       type: "object",
       properties: { status: { type: "string", description: "Filtrar por estado (opcional): NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETED, RETURNED, IN_REVIEW (Prueba enviada a revisar, sin resultado) REVIEW_APPROVED (Prueba aprobada) o REVIEW_ACCEPTED (Aceptación aceptada por el cliente); estos tres no se pueden asignar" } },
@@ -157,7 +157,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_project_tasks",
-    description: "Lista TODAS las tareas de un proyecto (no solo las del usuario) con sus fechas planeadas, estado, asignados y etiquetas (tags) — usala para responder cosas como \"¿cuál es la próxima tarea por vencer?\" dejando que vos mismo compares las fechas.",
+    description: "Lista TODAS las tareas de un proyecto (no solo las del usuario) con sus fechas planeadas, estado, responsables y etiquetas (tags) — usala para responder cosas como \"¿cuál es la próxima tarea por vencer?\" dejando que vos mismo compares las fechas.",
     input_schema: {
       type: "object",
       properties: {
@@ -192,7 +192,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_task_details",
-    description: "Trae el detalle de una tarea puntual: título, estado, requerimientos de Definición a los que responde (requirements; lista vacía si no tiene), asignados, revisores, etiquetas (tags, con su categoryId), checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
+    description: "Trae el detalle de una tarea puntual: título, estado, requerimientos de Definición a los que responde (requirements; lista vacía si no tiene), responsables, revisores, etiquetas (tags, con su categoryId), checklist, adjuntos (id, nombre y tipo — para leer el contenido usá read_attachment) y su alerta de atraso.",
     input_schema: {
       type: "object",
       properties: { taskId: { type: "string" } },
@@ -380,7 +380,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "send_whatsapp_group_message",
     description:
-      "Envía un mensaje al grupo de WhatsApp de un proyecto. Con taskId menciona automáticamente al PM, asignados y revisores de esa tarea; sin taskId (ej. el resumen del proyecto de get_whatsapp_message) no menciona a nadie. Con tarea, el mensaje debe incluir el link absoluto de la tarea (APP_URL + /projects/{projectId}/tasks/{taskId}) si la persona lo quiere compartir. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
+      "Envía un mensaje al grupo de WhatsApp de un proyecto. Con taskId menciona automáticamente al PM, responsables y revisores de esa tarea; sin taskId (ej. el resumen del proyecto de get_whatsapp_message) no menciona a nadie. Con tarea, el mensaje debe incluir el link absoluto de la tarea (APP_URL + /projects/{projectId}/tasks/{taskId}) si la persona lo quiere compartir. Solo lo puede ejecutar un administrador o el PM de ese proyecto. Requiere confirmación antes de enviar.",
     input_schema: {
       type: "object",
       properties: {
@@ -436,7 +436,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "reassign_task",
-    description: "Agrega o quita una persona de los asignados de una tarea.",
+    description: "Agrega o quita una persona de los responsables de una tarea.",
     input_schema: {
       type: "object",
       properties: {
@@ -450,7 +450,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "design_task",
     description:
-      "Sube el DISEÑO de una tarea en un solo paso. Ajuste: `items` = cambios pedidos [{ description, note?, before?, after? }] (before/after son archivos o links). Prueba (QA) y Aceptación: crea la primera ronda si no existe (`deliverables` opcional: archivos o links de lo que se entrega) y le carga `checks` = pruebas o características [{ title, criteria? (un punto por línea), category?, evidence? }]; en Prueba también admite `templateId`. Cada acción exige el rol correspondiente (asignado, revisor, PM o administrador); si no lo tiene, se rechaza.",
+      "Sube el DISEÑO de una tarea en un solo paso. Ajuste: `items` = cambios pedidos [{ description, note?, before?, after? }] (before/after son archivos o links). Prueba (QA) y Aceptación: crea la primera ronda si no existe (`deliverables` opcional: archivos o links de lo que se entrega) y le carga `checks` = pruebas o características [{ title, criteria? (un punto por línea), category?, evidence? }]; en Prueba también admite `templateId`. Cada acción exige el rol correspondiente (responsable, revisor, PM o administrador); si no lo tiene, se rechaza.",
     input_schema: {
       type: "object",
       properties: {
@@ -466,13 +466,13 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "submit_review_round",
     description:
-      "Envía una Prueba (QA) a revisión o la reenvía tras una devolución (abre la ronda siguiente y avisa a los revisores). Conserva los entregables de la ronda anterior. Al reenviar, toda prueba «Con errores» necesita respuesta (manage_design_item set_check_response) y evidencia (add_check_evidence). Solo asignado, PM o administrador.",
+      "Envía una Prueba (QA) a revisión o la reenvía tras una devolución (abre la ronda siguiente y avisa a los revisores). Conserva los entregables de la ronda anterior. Al reenviar, toda prueba «Con errores» necesita respuesta escrita (manage_design_item set_check_response); la evidencia (add_check_evidence) es opcional. Solo asignado, PM o administrador.",
     input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
   },
   {
     name: "manage_design_item",
     description:
-      "Edita un ítem ya diseñado. action: update_adjustment (itemId; description? note?), add_adjustment_files (itemId; kind BEFORE|AFTER; files), reopen_adjustment_review (itemId; deja que el cliente califique de nuevo ese cambio), add_check_evidence (checkId; files), set_check_response (checkId; response = respuesta de quien corrige una prueba «Con errores»; con respuesta y evidencia en todas, se reenvía con submit_review_round o desde la app), add_round_files (roundId; files), delete (itemId = un cambio de Ajuste, o checkId = una prueba/característica sin resultado; es irreversible). Los ids salen de get_task_design.",
+      "Edita un ítem ya diseñado. action: update_adjustment (itemId; description? note?), add_adjustment_files (itemId; kind BEFORE|AFTER; files), reopen_adjustment_review (itemId; deja que el cliente califique de nuevo ese cambio), add_check_evidence (checkId; files), set_check_response (checkId; response = respuesta escrita de quien corrige una prueba «Con errores» o una característica devuelta, que el cliente ve en su link; con respuesta en todas, se reenvía con submit_review_round o desde la app; la evidencia es opcional), add_round_files (roundId; files), delete (itemId = un cambio de Ajuste, o checkId = una prueba/característica sin resultado; es irreversible). Los ids salen de get_task_design.",
     input_schema: {
       type: "object",
       properties: {
@@ -718,7 +718,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "create_task",
-    description: "Crea una tarea nueva en un proyecto. Requiere al menos un asignado (assigneeIds). La fase se indica por phaseId (los ids de las fases vienen en get_project_status) o, más simple, por su nombre en phaseName; si el proyecto tiene una sola fase, se puede omitir.",
+    description: "Crea una tarea nueva en un proyecto. Requiere al menos un responsable (assigneeIds). La fase se indica por phaseId (los ids de las fases vienen en get_project_status) o, más simple, por su nombre en phaseName; si el proyecto tiene una sola fase, se puede omitir.",
     input_schema: {
       type: "object",
       properties: {
@@ -731,7 +731,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         plannedStart: { type: "string", description: "Fecha de inicio, formato YYYY-MM-DD." },
         durationDays: { type: "number", description: "Duración en días hábiles, mínimo 1." },
         assigneeIds: { type: "array", items: { type: "string" }, description: "Al menos un id de usuario." },
-        reviewerIds: { type: "array", items: { type: "string" }, description: "Solo tipo QA (Prueba): ids de revisores, distintos de los asignados." },
+        reviewerIds: { type: "array", items: { type: "string" }, description: "Solo tipo QA (Prueba): ids de revisores, distintos de los responsables." },
         defaultTestTemplateId: { type: "string", description: "Solo tipo QA (Prueba): plantilla de pruebas (id de list_test_templates)." },
         requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Títulos de los requerimientos de Definición a los que responde la tarea (uno o varios), tal cual figuran en el proyecto." },
         requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Ids de los requerimientos, si se conocen; si no, usar requirementTitles." },
@@ -1364,10 +1364,10 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     }
     case "reassign_task": {
       const { addUserId, removeUserId } = input as { addUserId?: string; removeUserId?: string };
-      if (addUserId && removeUserId) return "Reasignar la tarea (agregar y quitar personas)";
+      if (addUserId && removeUserId) return "Cambiar los responsables de la tarea (agregar y quitar personas)";
       if (addUserId) return "Agregar una persona a la tarea";
       if (removeUserId) return "Quitar una persona de la tarea";
-      return "Reasignar la tarea";
+      return "Cambiar los responsables de la tarea";
     }
     case "set_task_tag":
       return "Poner una etiqueta a la tarea";
@@ -1597,7 +1597,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
       const formData = new FormData();
       for (const id of currentIds) formData.append("assigneeIds", id);
       const result = await setTaskAssignees(taskId, formData);
-      return { ok: result.ok, message: result.ok ? "Listo, se actualizaron los asignados." : (result.error ?? "No se pudo reasignar.") };
+      return { ok: result.ok, message: result.ok ? "Listo, se actualizaron los responsables." : (result.error ?? "No se pudieron cambiar los responsables.") };
     }
 
     case "create_task": {

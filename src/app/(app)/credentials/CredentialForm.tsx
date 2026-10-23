@@ -32,8 +32,8 @@ function generatePassword(length = 20) {
 type Visibility = "ME" | "ALL" | "PROJECT" | "USERS";
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string; hint: string }[] = [
-  { value: "ME", label: "Solo yo", hint: "Nadie más puede verla: ni administradores, ni el PM, ni los asignados de la tarea." },
-  { value: "PROJECT", label: "Solo los del proyecto", hint: "PM, asignados y revisores de las tareas del proyecto, y administradores." },
+  { value: "ME", label: "Solo yo", hint: "Nadie más puede verla: ni administradores, ni el PM, ni los responsables de la tarea." },
+  { value: "PROJECT", label: "Solo los del proyecto", hint: "PM, responsables y revisores de las tareas del proyecto, y administradores." },
   { value: "ALL", label: "Todos los usuarios", hint: "Cualquier persona del sistema que pueda ver el proyecto." },
   { value: "USERS", label: "Personas concretas", hint: "Solo las personas marcadas en la lista. Quien la crea también debe marcarse para conservar el acceso." },
 ];
@@ -165,7 +165,7 @@ export function CredentialForm({
             </span>
           </label>
         ))}
-        {place && !("projectId" in place) && visibility !== "ME" && <p className="text-xs text-slate-500">Los asignados de esta tarea siempre pueden verla.</p>}
+        {place && !("projectId" in place) && visibility !== "ME" && <p className="text-xs text-slate-500">Los responsables de esta tarea siempre pueden verla.</p>}
         {visibility === "USERS" && (
           <div className="rounded-lg border border-slate-200 p-1.5">
             {users === null ? (

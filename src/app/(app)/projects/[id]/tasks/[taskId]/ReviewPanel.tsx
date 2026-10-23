@@ -43,6 +43,7 @@ import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { pickResponseCategory } from "@/lib/responseTemplates";
+import { EvidenceGroup } from "@/components/EvidenceGroup";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -54,7 +55,10 @@ type Check = {
   note: string | null;
   responseCategory: string | null;
   reviewedByName: string | null;
+  /** Evidencia de quien revisa. */
   evidence: FileRef[];
+  /** Evidencia de la respuesta del responsable. */
+  responseEvidence: FileRef[];
 };
 type Round = {
   id: string;
@@ -290,14 +294,14 @@ export function ReviewPanel({
 function CorrectionPanel({ round, responseCategories }: { round: Round; responseCategories: { name: string; responses: string[] }[] }) {
   const failedChecks = round.checks.filter((c) => c.result === "FAILED");
   if (failedChecks.length === 0) return null;
-  const allAnswered = failedChecks.every((c) => c.responseCategory?.trim() && c.evidence.length > 0);
+  const allAnswered = failedChecks.every((c) => c.responseCategory?.trim());
   return (
     <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
       <p className="text-[18px] font-medium text-orange-800">
-        Antes de reenviar — respondé y subí evidencia de la corrección de cada prueba con error (ronda {round.roundNumber})
+        Antes de reenviar, cada prueba con error necesita una respuesta; la evidencia es opcional (ronda {round.roundNumber})
       </p>
       <RoundChecks checks={failedChecks} canEdit responseCategories={responseCategories} />
-      {!allAnswered && <p className="text-[17px] text-orange-600">Faltan pruebas por responder con evidencia.</p>}
+      {!allAnswered && <p className="text-[17px] text-orange-600">Faltan pruebas por responder.</p>}
     </div>
   );
 }
@@ -753,6 +757,34 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
   // busca por el nombre de categoría de la prueba (viene de la plantilla de
   // pruebas) y, si no hay una categoría con ese nombre exacto, cae a "Otro".
   const matchingResponses = pickResponseCategory(responseCategories, check.category)?.responses ?? [];
+  // «+ Evidencia / + Link» va en el grupo de quien sube (Revisor o Respuesta); el servidor decide a cuál pertenece.
+  const evidenceAdder = canAttachEvidence ? (
+    <>
+      {!addingLink && (
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
+            {uploading ? "Subiendo…" : "+ Evidencia"}
+            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
+          </label>
+          <button type="button" onClick={() => setAddingLink(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
+            + Link
+          </button>
+        </div>
+      )}
+      {addingLink && (
+        <div className="flex gap-1">
+          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
+          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
+            OK
+          </button>
+          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
+            ✕
+          </button>
+        </div>
+      )}
+    </>
+  ) : null;
 
   return (
     <li className="space-y-1.5 rounded-xl border border-slate-300 border-l-4 border-l-[#0a6b78] bg-white p-3 shadow-sm">
@@ -849,48 +881,35 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
       {check.result && check.note && <p className="text-[17px] text-slate-500">Nota: <Linkify text={check.note} /></p>}
 
       {check.evidence.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <FileChips files={check.evidence} onRemove={canAttachEvidence ? handleRemoveEvidence : undefined} />
-        </div>
+        <EvidenceGroup label="Revisor">
+          <FileChips files={check.evidence} onRemove={canReview ? handleRemoveEvidence : undefined} />
+        </EvidenceGroup>
       )}
-      {canAttachEvidence && !addingLink && (
-        <div className="flex items-center gap-2">
-          <label className="cursor-pointer text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
-            {uploading ? "Subiendo…" : "+ Evidencia"}
-            <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && uploadEvidence(e.target.files[0])} />
-          </label>
-          <button type="button" onClick={() => setAddingLink(true)} className="text-[17px] text-slate-400 hover:text-slate-600 hover:underline">
-            + Link
-          </button>
-        </div>
-      )}
-      {canAttachEvidence && addingLink && (
-        <div className="flex gap-1">
-          <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
-          <input value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="Nombre" className="w-24 flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px]" />
-          <button type="button" disabled={!linkName.trim() || !linkUrl.trim()} onClick={handleAddEvidenceLink} className="flex-shrink-0 rounded-lg bg-slate-900 px-2 py-1 text-[17px] text-white disabled:opacity-50">
-            OK
-          </button>
-          <button type="button" onClick={() => setAddingLink(false)} className="flex-shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-[17px] text-slate-500">
-            ✕
-          </button>
-        </div>
-      )}
+      {canReview && evidenceAdder}
 
-      {check.result === "FAILED" && canEdit && (
-        <SearchableSelect
-          name={`response-${check.id}`}
-          options={matchingResponses.map((r) => ({ id: r, label: r }))}
-          defaultValue={check.responseCategory ?? ""}
-          onChange={(value) => value !== (check.responseCategory ?? "") && handleResponseCategory(value)}
-          allowCustom
-          placeholder="Elegir una respuesta o escribir otra (ej. Error de lógica)…"
-          searchPlaceholder="Buscar o escribir otra respuesta…"
-          className="px-2 py-1 text-[17px]"
-        />
-      )}
-      {check.result === "FAILED" && check.responseCategory && !canEdit && (
-        <p className="text-[17px] text-slate-500">Respuesta: {check.responseCategory}</p>
+      {check.result === "FAILED" && (canEdit || check.responseCategory || check.responseEvidence.length > 0) && (
+        <EvidenceGroup label="Respuesta">
+          {canEdit ? (
+            <SearchableSelect
+              name={`response-${check.id}`}
+              options={matchingResponses.map((r) => ({ id: r, label: r }))}
+              defaultValue={check.responseCategory ?? ""}
+              onChange={(value) => value !== (check.responseCategory ?? "") && handleResponseCategory(value)}
+              allowCustom
+              placeholder="Elegir una respuesta o escribir otra (ej. Error de lógica)…"
+              searchPlaceholder="Buscar o escribir otra respuesta…"
+              className="px-2 py-1 text-[17px]"
+            />
+          ) : (
+            check.responseCategory && <p className="text-[17px] text-slate-600">{check.responseCategory}</p>
+          )}
+          {check.responseEvidence.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <FileChips files={check.responseEvidence} onRemove={canEdit ? handleRemoveEvidence : undefined} />
+            </div>
+          )}
+          {!canReview && evidenceAdder}
+        </EvidenceGroup>
       )}
 
       {check.reviewedByName && <p className="text-[13px] text-slate-400">Revisado por {check.reviewedByName}</p>}

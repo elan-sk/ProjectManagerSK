@@ -108,7 +108,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
               </p>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {anchorTask.assignees.length === 0 ? (
-                  <span className="text-xs text-slate-400">Sin asignados</span>
+                  <span className="text-xs text-slate-400">Sin responsables</span>
                 ) : (
                   anchorTask.assignees.map((a) => (
                     <span key={a.userId} className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -120,7 +120,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
               </div>
             </div>
           </div>
-          <ModalTrigger label="Reasignar" title="Reasignar tarea" variant="secondary" compact>
+          <ModalTrigger label="Responsables" title="Cambiar responsables" variant="secondary" compact>
             <ReassignAssigneesForm taskId={anchorTask.id} currentAssigneeIds={anchorAssigneeIds} users={allUsers} />
           </ModalTrigger>
         </div>
@@ -155,7 +155,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
                     </div>
                   </div>
                   {otherTask && (
-                    <ModalTrigger label="Reasignar" title="Reasignar tarea" variant="secondary" compact>
+                    <ModalTrigger label="Responsables" title="Cambiar responsables" variant="secondary" compact>
                       <ReassignAssigneesForm
                         taskId={otherTask.id}
                         currentAssigneeIds={otherTask.assignees.map((a) => a.userId)}

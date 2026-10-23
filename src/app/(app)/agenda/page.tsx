@@ -595,8 +595,8 @@ export default async function AgendaPage({
       {cards.length === 0 && (
         <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
           {viewingOther && canViewOthers
-            ? `${users.find((u) => u.id === userId)?.name ?? "Esa persona"} no tiene tareas asignadas con estos filtros.`
-            : "No tenés tareas asignadas con estos filtros."}
+            ? `${users.find((u) => u.id === userId)?.name ?? "Esa persona"} no tiene tareas a su cargo con estos filtros.`
+            : "No hay tareas a su cargo con estos filtros."}
         </p>
       )}
 

@@ -15,6 +15,7 @@
     "db:seed-review-templates": "tsx scripts/seed-review-templates.ts",
     "db:seed-review-rounds-test": "tsx scripts/seed-review-rounds-test.ts",
     "verify:delay-rule": "tsx scripts/verify-delay-rule.ts",
+    "verify:evidence-response": "tsx --env-file=.env scripts/verify-evidence-response.ts",
     "verify:credentials": "tsx --env-file=.env scripts/verify-credentials.ts",
     "verify:delete-user": "tsx --env-file=.env scripts/verify-delete-user.ts",
     "verify:on-time-rate": "tsx scripts/verify-on-time-rate.ts",
