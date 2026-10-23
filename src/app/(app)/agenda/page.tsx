@@ -12,7 +12,7 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { matchesDateRange, parseDayKey } from "@/lib/dateRange";
 import { ATTRIBUTE_TYPE_OPTIONS, attributeTypeTriggerClass, hasUploadedFiles, isAttributeType, matchesAttributeType } from "@/lib/taskTypeFilter";
-import { ClockIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
+import { ClockIcon, KeyIcon, LockIcon, PlayIcon, UrgentIcon, WarningIcon } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { SubprojectsPopover } from "@/app/(app)/projects/[id]/SubprojectsPanel";
 import { ProgressFill } from "@/components/ProgressFill";
@@ -321,7 +321,13 @@ export default async function AgendaPage({
   return (
     <div className="space-y-4">
       <RememberViewState storageKey="lastAgendaView" />
-      <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-slate-900">Agenda</h1>
+        <Link href="/credentials" title="Ver todas las contraseñas" className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <KeyIcon className="h-3.5 w-3.5" />
+          Contraseñas
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {/* Un indicador a la vez: activarlo borra los demás filtros (salvo la persona);

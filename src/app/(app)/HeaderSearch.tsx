@@ -280,6 +280,16 @@ export function HeaderSearch() {
     fileViewer.open({ id: hit.id, url: hit.preview.url, name: hit.title, mimeType: hit.preview.mimeType, place: { href: hit.href, title: hit.context ?? hit.title } });
   }
 
+  // «Ver todas» de la búsqueda de contraseñas: lleva a /credentials (mismo cierre que ir a un resultado).
+  function goAllCredentials() {
+    setOpen(false);
+    setQuery("");
+    const replaceEntry = historyEntryRef.current;
+    historyEntryRef.current = false;
+    setModalOpen(false);
+    return replaceEntry ? router.replace("/credentials") : router.push("/credentials");
+  }
+
   function selectSearchType(prefix: string) {
     const shortcut = `${prefix}:`;
     setQuery(shortcut);
@@ -517,8 +527,13 @@ export function HeaderSearch() {
               hits.map((h, i) => (
                 <Fragment key={`${h.kind}:${h.id}`}>
                   {(i === 0 || hits[i - 1].group !== h.group) && (
-                    <p className={`px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide ${GROUP_COLOR[h.group].title} uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
+                    <p className={`flex items-center justify-between gap-2 px-2.5 pb-0.5 text-[10px] font-semibold tracking-wide ${GROUP_COLOR[h.group].title} uppercase ${i === 0 ? "pt-1" : "mt-1 border-t border-slate-100 pt-2"}`}>
                       {GROUP_LABEL[h.group]}
+                      {h.group === "file" && parsed.filter === "credential" && !head && (
+                        <button type="button" onClick={goAllCredentials} className="cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] font-medium tracking-normal text-red-700 normal-case hover:bg-red-50">
+                          Ver todas →
+                        </button>
+                      )}
                     </p>
                   )}
                   <button

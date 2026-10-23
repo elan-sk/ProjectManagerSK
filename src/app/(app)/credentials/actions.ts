@@ -311,7 +311,22 @@ export async function recordCredentialEvent(credentialId: string, event: Exclude
   return { ok: true };
 }
 
-export type CredentialLogEntry = { id: string; userName: string; event: CredentialEventName; source: string; createdAt: string };
+/**
+ * Copiar la contraseña desde la lista de /credentials sin abrir el visor: la entrega solo a quien
+ * tiene acceso y deja «copió la contraseña» en el historial (una sola fila, no «abrió» + «copió»).
+ */
+export async function copyCredentialPassword(credentialId: string, actor?: Actor): Promise<Result<{ password: string }>> {
+  const user = await resolveActor(actor);
+  if (!user) return { ok: false, error: "La sesión terminó. Vuelva a iniciar sesión." };
+  const c = await prisma.credential.findFirst({ where: { id: credentialId, ...credentialVisibleWhere(user) }, select: { passwordEnc: true } });
+  if (!c) return { ok: false, error: "Esta contraseña no existe o no tiene acceso a ella." };
+  const password = decryptPassword(c.passwordEnc);
+  if (password === null) return { ok: false, error: "La contraseña guardada no se puede leer. Quien la administra debe volver a cargarla." };
+  await logCredentialAccess([credentialId], user, "COPY_PASSWORD", "app");
+  return { ok: true, password };
+}
+
+export type CredentialLogEntry ={ id: string; userName: string; event: CredentialEventName; source: string; createdAt: string };
 
 /** Historial de acceso (más reciente primero, últimos 200): solo quien la creó, el PM o un administrador. */
 export async function getCredentialAccessLog(credentialId: string, actor?: Actor): Promise<Result<{ entries: CredentialLogEntry[] }>> {

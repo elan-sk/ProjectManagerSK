@@ -111,16 +111,19 @@ export function CredentialView({
   canRemove = false,
   onChanged,
   onDeleted,
+  initialEditing = false,
 }: {
   credential: CredentialDetails;
   place?: CredentialPlace;
   canRemove?: boolean;
   onChanged?: () => void;
   onDeleted?: () => void;
+  /** Abre directo en el formulario (botón «Editar» de la lista de contraseñas). */
+  initialEditing?: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing && credential.canManage);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -268,7 +271,19 @@ export function CredentialView({
 }
 
 /** Carga el detalle al abrir (la contraseña nunca viaja en las listas) y lo muestra. */
-export function CredentialLoader({ credentialId, place, canRemove, onClose }: { credentialId: string; place?: CredentialPlace; canRemove?: boolean; onClose: () => void }) {
+export function CredentialLoader({
+  credentialId,
+  place,
+  canRemove,
+  onClose,
+  initialEditing,
+}: {
+  credentialId: string;
+  place?: CredentialPlace;
+  canRemove?: boolean;
+  onClose: () => void;
+  initialEditing?: boolean;
+}) {
   const [state, setState] = useState<{ credential: CredentialDetails } | { error: string } | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -284,7 +299,7 @@ export function CredentialLoader({ credentialId, place, canRemove, onClose }: { 
 
   if (!state) return <p className="text-sm text-slate-400">Abriendo contraseña…</p>;
   if ("error" in state) return <p className="text-sm text-slate-600">{state.error}</p>;
-  return <CredentialView credential={state.credential} place={place} canRemove={canRemove} onChanged={() => setVersion((v) => v + 1)} onDeleted={onClose} />;
+  return <CredentialView credential={state.credential} place={place} canRemove={canRemove} onChanged={() => setVersion((v) => v + 1)} onDeleted={onClose} initialEditing={initialEditing && version === 0} />;
 }
 
 const LOG_DATE = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" });
