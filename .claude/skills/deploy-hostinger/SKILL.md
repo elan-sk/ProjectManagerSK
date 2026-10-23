@@ -1,26 +1,34 @@
 ---
 name: deploy-hostinger
-description: Empaquetar y desplegar ProjectManagerSK al sitio real en Hostinger (hPanel, hosting de Node.js administrado). Usar cuando el usuario pida "desplegá a Hostinger", "armá el paquete", "subí esto a producción", o el sitio se caiga después de un deploy.
+description: Desplegar ProjectManagerSK al sitio real en Hostinger (hPanel, hosting de Node.js administrado). Desde 2026-10-23 el deploy es automático con cada push a master (GitHub); el zip queda de respaldo. Usar cuando el usuario pida "desplegá a Hostinger", "subí esto a producción", "armá el paquete", o el sitio se caiga después de un deploy.
 ---
 
 # Deploy a Hostinger — ProjectManagerSK
 
-Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid-donkey-632879.hostingersite.com`) el 2026-09-13, después de una caída real de producción — no es una suposición del README original (que decía "es por Git", cosa que resultó falsa para este sitio).
+Todo lo de acá está **confirmado en vivo** contra el sitio real (`mediumorchid-donkey-632879.hostingersite.com`): el flujo por zip desde el 2026-09-13 y el despliegue automático por GitHub desde el 2026-10-23.
 
 ## Cómo es el deploy acá (nada de lo demás aplica)
 
-- El sitio está en modo **"Subido manualmente"** en hPanel (no Git). El deploy es: hPanel → Sitios web → el sitio → **Despliegues** → subir un `.zip` → botón Deploy.
-- Hostinger corre **únicamente** `npm install` + `npm run build` sobre ese zip. Nada más. No hay paso de SSH, no hay consola, no hay hook post-deploy.
+- **Desde 2026-10-23: cada `git push` a `master` despliega solo.** Hostinger GitHub App (cuenta `elan-sk`, repo `elan-sk/ProjectManagerSK`, rama `master`) clona el commit, corre `npm install` + `npm run build` y reinicia la app. Ajustes de build: Node 22, tipo `next`, script `build`, npm, salida `.next`. **Push a master = producción**: no subir a master nada que no deba salir. Si el build falla, queda activa la versión anterior.
+- **hPanel no muestra opción de Git en un sitio creado por zip** (ni en Despliegues ni en Avanzado). La conexión se hizo por la **API pública** (`https://developers.hostinger.com/api/hosting/v1`, token creado en hpanel.hostinger.com/api → Tokens de API):
+  - `GET /git/installations` → uuid de la instalación de GitHub (se instala la App desde Sitios web → Agregar sitio web → App web de Node.js → Conectar con GitHub, cerrando el asistente sin desplegar).
+  - `PUT /accounts/u305350578/websites/<sitio>/git/auto-deployments/settings` con `installation_uuid`, `owner`, `repository`, `branch`, `is_enabled: true`.
+  - `POST /accounts/u305350578/websites/<sitio>/nodejs/builds` con `source_type: "git"` y los ajustes de arriba (el primer build no sale solo al guardar).
+  - `GET .../nodejs/builds` para ver el estado (`pending` → `running` → `completed`/`failed`) de cada build, también los disparados por push.
+- **Respaldo por zip** (si GitHub falla): `npm run package:hostinger` → hPanel → Despliegues → subir el zip → Deploy. Ojo: un deploy por zip puede dejar el sitio con origen "archivo"; después hay que volver a lanzar un build con `source_type: "git"` para seguir con GitHub.
+- Diferencia con el zip: Git clona el repo completo, así que `Documentacion/`, `.impeccable/` y los `.sql` de la raíz (excluidos del zip por `.gitattributes` `export-ignore`) llegan al servidor. No rompen nada; solo ocupan disco.
+- Hostinger corre **únicamente** `npm install` + `npm run build`. Nada más. No hay paso de SSH, no hay consola, no hay hook post-deploy.
 - El SSH que da hPanel para este sitio es un **entorno completamente aparte** del que corre la app desplegada — ni siquiera tiene `node`/`npm` en el PATH. No sirve para nada relacionado al deploy en sí (ni para correr migraciones, ni para reiniciar el proceso a mano). Solo sirve para mirar `~/domains/<sitio>/hbuilds/` (ver abajo).
 - En `~/domains/<sitio>/`: `public_html/` es solo un stub (`.htaccess` de proxy) — **nunca** poner código ahí (hay un archivo `DO_NOT_UPLOAD_HERE` de aviso). El código real vive en `hbuilds/versions/<uuid>/`, con `hbuilds/current` como symlink a la versión activa y `hbuilds/logs/<uuid>/` con el log de build de cada deploy (útil para diagnosticar sin adivinar).
 
 ## Pasos para desplegar
 
-1. Commitear todo (`npm run package:hostinger` exige árbol limpio).
-2. `git push origin master` (buena práctica, aunque este deploy puntual no lea de GitHub directamente).
-3. `npm run package:hostinger` — genera `projectmanagersk-deploy.zip` en la raíz con `git archive` (respeta `.gitattributes`/`.gitignore`, sin exclude-list manual).
-4. hPanel → Despliegues → subir ese zip → Deploy. Esperar que pase de "Compilando" a "Se ha completado".
-5. Probar el sitio real.
+1. Commitear lo que va a salir (revisar `git status`: no mezclar cambios de otra sesión que no estén listos).
+2. `git push origin master`. Eso dispara el deploy.
+3. Esperar ~4 min a que el build pase a "Se ha completado" (hPanel → Despliegues, o `GET .../nodejs/builds` si hay token).
+4. Probar el sitio real.
+
+Respaldo manual (solo si GitHub no despliega): `npm run package:hostinger` (exige árbol limpio; genera `projectmanagersk-deploy.zip` con `git archive`) → hPanel → Despliegues → subir el zip → Deploy.
 
 ## Las trampas que ya causaron un problema real
 
