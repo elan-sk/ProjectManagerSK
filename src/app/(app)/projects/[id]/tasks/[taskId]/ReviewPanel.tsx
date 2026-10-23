@@ -69,7 +69,7 @@ type Round = {
 
 const RESULT_LABEL: Record<CheckResult, string> = {
   APPROVED: "Aprobada",
-  FLAGGED: "Con hallazgos",
+  FLAGGED: "Recomendación",
   FAILED: "Con errores",
   NOT_APPLICABLE: "No aplica",
 };
@@ -821,7 +821,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
             className="w-full rounded-lg border border-slate-300 px-2 py-1 text-[17px]"
           />
           <div className="flex flex-wrap gap-1.5">
-            {/* Punto 6: calificar con error o con hallazgo exige evidencia ya
+            {/* Punto 6: calificar «Con errores» o «Recomendación» exige evidencia ya
                 cargada — deshabilitado desde el primer render (punto 5), no
                 después de intentarlo. */}
             {(["APPROVED", "FLAGGED", "FAILED", "NOT_APPLICABLE"] as const).map((r) => {
@@ -831,7 +831,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
                   key={r}
                   type="button"
                   disabled={isPending || needsEvidence}
-                  title={needsEvidence ? "Subí evidencia antes de calificar con error o con hallazgo." : undefined}
+                  title={needsEvidence ? "Se debe subir evidencia antes de calificar «Con errores» o «Recomendación»." : undefined}
                   onClick={() => setResult(r)}
                   className={`rounded-lg px-2 py-1 text-[17px] font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
                 >
@@ -841,7 +841,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
             })}
           </div>
           {check.evidence.length === 0 && (
-            <p className="text-[15px] text-slate-400">Para calificar con error o con hallazgo, subí evidencia primero.</p>
+            <p className="text-[15px] text-slate-400">Para calificar «Con errores» o «Recomendación», primero se debe subir evidencia.</p>
           )}
         </div>
       )}

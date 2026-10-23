@@ -188,7 +188,7 @@ Flujo: se envía una ronda (entregables opcionales: el link o archivo no es obli
   { "deliverables": [{ "id": "string?", "name": "string", "url": "string", "mimeType": "string" }] }
   ```
   Al reenviar (ronda 2+, tras una devolución), pasá el `id` de un entregable de la ronda anterior para actualizarlo en el mismo lugar en vez de duplicarlo; omitilo para un entregable nuevo. `deliverables` puede ir vacío u omitirse. Exige que todas las pruebas "Con errores" de la ronda anterior ya tengan respuesta + evidencia de corrección.
-- `PATCH /api/v1/tasks/:id/review/checks/:checkId/result` — califica una prueba: `{ "result": "APPROVED | FLAGGED | FAILED | NOT_APPLICABLE", "note": "string?" }`. Calificar `FAILED`/`FLAGGED` exige que la prueba ya tenga evidencia cargada (409 si no).
+- `PATCH /api/v1/tasks/:id/review/checks/:checkId/result` — califica una prueba: `{ "result": "APPROVED | FLAGGED | FAILED | NOT_APPLICABLE", "note": "string?" }`. Calificar `FAILED`/`FLAGGED` exige que la prueba ya tenga evidencia cargada (409 si no). `FLAGGED` se muestra como «Recomendación»: aprueba la prueba y no devuelve la ronda. Recalificar una prueba de la última ronda ya cerrada (tarea no completada) recalcula la ronda: sin `FAILED` queda Aprobada y la tarea sale de Devuelta; con `FAILED` queda Devuelta. En rondas anteriores o tareas completadas, 409.
 - `POST /api/v1/tasks/:id/review/checks/:checkId/revert` — revierte una calificación a blanco. Solo mientras la ronda siga abierta.
 - `POST /api/v1/tasks/:id/review/rounds/:roundId/close` — cierra la ronda (exige que todas las pruebas tengan resultado). Si alguna quedó "Con errores", la tarea pasa a "Devuelta".
 - `POST /api/v1/tasks/:id/review/complete` — completa la tarea de Prueba (exige última ronda aprobada).

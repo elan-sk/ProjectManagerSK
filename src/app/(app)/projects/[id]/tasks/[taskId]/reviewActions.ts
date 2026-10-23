@@ -361,25 +361,61 @@ export async function updateReviewCheck(checkId: string, input: { title: string;
   return { ok: true as const };
 }
 
-// Punto 6: calificar "Con errores" o "Con hallazgos" exige evidencia ya
+// Punto 6: calificar "Con errores" o "Recomendación" exige evidencia ya
 // cargada en la prueba — "Aprobada"/"No aplica" no la necesitan.
+// Si la ronda ya estaba cerrada (recalificación posterior), su resultado se
+// recalcula con la misma regla de closeReviewRound: sin pruebas "Con errores"
+// queda Aprobada y la tarea sale de "Devuelta". Antes quedaba Devuelta sin
+// nada que corregir y la tarea no podía avanzar ni completarse.
 export async function setReviewCheckResult(checkId: string, result: CheckResult, note: string, actor?: Actor) {
   const check = await prisma.reviewCheck.findUniqueOrThrow({
     where: { id: checkId },
-    include: { reviewRound: true, evidence: true },
+    include: {
+      evidence: true,
+      reviewRound: {
+        include: {
+          checks: { select: { id: true, result: true } },
+          task: { select: { status: true, reviewRounds: { select: { roundNumber: true }, orderBy: { roundNumber: "desc" }, take: 1 } } },
+        },
+      },
+    },
   });
-  if (!(await canReviewTask(check.reviewRound.taskId, actor))) {
+  const round = check.reviewRound;
+  if (!(await canReviewTask(round.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
   if ((result === "FAILED" || result === "FLAGGED") && check.evidence.length === 0) {
-    return { ok: false as const, error: "Para calificar con error o con hallazgo, primero subí evidencia." };
+    return { ok: false as const, error: "Para calificar «Con errores» o «Recomendación», primero se debe subir evidencia." };
+  }
+  if (round.outcome !== null) {
+    if (round.task.status === "COMPLETED") {
+      return { ok: false as const, error: "La prueba ya está completada; su calificación ya no se puede cambiar." };
+    }
+    if (round.task.reviewRounds[0]?.roundNumber !== round.roundNumber) {
+      return { ok: false as const, error: "Esta ronda ya tiene una ronda posterior; la calificación se cambia en la ronda actual." };
+    }
   }
   const reviewedById = (await resolveActor(actor))?.id;
-  await prisma.reviewCheck.update({
-    where: { id: checkId },
-    data: { result, note: note.trim() || null, reviewedById },
+  let returnedNow = false;
+  await prisma.$transaction(async (tx) => {
+    await tx.reviewCheck.update({
+      where: { id: checkId },
+      data: { result, note: note.trim() || null, reviewedById },
+    });
+    if (round.outcome === null) return;
+    const hasFailed = round.checks.some((c) => (c.id === checkId ? result : c.result) === "FAILED");
+    const outcome = hasFailed ? "RETURNED" : "APPROVED";
+    if (outcome === round.outcome) return;
+    await tx.reviewRound.update({ where: { id: round.id }, data: { outcome } });
+    if (hasFailed) {
+      await tx.task.update({ where: { id: round.taskId }, data: { status: "RETURNED" } });
+      returnedNow = true;
+    } else if (round.task.status === "RETURNED") {
+      await tx.task.update({ where: { id: round.taskId }, data: { status: "IN_PROGRESS" } });
+    }
   });
-  await revalidateTask(check.reviewRound.taskId);
+  if (returnedNow) await notifyReturned(round.taskId);
+  await revalidateTask(round.taskId);
   return { ok: true as const };
 }
 

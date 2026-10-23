@@ -107,7 +107,7 @@ enum ReviewOutcome {
 
 enum CheckResult {
   APPROVED // Aprobada
-  FLAGGED // Con hallazgos
+  FLAGGED // Recomendación (aprueba la prueba; no devuelve la ronda)
   FAILED // Con errores
   NOT_APPLICABLE // Punto 14: no cuenta para aprobar ni para devolver la ronda
 }
@@ -984,7 +984,7 @@ model ResponseTemplate {
 
 // Una ronda de revisión = un envío a revisar + sus checks + su resultado.
 // roundNumber sube en cada reintento tras una devolución (punto 2.6, flujo
-// Aprobada/Con hallazgos/Con errores -> Devuelta -> nueva ronda).
+// Aprobada/Recomendación/Con errores -> Devuelta -> nueva ronda).
 model ReviewRound {
   id            String         @id @default(cuid())
   taskId        String

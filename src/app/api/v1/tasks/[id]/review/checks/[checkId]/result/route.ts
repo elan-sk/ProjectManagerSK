@@ -8,7 +8,7 @@ const bodySchema = z.object({
   note: z.string().default(""),
 });
 
-// Calificar con "Con errores"/"Con hallazgos" exige que la prueba ya tenga
+// Calificar con "Con errores"/"Recomendación" exige que la prueba ya tenga
 // evidencia cargada (mismo chequeo que la app web).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; checkId: string }> }) {
   const auth = await requireApiUser(request);
