@@ -7,7 +7,7 @@ import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { useConfirm } from "@/components/Confirm";
 import { useToast } from "@/components/Toast";
-import { CheckIcon, ExternalLinkIcon, KeyIcon, PencilIcon, SearchIcon, TrashIcon, UserIcon } from "@/components/icons";
+import { CheckIcon, ExternalLinkIcon, GlobeIcon, KeyIcon, PencilIcon, SearchIcon, TrashIcon, UserIcon } from "@/components/icons";
 import { normalizeSearchText } from "@/lib/search";
 import { credentialUrlLabel } from "@/lib/attachments";
 import { CredentialLoader } from "./CredentialView";
@@ -84,7 +84,7 @@ function CredentialRow({ credential, onOpen }: { credential: BoardCredential; on
       <button type="button" onClick={() => onOpen(false)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left">
         {/* Ícono del sitio: dice de dónde es la contraseña de un vistazo (sin URL, la llave). */}
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
-          {href ? <LinkFavicon url={href} className="h-5 w-5" /> : <KeyIcon className="h-4 w-4 text-red-600" />}
+          {href ? <LinkFavicon url={href} className="h-5 w-5" fallback={<GlobeIcon className="h-5 w-5 text-slate-400" />} /> : <KeyIcon className="h-4 w-4 text-red-600" />}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-slate-800">{credential.name}</span>
