@@ -133,17 +133,6 @@ export async function submitReviewRound(
       return { ok: false as const, error: "No hay ninguna ronda devuelta para reenviar." };
     }
     const failedChecks = lastRound.checks.filter((c) => c.result === "FAILED");
-    // Devuelta sin pruebas «Con errores» (dato de antes de recalcular al
-    // recalificar): no hay nada que corregir, así que no nace una ronda vacía
-    // que nadie podría cerrar — la anterior queda Aprobada.
-    if (failedChecks.length === 0) {
-      await prisma.$transaction([
-        prisma.reviewRound.update({ where: { id: lastRound.id }, data: { outcome: "APPROVED" } }),
-        ...(task.status === "RETURNED" ? [prisma.task.update({ where: { id: taskId }, data: { status: "IN_PROGRESS" as const } })] : []),
-      ]);
-      await revalidateTask(taskId);
-      return { ok: true as const, approvedWithoutNewRound: true as const };
-    }
     const unanswered = failedChecks.filter((c) => !c.responseCategory?.trim() || c.evidence.length === 0);
     if (unanswered.length > 0) {
       return {
@@ -534,11 +523,8 @@ export async function closeReviewRound(reviewRoundId: string, actor?: Actor) {
   if (!(await canReviewTask(round.taskId, actor))) {
     return { ok: false as const, error: "No tenés permiso para revisar esta tarea." };
   }
-  // Una ronda 2+ vacía viene de reenviar sin pruebas «Con errores» (solo
-  // recomendaciones): no hay nada que revisar y se cierra Aprobada. En la
-  // ronda 1 sí hace falta al menos una prueba.
-  if (round.checks.length === 0 && round.roundNumber === 1) {
-    return { ok: false as const, error: "Se debe agregar al menos una prueba antes de cerrar la ronda." };
+  if (round.checks.length === 0) {
+    return { ok: false as const, error: "Agregá al menos una prueba antes de cerrar la ronda." };
   }
   if (round.checks.some((c) => !c.result)) {
     return { ok: false as const, error: "Todavía hay pruebas sin resultado." };

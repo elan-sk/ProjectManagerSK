@@ -1956,7 +1956,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         });
         const deliverables = (last?.deliverables ?? []).map((d) => ({ id: d.id, name: d.fileName, url: d.fileUrl, mimeType: d.mimeType }));
         const r = await submitReviewRound(taskId, deliverables, actor);
-        return { ok: r.ok, message: r.ok ? ("approvedWithoutNewRound" in r ? "No había pruebas con error para corregir: la ronda anterior quedó aprobada y la prueba ya se puede completar." : "Listo, quedó enviada a revisión.") : r.error };
+        return { ok: r.ok, message: r.ok ? "Listo, quedó enviada a revisión." : r.error };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
