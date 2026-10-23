@@ -585,7 +585,7 @@ function ItemRow({ index, total, taskId, item, canEdit, canVote }: { index: numb
         </EvidenceGroup>
       )}
 
-      {item.result === "FAILED" && (canRespond || item.responseCategory || item.responseEvidence.length > 0) && (
+      {(canRespond || item.responseCategory || item.responseEvidence.length > 0) && (
         <EvidenceGroup label="Respuesta">
           {canRespond ? (
             <textarea

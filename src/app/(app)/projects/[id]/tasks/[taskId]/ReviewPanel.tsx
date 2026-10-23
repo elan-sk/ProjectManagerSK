@@ -887,9 +887,9 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
       )}
       {canReview && evidenceAdder}
 
-      {check.result === "FAILED" && (canEdit || check.responseCategory || check.responseEvidence.length > 0) && (
+      {((check.result === "FAILED" && canEdit) || check.responseCategory || check.responseEvidence.length > 0) && (
         <EvidenceGroup label="Respuesta">
-          {canEdit ? (
+          {canEdit && check.result === "FAILED" ? (
             <SearchableSelect
               name={`response-${check.id}`}
               options={matchingResponses.map((r) => ({ id: r, label: r }))}
@@ -908,7 +908,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
               <FileChips files={check.responseEvidence} onRemove={canEdit ? handleRemoveEvidence : undefined} />
             </div>
           )}
-          {!canReview && evidenceAdder}
+          {!canReview && check.result === "FAILED" && evidenceAdder}
         </EvidenceGroup>
       )}
 
