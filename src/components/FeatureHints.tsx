@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import "driver.js/dist/driver.css";
 import { FEATURE_HINTS } from "@/lib/featureHints";
@@ -10,18 +10,19 @@ const selector = (id: string) => `[data-feature-hint="${id}"]`;
 
 /**
  * Muestra las novedades pendientes de la pantalla actual: oscurece el resto, resalta el elemento y
- * explica qué es (driver.js). Varias en la misma pantalla salen una tras otra. Si el elemento no está
+ * explica qué es (driver.js), hasta que la persona presiona «Entendido». Varias en la misma pantalla salen una tras otra. Si el elemento no está
  * a la vista (p. ej. menú cerrado en el celular) no se muestra ni se marca como vista.
  */
 export function FeatureHints({ pending }: { pending: string[] }) {
   const pathname = usePathname();
   // Lo visto en esta sesión: el layout no se vuelve a pedir al navegar, así que `pending` queda viejo.
   const seen = useRef(new Set<string>());
-  // Por valor: un router.refresh trae un arreglo nuevo con lo mismo y no debe reiniciar el resaltado.
-  const pendingKey = pending.join(",");
+  // Lo pendiente al cargar la app, fijo: LiveRefresh refresca el layout cada 12 s y eso nunca debe cerrar
+  // un aviso abierto (se cerraba solo a los pocos segundos). Solo cambiar de pantalla lo cierra.
+  const [initialPending] = useState(pending);
 
   useEffect(() => {
-    const hints = FEATURE_HINTS.filter((h) => pendingKey.split(",").includes(h.id) && !seen.current.has(h.id) && h.path === pathname);
+    const hints = FEATURE_HINTS.filter((h) => initialPending.includes(h.id) && !seen.current.has(h.id) && h.path === pathname);
     if (hints.length === 0) return;
     let cancelled = false;
     let tour: { destroy: () => void } | null = null;
@@ -36,16 +37,29 @@ export function FeatureHints({ pending }: { pending: string[] }) {
         overlayOpacity: 0.45,
         stagePadding: 6,
         stageRadius: 10,
-        showButtons: ["next", "close"],
+        // Queda hasta que la persona presione «Entendido» (pedido del usuario): sin X, sin clic fuera ni Escape.
+        showButtons: ["next"],
+        allowClose: false,
+        overlayClickBehavior: "none",
+        allowKeyboardControl: false,
         nextBtnText: "Siguiente",
         doneBtnText: "Entendido",
         steps: visible.map((h) => ({
           element: selector(h.id),
-          popover: { title: h.title, description: h.description, side: "bottom", align: "end" },
-          onHighlighted: () => {
-            if (seen.current.has(h.id)) return;
-            seen.current.add(h.id);
-            markFeatureHintSeen(h.id).catch(() => {});
+          popover: {
+            title: h.title,
+            description: h.description,
+            side: "bottom",
+            align: "end",
+            // Cuenta como vista recién al aceptarla: si la persona se va de la pantalla antes, la vuelve a ver.
+            onNextClick: (_el, _step, { driver: tour }) => {
+              if (!seen.current.has(h.id)) {
+                seen.current.add(h.id);
+                markFeatureHintSeen(h.id).catch(() => {});
+              }
+              if (tour.isLastStep()) tour.destroy();
+              else tour.moveNext();
+            },
           },
         })),
       });
@@ -57,7 +71,7 @@ export function FeatureHints({ pending }: { pending: string[] }) {
       clearTimeout(timer);
       tour?.destroy();
     };
-  }, [pathname, pendingKey]);
+  }, [pathname, initialPending]);
 
   return null;
 }
