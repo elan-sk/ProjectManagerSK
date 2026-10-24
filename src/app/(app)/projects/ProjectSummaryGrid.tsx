@@ -127,7 +127,7 @@ export async function ProjectSummaryGrid({
         )}
       </div>
 
-      <div className="grid max-h-110 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
+      <div className="grid max-h-132 grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
         {visibleRows.length === 0 && (
           <p className="text-sm text-slate-500 sm:col-span-2">
             {pid ? "Ningún proyecto coincide con la búsqueda." : health ? "Ningún proyecto coincide con este filtro." : "Todavía no tenés proyectos."}
