@@ -20,7 +20,7 @@ import { ReferencePopover } from "@/components/ReferencePopover";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/Confirm";
-import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon } from "@/components/icons";
+import { PaperclipIcon, OverlapIcon, UrgentIcon, ArchiveIcon, CopyIcon, MergeIcon, PencilIcon } from "@/components/icons";
 import { TagChip } from "@/components/TagChip";
 import { EvidenceLoadedBadge, ReviewStateBadge, ReturnedBadge } from "@/components/TaskIndicators";
 import { TASK_STATUS_LABEL, TASK_STATUS_COLOR, TASK_TYPE_LABEL as TYPE_LABEL, TASK_TYPE_BADGE, taskCardTint, isStartingSoon, type ReviewState } from "@/lib/statusColors";
@@ -247,7 +247,14 @@ function CardBody({
         {canManage ? (
           <div className="flex min-w-0 items-center gap-1.5">
             <AvatarGroup people={task.assignees} />
-            <ModalTrigger label="Responsables" title="Cambiar responsables" variant="secondary" compact>
+            {/* Mismo lápiz que la ficha de la tarea (lenguaje visual de la app), sin la palabra. */}
+            <ModalTrigger
+              label=""
+              ariaLabel="Cambiar responsables"
+              title="Cambiar responsables"
+              icon={<PencilIcon className="h-4 w-4" />}
+              className="-ml-1 inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
               <ReassignAssigneesForm taskId={task.id} currentAssigneeIds={task.assigneeIds} users={users} />
             </ModalTrigger>
             {task.type === "QA" && task.reviewers.length > 0 && (
