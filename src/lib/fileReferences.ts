@@ -50,6 +50,37 @@ type Delegate = {
 // Acceso por nombre a cada tabla de la lista (verify-file-dedup.ts comprueba que cada par exista).
 export const table = (model: string) => (prisma as unknown as Record<string, Delegate>)[model];
 
+export const UPLOAD_URL = /\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*/g;
+
+export const FILE_ROW_MODELS = ["attachment", "projectAttachment", "adjustmentAttachment", "reviewDeliverable", "reviewCheckEvidence", "reviewMessageAttachment"] as const;
+
+export async function rewriteUploadReferences(mapping: Map<string, string>): Promise<number> {
+  let updated = 0;
+  const replaceAll = (text: string) => text.replace(UPLOAD_URL, (m) => mapping.get(m) ?? m);
+  for (const [model, field] of EXACT_REFS) {
+    for (const row of await table(model).findMany({ select: { id: true, [field]: true } })) {
+      const v = row[field];
+      const next = v ? mapping.get(v) : undefined;
+      if (next) {
+        await table(model).update({ where: { id: row.id! }, data: { [field]: next } });
+        updated++;
+      }
+    }
+  }
+  for (const [model, field] of TEXT_REFS) {
+    for (const row of await table(model).findMany({ select: { id: true, [field]: true } })) {
+      const v = row[field];
+      if (!v) continue;
+      const next = replaceAll(v);
+      if (next !== v) {
+        await table(model).update({ where: { id: row.id! }, data: { [field]: next } });
+        updated++;
+      }
+    }
+  }
+  return updated;
+}
+
 /** Cantidad de lugares que usan esta dirección (exactos + dentro de textos). */
 export async function countFileReferences(fileUrl: string): Promise<number> {
   const exact = await Promise.all(EXACT_REFS.map(([model, field]) => table(model).count({ where: { [field]: fileUrl } })));

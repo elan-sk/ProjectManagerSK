@@ -1,0 +1,22 @@
+digraph G {
+  rankdir=TB; nodesep=0.35; ranksep=0.4; bgcolor="white";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  archive [label="Archivar proyecto\n(pantalla, API)", fillcolor="#FFE0B2", color="#EF6C00"];
+  del [label="Eliminar proyecto\n(pantalla, API, bot)", fillcolor="#FFE0B2", color="#EF6C00"];
+  boot [label="Arranque de la app", fillcolor="#FFE0B2", color="#EF6C00"];
+  run [label="Proceso en segundo plano\n(uno a la vez)", fillcolor="#C8E6C9", color="#2E7D32"];
+  refs [label="Lugares que usan cada imagen\n(fileReferences)", fillcolor="#E0E0E0", color="#757575"];
+  classify [label="¿Dónde se usa la imagen?", fillcolor="#C8E6C9", color="#2E7D32"];
+  keep [label="Proyecto activo, foto o .md/.html\n→ no se toca", fillcolor="#C8E6C9", color="#2E7D32"];
+  webp [label="Algún proyecto archivado\n→ WebP 80 %, máx. 2560 px", fillcolor="#C8E6C9", color="#2E7D32"];
+  gone [label="Solo proyectos eliminados\n→ se borra", fillcolor="#C8E6C9", color="#2E7D32"];
+  rewrite [label="Cambiar dirección, nombre y tipo\nen todos los lugares (unifyUploads)", fillcolor="#FFE0B2", color="#EF6C00"];
+  unlink [label="Borrar original del disco", fillcolor="#C8E6C9", color="#2E7D32"];
+
+  archive -> run; del -> run; boot -> run;
+  run -> classify; refs -> classify;
+  classify -> keep; classify -> webp; classify -> gone;
+  webp -> rewrite -> unlink; gone -> unlink;
+}

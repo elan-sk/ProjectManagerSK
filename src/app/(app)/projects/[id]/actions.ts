@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { scheduleArchivedImageCompression } from "@/lib/archivedImageCompression";
 import { requirementsForProject } from "@/lib/taskRequirement";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween, isBusinessDay } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
@@ -29,6 +30,7 @@ export async function archiveProject(projectId: string, actor?: Actor) {
 
   // Spec 004: eliminar un proyecto principal elimina también sus subproyectos.
   await prisma.project.updateMany({ where: { OR: [{ id: projectId }, { parentId: projectId }] }, data: { status: "ARCHIVED" } });
+  scheduleArchivedImageCompression();
 
   revalidatePath("/projects");
   return { ok: true };

@@ -13,7 +13,10 @@ export async function register() {
   // En segundo plano: no demora el arranque, y si falla queda en el registro sin tumbar nada.
   import("@/lib/unifyUploads")
     .then(({ unifyUploads }) => unifyUploads())
-    .catch((err) => console.error("[instrumentation] unifyUploads falló", err));
+    .catch((err) => console.error("[instrumentation] unifyUploads falló", err))
+    .then(() => import("@/lib/archivedImageCompression"))
+    .then(({ scheduleArchivedImageCompression }) => scheduleArchivedImageCompression())
+    .catch((err) => console.error("[instrumentation] compresión de imágenes falló", err));
 
   if (process.env.WHATSAPP_ENABLED === "true") {
     const { startWhatsApp } = await import("@/lib/whatsapp");

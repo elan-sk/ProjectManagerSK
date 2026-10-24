@@ -2,7 +2,7 @@ import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { findUploadPath, uploadWriteDir } from "@/lib/persistentUploads";
 import { contentFileName, isContentFileName } from "@/lib/uploadFile";
-import { EXACT_REFS, TEXT_REFS, countFileReferences, table } from "@/lib/fileReferences";
+import { EXACT_REFS, TEXT_REFS, UPLOAD_URL, countFileReferences, rewriteUploadReferences, table } from "@/lib/fileReferences";
 import { logger } from "@/lib/logger";
 
 /**
@@ -14,7 +14,6 @@ import { logger } from "@/lib/logger";
  * corrida ya no encuentra nombres viejos. Lo que falta en disco se informa y
  * no se toca. Corre al arrancar (instrumentation.ts), en segundo plano.
  */
-const UPLOAD_URL = /\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*/g;
 const nameOf = (url: string) => url.slice("/uploads/".length);
 const isOldUploadUrl = (url: string) => /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url) && !isContentFileName(nameOf(url));
 
@@ -74,28 +73,7 @@ async function run(): Promise<UnifySummary> {
   summary.unified = mapping.size;
 
   // 3. Reescribir referencias (solo las filas que cambian).
-  const replaceAll = (text: string) => text.replace(UPLOAD_URL, (m) => mapping.get(m) ?? m);
-  for (const [model, field] of EXACT_REFS) {
-    for (const row of await table(model).findMany({ select: { id: true, [field]: true } })) {
-      const v = row[field];
-      const next = v ? mapping.get(v) : undefined;
-      if (next) {
-        await table(model).update({ where: { id: row.id! }, data: { [field]: next } });
-        summary.referencesUpdated++;
-      }
-    }
-  }
-  for (const [model, field] of TEXT_REFS) {
-    for (const row of await table(model).findMany({ select: { id: true, [field]: true } })) {
-      const v = row[field];
-      if (!v) continue;
-      const next = replaceAll(v);
-      if (next !== v) {
-        await table(model).update({ where: { id: row.id! }, data: { [field]: next } });
-        summary.referencesUpdated++;
-      }
-    }
-  }
+  summary.referencesUpdated = await rewriteUploadReferences(mapping);
 
   // 4. Apartar los archivos viejos que ya nadie usa (solo los de la carpeta de escritura; nunca se borran).
   const backupDir = path.join(writeDir, `_unificados-${new Date().toISOString().slice(0, 10)}`);
