@@ -25,9 +25,12 @@ export function ModalTrigger({
   icon,
   className,
   ariaLabel,
+  titleIcon,
 }: {
   label: string;
   title: string;
+  /** Ícono junto al título del modal (p. ej. el del proyecto). */
+  titleIcon?: ReactNode;
   children: ReactNode;
   variant?: "primary" | "secondary";
   compact?: boolean;
@@ -60,7 +63,7 @@ export function ModalTrigger({
         {icon}
         {label}
       </button>
-      <ModalShell open={open} onClose={() => setOpen(false)} title={title}>
+      <ModalShell open={open} onClose={() => setOpen(false)} title={title} titleIcon={titleIcon}>
         {children}
       </ModalShell>
     </>
@@ -76,11 +79,13 @@ export function ModalShell({
   open,
   onClose,
   title,
+  titleIcon,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  titleIcon?: ReactNode;
   children: ReactNode;
 }) {
   if (!open || typeof document === "undefined") return null;
@@ -97,7 +102,10 @@ export function ModalShell({
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
       <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto overflow-x-hidden rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.18)]">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold text-slate-900">
+            {titleIcon}
+            {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}

@@ -280,7 +280,7 @@ export function HeaderSearch() {
     fileViewer.open({ id: hit.id, url: hit.preview.url, name: hit.title, mimeType: hit.preview.mimeType, place: { href: hit.href, title: hit.context ?? hit.title } });
   }
 
-  // «Ver todas» de la búsqueda de contraseñas: lleva a /credentials (mismo cierre que ir a un resultado).
+  // «Gestor de contraseñas» de la búsqueda de contraseñas: lleva a /credentials (mismo cierre que ir a un resultado).
   function goAllCredentials() {
     setOpen(false);
     setQuery("");
@@ -531,7 +531,7 @@ export function HeaderSearch() {
                       {GROUP_LABEL[h.group]}
                       {h.group === "file" && parsed.filter === "credential" && !head && (
                         <button type="button" onClick={goAllCredentials} className="cursor-pointer px-1.5 py-0.5 text-[11px] font-medium tracking-normal text-red-700 underline underline-offset-2 normal-case hover:text-red-800">
-                          Ver todas
+                          Gestor de contraseñas
                         </button>
                       )}
                     </p>

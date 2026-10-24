@@ -84,7 +84,7 @@ export function CredentialForm({
     startTransition(async () => {
       const input = { name, url, username, notes, visibility, userIds, password };
       try {
-        const result = initial ? await updateCredential(initial.id, input) : place ? await createCredential(input, place) : { ok: false as const, error: "No se pudo guardar la contraseña." };
+        const result = initial ? await updateCredential(initial.id, input) : place ? await createCredential(input, place) : { ok: false as const, error: "Falta elegir el proyecto." };
         if (!result.ok) {
           setError(result.error);
           return;

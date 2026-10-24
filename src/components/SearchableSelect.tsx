@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { normalizeSearchText } from "@/lib/search";
 
 /**
@@ -21,7 +21,8 @@ export function SearchableSelect({
   className = "px-3 py-2 text-sm",
 }: {
   name: string;
-  options: { id: string; label: string }[];
+  /** `icon`: opcional, se muestra antes del nombre (p. ej. el ícono del proyecto). */
+  options: { id: string; label: string; icon?: ReactNode }[];
   placeholder?: string;
   defaultValue?: string;
   onChange?: (id: string) => void;
@@ -67,7 +68,12 @@ export function SearchableSelect({
         onClick={() => setOpen((o) => !o)}
         className={`w-full rounded-lg border border-slate-300 text-left text-slate-900 ${className}`}
       >
-        {selected ? selected.label : allowCustom && value ? value : <span className="text-slate-400">{placeholder}</span>}
+        {selected ? (
+          <span className="flex min-w-0 items-center gap-2">
+            {selected.icon}
+            <span className="truncate">{selected.label}</span>
+          </span>
+        ) : allowCustom && value ? value : <span className="text-slate-400">{placeholder}</span>}
       </button>
 
       {open && (
@@ -98,9 +104,10 @@ export function SearchableSelect({
                 key={o.id}
                 type="button"
                 onClick={() => choose(o.id)}
-                className={`block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
+                className={`flex w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${value === o.id ? "font-medium text-slate-900" : "text-slate-600"}`}
               >
-                {o.label}
+                {o.icon}
+                <span className="truncate">{o.label}</span>
               </button>
             ))}
             {showCustom && (

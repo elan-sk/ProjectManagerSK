@@ -25,6 +25,13 @@ export const FEATURE_HINTS: FeatureHint[] = [
     description: "Todas las contraseñas a las que tiene acceso, en un solo lugar, para copiarlas o editarlas.",
     publishedAt: "2026-10-23",
   },
+  {
+    id: "credentials-add",
+    path: "/credentials",
+    title: "Nuevo: Agregar contraseñas",
+    description: "Se crea eligiendo el proyecto al que pertenece. En cada proyecto, el botón + la agrega directamente ahí.",
+    publishedAt: "2026-10-23",
+  },
 ];
 
 /** Novedades vigentes: publicadas hace menos de HINT_LIFETIME_DAYS días. */
