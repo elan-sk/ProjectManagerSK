@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ACTIVITY_EVENT, beginActivity, endActivity, isQuiet, type ActivityDetail } from "@/lib/activityStatus";
 import { NAVIGATION_ACTIVITY_ID, startNavigationProgress } from "@/lib/useAppRouter";
+import { IMAGES_EVENT } from "@/lib/imageGate";
 
 // Barra de estado inferior, estilo VS Code (pedido del usuario): sube mientras la app trabaja y dice
 // QUÉ está haciendo — «Abriendo la tarea "…"», «Aplicando filtros», «Procesando…», «Subiendo "x.pdf" ·
@@ -114,6 +115,9 @@ export function NavigationProgress() {
   // Acciones del servidor: todas viajan por fetch con la cabecera Next-Action.
   useEffect(() => watchServerActions(), []);
 
+  // Imágenes a la vista que todavía se descargan (src/lib/imageGate.ts): «Cargando imágenes…».
+  useEffect(() => watchImages(), []);
+
   const current = activities[activities.length - 1];
   const elapsed = current ? Math.floor((now - Math.min(...activities.map((a) => a.startedAt))) / 1000) : 0;
   const text = current ? `${current.label || "Cargando…"}${current.progress !== undefined ? ` · ${Math.round(current.progress * 100)} %` : ""}` : "";
@@ -164,6 +168,37 @@ export function NavigationProgress() {
       </div>
     </div>
   );
+}
+
+// Las que llegan de la caché tardan unos milisegundos: esperar este margen evita que la barra
+// parpadee al abrir un popup o pasar el mouse por una tarjeta.
+const IMAGES_DELAY_MS = 150;
+
+function watchImages() {
+  let activity: ReturnType<typeof beginActivity> | null = null;
+  let timer: number | null = null;
+  function sync() {
+    const pending = window.__pmskImagesPending ?? 0;
+    if (pending > 0) {
+      if (activity || timer) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        if ((window.__pmskImagesPending ?? 0) > 0) activity = beginActivity("Cargando imágenes…");
+      }, IMAGES_DELAY_MS);
+      return;
+    }
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+    activity?.end();
+    activity = null;
+  }
+  sync();
+  window.addEventListener(IMAGES_EVENT, sync);
+  return () => {
+    window.removeEventListener(IMAGES_EVENT, sync);
+    if (timer) window.clearTimeout(timer);
+    activity?.end();
+  };
 }
 
 /**

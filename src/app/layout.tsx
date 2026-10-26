@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import { IMAGE_GATE_SCRIPT } from "@/lib/imageGate";
+import { ImageGateStart } from "@/components/ImageGateStart";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,7 +43,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Primero, antes del contenido: oculta cada imagen hasta que termina de descargarse. */}
+        <script dangerouslySetInnerHTML={{ __html: IMAGE_GATE_SCRIPT }} />
         {children}
+        <ImageGateStart />
         <script
           // ponytail: registro del SW en JS plano — no hace falta un
           // componente cliente aparte solo para esto.
