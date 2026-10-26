@@ -13,6 +13,7 @@ import { MediaGalleryButton } from "@/app/(app)/projects/[id]/tasks/[taskId]/Med
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { PollFields } from "@/app/(app)/projects/[id]/tasks/[taskId]/TeamShareThread";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 export type MentionPerson = { id: string; name: string };
 
@@ -273,7 +274,7 @@ export function CommentForm({ projectId, taskId, people = [], reviewCheckId, all
           {images.map((url) => (
             <figure key={url} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="Captura adjunta" className="h-16 w-auto max-w-40 rounded-lg border border-slate-200 object-cover" />
+              <img src={thumbUrl(url, 320)} alt="Captura adjunta" className="h-16 w-auto max-w-40 rounded-lg border border-slate-200 object-cover" />
               <button
                 type="button"
                 onClick={() => setValue((v) => v.replace(imageMarker(url), ""))}

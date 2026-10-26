@@ -8,6 +8,7 @@ import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { normalizeSearchText } from "@/lib/search";
 import type { PublicFile } from "@/lib/publicView";
 import { LinkFavicon } from "@/components/LinkFavicon";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 // Grilla de archivos compartida entre el "Archivos" del proyecto y los
 // insumos/evidencia/antes-después de una tarea (puntos 15/16) — mismos
@@ -58,7 +59,7 @@ export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; seque
             return (
               <button key={f.id} type="button" onClick={() => setOpenImageId(f.id)} className="block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f.url} alt={f.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
+                <img src={thumbUrl(f.url, 320)} loading="lazy" alt={f.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
               </button>
             );
           }

@@ -5,6 +5,7 @@ import { PaperclipIcon } from "@/components/icons";
 import { usePasteImage } from "@/lib/usePasteImage";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { UPLOAD_ACCEPT, UPLOAD_ACCEPT_PUBLIC } from "@/lib/uploadLimits";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 export type PendingFile = { url: string; name: string; mimeType: string };
 
@@ -60,7 +61,7 @@ export function CommentAttachments({
             <li key={f.url} className="group relative">
               {f.mimeType.startsWith("image/") ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={f.url} alt={f.name} className="h-12 w-12 rounded-lg border border-slate-200 object-cover" />
+                <img src={thumbUrl(f.url, 320)} loading="lazy" alt={f.name} className="h-12 w-12 rounded-lg border border-slate-200 object-cover" />
               ) : (
                 <span className="flex h-12 w-16 items-center justify-center rounded-lg border border-slate-200 p-1 text-center text-xs text-slate-500">
                   <span className="line-clamp-2 break-all">{f.name}</span>

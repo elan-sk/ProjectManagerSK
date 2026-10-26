@@ -31,6 +31,7 @@ import { reopenAdjustmentReview } from "./shareThreadActions";
 import type { AdjustmentAttachmentKind } from "@prisma/client";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { LinkFavicon } from "@/components/LinkFavicon";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 type AdjustmentAttachment = { id: string; url: string; name: string; mimeType: string };
 type AdjustmentItemData = {
@@ -425,7 +426,7 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, credentials 
               >
                 {isImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt={a.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
+                  <img src={thumbUrl(a.url, 320)} loading="lazy" alt={a.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
                 ) : (
                   <div className="flex h-16 w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-200 p-1 text-center text-[13px] text-slate-500">
                     {isLink ? (

@@ -16,6 +16,7 @@ import { CredentialLoader } from "../../../../credentials/CredentialView";
 import { listCommentMedia } from "@/app/(app)/internalMessageActions";
 import { listReusableMedia, reuseMedia, reuseMediaForAdjustment, reuseMediaForStep, type MediaItem } from "./mediaGallery";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 // «Galería»: elegir un archivo o link ya subido en el proyecto en vez de subirlo otra vez.
 // Con `adjustmentItemId`, el elemento elegido se adjunta a ese ajuste (ej.
@@ -106,7 +107,7 @@ export function MediaGalleryButton(props: Props) {
                   <button type="button" title={item.name} disabled={busy !== null} onClick={() => pick(item)} className="flex h-full w-full cursor-pointer flex-col gap-1 rounded-lg border border-slate-200 p-2 text-left hover:border-[#0a6b78] hover:bg-slate-50 disabled:opacity-50">
                     {type === "image" ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.url} alt="" className="h-20 w-full rounded object-cover" />
+                      <img src={thumbUrl(item.url, 320)} loading="lazy" alt="" className="h-20 w-full rounded object-cover" />
                     ) : videoId ? (
                       // Video de YouTube: miniatura con play, igual que la grilla de adjuntos.
                       <span className="relative h-20 w-full overflow-hidden rounded">

@@ -6,6 +6,7 @@ import { ModalShell } from "@/components/Modal";
 import { XIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
 import { setTaskCover } from "../../taskOps";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 // Portada de la tarea (imagen de su card, como Trello): por defecto la primera imagen
 // adjunta; se puede elegir otra o dejarla sin portada. Regla de qué se muestra: taskCover.ts.
@@ -51,7 +52,7 @@ export function TaskCoverPicker({
       <div className="flex w-fit flex-col items-end gap-1">
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt="" className="block h-20 w-34 rounded-lg object-cover ring-1 ring-slate-200" />
+          <img src={thumbUrl(coverUrl, 320)} alt="" className="block h-20 w-34 rounded-lg object-cover ring-1 ring-slate-200" />
         ) : (
           <span className="text-sm text-slate-400">Sin portada</span>
         )}
@@ -66,7 +67,7 @@ export function TaskCoverPicker({
           <li>
             <button type="button" disabled={busy} onClick={() => pick("first")} className={tile(current === "first")}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={images[0].url} alt="" className="h-20 w-full rounded object-cover" />
+              <img src={thumbUrl(images[0].url, 320)} alt="" className="h-20 w-full rounded object-cover" />
               <span className="truncate text-xs font-medium text-slate-700">Primera imagen</span>
             </button>
           </li>
@@ -82,7 +83,7 @@ export function TaskCoverPicker({
             <li key={image.id}>
               <button type="button" title={image.name} disabled={busy} onClick={() => pick(image.id)} className={tile(current === image.id)}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.url} alt="" className="h-20 w-full rounded object-cover" />
+                <img src={thumbUrl(image.url, 320)} loading="lazy" alt="" className="h-20 w-full rounded object-cover" />
                 <span className="truncate text-xs font-medium text-slate-700">{image.name}</span>
               </button>
             </li>

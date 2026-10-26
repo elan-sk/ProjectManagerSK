@@ -13,6 +13,7 @@ import { HEADER_SEARCH_OPTIONS, OPEN_HEADER_SEARCH_EVENT, isCompactSearch, norma
 import { Hotkey } from "@/components/Hotkey";
 import { KeyIcon, SearchIcon, StatusGridIcon, TagIcon, XIcon } from "@/components/icons";
 import { useFileViewer } from "@/components/FileViewer";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 // Los resultados llegan ya ordenados por grupo (ver /api/search): Proyectos →
 // Tareas → Comentarios → Archivos. Cada grupo lleva su título.
@@ -658,7 +659,7 @@ export function HeaderSearch() {
                 Al cargar, si se sale por abajo, sube lo necesario. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={cover.url}
+              src={thumbUrl(cover.url, 1280)}
               alt=""
               className="block h-auto max-h-[80vh] w-auto"
               style={{ maxWidth: COVER_PREVIEW_WIDTH }}
