@@ -6,7 +6,7 @@ import { fileMarker, imageMarker, linkMarker, mentionMarker, commentPlainText } 
 import { fileRefSchema, type Fail } from "@/lib/taskDesign";
 import { POLL_INCLUDE, threadInclude, toTeamPoll, type PollRow } from "@/lib/threadView";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { mimeFromFileName } from "@/lib/uploadFile";
+import { resolveMime } from "@/lib/uploadLimits";
 import { addTeamShareComment, addRoundMessage, addTeamProjectShareComment, voteSharePoll, setSharePollClosed } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 
@@ -38,7 +38,7 @@ export type CommentInput = z.infer<typeof commentInputSchema>;
 const asFile = (f: z.infer<typeof fileRefSchema>) => ({
   url: f.url,
   name: f.name,
-  mimeType: f.mimeType ?? (/^https?:\/\//i.test(f.url) ? LINK_MIME_TYPE : mimeFromFileName(f.name || f.url)),
+  mimeType: /^https?:\/\//i.test(f.url) ? (f.mimeType ?? LINK_MIME_TYPE) : resolveMime(f.mimeType, f.name, f.url),
 });
 
 // La conversación interna guarda las menciones y los adjuntos como marcas dentro del texto

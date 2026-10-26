@@ -55,7 +55,11 @@
     "package:hostinger": "bash scripts/package-for-hostinger.sh",
     "verify:login-ip-limit": "tsx scripts/verify-login-ip-limit.ts",
     "verify:thumbnails": "tsx scripts/verify-thumbnails.ts",
+<<<<<<< HEAD
     "verify:image-gate": "tsx scripts/verify-image-gate.ts"
+=======
+    "verify:file-mime": "tsx scripts/verify-file-mime.ts"
+>>>>>>> 639ddf4 (refactor(mime): mejorar la deducción de tipos MIME y agregar verificación de archivos)
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

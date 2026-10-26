@@ -16,8 +16,7 @@ export type ViewFile = { id?: string; url: string; name: string; mimeType?: stri
 const GENERIC = "application/octet-stream";
 function resolveMime(f: ViewFile) {
   if (f.mimeType && f.mimeType !== GENERIC) return f.mimeType;
-  const byName = mimeFromFileName(f.name);
-  const mime = byName !== GENERIC ? byName : mimeFromFileName(f.url);
+  const mime = mimeFromFileName(f.name, f.url);
   if (mime !== GENERIC) return mime;
   return /\.html?$/i.test(f.url.split(/[?#]/)[0]) || /\.html?$/i.test(f.name) ? "text/html" : GENERIC;
 }

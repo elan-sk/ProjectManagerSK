@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { mimeFromFileName, saveUploadedFile } from "@/lib/uploadFile";
+import { resolveMime } from "@/lib/uploadLimits";
 import { buildFile } from "@/lib/botFileCreate";
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
@@ -58,6 +59,8 @@ import { findUploadPath } from "@/lib/persistentUploads";
 import { prepareFileForBot } from "@/lib/botFilePrep";
 import {
   addStep,
+  addStepAttachment,
+  addStepLinkAttachment,
   addAttachmentRecord,
   addLinkAttachment,
   toggleStep,
@@ -329,12 +332,12 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   {
     name: "add_checklist_steps",
     description:
-      "Agrega uno o varios pasos al checklist de una tarea. Sirve para convertir en checklist una lista o puntos que salieron en la conversación: un paso por ítem.",
+      "Agrega uno o varios pasos al checklist de una tarea. Sirve para convertir en checklist una lista o puntos que salieron en la conversación: un paso por ítem. `files` = imágenes o archivos de ESE paso (se ven dentro del paso y quedan como insumo de la tarea).",
     input_schema: {
       type: "object",
       properties: {
         taskId: { type: "string" },
-        steps: { type: "array", items: { type: "string" }, description: "Un texto por paso, en orden." },
+        steps: { type: "array", items: { type: "object", properties: { description: { type: "string" }, files: FILE_REFS }, required: ["description"] }, description: "Un paso por ítem, en orden." },
       },
       required: ["taskId", "steps"],
     },
@@ -1313,7 +1316,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const mine = ownMessages.some((m) => m.content.includes(fileUrl));
       if (!mine) return JSON.stringify({ error: "Ese archivo no fue subido desde tu chat." });
       const { mimeFromFileName } = await import("@/lib/uploadFile");
-      return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName) });
+      return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName, fileUrl) });
     }
     case "create_file": {
       const parsed = z.object({ fileName: z.string(), content: z.string() }).safeParse(input);
@@ -1405,8 +1408,9 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     case "add_task_comment":
       return "Dejar un comentario en la tarea";
     case "add_checklist_steps": {
-      const { steps } = input as { steps?: string[] };
-      return `Agregar ${steps?.length ?? 0} paso(s) al checklist`;
+      const { steps } = input as { steps?: (string | { files?: unknown[] })[] };
+      const images = steps?.reduce((n, st) => n + (typeof st === "string" ? 0 : (st.files?.length ?? 0)), 0) ?? 0;
+      return `Agregar ${steps?.length ?? 0} paso(s) al checklist${images ? ` con ${images} archivo(s)` : ""}`;
     }
     case "attach_link_to_task":
       return "Adjuntar un enlace a la tarea";
@@ -1820,11 +1824,21 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
 
     case "add_checklist_steps": {
       try {
-        const { taskId, steps } = z.object({ taskId: z.string(), steps: z.array(z.string().trim().min(1).max(500)).min(1).max(50) }).parse(input);
-        for (const description of steps) {
+        const text = z.string().trim().min(1).max(500);
+        const { taskId, steps } = z
+          .object({ taskId: z.string(), steps: z.array(z.union([text.transform((description) => ({ description, files: [] })), z.object({ description: text, files: z.array(fileRefSchema).max(20).default([]) })])).min(1).max(50) })
+          .parse(input);
+        for (const { description, files } of steps) {
           const fd = new FormData();
           fd.set("description", description);
           await addStep(taskId, fd);
+          if (!files.length) continue;
+          // ponytail: addStep no devuelve el id (también es acción de formulario); el recién creado es el último.
+          const step = await prisma.taskStep.findFirstOrThrow({ where: { taskId }, orderBy: { order: "desc" }, select: { id: true } });
+          for (const f of files) {
+            if (/^https?:\/\//i.test(f.url)) await addStepLinkAttachment(step.id, f.url, f.name);
+            else await addStepAttachment(step.id, { url: f.url, name: f.name, mimeType: resolveMime(f.mimeType, f.name, f.url) });
+          }
         }
         return { ok: true, message: `Listo, se agregaron ${steps.length} paso(s) al checklist.` };
       } catch (err) {
@@ -2055,7 +2069,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         for (const f of files) {
           let r;
           if (f.url.startsWith("/uploads/")) {
-            r = await addProjectAttachment(projectId, { url: f.url, name: f.name, mimeType: f.mimeType ?? mimeFromFileName(f.name) }, actor);
+            r = await addProjectAttachment(projectId, { url: f.url, name: f.name, mimeType: resolveMime(f.mimeType, f.name, f.url) }, actor);
           } else {
             const form = new FormData();
             form.set("title", f.name);
@@ -2076,7 +2090,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           .object({ taskId: z.string(), fileUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Ruta de archivo inválida."), fileName: z.string().min(1), kind: z.enum(["INSUMO", "RESULTADO"]).optional() })
           .parse(input);
         if (!(await findUploadPath(fileUrl))) return { ok: false, message: "Ese archivo no existe en el servidor." };
-        const r = await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName) }, await currentUserId());
+        const r = await addAttachmentRecord(taskId, kind ?? "INSUMO", { url: fileUrl, name: fileName, mimeType: mimeFromFileName(fileName, fileUrl) }, await currentUserId());
         return { ok: true, message: r?.duplicate ? "Ese archivo ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el archivo." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, PM_SCOPE_SELECT, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
-import { mimeFromFileName } from "@/lib/uploadFile";
+import { resolveMime } from "@/lib/uploadLimits";
 import { createShareLink, getActiveShareLink, revokeShareLink } from "@/lib/shareLinks";
 import { splitNew } from "@/lib/attachmentDedup";
 import { linkKey } from "@/lib/attachments";
@@ -39,7 +39,7 @@ export type FileRef = z.infer<typeof fileRefSchema>;
 
 function toFile(f: FileRef) {
   const isLink = /^https?:\/\//i.test(f.url);
-  return { url: f.url, name: f.name, mimeType: f.mimeType ?? (isLink ? LINK_MIME_TYPE : mimeFromFileName(f.name || f.url)) };
+  return { url: f.url, name: f.name, mimeType: isLink ? (f.mimeType ?? LINK_MIME_TYPE) : resolveMime(f.mimeType, f.name, f.url) };
 }
 
 const fileList = z.array(fileRefSchema).max(20);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withBody } from "@/lib/apiResult";
 import { fileRefSchema } from "@/lib/taskDesign";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
-import { mimeFromFileName } from "@/lib/uploadFile";
+import { resolveMime } from "@/lib/uploadLimits";
 import { submitAcceptanceRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/acceptanceActions";
 
 // Envía (ronda 1) o reenvía (tras una devolución del cliente) la entrega de una tarea de Aceptación al cliente.
@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           id: d.id,
           name: d.name,
           url: d.url,
-          mimeType: d.mimeType ?? (/^https?:\/\//i.test(d.url) ? LINK_MIME_TYPE : mimeFromFileName(d.name || d.url)),
+          mimeType: /^https?:\/\//i.test(d.url) ? (d.mimeType ?? LINK_MIME_TYPE) : resolveMime(d.mimeType, d.name, d.url),
         })),
         actor
       ),

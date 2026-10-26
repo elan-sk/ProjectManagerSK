@@ -54,8 +54,22 @@ export const EXTENSION_MIME: Record<string, string> = {
   ...ARCHIVE_MIME,
 };
 
-/** Tipo por la extensión del nombre o la ruta (sin node:path: también corre en el navegador). */
-export function mimeFromFileName(name: string) {
-  const ext = name.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0].toLowerCase() ?? "";
-  return EXTENSION_MIME[ext] ?? "application/octet-stream";
+const GENERIC_MIME = "application/octet-stream";
+
+/**
+ * Tipo por la extensión del primer nombre o ruta que la tenga (sin node:path: también corre en el
+ * navegador). Pasar nombre Y ruta: un nombre sin extensión («Antes 01 - Encabezado») daba archivo
+ * genérico y la imagen se veía como ícono roto.
+ */
+export function mimeFromFileName(...names: (string | null | undefined)[]) {
+  for (const name of names) {
+    const ext = name?.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0].toLowerCase() ?? "";
+    if (EXTENSION_MIME[ext]) return EXTENSION_MIME[ext];
+  }
+  return GENERIC_MIME;
+}
+
+/** El tipo que mandaron, salvo que venga vacío o genérico: ahí se deduce del nombre o la ruta. */
+export function resolveMime(given: string | null | undefined, ...names: (string | null | undefined)[]) {
+  return given && given !== GENERIC_MIME ? given : mimeFromFileName(...names);
 }

@@ -30,7 +30,7 @@ async function allowed(projectId: string, taskId?: string | null, actor?: Actor)
 // Sin duplicar: si ya está en esa sección (mismo archivo o mismo link, ver linkKey), no se vuelve a crear.
 async function syncCommentAttachments(projectId: string, taskId: string | null, uploadedById: string, body: string) {
   for (const a of commentAttachments(body)) {
-    const mimeType = a.kind === "link" ? LINK_MIME_TYPE : mimeFromFileName(a.name || a.url);
+    const mimeType = a.kind === "link" ? LINK_MIME_TYPE : mimeFromFileName(a.name, a.url);
     if (taskId) {
       if (!(await inSection({ taskId, kind: "INSUMO" }, a.url))) await prisma.attachment.create({ data: { taskId, kind: "INSUMO", fileUrl: a.url, fileName: a.name, mimeType, uploadedById } });
     } else if (a.kind === "link") {
