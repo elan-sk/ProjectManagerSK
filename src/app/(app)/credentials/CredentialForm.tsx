@@ -4,8 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useModalClose } from "@/components/Modal";
 import { UserCheckList } from "@/components/UserCheckList";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { EyeIcon, EyeOffIcon, SparklesIcon } from "@/components/icons";
-import { createCredential, listCredentialCandidates, recordCredentialEvent, updateCredential, type CredentialDetails } from "./actions";
+import { createCredential, listCredentialCandidates, listCredentialTargetProjects, recordCredentialEvent, updateCredential, type CredentialDetails } from "./actions";
 import type { CredentialPlace } from "@/lib/credentialPlace";
 
 const PASSWORD_SETS = ["abcdefghijkmnopqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789", "!@#$%^&*-_=+?"];
@@ -68,12 +69,24 @@ export function CredentialForm({
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? "ME");
   const [userIds, setUserIds] = useState<string[]>(initial?.allowedUserIds ?? []);
   const [users, setUsers] = useState<{ id: string; name: string; avatarUrl: string | null }[] | null>(null);
+  // Al editar se puede pasar a otro proyecto donde la persona sea PM o administradora.
+  const [projectId, setProjectId] = useState(initial?.projectId ?? "");
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     listCredentialCandidates()
       .then(setUsers)
       .catch(() => setUsers([]));
-  }, []);
+    if (initial)
+      listCredentialTargetProjects()
+        .then(setProjects)
+        .catch(() => setProjects([]));
+  }, [initial]);
+  // El proyecto actual siempre figura, aunque la persona no sea PM ahí (por ejemplo, quien la creó).
+  const projectOptions = initial
+    ? [...(projects.some((p) => p.id === initial.projectId) ? [] : [{ id: initial.projectId, name: initial.projectName }]), ...projects].map((p) => ({ id: p.id, label: p.name }))
+    : [];
+  const moving = initial !== undefined && projectId !== initial.projectId;
 
   // «Personas concretas» nunca se guarda vacía (el servidor también lo rechaza).
   const noPeople = visibility === "USERS" && userIds.length === 0;
@@ -82,7 +95,7 @@ export function CredentialForm({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const input = { name, url, username, notes, visibility, userIds, password };
+      const input = { name, url, username, notes, visibility, userIds, password, ...(moving ? { projectId } : {}) };
       try {
         const result = initial ? await updateCredential(initial.id, input) : place ? await createCredential(input, place) : { ok: false as const, error: "Falta elegir el proyecto." };
         if (!result.ok) {
@@ -104,6 +117,13 @@ export function CredentialForm({
         <span className="text-sm text-slate-600">Nombre</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Hosting Hostinger" autoFocus className={INPUT} />
       </label>
+      {projectOptions.length > 1 && (
+        <div className="space-y-1">
+          <span className="text-sm text-slate-600">Proyecto</span>
+          <SearchableSelect name="projectId" options={projectOptions} defaultValue={projectId} onChange={setProjectId} placeholder="Elegir proyecto…" searchPlaceholder="Buscar proyecto…" />
+          {moving && initial.tasks.length > 0 && <p className="text-xs text-slate-500">Se quitará de las tareas del proyecto anterior.</p>}
+        </div>
+      )}
       <label className="block space-y-1">
         <span className="text-sm text-slate-600">URL</span>
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className={INPUT} />

@@ -106,7 +106,7 @@ async function main() {
     // 3) Acciones reales (actor de confianza, como la API): paso, ajuste, quitar e historial.
     //    Los usuarios de prueba no tienen teléfono: no sale ningún WhatsApp.
     await prisma.user.update({ where: { id: picked.id }, data: { active: true } });
-    const { createCredential, linkCredential, unlinkCredential, getCredentialDetails, recordCredentialEvent, getCredentialAccessLog } = await import("../src/app/(app)/credentials/actions");
+    const { createCredential, updateCredential, linkCredential, unlinkCredential, getCredentialDetails, recordCredentialEvent, getCredentialAccessLog } = await import("../src/app/(app)/credentials/actions");
     const step = await prisma.taskStep.create({ data: { taskId: task.id, description: "Paso", order: 0 } });
     const item = await prisma.adjustmentItem.create({ data: { taskId: task.id, description: "Ajuste", order: 0 } });
     const pmActor = trustedActor({ id: pm.id, role: pm.role });
@@ -159,7 +159,20 @@ async function main() {
     assert.ok(!(await projectMedia(project.id, pmActor)).some((i) => i.url === `credential:${childCred.id}`), "galería del principal: sin las del hijo");
     assert.ok(!(await projectMedia(child.id, pmActor, { withCredentials: false })).some((i) => i.mimeType.includes("credential")), "comentarios: sin contraseñas");
 
-    console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial, subproyectos)");
+    // 4) Mover de proyecto: hace falta ser PM o administrador del destino; se quita de las tareas que no pueden tenerla allá.
+    const other = await prisma.project.create({ data: { name: `__verify-credentials-otro-${stamp}__`, startDate: new Date("2026-10-07"), pmId: outsider.id } });
+    childIds.push(other.id);
+    const moveCred = await mkCred("ALL", { tasks: { create: [{ taskId: task.id }, { taskId: childTask.id }] } });
+    const fields = { name: "ALL", visibility: "ALL" as const };
+    assert.ok(!(await updateCredential(moveCred.id, { ...fields, projectId: other.id }, pmActor)).ok, "el PM de origen no la pasa a un proyecto que no maneja");
+    assert.ok((await updateCredential(moveCred.id, { ...fields, projectId: child.id }, pmActor)).ok, "el PM la pasa a su subproyecto");
+    const movedTaskIds = async () => (await prisma.credentialTask.findMany({ where: { credentialId: moveCred.id } })).map((t) => t.taskId);
+    assert.deepEqual(await movedTaskIds(), [childTask.id], "en el subproyecto conserva solo la tarea del subproyecto");
+    assert.ok((await updateCredential(moveCred.id, { ...fields, projectId: other.id }, trustedActor({ id: admin.id, role: admin.role }))).ok, "un administrador la pasa a cualquier proyecto");
+    assert.equal((await prisma.credential.findUniqueOrThrow({ where: { id: moveCred.id } })).projectId, other.id);
+    assert.deepEqual(await movedTaskIds(), [], "en un proyecto ajeno queda sin tareas del anterior");
+
+    console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial, subproyectos, mover de proyecto)");
   } finally {
     for (const id of childIds) await deleteTestProject(id);
     await deleteTestProject(project.id);

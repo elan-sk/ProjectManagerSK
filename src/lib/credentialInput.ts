@@ -11,4 +11,6 @@ export const credentialBodySchema = z.object({
   visibility: z.enum(["ALL", "PROJECT", "USERS"]).optional(),
   userIds: z.array(z.string()).optional(),
   taskId: z.string().optional(),
+  /** Solo al editar: pasa la contraseña a otro proyecto. */
+  projectId: z.string().optional(),
 });

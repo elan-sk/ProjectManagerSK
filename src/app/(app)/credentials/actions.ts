@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { canEditTask, getProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
+import { canEditTask, getProjectAdmin, managedProjectWhere, resolveActor, visibleProjectWhere, type Actor } from "@/lib/permissions";
 import { encryptPassword, decryptPassword } from "@/lib/credentialCrypto";
 import { canManageCredential, canSeeCredential, credentialAudienceIds, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 import { notifyCredentialShared } from "@/lib/notifications";
@@ -18,6 +18,8 @@ const fieldsSchema = z.object({
   notes: z.string().trim().max(5000).optional().default(""),
   visibility: z.enum(["ME", "ALL", "PROJECT", "USERS"]).default("PROJECT"),
   userIds: z.array(z.string()).optional().default([]),
+  // Al editar: mover la contraseña a otro proyecto. Ausente = se queda donde está.
+  projectId: z.string().optional(),
 });
 
 export type CredentialInput = z.input<typeof fieldsSchema> & { password?: string };
@@ -137,7 +139,11 @@ export async function createCredential(input: CredentialInput, place: Credential
   return { ok: true, id: credential.id };
 }
 
-/** Edita la contraseña. Contraseña vacía = se conserva la actual. Avisa solo a quienes ganan acceso. */
+/**
+ * Edita la contraseña. Contraseña vacía = se conserva la actual. Avisa solo a quienes ganan acceso.
+ * Con otro `projectId` la mueve de proyecto (hace falta ser PM o administrador del destino, igual que
+ * para crearla ahí) y se quita de las tareas, pasos y ajustes que no pueden tenerla en el destino.
+ */
 export async function updateCredential(credentialId: string, input: CredentialInput, actor?: Actor): Promise<Result> {
   const user = await canManageCredential(credentialId, actor);
   if (!user) return { ok: false, error: "Solo quien creó la contraseña, el PM del proyecto o un administrador pueden editarla." };
@@ -149,6 +155,13 @@ export async function updateCredential(credentialId: string, input: CredentialIn
   // caía al valor por defecto y una contraseña «Solo yo» o de «Personas concretas» quedaba abierta al proyecto.
   const keepAccess = input.visibility === undefined;
   if (!keepAccess && visibility === "USERS" && userIds.length === 0) return { ok: false, error: NO_PEOPLE_ERROR };
+  const current = await prisma.credential.findUniqueOrThrow({ where: { id: credentialId }, select: { projectId: true, tasks: { select: { taskId: true } } } });
+  const newProjectId = parsed.data.projectId && parsed.data.projectId !== current.projectId ? parsed.data.projectId : null;
+  if (newProjectId && !(await getProjectAdmin(newProjectId, actor))) return { ok: false, error: "Solo el PM del proyecto de destino o un administrador pueden pasar la contraseña a ese proyecto." };
+  // Tareas que pueden tenerla en el destino: las del proyecto y las de sus subproyectos (misma regla que linkCredential).
+  // Lista explícita: un NOT sobre parentId nulo no coincide nunca en SQL y dejaba vínculos viejos.
+  const targetIds = newProjectId ? [newProjectId, ...(await prisma.project.findMany({ where: { parentId: newProjectId }, select: { id: true } })).map((p) => p.id)] : [];
+  const outsideTarget = newProjectId ? { projectId: { notIn: targetIds } } : null;
 
   let passwordEnc: string | undefined;
   if (input.password) {
@@ -161,6 +174,11 @@ export async function updateCredential(credentialId: string, input: CredentialIn
   const before = await credentialAudienceIds(credentialId);
   const credential = await prisma.$transaction(async (tx) => {
     if (!keepAccess) await tx.credentialUser.deleteMany({ where: { credentialId } });
+    if (outsideTarget) {
+      await tx.credentialStep.deleteMany({ where: { credentialId, step: { task: outsideTarget } } });
+      await tx.credentialAdjustmentItem.deleteMany({ where: { credentialId, adjustmentItem: { task: outsideTarget } } });
+      await tx.credentialTask.deleteMany({ where: { credentialId, task: outsideTarget } });
+    }
     return tx.credential.update({
       where: { id: credentialId },
       data: {
@@ -169,6 +187,7 @@ export async function updateCredential(credentialId: string, input: CredentialIn
         username: username || null,
         notes: notes || null,
         ...(passwordEnc ? { passwordEnc } : {}),
+        ...(newProjectId ? { projectId: newProjectId } : {}),
         ...(keepAccess ? {} : { visibility, allowedUsers: visibility === "USERS" ? { create: userIds.map((userId) => ({ userId })) } : undefined }),
       },
       select: { projectId: true, tasks: { select: { taskId: true } } },
@@ -176,7 +195,9 @@ export async function updateCredential(credentialId: string, input: CredentialIn
   });
   await notifyNewAudience(credentialId, before, user.id);
   revalidateCredentialPaths(credential.projectId, credential.tasks.map((t) => t.taskId));
+  if (newProjectId) revalidateCredentialPaths(current.projectId, current.tasks.map((t) => t.taskId));
   safeRevalidate(`/credentials/${credentialId}`);
+  safeRevalidate("/credentials");
   return { ok: true };
 }
 
@@ -333,6 +354,17 @@ export async function getCredentialAccessLog(credentialId: string, actor?: Actor
   if (!(await canManageCredential(credentialId, actor))) return { ok: false, error: "Solo quien creó la contraseña, el PM del proyecto o un administrador pueden ver el historial." };
   const rows = await prisma.credentialAccessLog.findMany({ where: { credentialId }, orderBy: { createdAt: "desc" }, take: 200 });
   return { ok: true, entries: rows.map((r) => ({ id: r.id, userName: r.userName, event: r.event, source: r.source, createdAt: r.createdAt.toISOString() })) };
+}
+
+/** Proyectos a los que la persona puede llevar una contraseña: PM (o PM del principal) o administrador — misma regla que createCredential. */
+export async function listCredentialTargetProjects(actor?: Actor): Promise<{ id: string; name: string }[]> {
+  const user = await resolveActor(actor);
+  if (!user) return [];
+  return prisma.project.findMany({
+    where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : managedProjectWhere(user.id)] },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 /** Personas activas para la visibilidad «Personas concretas» (misma lista que la selección de asignados). */

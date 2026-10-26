@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 // Sin taskId: PM o administrador. Con taskId: quien puede editar esa tarea (sus asignados la ven).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = await params;
-  return withBody(request, credentialBodySchema, async (actor, { taskId, ...input }) => {
+  return withBody(request, credentialBodySchema.omit({ projectId: true }), async (actor, { taskId, ...input }) => {
       if (taskId && (await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } }))?.projectId !== projectId) {
         return { ok: false, status: 400, error: "Esa tarea no es de este proyecto." };
       }
