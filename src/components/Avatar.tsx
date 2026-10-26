@@ -1,3 +1,4 @@
+import { thumbUrl } from "@/lib/thumbUrl";
 // Hex (no clases de Tailwind): rose-600/violet-600/teal-600 no están
 // retonalizados en globals.css y amber-600 es justo el ámbar de alerta —
 // las cuatro se veían fuera de lugar contra el resto del rediseño. Mismo
@@ -31,7 +32,8 @@ export function Avatar({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={avatarUrl}
+        src={thumbUrl(avatarUrl, 320)}
+        loading="lazy"
         alt={name}
         title={name}
         className={`flex-shrink-0 rounded-full object-cover ring-2 ring-white ${size}`}

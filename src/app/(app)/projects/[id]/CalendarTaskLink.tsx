@@ -12,6 +12,7 @@ import { ReviewStateBadge, TaskStatusIcon } from "@/components/TaskIndicators";
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_BADGE, TASK_TYPE_LABEL, type ReviewState } from "@/lib/statusColors";
 import type { TaskAlert } from "@/lib/delays";
 import type { TaskStatus } from "@prisma/client";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 const POPOVER_WIDTH = 340;
 const MIN_HEIGHT_BELOW = 320;
@@ -160,7 +161,7 @@ export function CalendarTaskLink({
             {task.coverUrl && (
               // Portada bajo la franja del estado, alto fijo para que el cálculo de posición no cambie al cargar.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={task.coverUrl} alt="" className="block h-32 w-full object-cover" />
+              <img src={thumbUrl(task.coverUrl, 800)} loading="lazy" alt="" className="block h-32 w-full object-cover" />
             )}
             <div className="space-y-3 p-4">
               <div className="flex items-center gap-2">

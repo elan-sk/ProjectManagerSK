@@ -4,6 +4,9 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { uploadSearchDirs } from "@/lib/persistentUploads";
+import { logger } from "@/lib/logger";
+import { thumbnailFile } from "@/lib/thumbnails";
+import { parseThumbWidth, RASTER_IMAGE } from "@/lib/thumbUrl";
 
 // Sirve los archivos subidos (/uploads/<uuid>.<ext>) leyendo el disco EN CADA
 // petición. Next en producción arma una sola vez, al arrancar, la lista de lo
@@ -38,21 +41,32 @@ const SVG_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src
 
 const notFound = () => new Response("No encontrado", { status: 404 });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
   // Solo nombres simples (letras, números, punto, guion): nada de rutas ni ".." — y solo tipos permitidos.
-  const type = MIME[path.extname(name).toLowerCase()];
-  if (!type || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes("..")) return notFound();
+  const ext = MIME[path.extname(name).toLowerCase()];
+  if (!ext || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes("..")) return notFound();
+  const width = RASTER_IMAGE.test(name) ? parseThumbWidth(new URL(request.url).searchParams.get("w")) : null;
 
   for (const dir of await uploadSearchDirs()) {
-    const file = path.join(dir, name);
-    const info = await stat(file).catch(() => null);
-    if (!info?.isFile()) continue;
+    let file = path.join(dir, name);
+    let type = ext;
+    if (!(await stat(file).catch(() => null))?.isFile()) continue;
+    if (width) {
+      // Miniatura (?w=): si sharp falla con una imagen rara, se sirve el original en vez de romper la vista.
+      const thumb = await thumbnailFile(file, name, width).catch((err) => {
+        logger.warn("uploads", `No se pudo achicar ${name}`, { error: err instanceof Error ? err.message : String(err) });
+        return null;
+      });
+      if (thumb) [file, type] = [thumb, "image/webp"];
+    }
+    const info = await stat(file);
     return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
       headers: {
         "Content-Type": type,
         "Content-Length": String(info.size),
-        "Cache-Control": "public, max-age=0, must-revalidate",
+        // El nombre es la huella del contenido (uploadFile.contentFileName): nunca cambia, el navegador lo guarda.
+        "Cache-Control": "public, max-age=31536000, immutable",
         "X-Content-Type-Options": "nosniff",
         // Abierto directo, un SVG es un documento: sin scripts ni cargas externas aunque algo se colara.
         ...(type === "image/svg+xml" && { "Content-Security-Policy": SVG_CSP }),

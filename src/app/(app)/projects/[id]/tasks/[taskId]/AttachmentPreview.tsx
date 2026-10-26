@@ -12,6 +12,7 @@ import type { CredentialPlace } from "@/lib/credentialPlace";
 import { useConfirm } from "@/components/Confirm";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { ProjectIcon, type ProjectIconParent } from "@/components/ProjectIcon";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 /** Lugar donde se usa un archivo; `project` (spec 004) = ícono de su proyecto en vistas que juntan varios. */
 export type PlaceLink = { href: string; title: string; project?: { name: string; iconUrl: string | null; parent?: ProjectIconParent } };
@@ -220,7 +221,7 @@ export function AttachmentPreview({
     <div className="group relative">
       <button type="button" onClick={onOpenImage} className="block w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover transition-colors duration-150 hover:border-[#0a6b78]" />
+        <img src={thumbUrl(url, 320)} loading="lazy" alt={name} className="h-24 w-full rounded-xl border border-slate-200 object-cover transition-colors duration-150 hover:border-[#0a6b78]" />
       </button>
       {caption && <p className="mt-0.5 line-clamp-2 text-center text-[11px] text-slate-400">↳ {caption}</p>}
       <UsedIn taskLink={taskLink} usedIn={usedIn} />

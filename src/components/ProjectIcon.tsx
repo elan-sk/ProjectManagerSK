@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 // Paleta saturada para el respaldo del ÍCONO (cuadrado con inicial, texto
 // blanco encima) — mismo mecanismo determinístico que avatarColor(), pero en
@@ -130,7 +131,7 @@ function ProjectIconImage({ name, iconUrl, size }: { name: string; iconUrl?: str
   if (iconUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={iconUrl} alt={name} title={name} className={`flex-shrink-0 object-cover ring-1 ring-slate-200 ${ICON_ROUND} ${size}`} />
+      <img src={thumbUrl(iconUrl, 320)} loading="lazy" alt={name} title={name} className={`flex-shrink-0 object-cover ring-1 ring-slate-200 ${ICON_ROUND} ${size}`} />
     );
   }
   return (

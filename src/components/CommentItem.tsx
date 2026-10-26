@@ -15,6 +15,7 @@ import { YouTubeModal } from "@/components/YouTubeModal";
 import { youtubeVideoId } from "@/lib/attachments";
 // El mismo visor de imágenes que usan los archivos (Insumos, Evidencias, Archivos).
 import { AttachmentLightbox } from "@/app/(app)/projects/[id]/tasks/[taskId]/AttachmentLightbox";
+import { thumbUrl } from "@/lib/thumbUrl";
 
 type Props = {
   id: string;
@@ -191,7 +192,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
                   className="my-1 block w-fit cursor-zoom-in"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={part.url} alt="Imagen del comentario" className="max-h-64 max-w-full rounded-lg border border-slate-200" />
+                  <img src={thumbUrl(part.url, 800)} loading="lazy" alt="Imagen del comentario" className="max-h-64 max-w-full rounded-lg border border-slate-200" />
                 </button>
               );
             })}

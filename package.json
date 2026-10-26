@@ -53,7 +53,8 @@
     "verify:requirement-progress": "tsx scripts/verify-requirement-progress.ts",
     "verify:task-requirement-backfill": "tsx scripts/verify-task-requirement-backfill.ts",
     "package:hostinger": "bash scripts/package-for-hostinger.sh",
-    "verify:login-ip-limit": "tsx scripts/verify-login-ip-limit.ts"
+    "verify:login-ip-limit": "tsx scripts/verify-login-ip-limit.ts",
+    "verify:thumbnails": "tsx scripts/verify-thumbnails.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
