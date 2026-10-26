@@ -531,3 +531,9 @@ html.show-hotkeys .hotkey {
 .driver-popover.feature-hint .driver-popover-close-btn:hover {
   color: var(--color-slate-900);
 }
+
+/* Imágenes invisibles (con su lugar reservado) hasta terminar de descargarse: nunca «a pedazos».
+   La clase y la marca las pone el script de src/lib/imageGate.ts. */
+html.img-gate img:not([data-img-ready]) {
+  opacity: 0 !important;
+}
