@@ -8,9 +8,9 @@ import { thumbnailFile } from "../src/lib/thumbnails";
 import { parseThumbWidth, thumbUrl } from "../src/lib/thumbUrl";
 
 // Solo las imágenes raster subidas pasan a miniatura; todo lo demás queda igual.
-assert.equal(thumbUrl("/uploads/abc.png", 320), "/uploads/abc.png?w=320");
-assert.equal(thumbUrl("https://pmsk.depura-creatividad.com/uploads/abc.JPG", 800), "https://pmsk.depura-creatividad.com/uploads/abc.JPG?w=800");
-assert.equal(thumbUrl("/uploads/abc.webp?w=800", 320), "/uploads/abc.webp?w=320");
+assert.equal(thumbUrl("/uploads/abc.png", 320), "/thumbs/abc.png?w=320");
+assert.equal(thumbUrl("https://pmsk.depura-creatividad.com/uploads/abc.JPG", 800), "https://pmsk.depura-creatividad.com/thumbs/abc.JPG?w=800");
+assert.equal(thumbUrl("/uploads/abc.webp?w=800", 320), "/thumbs/abc.webp?w=320");
 for (const same of ["/uploads/logo.svg", "/uploads/anim.gif", "/uploads/doc.pdf", "https://i.ytimg.com/vi/x/mqdefault.jpg", "blob:http://x/1", "/icons/pm-192.png"])
   assert.equal(thumbUrl(same, 320), same);
 assert.equal(thumbUrl(null, 320), null);
