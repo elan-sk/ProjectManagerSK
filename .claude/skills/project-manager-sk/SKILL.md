@@ -202,7 +202,7 @@ Un proyecto oculto solo lo ve (por la app, la API, el chat y los avisos) el **ad
 La app escribe un registro en archivos `app-AAAA-MM-DD.log` (un JSON por línea: `t`, `level`, `scope`, `msg`, `data`), con todo lo que sale por consola (`[whatsapp]`, `[scheduler]`, `[resumen-diario]`, `[arranque]`…), los errores de peticiones (`scope: peticion`, con la ruta) y los errores fatales. Se guardan 14 días. Nunca llevan contraseñas, claves ni el texto de los mensajes de WhatsApp.
 
 - **Por la API (solo administrador, con su login)**: `GET /api/v1/logs?list=1` lista los archivos; `GET /api/v1/logs?date=2026-09-21&level=warn&scope=whatsapp&q=texto&lines=300` lee entradas (las más recientes al final).
-- **Por SSH (Hostinger)**: la carpeta es `~/domains/<sitio>/persistent-logs/` (fuera de las carpetas de versión, sobrevive a los despliegues): `tail -n 200 ~/domains/<sitio>/persistent-logs/app-$(date +%F).log`, y `grep -i whatsapp` para filtrar. El SSH de hPanel no tiene `node`, pero `tail`/`grep`/`cat` sí funcionan. Se puede cambiar la carpeta con la variable `LOG_DIR`.
+- **Por SSH (VPS, desde 2026-10-25)**: `ssh apps@2.24.88.123` (llave `~/.ssh/apps_vps`); la carpeta es `/opt/depura/apps/pmsk/data/logs/` (`LOG_DIR=/data/logs` dentro del contenedor, sobrevive a los despliegues): `tail -n 200 /opt/depura/apps/pmsk/data/logs/app-$(date +%F).log`, y `grep -i whatsapp` para filtrar. También `sudo docker logs pmsk-app --tail 200`.
 - **En local**: carpeta `logs/` del proyecto.
 - Al diagnosticar un fallo, leer primero los `warn`/`error` del día y las líneas `[arranque]` (muestran cuándo se reinició el servidor).
 
