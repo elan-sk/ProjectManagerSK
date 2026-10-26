@@ -45,7 +45,12 @@ function revalidateCredentialPaths(projectId: string, taskIds: string[] = []) {
 
 /** Avisa solo a quienes ganaron acceso respecto de `before` (al crear, `before` vacío = todos). */
 async function notifyNewAudience(credentialId: string, before: string[], actorId: string) {
-  const after = await credentialAudienceIds(credentialId);
+  // El aviso sigue a quién eligió quien la comparte: «Solo yo» no avisa a nadie y «Personas concretas»
+  // solo a las marcadas (aunque otros la vean por otra vía, como ser responsables de una tarea).
+  const { visibility, allowedUsers } = await prisma.credential.findUniqueOrThrow({ where: { id: credentialId }, select: { visibility: true, allowedUsers: { select: { userId: true } } } });
+  if (visibility === "ME") return;
+  const marked = new Set(allowedUsers.map((u) => u.userId));
+  const after = (await credentialAudienceIds(credentialId)).filter((id) => visibility !== "USERS" || marked.has(id));
   const known = new Set(before);
   await notifyCredentialShared(
     credentialId,

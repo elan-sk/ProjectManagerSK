@@ -172,6 +172,17 @@ async function main() {
     assert.equal((await prisma.credential.findUniqueOrThrow({ where: { id: moveCred.id } })).projectId, other.id);
     assert.deepEqual(await movedTaskIds(), [], "en un proyecto ajeno queda sin tareas del anterior");
 
+    // 5) Avisos según quién puede verla: «Personas concretas» solo a las marcadas y «Solo yo» a nadie,
+    // aunque al agregarla a una tarea o cambiarla de proyecto la vean los responsables de la tarea.
+    const notified = async (id: string) => (await prisma.notification.findMany({ where: { credentialId: id } })).map((n) => n.userId);
+    const quietUsers = await mkCred("USERS", { allowedUsers: { create: [{ userId: picked.id }, { userId: admin.id }] } });
+    assert.ok((await linkCredential(quietUsers.id, { taskId: task.id }, trustedActor({ id: admin.id, role: admin.role }))).ok, "un administrador marcado la agrega a la tarea");
+    assert.ok(!(await notified(quietUsers.id)).includes(assignee.id), "Personas concretas: no avisa al responsable de la tarea");
+    const quietMe = await prisma.credential.create({ data: { projectId: other.id, name: "ME", passwordEnc: encryptPassword("p"), visibility: "ME", createdById: pm.id } });
+    await prisma.credentialTask.create({ data: { credentialId: quietMe.id, taskId: task.id } });
+    await updateCredential(quietMe.id, { name: "ME", visibility: "ME", projectId: project.id }, trustedActor({ id: admin.id, role: admin.role }));
+    assert.deepEqual(await notified(quietMe.id), [], "Solo yo: cambiarla de proyecto no avisa a nadie");
+
     console.log("verify-credentials: OK (cifrado, visibilidad PROJECT/ALL/USERS, tareas, pasos, ajustes, proyecto oculto, avisos, historial, subproyectos, mover de proyecto)");
   } finally {
     for (const id of childIds) await deleteTestProject(id);
