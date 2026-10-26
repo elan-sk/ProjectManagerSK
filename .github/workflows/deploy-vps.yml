@@ -1,0 +1,45 @@
+name: Deploy al VPS
+
+# Each push to master: copy the code to the VPS, then build and restart the app there.
+# Hostinger keeps deploying through its own GitHub App until the DNS switch.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+
+      # Runtime folders on the server are excluded, so --delete never touches them.
+      - name: Copiar código
+        run: |
+          rsync -rlz --delete --checksum --no-owner --no-group --chmod=Dg+rwxs,Fg+rw \
+            -e "ssh -i ~/.ssh/vps_key" \
+            --exclude='.git/' --exclude='.github/' \
+            --exclude='node_modules/' --exclude='.next/' \
+            --exclude='.baileys-auth/' --exclude='public/uploads' --exclude='logs/' \
+            --exclude='.env*' --exclude='dev.db' --exclude='tsconfig.tsbuildinfo' --exclude='next-env.d.ts' \
+            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH }}/
+
+      - name: Compilar y reiniciar
+        run: ssh -i ~/.ssh/vps_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} sudo /opt/depura/apps/pmsk/deploy.sh
+
+      - name: Limpiar clave SSH
+        if: always()
+        run: rm -f ~/.ssh/vps_key
