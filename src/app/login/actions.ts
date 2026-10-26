@@ -1,8 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
-import { isBlocked, LOGIN_BLOCKED_MESSAGE, LOGIN_MAX, LOGIN_WINDOW_MS, loginKey } from "@/lib/rateLimit";
+import { clientIp, isLoginBlocked, LOGIN_BLOCKED_MESSAGE } from "@/lib/rateLimit";
 
 export async function login(_prevState: string | undefined, formData: FormData) {
   try {
@@ -14,7 +15,7 @@ export async function login(_prevState: string | undefined, formData: FormData) 
   } catch (error) {
     if (error instanceof AuthError) {
       const identifier = String(formData.get("identifier") ?? "");
-      if (isBlocked(loginKey(identifier), LOGIN_MAX, LOGIN_WINDOW_MS)) return LOGIN_BLOCKED_MESSAGE;
+      if (isLoginBlocked(identifier, clientIp(await headers()))) return LOGIN_BLOCKED_MESSAGE;
       return "Correo/usuario o contraseña incorrectos.";
     }
     throw error;

@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getUserStatus } from "@/lib/userStatus";
-import { clearAttempts, isBlocked, LOGIN_MAX, LOGIN_WINDOW_MS, loginKey, recordAttempt } from "@/lib/rateLimit";
+import { clearAttempts, clientIp, isLoginBlocked, loginKey, recordLoginFailure } from "@/lib/rateLimit";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -14,12 +14,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         identifier: { label: "Correo o usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const identifier = (credentials?.identifier as string | undefined)?.trim();
         const password = credentials?.password as string | undefined;
         if (!identifier || !password) return null;
-        const key = loginKey(identifier);
-        if (isBlocked(key, LOGIN_MAX, LOGIN_WINDOW_MS)) return null;
+        const ip = clientIp(request.headers);
+        if (isLoginBlocked(identifier, ip)) return null;
 
         // Entra con correo o con nombre de usuario, lo que haya escrito —
         // username es opcional (no todos lo tienen cargado), el correo
@@ -30,10 +30,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
         const valid = Boolean(user?.active) && (await bcrypt.compare(password, user!.passwordHash));
         if (!user || !valid) {
-          recordAttempt(key, LOGIN_WINDOW_MS);
+          recordLoginFailure(identifier, ip);
           return null;
         }
-        clearAttempts(key);
+        clearAttempts(loginKey(identifier));
 
         return { id: user.id, name: user.name, email: user.email, role: user.role };
       },

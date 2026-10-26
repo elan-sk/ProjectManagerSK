@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { trustedActor, type Actor } from "@/lib/permissions";
-import { clearAttempts, isBlocked, LOGIN_BLOCKED_MESSAGE, LOGIN_MAX, LOGIN_WINDOW_MS, loginKey, recordAttempt } from "@/lib/rateLimit";
+import { clearAttempts, isLoginBlocked, LOGIN_BLOCKED_MESSAGE, loginKey, recordLoginFailure } from "@/lib/rateLimit";
 
 // La API pública (skills, ej. project-manager-sk) NO usa una clave
 // compartida: cada quien hace login con SU usuario/contraseña (mismas
@@ -19,19 +19,18 @@ function hashToken(rawToken: string) {
 }
 
 // POST /api/v1/auth/login — ver esa ruta.
-export async function loginWithPassword(identifier: string, password: string) {
+export async function loginWithPassword(identifier: string, password: string, ip: string) {
   const trimmed = identifier.trim();
   if (!trimmed || !password) return { ok: false as const, error: "Faltan usuario/correo o contraseña." };
-  const key = loginKey(trimmed);
-  if (isBlocked(key, LOGIN_MAX, LOGIN_WINDOW_MS)) return { ok: false as const, error: LOGIN_BLOCKED_MESSAGE };
+  if (isLoginBlocked(trimmed, ip)) return { ok: false as const, error: LOGIN_BLOCKED_MESSAGE };
 
   const user = await prisma.user.findFirst({ where: { OR: [{ email: trimmed }, { username: trimmed }] }, omit: { passwordHash: false } });
   const valid = Boolean(user?.active) && (await bcrypt.compare(password, user!.passwordHash));
   if (!user || !valid) {
-    recordAttempt(key, LOGIN_WINDOW_MS);
+    recordLoginFailure(trimmed, ip);
     return { ok: false as const, error: "Credenciales inválidas." };
   }
-  clearAttempts(key);
+  clearAttempts(loginKey(trimmed));
 
   const rawToken = crypto.randomBytes(32).toString("hex");
   await prisma.user.update({

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { login } from "./actions";
+import { EyeIcon, EyeOffIcon } from "@/components/icons";
 
 export default function LoginPage() {
   const [error, formAction, pending] = useActionState(login, undefined);
@@ -12,6 +13,7 @@ export default function LoginPage() {
   // sesión (?logout=1) el formulario debe quedar en blanco por seguridad: sin autocompletar y limpio,
   // también al volver con «Atrás» (el navegador restaura lo escrito) y si el autocompletado llega tarde.
   const [afterLogout, setAfterLogout] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).has("logout")) return;
     setAfterLogout(true);
@@ -82,14 +84,25 @@ export default function LoginPage() {
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={afterLogout ? "new-password" : "current-password"}
-            required
-            className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:bg-white"
-          />
+          <span className="relative block">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={afterLogout ? "new-password" : "current-password"}
+              required
+              className="w-full rounded-lg border border-slate-300 bg-slate-50/50 px-3 py-2 pr-10 text-sm outline-none focus:border-blue-600 focus:bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-700"
+            >
+              {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            </button>
+          </span>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
