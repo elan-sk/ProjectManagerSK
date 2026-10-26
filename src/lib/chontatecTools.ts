@@ -15,7 +15,7 @@ import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase, taskStatusWhere, 
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
 import { updateTaskStatus, addTask, addPhase, moveTask, resizeTask, updateProjectStartDate, updateProjectTargetEndDate, archiveProject } from "@/app/(app)/projects/[id]/actions";
 import { addProjectAttachment, addProjectLink, updateProjectDescription, updatePhase, deletePhase, addObjective, updateObjective, deleteObjective, addRequirement, updateRequirement, deleteRequirement } from "@/app/(app)/projects/[id]/definitionActions";
-import { reorderPhases, setTaskCover } from "@/app/(app)/projects/[id]/taskOps";
+import { reorderPhases, setTaskCover, setTaskUrgent } from "@/app/(app)/projects/[id]/taskOps";
 import { taskCoverUrl } from "@/lib/taskCover";
 import { postInternalMessage } from "@/app/(app)/internalMessageActions";
 import { setTaskReviewers, submitReviewRound } from "@/app/(app)/projects/[id]/tasks/[taskId]/reviewActions";
@@ -303,6 +303,15 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { taskId: { type: "string" }, cover: { type: "string" } },
       required: ["taskId", "cover"],
+    },
+  },
+  {
+    name: "set_task_urgent",
+    description: "Marca o desmarca una tarea como URGENTE (la marca roja de la tarea, no una etiqueta): queda arriba en la Agenda y en los avisos del encabezado, y al marcarla se avisa al instante por WhatsApp. Solo PM del proyecto o administrador; una tarea completada no se marca.",
+    input_schema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, urgent: { type: "boolean" } },
+      required: ["taskId", "urgent"],
     },
   },
   {
@@ -1003,11 +1012,11 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const where = await myTasksWhere(userId);
       const tasks = await prisma.task.findMany({
         where: { ...where, ...taskStatusWhere(status) },
-        select: { id: true, title: true, status: true, type: true, reviewRounds: ROUND_OUTCOMES_SELECT, plannedEnd: true, projectId: true, project: { select: { name: true } }, taskTags: TASK_TAGS_SELECT },
+        select: { id: true, title: true, status: true, type: true, isUrgent: true, reviewRounds: ROUND_OUTCOMES_SELECT, plannedEnd: true, projectId: true, project: { select: { name: true } }, taskTags: TASK_TAGS_SELECT },
         orderBy: { plannedEnd: "asc" },
         take: 50,
       });
-      return JSON.stringify(tasks.map(({ taskTags, reviewRounds, ...t }) => ({ ...t, statusLabel: TASK_STATUS_LABEL[t.status], reviewState: taskReviewState({ ...t, reviewRounds }), tags: taskTags.map(tagLabel) })));
+      return JSON.stringify(tasks.map(({ taskTags, reviewRounds, isUrgent, ...t }) => ({ ...t, ...(isUrgent ? { urgent: true } : {}), statusLabel: TASK_STATUS_LABEL[t.status], reviewState: taskReviewState({ ...t, reviewRounds }), tags: taskTags.map(tagLabel) })));
     }
 
     case "list_project_tasks": {
@@ -1021,6 +1030,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           title: true,
           status: true,
           type: true,
+          isUrgent: true,
           reviewRounds: ROUND_OUTCOMES_SELECT,
           plannedStart: true,
           plannedEnd: true,
@@ -1035,6 +1045,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           title: t.title,
           status: t.status,
           statusLabel: TASK_STATUS_LABEL[t.status],
+          ...(t.isUrgent ? { urgent: true } : {}),
           reviewState: taskReviewState(t),
           plannedStart: t.plannedStart,
           plannedEnd: t.plannedEnd,
@@ -1387,6 +1398,8 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       const { cover } = input as { cover?: string };
       return cover === "none" ? "Quitar la portada de la tarea" : cover === "first" ? "Usar la primera imagen como portada" : "Cambiar la portada de la tarea";
     }
+    case "set_task_urgent":
+      return (input as { urgent?: boolean }).urgent ? "Marcar la tarea como urgente (avisa por WhatsApp)" : "Quitar la marca de urgente";
     case "set_test_template": {
       const { templateId } = input as { templateId?: string | null };
       return templateId ? "Asignar la plantilla de pruebas a la tarea" : "Quitar la plantilla de pruebas de la tarea";
@@ -1864,6 +1877,17 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         return { ok: true, message: d.cover === "none" ? "Listo, la tarea quedó sin portada." : "Listo, se cambió la portada." };
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : "No se pudo cambiar la portada." };
+      }
+    }
+
+    case "set_task_urgent": {
+      try {
+        const d = z.object({ taskId: z.string(), urgent: z.boolean() }).parse(input);
+        const r = await setTaskUrgent(d.taskId, d.urgent, await currentActor());
+        if (!r.ok) return { ok: false, message: r.error };
+        return { ok: true, message: d.urgent ? "Listo, la tarea quedó marcada como urgente." : "Listo, se quitó la marca de urgente." };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : "No se pudo cambiar la urgencia." };
       }
     }
 
