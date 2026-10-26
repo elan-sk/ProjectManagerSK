@@ -192,7 +192,7 @@ export function CommentItem({ id, authorId, authorName, authorAvatarUrl, created
                   className="my-1 block w-fit cursor-zoom-in"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={thumbUrl(part.url, 1280)} loading="lazy" alt="Imagen del comentario" className="max-h-64 max-w-full rounded-lg border border-slate-200" />
+                  <img src={thumbUrl(part.url, 800)} loading="lazy" alt="Imagen del comentario" className="max-h-64 max-w-full rounded-lg border border-slate-200" />
                 </button>
               );
             })}

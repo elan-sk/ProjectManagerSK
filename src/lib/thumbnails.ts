@@ -14,7 +14,7 @@ export async function thumbnailFile(original: string, name: string, width: Thumb
   if (await access(target).then(() => true, () => false)) return target;
   await mkdir(thumbsDir, { recursive: true });
   const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-  await sharp(original).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 82 }).toFile(tmp);
+  await sharp(original).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 75 }).toFile(tmp);
   await rename(tmp, target);
   return target;
 }

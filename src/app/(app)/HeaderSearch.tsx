@@ -659,7 +659,7 @@ export function HeaderSearch() {
                 Al cargar, si se sale por abajo, sube lo necesario. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={thumbUrl(cover.url, 1280)}
+              src={thumbUrl(cover.url, 800)}
               alt=""
               className="block h-auto max-h-[80vh] w-auto"
               style={{ maxWidth: COVER_PREVIEW_WIDTH }}
