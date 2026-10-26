@@ -9,3 +9,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- END:nextjs-agent-rules -->
 
 Leer `docs/constitution.md` y la spec activa (`specs/NNN-*/`) antes de tocar código.
+
+## Ramas (regla del usuario, 2026-10-26)
+
+En este proyecto se trabaja SIEMPRE directo en `master`: no se crean ramas (`feat/…`, `fix/…`, `perf/…`) ni PR, aunque una skill (p. ej. `sdd`) diga lo contrario. Push a `master` = despliegue al VPS.
