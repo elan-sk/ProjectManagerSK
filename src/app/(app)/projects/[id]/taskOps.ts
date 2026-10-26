@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { scheduleArchivedImageCompression } from "@/lib/archivedImageCompression";
 import { canEditTask, getProjectAdmin, isProjectPm, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { notifyAssignment, notifyUrgentTask } from "@/lib/notifications";
 
@@ -253,6 +254,7 @@ export async function setProjectArchived(projectId: string, archived: boolean, a
     await requireProjectAdmin(projectId, actor);
     // Spec 004: archivar o desarchivar un proyecto principal hace lo mismo con sus subproyectos.
     await prisma.project.updateMany({ where: { OR: [{ id: projectId }, { parentId: projectId }] }, data: { archivedAt: archived ? new Date() : null } });
+    if (archived) scheduleArchivedImageCompression();
     refresh(projectId);
     revalidatePath("/projects/archived");
     return { ok: true, id: projectId };
