@@ -9,7 +9,7 @@ import { parseThumbWidth, thumbUrl } from "../src/lib/thumbUrl";
 
 // Solo las imágenes raster subidas pasan a miniatura; todo lo demás queda igual.
 assert.equal(thumbUrl("/uploads/abc.png", 320), "/uploads/abc.png?w=320");
-assert.equal(thumbUrl("https://pmsk.depura-creatividad.com/uploads/abc.JPG", 800), "https://pmsk.depura-creatividad.com/uploads/abc.JPG?w=800");
+assert.equal(thumbUrl("https://pmsk.depura-creatividad.com/uploads/abc.JPG", 1280), "https://pmsk.depura-creatividad.com/uploads/abc.JPG?w=1280");
 assert.equal(thumbUrl("/uploads/abc.webp?w=800", 320), "/uploads/abc.webp?w=320");
 for (const same of ["/uploads/logo.svg", "/uploads/anim.gif", "/uploads/doc.pdf", "https://i.ytimg.com/vi/x/mqdefault.jpg", "blob:http://x/1", "/icons/pm-192.png"])
   assert.equal(thumbUrl(same, 320), same);
@@ -28,11 +28,12 @@ async function main() {
   assert.equal(meta.width, 320);
   assert.ok((await stat(thumb)).size < (await stat(original)).size);
   assert.equal(await thumbnailFile(original, "foto.png", 320, dir), thumb);
+  assert.equal((await sharp(await thumbnailFile(original, "foto.png", 1280, dir)).metadata()).width, 1280, "portadas: 1280 px de ancho");
 
   // Una imagen más chica que el ancho pedido no se agranda.
   const small = path.join(dir, "chica.png");
   await sharp({ create: { width: 200, height: 100, channels: 3, background: "#000" } }).png().toFile(small);
-  assert.equal((await sharp(await thumbnailFile(small, "chica.png", 800, dir)).metadata()).width, 200);
+  assert.equal((await sharp(await thumbnailFile(small, "chica.png", 1280, dir)).metadata()).width, 200);
 
   console.log("OK miniaturas");
 }
