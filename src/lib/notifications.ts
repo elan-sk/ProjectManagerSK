@@ -580,7 +580,7 @@ export async function buildDailyDigestText(userId: string, name: string) {
     `• ${counts.warning} por vencer`,
     `• ${counts.overdue} con final retrasado`,
     `• ${counts.blocked} bloqueada(s)`,
-    `• ${counts.unopened} tarea(s) nueva(s)`,
+    `• ${counts.unopened} nueva(s)`,
     ...extra,
   ];
 

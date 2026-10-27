@@ -45,7 +45,7 @@ import {
 } from "@/lib/taskDesign";
 import { canManageTemplates } from "@/lib/testTemplateApi";
 import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
-import { commentInputSchema, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
+import { commentInputSchema, listProjectThreads, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
 import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
 import { mentionMarker } from "@/lib/commentBody";
 import { addBusinessDays } from "@/lib/holidays";
@@ -278,6 +278,12 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     description:
       "TODOS los hilos de una tarea: comentarios generales (los ve el cliente por su link), los de cada cambio, característica, prueba y ronda, y la conversación interna; con las preguntas de selección y su estadística (quién eligió cada opción).",
     input_schema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
+  },
+  {
+    name: "get_project_threads",
+    description:
+      "Hilos del proyecto que no son de ninguna tarea: la conversación interna del proyecto (conversation) y los comentarios de la Definición, que ve también el cliente (definition); con las preguntas de selección y su estadística.",
+    input_schema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
   },
   {
     name: "list_test_templates",
@@ -523,7 +529,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "answer_poll",
-    description: "Responde una pregunta de selección con la persona que conversa (una sola opción si es de selección única). Reemplaza su respuesta anterior. El pollId sale de get_task_threads.",
+    description: "Responde una pregunta de selección con la persona que conversa (una sola opción si es de selección única). Reemplaza su respuesta anterior. El pollId sale de get_task_threads o get_project_threads.",
     input_schema: { type: "object", properties: { pollId: { type: "string" }, optionIds: { type: "array", items: { type: "string" } } }, required: ["pollId", "optionIds"] },
   },
   {
@@ -747,6 +753,11 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         defaultTestTemplateId: { type: "string", description: "Solo tipo QA (Prueba): plantilla de pruebas (id de list_test_templates)." },
         requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Títulos de los requerimientos de Definición a los que responde la tarea (uno o varios), tal cual figuran en el proyecto." },
         requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Ids de los requerimientos, si se conocen; si no, usar requirementTitles." },
+        tags: {
+          type: "array",
+          description: "Opcional. Etiquetas que se ponen al crearla: una por categoría (categoryId de list_tags; name opcional, se crea si no existe en el proyecto).",
+          items: { type: "object", properties: { categoryId: { type: "string" }, name: { type: "string" } }, required: ["categoryId"] },
+        },
       },
       required: ["projectId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
     },
@@ -1175,6 +1186,13 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!hasAccess(accessibleIds, task.projectId)) return JSON.stringify(NO_ACCESS);
       const actor: Actor = trustedActor({ id: userId, role: (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role });
       return JSON.stringify(name === "get_task_design" ? await getTaskDesign(taskId, actor) : await listTaskThreads(taskId, actor));
+    }
+
+    case "get_project_threads": {
+      const { projectId } = z.object({ projectId: z.string() }).parse(input);
+      if (!hasAccess(await getAccessibleProjectIds(userId), projectId)) return JSON.stringify(NO_ACCESS);
+      const actor: Actor = trustedActor({ id: userId, role: (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role });
+      return JSON.stringify(await listProjectThreads(projectId, actor));
     }
 
     case "get_bottlenecks": {
@@ -1634,6 +1652,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             defaultTestTemplateId: z.string().optional(),
             requirementIds: z.array(z.string()).optional(),
             requirementTitles: z.array(z.string()).optional(),
+            tags: z.array(z.object({ categoryId: z.string(), name: z.string().optional() })).optional(),
           })
           .parse(input);
         // La fase se resuelve dentro del proyecto: por id, por nombre, o la única que exista.
@@ -1660,10 +1679,21 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         for (const id of parsed.reviewerIds ?? []) formData.append("reviewerIds", id);
         if (parsed.defaultTestTemplateId) formData.set("defaultTestTemplateId", parsed.defaultTestTemplateId);
         const result = await addTask(parsed.projectId, formData);
+        // Etiquetas después de crear (misma confirmación): si alguna falla, la tarea igual queda creada y se avisa.
+        let tagNote = "";
+        if (result.ok && parsed.tags?.length) {
+          const failed: string[] = [];
+          for (const t of parsed.tags) {
+            const category = await prisma.tagCategory.findUnique({ where: { id: t.categoryId }, select: { name: true } });
+            const tagged = category ? await setTaskTag(String(result.id), t.categoryId, t.name ?? "") : { ok: false as const };
+            if (!tagged.ok) failed.push(category?.name ?? "categoría inexistente");
+          }
+          if (failed.length) tagNote = ` No se pudieron poner estas etiquetas: ${failed.join(", ")}.`;
+        }
         return {
           ok: result.ok,
           message: result.ok
-            ? withHiddenIds(`Listo, se creó la tarea "${parsed.title}".`, { taskId: String(result.id), projectId: parsed.projectId })
+            ? withHiddenIds(`Listo, se creó la tarea "${parsed.title}".${tagNote}`, { taskId: String(result.id), projectId: parsed.projectId })
             : (result.error ?? "No se pudo crear la tarea."),
         };
       } catch (err) {
