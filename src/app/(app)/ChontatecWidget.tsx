@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
@@ -15,6 +15,7 @@ import { appendDictation } from "@/lib/dictation";
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
+import { fitToContent } from "@/lib/fitToContent";
 import { Hotkey, isAltShortcut } from "@/components/Hotkey";
 import { isFileHref, useFileViewer, type ViewFile } from "@/components/FileViewer";
 
@@ -233,6 +234,9 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
   const [text, setText] = useState("");
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  // Reajusta el alto también cuando el texto cambia por dictado o al enviar.
+  useLayoutEffect(() => fitToContent(textRef.current), [text]);
   const [attached, setAttached] = useState<{ name: string; url: string }[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -640,13 +644,15 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   {uploadError && <span className="text-red-600">{uploadError}</span>}
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-end gap-2">
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
                   📎
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
                 <div className="relative flex-1">
-                  <input
+                  <textarea
+                    ref={textRef}
+                    rows={1}
                     autoFocus
                     value={text}
                     onChange={(e) => setText(e.target.value)}
@@ -656,11 +662,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                         toggleDictation();
                         return;
                       }
-                      if (e.key === "Enter") handleSend();
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
                     }}
                     placeholder="Preguntale algo…"
                     disabled={isPending}
-                    className={`w-full rounded-lg border border-slate-300 py-1.5 pl-3 text-sm disabled:opacity-60 ${canDictate ? "pr-10" : "pr-3"}`}
+                    className={`block max-h-40 w-full resize-none overflow-y-auto rounded-lg border border-slate-300 py-1.5 pl-3 text-sm disabled:opacity-60 ${canDictate ? "pr-10" : "pr-3"}`}
                   />
                   {canDictate && (
                     <button
@@ -670,7 +679,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                       aria-pressed={listening}
                       title={listening ? "Detener el dictado (Ctrl + D)" : "Dictar por voz (Ctrl + D)"}
                       aria-label={listening ? "Detener el dictado" : "Dictar por voz"}
-                      className={`absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md disabled:opacity-60 ${listening ? "animate-pulse bg-red-600 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
+                      className={`absolute bottom-0.5 right-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md disabled:opacity-60 ${listening ? "animate-pulse bg-red-600 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
                     >
                       <MicIcon className="h-4 w-4" />
                     </button>

@@ -44,6 +44,7 @@ import { LinkFavicon } from "@/components/LinkFavicon";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { pickResponseCategory } from "@/lib/responseTemplates";
 import { EvidenceGroup } from "@/components/EvidenceGroup";
+import { fitToContent } from "@/lib/fitToContent";
 
 type FileRef = { id: string; url: string; name: string; mimeType: string };
 type Check = {
@@ -1044,10 +1045,4 @@ function AddCheckForm({ reviewRoundId }: { reviewRoundId: string }) {
       <RichTextEditor key={criteriaKey} name="criteria" defaultValue="" />
     </form>
   );
-}
-
-function fitToContent(el: HTMLTextAreaElement | null) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
 }
