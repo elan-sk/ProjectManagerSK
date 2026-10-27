@@ -86,7 +86,7 @@ export type PmProjectSummary = {
 // Los proyectos ocultos solo entran al resumen de su administrador responsable
 // (viewer); para cualquier otra persona quedan fuera.
 // `withSubprojects` (spec 004, solo Agenda): también los subproyectos de los principales que administra.
-// El resumen diario de WhatsApp no lo usa: sus avisos no cambian (RF-32).
+// El resumen diario de WhatsApp también lo usa, agrupado con groupPmSummaries (solo principales).
 // `projectId`: solo ese proyecto (resumen de un proyecto que arma el bot, ver buildProjectSummaryText).
 export async function getProjectsSummary(
   pmId?: string,

@@ -362,12 +362,14 @@ export async function getCredentialAccessLog(credentialId: string, actor?: Actor
 }
 
 /** Proyectos a los que la persona puede llevar una contraseña: PM (o PM del principal) o administrador — misma regla que createCredential. */
-export async function listCredentialTargetProjects(actor?: Actor): Promise<{ id: string; name: string }[]> {
+export async function listCredentialTargetProjects(
+  actor?: Actor,
+): Promise<{ id: string; name: string; iconUrl: string | null; parent: { name: string; iconUrl: string | null } | null }[]> {
   const user = await resolveActor(actor);
   if (!user) return [];
   return prisma.project.findMany({
     where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : managedProjectWhere(user.id)] },
-    select: { id: true, name: true },
+    select: { id: true, name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } },
     orderBy: { name: "asc" },
   });
 }

@@ -9,6 +9,7 @@ import { useConfirm } from "@/components/Confirm";
 import { ModalTrigger, useModalClose } from "@/components/Modal";
 import { ProjectIcon, ProjectIconGroup } from "@/components/ProjectIcon";
 import { ReferencePopover } from "@/components/ReferencePopover";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { DEFINITION_ACTION_BTN, DEFINITION_ACTION_BTN_DANGER } from "@/lib/statusColors";
 import { CreateProjectForm } from "../CreateProjectForm";
 import { setProjectParent } from "./subprojectActions";
@@ -30,7 +31,7 @@ export function SubprojectsPanel({
   parent: { id: string; name: string; iconUrl: string | null } | null;
   subprojects: Sub[];
   canManage: boolean;
-  linkable: { id: string; name: string }[];
+  linkable: { id: string; name: string; iconUrl: string | null }[];
   users: { id: string; name: string }[];
 }) {
   const router = useRouter();
@@ -156,7 +157,7 @@ export function SubprojectProgress({ pct }: { pct: number }) {
   );
 }
 
-function LinkExistingForm({ projectId, linkable }: { projectId: string; linkable: { id: string; name: string }[] }) {
+function LinkExistingForm({ projectId, linkable }: { projectId: string; linkable: { id: string; name: string; iconUrl: string | null }[] }) {
   const router = useRouter();
   const onDone = useModalClose();
   const [error, setError] = useState<string | null>(null);
@@ -177,13 +178,12 @@ function LinkExistingForm({ projectId, linkable }: { projectId: string; linkable
     >
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Proyecto</label>
-        <select name="childId" required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-          {linkable.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          name="childId"
+          options={linkable.map((p) => ({ id: p.id, label: p.name, icon: <ProjectIcon name={p.name} iconUrl={p.iconUrl} size="h-5 w-5 text-[9px]" inline /> }))}
+          defaultValue={linkable[0]?.id}
+          searchPlaceholder="Buscar proyecto…"
+        />
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button disabled={isPending} className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">

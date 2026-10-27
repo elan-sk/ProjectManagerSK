@@ -10,7 +10,7 @@ import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsa
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getHeaderAlertTasks } from "@/lib/headerAlerts";
-import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary, type PmProjectSummary } from "@/lib/agendaSummary";
+import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary, groupPmSummaries, type PmProjectSummary } from "@/lib/agendaSummary";
 import type { Actor } from "@/lib/permissions";
 import { getProjectForecast } from "@/lib/scheduleForecast";
 import { projectStatus } from "@/lib/scheduleVarianceLabel";
@@ -556,7 +556,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
   const [counts, special, managedProjects] = await Promise.all([
     getAgendaCounts(userId),
     getHeaderAlertTasks({ id: userId, role: user.role }),
-    user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId),
+    // Una fila por proyecto principal con sus subproyectos sumados (misma regla que «Mis proyectos» de Agenda).
+    (user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId, undefined, { withSubprojects: true })).then(groupPmSummaries),
   ]);
   const firstName = name.split(" ")[0];
   // Nada pendiente propio ni proyectos que administrar: no se manda un resumen lleno de ceros.

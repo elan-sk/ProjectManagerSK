@@ -285,7 +285,7 @@ export default async function ProjectPage({
     canManage && !project.parentId
       ? prisma.project.findMany({
           where: { id: { not: project.id }, parentId: null, children: { none: {} }, ...visibleProjectWhere(viewer), ...(isGlobalAdmin ? {} : managedProjectWhere(viewer.id)) },
-          select: { id: true, name: true },
+          select: { id: true, name: true, iconUrl: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),

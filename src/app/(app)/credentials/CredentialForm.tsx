@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useModalClose } from "@/components/Modal";
 import { UserCheckList } from "@/components/UserCheckList";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { ProjectIcon } from "@/components/ProjectIcon";
 import { EyeIcon, EyeOffIcon, SparklesIcon } from "@/components/icons";
 import { createCredential, listCredentialCandidates, listCredentialTargetProjects, recordCredentialEvent, updateCredential, type CredentialDetails } from "./actions";
 import type { CredentialPlace } from "@/lib/credentialPlace";
@@ -71,7 +72,7 @@ export function CredentialForm({
   const [users, setUsers] = useState<{ id: string; name: string; avatarUrl: string | null }[] | null>(null);
   // Al editar se puede pasar a otro proyecto donde la persona sea PM o administradora.
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<Awaited<ReturnType<typeof listCredentialTargetProjects>>>([]);
 
   useEffect(() => {
     listCredentialCandidates()
@@ -84,7 +85,11 @@ export function CredentialForm({
   }, [initial]);
   // El proyecto actual siempre figura, aunque la persona no sea PM ahí (por ejemplo, quien la creó).
   const projectOptions = initial
-    ? [...(projects.some((p) => p.id === initial.projectId) ? [] : [{ id: initial.projectId, name: initial.projectName }]), ...projects].map((p) => ({ id: p.id, label: p.name }))
+    ? [...(projects.some((p) => p.id === initial.projectId) ? [] : [{ id: initial.projectId, name: initial.projectName, iconUrl: null, parent: null }]), ...projects].map((p) => ({
+        id: p.id,
+        label: p.name,
+        icon: <ProjectIcon name={p.name} iconUrl={p.iconUrl} parent={p.parent} size="h-5 w-5 text-[9px]" inline />,
+      }))
     : [];
   const moving = initial !== undefined && projectId !== initial.projectId;
 
