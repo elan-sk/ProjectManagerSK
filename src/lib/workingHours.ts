@@ -1,4 +1,5 @@
 import { isBusinessDay, subtractBusinessDays } from "@/lib/holidays";
+import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 
 // ponytail: horario laboral fijo a Colombia (único uso real hoy, sin horario
 // de verano así que el offset UTC-5 es constante todo el año). Si algún día
@@ -65,6 +66,12 @@ export async function isWorkingMoment(date: Date, countryCode: string, startHour
   const { hour } = localParts(date);
   if (hour < startHour || hour >= endHour) return false;
   return isBusinessDay(countryCode, localDateOnlyUTC(date));
+}
+
+// ¿Ahora es horario laboral? (el configurado para WhatsApp; lo usan también las push).
+export async function isCurrentlyWorkingHour() {
+  const [{ workHoursStart, workHoursEnd }, countryCode] = await Promise.all([getWhatsAppSettings(), getAppCountryCode()]);
+  return isWorkingMoment(new Date(), countryCode, workHoursStart, workHoursEnd);
 }
 
 // "YYYY-MM-DD" en hora local — usado para comparar si el resumen diario de

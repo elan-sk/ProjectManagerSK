@@ -8,7 +8,7 @@ import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendPushToUser } from "@/lib/push";
 import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
-import { isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
+import { isCurrentlyWorkingHour, isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getHeaderAlertTasks } from "@/lib/headerAlerts";
 import { getAgendaCounts, getPmProjectsSummary, getProjectsSummary, groupPmSummaries, type PmProjectSummary } from "@/lib/agendaSummary";
 import type { Actor } from "@/lib/permissions";
@@ -58,11 +58,6 @@ async function resolveProjectGroupJid(projectId: string) {
   // Los proyectos ocultos nunca avisan a un grupo, ni al propio ni al por defecto.
   if (project?.hidden) return null;
   return project?.whatsappGroupJid ?? defaultGroupJid;
-}
-
-async function isCurrentlyWorkingHour() {
-  const [{ workHoursStart, workHoursEnd }, countryCode] = await Promise.all([getWhatsAppSettings(), getAppCountryCode()]);
-  return isWorkingMoment(new Date(), countryCode, workHoursStart, workHoursEnd);
 }
 
 // Las alertas graves de grupo no salen sueltas: se guardan y se mandan todas juntas, en un solo
@@ -433,7 +428,7 @@ export async function notifyUrgentTask(taskId: string, actorId: string | null) {
   const ids = new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]);
   if (actorId) ids.delete(actorId);
   const text = urgentText(task.title, task.project.name, absoluteUrl(path)!);
-  await Promise.all([...ids].map((id) => sendPushToUser(id, `🚨 Tarea urgente: "${task.title}"`, path)));
+  await Promise.all([...ids].map((id) => sendPushToUser(id, `🚨 Tarea urgente: "${task.title}"`, path, true)));
   for (const id of ids) await dispatchDirect(id, text, true);
 }
 

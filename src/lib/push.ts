@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
+import { isCurrentlyWorkingHour } from "@/lib/workingHours";
 
 webpush.setVapidDetails(
   "mailto:ecovia2@gmail.com",
@@ -7,7 +8,10 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 );
 
-export async function sendPushToUser(userId: string, title: string, url?: string) {
+// Fuera del horario laboral (el de WhatsApp) no sale push: el aviso queda igual en la
+// campana. `immediate` (tarea urgente) ignora el horario, como en WhatsApp.
+export async function sendPushToUser(userId: string, title: string, url?: string, immediate = false) {
+  if (!immediate && !(await isCurrentlyWorkingHour())) return;
   const subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
 
   await Promise.all(
