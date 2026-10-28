@@ -210,6 +210,16 @@ La app escribe un registro en archivos `app-AAAA-MM-DD.log` (un JSON por línea:
 
 Una tarea solo aparece en `delays` si **su propia duración real** superó la planeada — no por haber arrancado tarde porque una tarea de la que dependía se demoró. Si el usuario pregunta "¿quién generó el atraso?", la respuesta está en este campo, no en comparar fechas de fin a simple vista.
 
+## Lenguaje según quien lee (regla del usuario, 2026-10-28)
+
+Antes de redactar un documento, informe, comentario o mensaje, identificar a quién va y su rol: el `cargo` de la persona (`GET /api/v1/users`), su rol en el proyecto (equipo de `GET /api/v1/projects/:id`) o lo que diga el pedido. Escribir en su lenguaje:
+- **Ingeniero/desarrollador**: detalle técnico, arquitectura, causas y riesgos técnicos.
+- **Diseñador**: términos de diseño (interfaz, componentes, estados, tipografía, color, flujos).
+- **Jefe/gerencia**: avance, plazos, riesgos, costos y decisiones pendientes; sin tecnicismos y omitiendo lo que no le sirve para decidir.
+- **Cliente**: lo que ve y lo que gana; nada interno ni técnico.
+
+Si no se puede deducir el destinatario, preguntar antes de redactar. El tono (de usted, tercera persona) no cambia con el rol.
+
 ## Tono de todo texto que se sube a la app — tercera persona, de usted, cordial y respetuoso (regla dura, 2026-09-21)
 
 Todo lo que se redacte para la app (descripciones, Ajustes, checks y criterios de Pruebas y Aceptaciones, comentarios, preguntas, mensajes) lo leen miembros del equipo y clientes externos. Se escribe siempre **de usted, en tercera persona o impersonal, con calidez y respeto**:

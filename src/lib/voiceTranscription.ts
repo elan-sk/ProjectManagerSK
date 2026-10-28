@@ -11,11 +11,18 @@ export type TranscriptionResult = { ok: true; text: string; seconds: number } | 
 
 type Transcriber = (audio: Float32Array, options: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>;
 
+const TRANSFORMERS_MODULE: string = "@huggingface/transformers";
+
+type TransformersModule = {
+  env: { cacheDir: string };
+  pipeline: (task: string, model: string, options: Record<string, unknown>) => Promise<unknown>;
+};
+
 const globalForVoice = globalThis as unknown as { voiceModel?: Promise<Transcriber>; voiceQueue?: Promise<unknown> };
 
 function loadModel(): Promise<Transcriber> {
   globalForVoice.voiceModel ??= (async () => {
-    const { pipeline, env } = await import("@huggingface/transformers");
+    const { pipeline, env } = (await import(/* webpackIgnore: true */ TRANSFORMERS_MODULE)) as TransformersModule;
     env.cacheDir = path.join(process.cwd(), ".models-cache");
     const pipe = await pipeline("automatic-speech-recognition", MODEL_ID, {
       device: "cpu",

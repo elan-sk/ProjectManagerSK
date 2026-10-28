@@ -18,3 +18,4 @@
 - 2026-10-28 — Verificación: tsc OK, lint sin errores nuevos (11 errores y avisos previos en otros archivos), verify:whatsapp-chat OK, npm run build OK. Sin prueba en vivo por WhatsApp (requiere autorización y el número nuevo vinculado).
 - 2026-10-28 — Ajeno a esta spec: .claude/skills/project-manager-sk/SKILL.md aparece modificado (otra sesión); no se tocó.
 - 2026-10-28 — T11 validación sin navegador cerrada; spec queda «aprobada» hasta la prueba en vivo del usuario. Usuario autoriza subir a master (deploy).
+- 2026-10-28 — Deploy c32ca19 falló: el VPS se quedó sin memoria (~1 GB) en la revisión de tipos del build (los tipos de @huggingface/transformers subieron tsc de 1,23 GB a 1,39 GB y de 24 s a 55 s). Sitio en pie con la versión anterior; la migración sí se aplicó (solo agrega columnas). Corrección: import nativo con webpackIgnore y tipo local mínimo → 1,29 GB, 25 s. Transcripción y build locales OK.
