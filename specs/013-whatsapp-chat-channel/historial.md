@@ -22,3 +22,4 @@
 - 2026-10-28 — VPS: 7,8 GB; el build corre en contenedor aparte con tope 2 GB. Corrección: tsc antes del build con 1792 MB (pico 1,33 GB) + ignoreBuildErrors en Next. Build local OK. Puerto de la app en el contenedor: 3000 (npm start), coincide con la entrada interna.
 - 2026-10-28 — S-2 adelantado a pedido del usuario (no encontraba la casilla): aviso de novedad «bot-whatsapp-chat-toggle» en /settings sobre «Responder por WhatsApp».
 - 2026-10-28 — Pedido del usuario: en WhatsApp el bot usa emojis (uno por título o punto clave, máx. uno por línea). Solo la regla del canal WhatsApp en chontatec.ts.
+- 2026-10-28 — Pedido del usuario: al terminar cualquier acción el bot cierra con el link de lo tocado (antes solo al crear). Regla general en chontatec.ts, aplica a la app y a WhatsApp.
