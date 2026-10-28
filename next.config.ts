@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   // Hostinger reporta 64 núcleos pero limita los procesos de la cuenta: con el valor por defecto
   // Next abre 63 workers en "Collecting page data" y el build muere (os error 11).
   experimental: { cpus: 2 },
+  typescript: { ignoreBuildErrors: true },
   // Los HTML subidos (prototipos) nunca se sirven sueltos: /uploads/<x>.html devuelve una página
   // envoltorio con el prototipo en un iframe con sandbox (ver src/lib/htmlShell.ts). beforeFiles
   // para ganarle a los archivos estáticos que Next ya conoce en public/uploads.

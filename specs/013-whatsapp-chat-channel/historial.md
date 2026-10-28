@@ -19,3 +19,4 @@
 - 2026-10-28 — Ajeno a esta spec: .claude/skills/project-manager-sk/SKILL.md aparece modificado (otra sesión); no se tocó.
 - 2026-10-28 — T11 validación sin navegador cerrada; spec queda «aprobada» hasta la prueba en vivo del usuario. Usuario autoriza subir a master (deploy).
 - 2026-10-28 — Deploy c32ca19 falló: el VPS se quedó sin memoria (~1 GB) en la revisión de tipos del build (los tipos de @huggingface/transformers subieron tsc de 1,23 GB a 1,39 GB y de 24 s a 55 s). Sitio en pie con la versión anterior; la migración sí se aplicó (solo agrega columnas). Corrección: import nativo con webpackIgnore y tipo local mínimo → 1,29 GB, 25 s. Transcripción y build locales OK.
+- 2026-10-28 — VPS: 7,8 GB; el build corre en contenedor aparte con tope 2 GB. Corrección: tsc antes del build con 1792 MB (pico 1,33 GB) + ignoreBuildErrors en Next. Build local OK. Puerto de la app en el contenedor: 3000 (npm start), coincide con la entrada interna.
