@@ -5,6 +5,7 @@ import { createOpenAICompatMessage, withoutOpenAIExtras } from "@/lib/botOpenAI"
 import { HISTORY_WINDOW, trimHistory, withCacheOnLast } from "@/lib/botHistory";
 import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeWriteTool } from "@/lib/chontatecTools";
 import { appUrl } from "@/lib/appUrl";
+import type { ChatChannel } from "@/lib/actorContext";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -41,6 +42,7 @@ Reglas:
 - Al CREAR algo (create_task, create_project…), confirmá en una frase que quedó creado, con su nombre como link (ids del comentario oculto <!--ids:…--> del resultado), sin repetir datos técnicos. NUNCA escribas un id como texto.
 - Listas que la persona quiere como checklist: add_checklist_steps (un paso por ítem). Notas o bitácora: add_task_comment.
 - Archivos: en todo campo de archivos { url, name }, url es la ruta /uploads/… que la persona subió en este chat, o un link https://. Si sube un archivo, leelo DE INMEDIATO con read_uploaded_file (no le pidas adjuntarlo antes); adjuntarlo (attach_uploaded_file) es aparte y solo si lo pide. Un archivo o link puede ir a una tarea o DIRECTO al proyecto (add_project_files, sin crear ni elegir tarea): si piden vincularlo "al proyecto", usá esa. Para un archivo ya adjunto a una tarea, read_attachment. Leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint). Crear un archivo: create_file (Word, Excel, PDF, PowerPoint, .md, .txt, .csv; .html solo admin o PM), con datos reales consultados antes; mostrá el link que devuelve, tal cual. Máximo ~1.200 palabras por archivo: si pide más, proponé dividirlo en partes ANTES de crearlo.
+- Lenguaje según quien lee: antes de redactar un archivo, informe, comentario o WhatsApp para alguien (no los de get_whatsapp_message: van tal cual), identificá a quién va y su rol ("cargo" de list_team_members, "team" de get_project_definition o lo que diga el pedido) y escribí en su lenguaje: ingeniero → detalle técnico, causas y riesgos técnicos; diseñador → términos de diseño (interfaz, componentes, estados, flujos); jefe o gerencia → avance, plazos, riesgos, costos y decisiones, sin tecnicismos ni lo que no le sirve para decidir; cliente → lo que ve y gana, nada interno. Si no sabés a quién va, preguntá antes de redactar.
 - @menciones: si el texto dictado nombra a alguien con "@Nombre", es una mención real: buscá su id con list_team_members y pasalo en mentionUserIds (add_task_comment, post_thread_comment). No escribas "@Nombre" en body (se agrega solo). Sin mentionUserIds, esa persona no recibe aviso.
 - Diseño de Ajustes, Pruebas (QA) y Aceptaciones: tras confirmar con la persona la lista completa, cargala con design_task en UN paso (Ajuste: "items"; Prueba/Aceptación: "checks" y, opcional, "deliverables"; Prueba también "templateId"). Ids y estado: get_task_design; editar un ítem: manage_design_item. La plantilla de pruebas se elige al crear (create_task con defaultTestTemplateId) o con set_test_template (ids de list_test_templates). Cada acción exige su rol: no prometas saltarte un permiso. Prueba devuelta: no corregís nada (sin acceso al código); solo si la persona dice que ya corrigió, registrás la respuesta de cada prueba con error (manage_design_item set_check_response, reutilizando sus suggestedResponses o, si ninguna sirve, una general: el tipo de error, no el caso) y, con su confirmación, submit_review_round.
 - Imágenes para cargar ítems (Ajuste, Prueba, Aceptación o checklist): mirá cada una y clasificala. CONTEXTO = el pedido (captura de WhatsApp, correo, acta): NUNCA es ítem; va como insumo de la tarea (add_task_files) y su texto transcrito en un comentario (add_task_comment). CAMBIO = un punto a corregir: una imagen = un ítem, en el orden recibido, descrito «sección: qué cambia»; va en before (Ajuste), evidence del check (Prueba/Aceptación) o files del paso (add_checklist_steps en otra tarea). Un punto sin imagen igual es ítem. Nunca cargues "after": lo sube el responsable. Antes de proponer mostrá «Contexto: …» y «1. sección → qué cambia»; si una imagen no es claramente contexto o cambio, preguntá.
@@ -102,7 +104,42 @@ async function loadMe(userId: string): Promise<Me> {
   return { ...user, pmCount };
 }
 
-function buildSystemBlocks(botName: string, persona: string, pathname: string, me: Me): Anthropic.TextBlockParam[] {  return [
+const CHANNEL_LABEL: Record<ChatChannel, string> = { web: "el chat de la app", whatsapp: "WhatsApp" };
+
+function channelRules(channel: ChatChannel, otherChannelExcerpt: string) {
+  const other: ChatChannel = channel === "web" ? "whatsapp" : "web";
+  const base = `Canal actual: ${CHANNEL_LABEL[channel]}. Respondé siempre por este canal. Solo si la persona pide de forma explícita pasar algo a ${CHANNEL_LABEL[other]} (ej. «mandámelo al WhatsApp», «dejalo en el chat de la app»), usá send_to_other_channel; nunca copies la conversación al otro canal por iniciativa propia.`;
+  const whatsapp =
+    channel === "whatsapp"
+      ? "\nEn WhatsApp respondé más corto que en la app: lo esencial primero, sin tablas, listas de máximo 5 ítems (si hay más, «y N más» con el link a la app para ver todo) y sin repetir lo que la persona ya dijo. La persona puede mandar notas de voz: te llega su transcripción como texto."
+      : "";
+  const excerpt = otherChannelExcerpt
+    ? `\nÚltimos mensajes de esta misma persona con vos por ${CHANNEL_LABEL[other]} (solo contexto para continuar lo que venían hablando; no son parte de esta conversación y no los repitas salvo que lo pida):\n${otherChannelExcerpt}`
+    : "";
+  return base + whatsapp + excerpt;
+}
+
+const OTHER_CHANNEL_WINDOW = 10;
+
+async function loadOtherChannelExcerpt(userId: string, channel: ChatChannel): Promise<string> {
+  const rows = await prisma.botMessage.findMany({
+    where: { userId, channel: channel === "web" ? "whatsapp" : "web" },
+    orderBy: { createdAt: "desc" },
+    take: OTHER_CHANNEL_WINDOW * 3,
+    select: { role: true, content: true },
+  });
+  const lines: string[] = [];
+  for (const row of rows) {
+    if (lines.length >= OTHER_CHANNEL_WINDOW) break;
+    const blocks = JSON.parse(row.content) as Array<{ type: string; text?: string }>;
+    const text = blocks.filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ").trim();
+    if (!text) continue;
+    lines.push(`- ${row.role === "user" ? "Persona" : "Vos"}: ${text.length > 500 ? `${text.slice(0, 500)}…` : text}`);
+  }
+  return lines.reverse().join("\n");
+}
+
+function buildSystemBlocks(botName: string, persona: string, pathname: string, me: Me, channel: ChatChannel, otherChannelExcerpt: string): Anthropic.TextBlockParam[] {  return [
     {
       type: "text",
       text: `${buildOperatingRules(botName)}\n\n${persona}`,
@@ -114,18 +151,18 @@ function buildSystemBlocks(botName: string, persona: string, pathname: string, m
     },
     {
       type: "text",
-      text: `Contexto actual: el usuario está viendo la página "${pathname}" de la app. La app está publicada en ${appUrl() ?? "una dirección que no está configurada"} — usala para armar links absolutos. Ahora es ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" })} (hora de Colombia); fecha de hoy ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Usala para "hoy", "mañana", "desde hoy", etc., sin pedírsela a la persona.`,
+      text: `${channelRules(channel, otherChannelExcerpt)}\n\nContexto actual: ${channel === "web" ? `el usuario está viendo la página "${pathname}" de la app.` : "el usuario escribe por WhatsApp, fuera de la app."} La app está publicada en ${appUrl() ?? "una dirección que no está configurada"} — usala para armar links absolutos. Ahora es ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" })} (hora de Colombia); fecha de hoy ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Usala para "hoy", "mañana", "desde hoy", etc., sin pedírsela a la persona.`,
     },
   ];
 }
 
-async function persistRow(userId: string, role: "user" | "assistant", content: unknown) {
-  await prisma.botMessage.create({ data: { userId, role, content: JSON.stringify(content) } });
+async function persistRow(userId: string, role: "user" | "assistant", content: unknown, channel: ChatChannel) {
+  await prisma.botMessage.create({ data: { userId, role, content: JSON.stringify(content), channel } });
 }
 
-async function loadHistory(userId: string): Promise<Anthropic.MessageParam[]> {
+async function loadHistory(userId: string, channel: ChatChannel): Promise<Anthropic.MessageParam[]> {
   const rows = await prisma.botMessage.findMany({
-    where: { userId },
+    where: { userId, channel },
     orderBy: { createdAt: "desc" },
     take: HISTORY_WINDOW,
   });
@@ -141,8 +178,8 @@ type PendingAction = { toolUseId: string; items: PendingItem[] };
 // runConversationLoop) — los pasos de tools de lectura nunca se persisten
 // solos. Así que "el último mensaje es assistant con un tool_use" siempre
 // implica "acción de escritura pendiente de confirmación".
-async function getPendingAction(userId: string): Promise<PendingAction | null> {
-  const last = await prisma.botMessage.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
+async function getPendingAction(userId: string, channel: ChatChannel): Promise<PendingAction | null> {
+  const last = await prisma.botMessage.findFirst({ where: { userId, channel }, orderBy: { createdAt: "desc" } });
   if (!last || last.role !== "assistant") return null;
   const blocks = JSON.parse(last.content) as Array<{ type: string; id?: string; name?: string; input?: unknown }>;
   const items = blocks.filter((b) => b.type === "tool_use" && b.id && b.name).map((b) => ({ id: b.id!, name: b.name!, input: b.input }));
@@ -150,8 +187,8 @@ async function getPendingAction(userId: string): Promise<PendingAction | null> {
   return { toolUseId: items[0].id, items };
 }
 
-async function currentHistory(userId: string): Promise<ChatUiMessage[]> {
-  const rows = await prisma.botMessage.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
+async function currentHistory(userId: string, channel: ChatChannel): Promise<ChatUiMessage[]> {
+  const rows = await prisma.botMessage.findMany({ where: { userId, channel }, orderBy: { createdAt: "asc" } });
   return toChatUiMessages(rows);
 }
 
@@ -263,23 +300,23 @@ function withoutDocuments(messages: Anthropic.MessageParam[]): Anthropic.Message
   );
 }
 
-async function runConversationLoop(userId: string, pathname: string): Promise<void> {
+async function runConversationLoop(userId: string, pathname: string, channel: ChatChannel): Promise<void> {
   const conn = await getBotConnection();
   if (!conn) return; // no debería llamarse sin key configurada, defensa en profundidad
   const client = conn.format === "anthropic" ? new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined }) : null;
 
-  const [settings, persona, tools, me] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), getToolsForUser(userId), loadMe(userId)]);
-  let messages = await loadHistory(userId);
+  const [settings, persona, tools, me, otherChannelExcerpt] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), getToolsForUser(userId), loadMe(userId), loadOtherChannelExcerpt(userId, channel)]);
+  let messages = await loadHistory(userId, channel);
   const deadline = Date.now() + LOOP_BUDGET_MS;
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
     if (deadline - Date.now() < 5_000) {
       console.warn(`[chontatec] respuesta cortada por tiempo con ${conn.label} (${i} consultas)`);
-      await persistRow(userId, "assistant", [{ type: "text", text: SLOW_TEXT }]);
+      await persistRow(userId, "assistant", [{ type: "text", text: SLOW_TEXT }], channel);
       return;
     }
     let response: { content: Anthropic.ContentBlock[]; stop_reason: string | null };
-    const system = buildSystemBlocks(settings.name, persona, pathname, me);
+    const system = buildSystemBlocks(settings.name, persona, pathname, me, channel, otherChannelExcerpt);
     // Solo Claude lee PDF escaneados; los servicios OpenAI tampoco aceptan el bloque "document".
     const sendable = conn.provider === "anthropic" ? messages : withoutDocuments(messages);
     try {
@@ -308,25 +345,25 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
       }
     } catch (err) {
       console.error(`[chontatec] falló la llamada a ${conn.label}:`, err);
-      await persistRow(userId, "assistant", [{ type: "text", text: errorTextFor(err, conn.label) }]);
+      await persistRow(userId, "assistant", [{ type: "text", text: errorTextFor(err, conn.label) }], channel);
       return;
     }
 
     if (response.stop_reason === "refusal") {
-      await persistRow(userId, "assistant", [{ type: "text", text: REFUSAL_TEXT }]);
+      await persistRow(userId, "assistant", [{ type: "text", text: REFUSAL_TEXT }], channel);
       return;
     }
 
     // Respuesta vacía (ej. un modelo con razonamiento que gastó todo el tope pensando): se avisa en vez de no mostrar nada.
     if (response.content.length === 0) {
-      await persistRow(userId, "assistant", [{ type: "text", text: apiErrorText(conn.label) }]);
+      await persistRow(userId, "assistant", [{ type: "text", text: apiErrorText(conn.label) }], channel);
       return;
     }
 
     const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
     if (toolUses.length === 0) {
-      await persistRow(userId, "assistant", response.content);
+      await persistRow(userId, "assistant", response.content, channel);
       return;
     }
 
@@ -339,7 +376,7 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
     // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola
     // confirmación (las de lectura del mismo bloque se resuelven al confirmar).
     if (toolUses.some((t) => WRITE_TOOL_NAMES.has(t.name))) {
-      await persistRow(userId, "assistant", response.content);
+      await persistRow(userId, "assistant", response.content, channel);
       return; // no se ejecuta acá
     }
 
@@ -348,54 +385,63 @@ async function runConversationLoop(userId: string, pathname: string): Promise<vo
     messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: results }];
   }
 
-  await persistRow(userId, "assistant", [{ type: "text", text: LOOP_LIMIT_TEXT }]);
+  await persistRow(userId, "assistant", [{ type: "text", text: LOOP_LIMIT_TEXT }], channel);
 }
 
-export async function getChontatecHistory(userId: string): Promise<ChatUiMessage[]> {
-  return currentHistory(userId);
+export async function getChontatecHistory(userId: string, channel: ChatChannel = "web"): Promise<ChatUiMessage[]> {
+  return currentHistory(userId, channel);
 }
 
-export async function clearChontatecHistory(userId: string): Promise<void> {
-  await prisma.botMessage.deleteMany({ where: { userId } });
+export async function clearChontatecHistory(userId: string, channel: ChatChannel = "web"): Promise<void> {
+  await prisma.botMessage.deleteMany({ where: { userId, channel } });
 }
 
-export async function sendChontatecMessage(userId: string, userText: string, pathname: string): Promise<ChatUiMessage[]> {
-  const pending = await getPendingAction(userId);
+export async function appendAssistantNote(userId: string, text: string, channel: ChatChannel): Promise<void> {
+  await persistRow(userId, "assistant", [{ type: "text", text }], channel);
+}
+
+export async function hasPendingChontatecAction(userId: string, channel: ChatChannel): Promise<string | null> {
+  return (await getPendingAction(userId, channel))?.toolUseId ?? null;
+}
+
+export async function sendChontatecMessage(userId: string, userText: string, pathname: string, channel: ChatChannel = "web"): Promise<ChatUiMessage[]> {
+  const pending = await getPendingAction(userId, channel);
   if (pending) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }]);
-    await persistRow(userId, "assistant", [{ type: "text", text: PENDING_ACTION_TEXT }]);
-    return currentHistory(userId);
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: PENDING_ACTION_TEXT }], channel);
+    return currentHistory(userId, channel);
   }
 
   const settings = await getBotSettings();
   if (!settings.apiKeyConfigured) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }]);
-    await persistRow(userId, "assistant", [{ type: "text", text: NOT_CONFIGURED_TEXT }]);
-    return currentHistory(userId);
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: NOT_CONFIGURED_TEXT }], channel);
+    return currentHistory(userId, channel);
   }
 
   const quota = await checkAndConsumeBotQuestion();
   if (!quota.ok) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }]);
-    await persistRow(userId, "assistant", [{ type: "text", text: LIMIT_REACHED_TEXT }]);
-    return currentHistory(userId);
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: LIMIT_REACHED_TEXT }], channel);
+    return currentHistory(userId, channel);
   }
 
   // Registro de uso (solo quién y cuántas veces): una falla aquí nunca debe frenar la respuesta.
   await prisma.botUsage
     .upsert({ where: { userId }, create: { userId, questions: 1, lastUsedAt: new Date() }, update: { questions: { increment: 1 }, lastUsedAt: new Date() } })
     .catch((error) => console.error("No se pudo registrar el uso del bot", error));
-  await persistRow(userId, "user", [{ type: "text", text: userText }]);
-  await runConversationLoop(userId, pathname);
-  return currentHistory(userId);
+  await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+  await runConversationLoop(userId, pathname, channel);
+  return currentHistory(userId, channel);
 }
 
 export async function confirmChontatecAction(
   userId: string,
   toolUseId: string,
-  decision: "confirm" | "decline"
+  decision: "confirm" | "decline",
+  channel: ChatChannel = "web"
 ): Promise<ChatUiMessage[]> {
-  const pending = await getPendingAction(userId);
+  const pending = await getPendingAction(userId, channel);
   if (!pending || pending.toolUseId !== toolUseId) {
     throw new Error("Esa acción ya no está pendiente de confirmación.");
   }
@@ -413,14 +459,14 @@ export async function confirmChontatecAction(
       resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await safeReadTool(item.name, item.input) });
     }
   }
-  await persistRow(userId, "user", resultBlocks);
+  await persistRow(userId, "user", resultBlocks, channel);
 
   const settings = await getBotSettings();
   if (settings.apiKeyConfigured) {
     // No toca el contador de preguntas — confirmar/cancelar es continuación
     // de la pregunta ya contada, no una pregunta nueva.
-    await runConversationLoop(userId, "");
+    await runConversationLoop(userId, "", channel);
   }
 
-  return currentHistory(userId);
+  return currentHistory(userId, channel);
 }

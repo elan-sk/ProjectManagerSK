@@ -867,6 +867,7 @@ model AppSetting {
   // Las reglas operativas no negociables (usar las tools, nunca inventar
   // datos) NO viven acá, están fijas en src/lib/chontatec.ts.
   botPersonaPrompt           String?   @db.Text
+  botWhatsappChatEnabled     Boolean   @default(false)
   // Mensaje de presentación que el bot manda (con foto de perfil) la
   // primera vez que le escribe por WhatsApp a alguien — null usa el default
   // de fábrica (ver DEFAULT_BOT_INTRO_MESSAGE en botSettings.ts). Editable
@@ -889,9 +890,11 @@ model BotMessage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      String // "user" | "assistant"
   content   String   @db.LongText // JSON.stringify(content blocks[])
+  channel   String   @default("web")
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, channel, createdAt])
 }
 
 // Cuántas preguntas le hizo cada persona al bot. Solo quién y cuántas veces: nunca guarda el contenido

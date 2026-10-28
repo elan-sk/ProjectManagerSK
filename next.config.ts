@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // Baileys (alertas de WhatsApp) hace imports opcionales (jimp/sharp) que
   // Turbopack intenta resolver en build aunque nunca se usen — se excluye
   // del bundling y se deja como require nativo de Node.
-  serverExternalPackages: ["@whiskeysockets/baileys", "sharp", "pdfjs-dist", "pdfkit", "unzipper"],
+  serverExternalPackages: ["@whiskeysockets/baileys", "sharp", "pdfjs-dist", "pdfkit", "unzipper", "@huggingface/transformers", "onnxruntime-node", "ffmpeg-static"],
   // Hostinger reporta 64 núcleos pero limita los procesos de la cuenta: con el valor por defecto
   // Next abre 63 workers en "Collecting page data" y el build muere (os error 11).
   experimental: { cpus: 2 },

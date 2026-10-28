@@ -99,3 +99,6 @@ _tmp*/
 
 # registro local del servidor
 /logs
+
+# Modelo de voz a texto (Whisper), se descarga solo la primera vez
+.models-cache/

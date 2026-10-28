@@ -10,6 +10,7 @@ import {
   updateBotMonthlyLimit,
   updateBotPersonaPrompt,
   updateBotIntroMessage,
+  updateWhatsappChatEnabled,
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -30,6 +31,7 @@ export function BotSettingsForm({
   personaIsCustom,
   introMessage,
   introMessageIsCustom,
+  whatsappChatEnabled,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -45,6 +47,7 @@ export function BotSettingsForm({
   personaIsCustom: boolean;
   introMessage: string;
   introMessageIsCustom: boolean;
+  whatsappChatEnabled: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -371,6 +374,27 @@ export function BotSettingsForm({
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="border-t border-slate-100 pt-4">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={whatsappChatEnabled}
+            disabled={isPending}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              setError(null);
+              startTransition(async () => {
+                const result = await updateWhatsappChatEnabled(enabled);
+                if (!result.ok) setError("No se pudo guardar.");
+                else router.refresh();
+              });
+            }}
+            className="rounded border-slate-300"
+          />
+          <span>Responder por WhatsApp</span>
+        </label>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

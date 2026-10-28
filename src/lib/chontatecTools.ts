@@ -77,6 +77,8 @@ import {
 } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 import type { TaskStatus } from "@prisma/client";
 import { sendDirectAlert, sendGroupAlert, sendWelcomeMessage } from "@/lib/whatsapp";
+import { contextActor } from "@/lib/actorContext";
+import { normalizePhone, toWhatsAppText } from "@/lib/whatsappFormat";
 import { getWhatsAppSettings } from "@/lib/appSettings";
 import { notify } from "@/lib/notifications";
 import { setTaskTag, removeTaskTag, createTagCategory, updateTagCategory, deleteTagCategory } from "@/app/(app)/settings/tags/tagActions";
@@ -110,6 +112,16 @@ const FILE_REFS = {
 };
 
 export const READ_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "send_to_other_channel",
+    description:
+      "Envía un texto a la MISMA persona por su otro canal: desde el chat de la app, a su WhatsApp; desde WhatsApp, a su chat de la app. Solo cuando la persona lo pide de forma explícita («mandámelo al WhatsApp», «dejalo en el chat de la app»). Nunca a otra persona.",
+    input_schema: {
+      type: "object",
+      properties: { text: { type: "string", description: "Contenido a enviar, completo y listo para leer." } },
+      required: ["text"],
+    },
+  },
   {
     name: "read_uploaded_file",
     description:
@@ -997,6 +1009,21 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
   const userId = await currentUserId();
 
   switch (name) {
+    case "send_to_other_channel": {
+      const { text } = z.object({ text: z.string().min(1) }).parse(input);
+      const channel = contextActor()?.channel ?? "web";
+      if (channel === "whatsapp") {
+        await prisma.botMessage.create({ data: { userId, role: "assistant", channel: "web", content: JSON.stringify([{ type: "text", text }]) } });
+        return JSON.stringify({ ok: true, nota: "Quedó en el chat de la app de esta persona." });
+      }
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { phone: true } });
+      const phone = normalizePhone(me.phone);
+      if (!phone) return JSON.stringify({ error: "La persona no tiene un número de WhatsApp cargado en su perfil." });
+      const sent = await sendDirectAlert(phone, toWhatsAppText(text));
+      if (!sent) return JSON.stringify({ error: "WhatsApp no está conectado en este momento; no se pudo enviar." });
+      await prisma.botMessage.create({ data: { userId, role: "assistant", channel: "whatsapp", content: JSON.stringify([{ type: "text", text }]) } });
+      return JSON.stringify({ ok: true, nota: "Enviado al WhatsApp de esta persona." });
+    }
     case "list_team_members": {
       const users = await prisma.user.findMany({
         where: { active: true },

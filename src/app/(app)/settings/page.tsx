@@ -121,6 +121,7 @@ export default async function SettingsPage({
             personaIsCustom={botSettings.personaIsCustom}
             introMessage={botSettings.introMessage}
             introMessageIsCustom={botSettings.introMessageIsCustom}
+            whatsappChatEnabled={botSettings.whatsappChatEnabled}
           />
         </section>
       )}

@@ -18,6 +18,7 @@ import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { fitToContent } from "@/lib/fitToContent";
 import { Hotkey, isAltShortcut } from "@/components/Hotkey";
 import { isFileHref, useFileViewer, type ViewFile } from "@/components/FileViewer";
+import { withUploadNote } from "@/lib/chatUploadNote";
 
 type ChatUiMessage = {
   id: string;
@@ -394,9 +395,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     if ((!typed && attached.length === 0) || isPending) return;
     if (listening) stopDictation();
     // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
-    const value = attached.length
-      ? `${typed || "Subí este archivo."}\n\n[Archivos subidos en el chat: ${attached.map((f) => `"${f.name}" → ${f.url}`).join(", ")}]`
-      : typed;
+    const value = withUploadNote(typed, attached);
     setText("");
     setAttached([]);
     setOptimisticMessage({ id: `pending-${Date.now()}`, role: "user", text: value });

@@ -1,0 +1,39 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Helvetica", nodesep=0.35, ranksep=0.5, pad=0.3];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  phone [label="Celular de la persona\n(WhatsApp)", fillcolor="#E0E0E0", color="#757575"];
+  sock [label="Conexión WhatsApp\nahora también escucha\nmensajes y votos", fillcolor="#FFE0B2", color="#EF6C00"];
+  intake [label="Recepción de WhatsApp\nfiltra grupos, identifica\npor número, cola por persona", fillcolor="#C8E6C9", color="#2E7D32"];
+  voice [label="Voz a texto en el servidor\n(Whisper base, sin tokens)", fillcolor="#C8E6C9", color="#2E7D32"];
+  files [label="Guardar archivo subido", fillcolor="#E0E0E0", color="#757575"];
+  route [label="Entrada interna del chat\ncon la identidad del usuario", fillcolor="#C8E6C9", color="#2E7D32"];
+  engine [label="Motor del chat (Chontatec)\ncanal, contexto del otro canal,\nrespuestas cortas en WhatsApp", fillcolor="#FFE0B2", color="#EF6C00"];
+  ident [label="Quién actúa (sesión)\nacepta la identidad de WhatsApp", fillcolor="#FFE0B2", color="#EF6C00"];
+  tools [label="Herramientas y permisos\ndel chat", fillcolor="#E0E0E0", color="#757575"];
+  history [label="Historial del chat\n+ canal (app / WhatsApp)", fillcolor="#FFE0B2", color="#EF6C00"];
+  widget [label="Chat de la app\nve solo su canal", fillcolor="#E0E0E0", color="#757575"];
+  out [label="Formato WhatsApp + envío\ntexto corto, documentos,\nencuesta Confirmar / Cancelar", fillcolor="#C8E6C9", color="#2E7D32"];
+  settings [label="Configuración → Bot\ninterruptor «Responder por WhatsApp»", fillcolor="#FFE0B2", color="#EF6C00"];
+  alerts [label="Avisos automáticos\n(resumen, alertas, grupos)", fillcolor="#E0E0E0", color="#757575"];
+
+  phone -> sock;
+  sock -> intake;
+  intake -> voice [label="nota de voz"];
+  intake -> files [label="imagen o documento"];
+  voice -> route;
+  files -> route;
+  intake -> route [label="texto o voto"];
+  route -> engine;
+  engine -> tools;
+  tools -> ident;
+  engine -> history;
+  widget -> engine;
+  engine -> out;
+  out -> sock;
+  sock -> phone;
+  settings -> intake;
+  alerts -> sock;
+}

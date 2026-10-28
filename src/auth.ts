@@ -4,8 +4,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getUserStatus } from "@/lib/userStatus";
 import { clearAttempts, clientIp, isLoginBlocked, loginKey, recordLoginFailure } from "@/lib/rateLimit";
+import { contextActor } from "@/lib/actorContext";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const nextAuth = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
@@ -62,3 +63,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+const baseAuth = nextAuth.auth;
+
+export const auth = ((...args: unknown[]) => {
+  const actor = contextActor();
+  if (actor && args.length === 0) {
+    return Promise.resolve({
+      user: { id: actor.userId, role: actor.role, name: actor.name, email: "" },
+      expires: new Date(Date.now() + 60_000).toISOString(),
+    });
+  }
+  return (baseAuth as (...rest: unknown[]) => unknown)(...args);
+}) as typeof baseAuth;

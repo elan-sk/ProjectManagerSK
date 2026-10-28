@@ -18,7 +18,7 @@ export const DEFAULT_BOT_PERSONA =
 // desde Configuración porque este software puede correr para otra empresa
 // con otro nombre y otras funciones que describir acá.
 export function buildDefaultBotIntroMessage(botName: string) {
-  return `¡Hola! Mi nombre es ${botName}, soy un bot de ProjectManagerSK, la aplicación donde tu equipo lleva el seguimiento de los proyectos y las tareas.\nPor acá te voy a avisar cuando te asignen algo nuevo, cuando una tarea esté por vencer o ya esté vencida, cuando te devuelvan un trabajo en revisión, o cuando te toque revisar el de alguien más.\nY si entrás a la aplicación, también podés preguntarme tus dudas o pedirme que te analice el estado de un proyecto — ¡para eso también estoy, vea pues!`;
+  return `¡Hola! Mi nombre es ${botName}, soy un bot de ProjectManagerSK, la aplicación donde tu equipo lleva el seguimiento de los proyectos y las tareas.\nPor acá te voy a avisar cuando te asignen algo nuevo, cuando una tarea esté por vencer o ya esté vencida, cuando te devuelvan un trabajo en revisión, o cuando te toque revisar el de alguien más.\nTambién se me puede escribir o mandar una nota de voz por este mismo chat para consultar o pedir cambios.`;
 }
 
 export async function getBotSettings() {
@@ -37,6 +37,7 @@ export async function getBotSettings() {
     personaIsCustom: Boolean(s?.botPersonaPrompt?.trim()),
     introMessage: s?.botIntroMessage?.trim() || buildDefaultBotIntroMessage(s?.botName ?? "Chontatec"),
     introMessageIsCustom: Boolean(s?.botIntroMessage?.trim()),
+    whatsappChatEnabled: s?.botWhatsappChatEnabled ?? false,
   };
 }
 
@@ -194,5 +195,18 @@ export async function checkAndConsumeBotQuestion(): Promise<{ ok: true; remainin
       data: { botQuestionsUsedThisPeriod: usedBefore + 1, botUsagePeriodStart: currentPeriodStart },
     });
     return { ok: true as const, remaining: setting.botMonthlyQuestionLimit - (usedBefore + 1) };
+  });
+}
+
+export async function isWhatsappChatEnabled(): Promise<boolean> {
+  const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID }, select: { botWhatsappChatEnabled: true } });
+  return s?.botWhatsappChatEnabled ?? false;
+}
+
+export async function setWhatsappChatEnabled(enabled: boolean) {
+  await prisma.appSetting.upsert({
+    where: { id: APP_SETTING_ID },
+    create: { id: APP_SETTING_ID, botWhatsappChatEnabled: enabled },
+    update: { botWhatsappChatEnabled: enabled },
   });
 }

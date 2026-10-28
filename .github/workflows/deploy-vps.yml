@@ -33,7 +33,7 @@ jobs:
             -e "ssh -i ~/.ssh/vps_key" \
             --exclude='.git/' --exclude='.github/' \
             --exclude='node_modules/' --exclude='.next/' \
-            --exclude='.baileys-auth/' --exclude='public/uploads' --exclude='logs/' \
+            --exclude='.baileys-auth/' --exclude='.models-cache/' --exclude='public/uploads' --exclude='logs/' \
             --exclude='.env*' --exclude='dev.db' --exclude='tsconfig.tsbuildinfo' --exclude='next-env.d.ts' \
             ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH }}/
 

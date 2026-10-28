@@ -6,6 +6,7 @@ import path from "node:path";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { getBotName, getBotAvatarBuffer, getBotIntroMessage } from "@/lib/botSettings";
+import { mimeFromFileName } from "@/lib/uploadLimits";
 
 // Alertas de WhatsApp vía sesión personal (estilo WhatsApp Web, no la API
 // oficial de Meta) — ver AGENTS.md. Se conecta una sola vez (al bootear el
@@ -67,7 +68,7 @@ const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
 // Modo prueba: con WHATSAPP_ONLY_PHONE definido (solo en desarrollo), ÚNICAMENTE ese número puede
 // recibir mensajes; todo lo demás (otras personas y grupos) se descarta. En producción no se define.
 const blockedLogged = new Set<string>();
-function blockedByTestMode(jid: string) {
+export function blockedByTestMode(jid: string) {
   const only = process.env.WHATSAPP_ONLY_PHONE?.trim();
   if (!only || jid === `${only}@s.whatsapp.net`) return false;
   if (!blockedLogged.has(jid)) {
@@ -139,6 +140,13 @@ async function connect() {
   console.log(`[whatsapp] abriendo conexión (pid ${process.pid}, intento ${state.retryCount + 1})`);
   state.rawSocket = socket;
   socket.ev.on("creds.update", saveCreds);
+
+  socket.ev.on("messages.upsert", ({ messages, type }) => {
+    if (type !== "notify") return;
+    void import("@/lib/whatsappChat")
+      .then(({ handleIncomingMessage }) => Promise.all(messages.map((m) => handleIncomingMessage(socket, m))))
+      .catch((err) => console.error("[whatsapp] no se pudo procesar un mensaje entrante", err));
+  });
 
   socket.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -347,4 +355,38 @@ export async function sendRawMessage(jid: string, text: string, imageUrls?: stri
 // solo a esa persona.
 export async function sendDirectAlert(phone: string, text: string, imageUrls?: string[]) {
   return sendRawMessage(`${phone}@s.whatsapp.net`, text, imageUrls);
+}
+
+export function getChatSocket() {
+  return state.sock;
+}
+
+export async function sendChatReply(jid: string, userId: string, parts: string[], files: { url: string; name: string }[] = []) {
+  if (!state.sock || blockedByTestMode(jid)) return false;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, whatsappIntroducedAt: true } });
+    if (user && !user.whatsappIntroducedAt) await sendIntroMessage(jid, user);
+    for (const text of parts) await state.sock.sendMessage(jid, { text });
+    for (const file of files) {
+      const filePath = await findUploadPath(file.url);
+      if (!filePath) continue;
+      const buffer = await readFile(filePath).catch(() => null);
+      if (!buffer) continue;
+      await state.sock.sendMessage(jid, { document: buffer, fileName: file.name, mimetype: mimeFromFileName(file.name, file.url) || "application/octet-stream" });
+    }
+    return true;
+  } catch (err) {
+    console.error("[whatsapp] no se pudo enviar la respuesta del chat", err);
+    return false;
+  }
+}
+
+export async function sendConfirmPoll(jid: string, question: string, options: [string, string]) {
+  if (!state.sock || blockedByTestMode(jid)) return null;
+  try {
+    return (await state.sock.sendMessage(jid, { poll: { name: question, values: options, selectableCount: 1 } })) ?? null;
+  } catch (err) {
+    console.error("[whatsapp] no se pudo enviar la encuesta de confirmación", err);
+    return null;
+  }
 }

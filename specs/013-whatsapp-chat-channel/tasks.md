@@ -1,0 +1,23 @@
+# Tareas 013
+
+- [x] **T1. Identidad por contexto: `actorContext.ts` + envoltorio de `auth()`.** RF-3
+  - Hecho cuando: el chequeo confirma que `auth()` devuelve al usuario dentro de `runAsUser` y la sesión normal fuera.
+- [x] **T2. Migración: `BotMessage.channel` y `AppSetting.botWhatsappChatEnabled`.** RF-5, RF-29
+  - Hecho cuando: migración aplicada en local y cliente Prisma generado.
+- [x] **T3. Motor del chat por canal (historial, pendiente, borrar, contexto del otro canal, respuestas cortas).** RF-29, 30, 32, 33, 34
+  - Hecho cuando: tsc en verde y el widget sigue usando canal `web`.
+- [x] **T4. Herramienta `send_to_other_channel`.** RF-31
+  - Hecho cuando: está en las herramientas de todos los roles y solo apunta a la misma persona.
+- [x] **T5. `whatsappFormat.ts` + `chatUploadNote.ts` (y el widget lo usa).** RF-9, 15, 18, 21
+  - Hecho cuando: `verify-whatsapp-chat` pasa los casos de formato, partición y sí/no.
+- [x] **T6. Voz a texto: `voiceTranscription.ts`, paquetes, `next.config`, exclusión en deploy.** RF-22, 24, 25, 27
+  - Hecho cuando: un audio de prueba en español se transcribe en local.
+- [x] **T7. Entrada interna `/api/whatsapp/chat` con secreto del proceso.** RF-3, 6, 15
+  - Hecho cuando: sin secreto responde 401; con secreto corre el motor como el usuario.
+- [x] **T8. Recepción en `whatsappChat.ts` + eventos y envíos en `whatsapp.ts` (respuesta, documentos, encuesta, votos).** RF-1, 2, 4, 10, 11, 12, 13–16, 18–28
+  - Hecho cuando: tsc y lint en verde y el chequeo de identificación por número pasa.
+- [x] **T9. Interruptor «Responder por WhatsApp» en Configuración → Bot.** RF-5
+  - Hecho cuando: solo admin lo cambia y la recepción lo respeta.
+- [x] **T10. S-1: nuevo texto de bienvenida de fábrica.** (sugerencia aprobada)
+  - Hecho cuando: el texto por defecto menciona que se le puede escribir o mandar notas de voz.
+- [x] **T11. Validación RF por RF.** (sin prueba en vivo por WhatsApp: la hace el usuario)

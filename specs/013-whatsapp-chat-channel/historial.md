@@ -1,0 +1,20 @@
+# Historial — 013 Chat del bot por WhatsApp
+
+- 2026-10-28 — Modo chat. Fuentes: conversación + código (chontatec.ts, chontatecTools.ts, whatsapp.ts, ChontatecWidget.tsx, permissions.ts, auth.ts). Biblioteca no consultada (proyecto propio).
+- 2026-10-28 — Viabilidad: identidad hoy sale de auth() (sesión); revalidatePath de Next 16 falla fuera de una petición («static generation store missing»); Baileys 7.0.0-rc14 trae key.remoteJidAlt y lidMapping.getPNForLID para pasar de identificador interno a teléfono.
+- 2026-10-28 — Entrevista: solo DM; irreversibles con aviso y sí/no; desconocido sin respuesta; historial compartido; audios fuera; archivos como documento + link; interruptor apagado por defecto.
+- 2026-10-28 — Spec escrita (borrador), pendiente aprobación 1.
+- 2026-10-28 — Aprobación 1 con cambio: agregar notas de voz transcritas en el servidor sin tokens. Investigado: Whisper vía @huggingface/transformers (ONNX en Node). Decisiones: Whisper base, eco «🎤 Entendí», máx. 5 min. Spec actualizada (RF-22 a RF-28, RF-20 retirado).
+- 2026-10-28 — Segundo cambio antes de aprobar: historiales por canal que se conocen, responder por el canal de contacto, WA más corto; botones no viables con Baileys (README solo documenta encuestas) → confirmación con encuesta.
+- 2026-10-28 — Aprobación 1 OK. Estado: aprobada.
+- 2026-10-28 — Plan escrito con inventario y diagrama; pendiente aprobación 2.
+- 2026-10-28 — Aprobación 2 OK, con S-1 y S-2 (S-2 queda pendiente hasta encender el interruptor). Se trabaja en master (AGENTS.md).
+- 2026-10-28 — T1 actorContext + envoltorio de auth(): verify OK (dentro del contexto devuelve al usuario; fuera no).
+- 2026-10-28 — T2 migración 20261028190000_whatsapp_chat_channel escrita a mano (sin permiso de shadow DB), aplicada en local; diff esquema↔base vacío.
+- 2026-10-28 — T3 motor por canal; T4 send_to_other_channel; T5 whatsappFormat + chatUploadNote (widget lo usa): verify OK.
+- 2026-10-28 — T6 @huggingface/transformers@4.3.1 + ffmpeg-static@5.3.0 (agregado a allowScripts; onnxruntime-node no lo necesita: su script es solo para CUDA). Prueba local: nota OGG/Opus de 11 s → 3,4 s (38 s la primera vez, con descarga de 133 MB del modelo). Calidad en español sin probar con audio real.
+- 2026-10-28 — Hallazgo: en Baileys 7.0.0-rc14 el descifrado automático de votos está comentado; los votos se descifran a mano con decryptPollVote probando número e identificador interno.
+- 2026-10-28 — T7 entrada interna /api/whatsapp/chat; T8 whatsappChat.ts + whatsapp.ts; T9 interruptor; T10 texto de bienvenida (S-1).
+- 2026-10-28 — Verificación: tsc OK, lint sin errores nuevos (11 errores y avisos previos en otros archivos), verify:whatsapp-chat OK, npm run build OK. Sin prueba en vivo por WhatsApp (requiere autorización y el número nuevo vinculado).
+- 2026-10-28 — Ajeno a esta spec: .claude/skills/project-manager-sk/SKILL.md aparece modificado (otra sesión); no se tocó.
+- 2026-10-28 — T11 validación sin navegador cerrada; spec queda «aprobada» hasta la prueba en vivo del usuario. Usuario autoriza subir a master (deploy).
