@@ -41,6 +41,20 @@ function enqueue(userId: string, task: () => Promise<void>) {
   });
 }
 
+const TYPING_REFRESH_MS = 8_000;
+
+async function withTyping(sock: WASocket, jid: string, task: () => Promise<void>) {
+  const ping = () => sock.sendPresenceUpdate("composing", jid).catch(() => undefined);
+  await ping();
+  const timer = setInterval(ping, TYPING_REFRESH_MS);
+  try {
+    await task();
+  } finally {
+    clearInterval(timer);
+    await sock.sendPresenceUpdate("paused", jid).catch(() => undefined);
+  }
+}
+
 function jidUser(jid: string) {
   return jid.split("@")[0].split(":")[0];
 }
@@ -219,7 +233,7 @@ export async function handleIncomingMessage(sock: WASocket, msg: WAMessage) {
   const user = await findUserByPhone(phone);
   if (!user) return;
 
-  enqueue(user.id, async () => {
+  enqueue(user.id, () => withTyping(sock, jid, async () => {
     if (type === "conversation" || type === "extendedTextMessage") {
       const text = (content.conversation ?? content.extendedTextMessage?.text ?? "").trim();
       if (text) await dispatch(jid, user, text);
@@ -234,5 +248,5 @@ export async function handleIncomingMessage(sock: WASocket, msg: WAMessage) {
     } else if (UNSUPPORTED_TYPES.has(type)) {
       await sendChatReply(jid, user.id, [UNSUPPORTED_TEXT]);
     }
-  });
+  }));
 }

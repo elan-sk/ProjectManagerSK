@@ -23,3 +23,4 @@
 - 2026-10-28 — S-2 adelantado a pedido del usuario (no encontraba la casilla): aviso de novedad «bot-whatsapp-chat-toggle» en /settings sobre «Responder por WhatsApp».
 - 2026-10-28 — Pedido del usuario: en WhatsApp el bot usa emojis (uno por título o punto clave, máx. uno por línea). Solo la regla del canal WhatsApp en chontatec.ts.
 - 2026-10-28 — Pedido del usuario: al terminar cualquier acción el bot cierra con el link de lo tocado (antes solo al crear). Regla general en chontatec.ts, aplica a la app y a WhatsApp.
+- 2026-10-28 — Pedido del usuario: indicador «escribiendo…» mientras el bot procesa (sendPresenceUpdate composing renovado cada 8 s; dura ~10 s según README de Baileys; paused al terminar).
