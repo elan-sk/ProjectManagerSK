@@ -32,6 +32,13 @@ export const FEATURE_HINTS: FeatureHint[] = [
     description: "Se crea eligiendo el proyecto al que pertenece. En cada proyecto, el botón + la agrega directamente ahí.",
     publishedAt: "2026-10-23",
   },
+  {
+    id: "bot-whatsapp-chat-toggle",
+    path: "/settings",
+    title: "Nuevo: el asistente responde por WhatsApp",
+    description: "Al marcar esta casilla, el asistente contesta los mensajes, documentos y notas de voz que el equipo le escribe a su número de WhatsApp.",
+    publishedAt: "2026-10-28",
+  },
 ];
 
 /** Novedades vigentes: publicadas hace menos de HINT_LIFETIME_DAYS días. */

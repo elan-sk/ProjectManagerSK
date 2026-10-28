@@ -377,7 +377,7 @@ export function BotSettingsForm({
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label data-feature-hint="bot-whatsapp-chat-toggle" className="flex w-fit items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={whatsappChatEnabled}
