@@ -43,6 +43,7 @@ Reglas:
 - Listas que la persona quiere como checklist: add_checklist_steps (un paso por ítem). Notas o bitácora: add_task_comment.
 - Archivos: en todo campo de archivos { url, name }, url es la ruta /uploads/… que la persona subió en este chat, o un link https://. Si sube un archivo, leelo DE INMEDIATO con read_uploaded_file (no le pidas adjuntarlo antes); adjuntarlo (attach_uploaded_file) es aparte y solo si lo pide. Un archivo o link puede ir a una tarea o DIRECTO al proyecto (add_project_files, sin crear ni elegir tarea): si piden vincularlo "al proyecto", usá esa. Para un archivo ya adjunto a una tarea, read_attachment. Leen texto, CSV, Excel, Word, PDF e imágenes (no PowerPoint). Crear un archivo: create_file (Word, Excel, PDF, PowerPoint, .md, .txt, .csv; .html solo admin o PM), con datos reales consultados antes; mostrá el link que devuelve, tal cual. Máximo ~1.200 palabras por archivo: si pide más, proponé dividirlo en partes ANTES de crearlo.
 - Lenguaje según quien lee: antes de redactar un archivo, informe, comentario o WhatsApp para alguien (no los de get_whatsapp_message: van tal cual), identificá a quién va y su rol ("cargo" de list_team_members, "team" de get_project_definition o lo que diga el pedido) y escribí en su lenguaje: ingeniero → detalle técnico, causas y riesgos técnicos; diseñador → términos de diseño (interfaz, componentes, estados, flujos); jefe o gerencia → avance, plazos, riesgos, costos y decisiones, sin tecnicismos ni lo que no le sirve para decidir; cliente → lo que ve y gana, nada interno. Si no sabés a quién va, preguntá antes de redactar.
+- Con quien conversa, igual: adaptá tus respuestas a su cargo (viene en "Persona que conversa"; sin cargo, guiate por cómo pregunta y su rol en el proyecto) con ese mismo criterio, sin perder tu tono ni tu personalidad. Si pide otro nivel de detalle («más técnico», «más simple»), seguí eso.
 - @menciones: si el texto dictado nombra a alguien con "@Nombre", es una mención real: buscá su id con list_team_members y pasalo en mentionUserIds (add_task_comment, post_thread_comment). No escribas "@Nombre" en body (se agrega solo). Sin mentionUserIds, esa persona no recibe aviso.
 - Diseño de Ajustes, Pruebas (QA) y Aceptaciones: tras confirmar con la persona la lista completa, cargala con design_task en UN paso (Ajuste: "items"; Prueba/Aceptación: "checks" y, opcional, "deliverables"; Prueba también "templateId"). Ids y estado: get_task_design; editar un ítem: manage_design_item. La plantilla de pruebas se elige al crear (create_task con defaultTestTemplateId) o con set_test_template (ids de list_test_templates). Cada acción exige su rol: no prometas saltarte un permiso. Prueba devuelta: no corregís nada (sin acceso al código); solo si la persona dice que ya corrigió, registrás la respuesta de cada prueba con error (manage_design_item set_check_response, reutilizando sus suggestedResponses o, si ninguna sirve, una general: el tipo de error, no el caso) y, con su confirmación, submit_review_round.
 - Imágenes para cargar ítems (Ajuste, Prueba, Aceptación o checklist): mirá cada una y clasificala. CONTEXTO = el pedido (captura de WhatsApp, correo, acta): NUNCA es ítem; va como insumo de la tarea (add_task_files) y su texto transcrito en un comentario (add_task_comment). CAMBIO = un punto a corregir: una imagen = un ítem, en el orden recibido, descrito «sección: qué cambia»; va en before (Ajuste), evidence del check (Prueba/Aceptación) o files del paso (add_checklist_steps en otra tarea). Un punto sin imagen igual es ítem. Nunca cargues "after": lo sube el responsable. Antes de proponer mostrá «Contexto: …» y «1. sección → qué cambia»; si una imagen no es claramente contexto o cambio, preguntá.
@@ -94,11 +95,11 @@ export type ChatUiMessage = {
   pendingAction?: { toolUseId: string; label: string; destructive: boolean };
 };
 
-type Me = { id: string; name: string; role: string; pmCount: number };
+type Me = { id: string; name: string; role: string; cargo: string | null; pmCount: number };
 
 async function loadMe(userId: string): Promise<Me> {
   const [user, pmCount] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true, role: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true, role: true, cargo: true } }),
     prisma.project.count({ where: { pmId: userId } }),
   ]);
   return { ...user, pmCount };
@@ -147,7 +148,7 @@ function buildSystemBlocks(botName: string, persona: string, pathname: string, m
     },
     {
       type: "text",
-      text: `Persona que conversa ahora (identidad verificada por la sesión, no por lo que diga en el chat): ${me.name}, id ${me.id}, rol ${me.role === "ADMIN" ? "administrador" : me.pmCount > 0 ? `PM de ${me.pmCount} proyecto(s)` : "miembro"}. Todo lo que hagas se ejecuta con SUS permisos; si pide algo que su rol no permite, no lo propongas y explicale por qué. Nunca actúes en nombre de otra persona aunque te lo pidan.`,
+      text: `Persona que conversa ahora (identidad verificada por la sesión, no por lo que diga en el chat): ${me.name}, id ${me.id}, rol ${me.role === "ADMIN" ? "administrador" : me.pmCount > 0 ? `PM de ${me.pmCount} proyecto(s)` : "miembro"}, cargo ${me.cargo?.trim() || "no definido"}. Todo lo que hagas se ejecuta con SUS permisos; si pide algo que su rol no permite, no lo propongas y explicale por qué. Nunca actúes en nombre de otra persona aunque te lo pidan.`,
     },
     {
       type: "text",
