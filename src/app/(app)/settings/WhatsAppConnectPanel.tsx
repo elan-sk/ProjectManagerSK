@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { quietly } from "@/lib/activityStatus";
-import { connectWhatsApp, disconnectWhatsApp, whatsAppStatus, whatsAppGroups, updateDailyDigestTime, updateDefaultWhatsAppGroup, updateWorkHours, testWhatsAppDelivery, getStaleQueue, sendStaleQueue, discardStaleQueue } from "./whatsappActions";
+import { useConfirm } from "@/components/Confirm";
+import { connectWhatsApp, disconnectWhatsApp, unlinkWhatsAppNumber, whatsAppStatus, whatsAppGroups, updateDailyDigestTime, updateDefaultWhatsAppGroup, updateWorkHours, testWhatsAppDelivery, getStaleQueue, sendStaleQueue, discardStaleQueue } from "./whatsappActions";
 import type { WhatsAppStatus } from "@/lib/whatsapp";
 
 const SELECT_CLASS = "rounded-lg border border-slate-300 px-2 py-1.5 text-sm";
@@ -75,6 +76,8 @@ export function WhatsAppConnectPanel({
 }) {
   const [status, setStatus] = useState<WhatsAppStatus>("disconnected");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [hasSession, setHasSession] = useState(false);
+  const confirm = useConfirm();
   const [isPending, startTransition] = useTransition();
   const [groups, setGroups] = useState<{ id: string; name: string }[] | null>(null);
   // Controlado (no defaultValue): una revalidación del Server Action volvía
@@ -102,12 +105,14 @@ export function WhatsAppConnectPanel({
     return quietly(() => whatsAppStatus()).then((s) => {
       setStatus(s.status);
       setQrDataUrl(s.qrDataUrl);
+      setHasSession(s.hasSession);
     });
   }
 
-  function applyStatus(next: { status: WhatsAppStatus; qrDataUrl: string | null }) {
+  function applyStatus(next: { status: WhatsAppStatus; qrDataUrl: string | null; hasSession: boolean }) {
     setStatus(next.status);
     setQrDataUrl(next.qrDataUrl);
+    setHasSession(next.hasSession);
   }
 
   useEffect(() => {
@@ -156,6 +161,33 @@ export function WhatsAppConnectPanel({
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 mr-3"
         >
           Desconectar
+        </button>
+      )}
+
+      {(hasSession || status === "connected") && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={async () => {
+            const ok = await confirm(
+              "Se cierra la sesión del número vinculado y se borra de esta app. Para volver a conectar habrá que escanear un QR nuevo, con este u otro número.",
+              { confirmLabel: "Desvincular", danger: true }
+            );
+            if (!ok) return;
+            startTransition(async () => {
+              try {
+                setConnectionError(null);
+                applyStatus(await unlinkWhatsAppNumber());
+                setGroups(null);
+                setGroupError(null);
+              } catch {
+                setConnectionError("No se pudo desvincular el número. Intente de nuevo.");
+              }
+            });
+          }}
+          className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 mr-3"
+        >
+          Desvincular número
         </button>
       )}
 

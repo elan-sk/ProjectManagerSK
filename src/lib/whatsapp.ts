@@ -79,7 +79,7 @@ export function blockedByTestMode(jid: string) {
 }
 
 export function getWhatsAppStatus() {
-  return { status: state.status, qrDataUrl: state.qrDataUrl };
+  return { status: state.status, qrDataUrl: state.qrDataUrl, hasSession: existsSync(path.join(AUTH_DIR, "creds.json")) };
 }
 
 // Salud de la conexión para la alarma del header (solo admin). `expected` =
@@ -129,6 +129,26 @@ export function stopWhatsApp() {
   state.status = "disconnected";
 }
 
+// Desvincula el número: cierra la sesión en WhatsApp si está abierta (el teléfono deja de
+// mostrar el dispositivo) y borra la sesión guardada, así el próximo "Conectar" pide un QR
+// nuevo y se puede escanear con otro número. Sirve también cuando la sesión guardada falla y
+// los reintentos nunca entregan QR.
+export async function unlinkWhatsApp() {
+  const pending = state.connecting;
+  const open = state.sock;
+  state.manualStop = true;
+  if (open) {
+    // Si WhatsApp no responde, igual se borra la sesión local (queda un dispositivo
+    // huérfano en el teléfono, que se quita desde Dispositivos vinculados).
+    await Promise.race([open.logout().catch(() => {}), new Promise((r) => setTimeout(r, 5000))]);
+  }
+  stopWhatsApp();
+  await pending?.catch(() => {});
+  await rm(AUTH_DIR, { recursive: true, force: true });
+  state.lastDisconnectReason = null;
+  state.lastDisconnectAt = null;
+}
+
 async function connect() {
   const {
     default: makeWASocket,
@@ -136,6 +156,8 @@ async function connect() {
     DisconnectReason,
   } = await import("@whiskeysockets/baileys");
   const { state: authState, saveCreds } = await loadAuthState(AUTH_DIR);
+  // Se detuvo o desvinculó mientras cargaba: no abrir un socket que vuelva a guardar la sesión.
+  if (state.manualStop) return;
   const socket = makeWASocket({ auth: authState });
   console.log(`[whatsapp] abriendo conexión (pid ${process.pid}, intento ${state.retryCount + 1})`);
   state.rawSocket = socket;

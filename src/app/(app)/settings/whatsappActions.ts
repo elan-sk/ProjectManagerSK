@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { STALE_QUEUE_HOURS } from "@/lib/scheduler";
 import { sendRawMessage } from "@/lib/whatsapp";
-import { startWhatsApp, stopWhatsApp, getWhatsAppStatus, listGroups, sendDirectAlert } from "@/lib/whatsapp";
+import { startWhatsApp, stopWhatsApp, unlinkWhatsApp, getWhatsAppStatus, listGroups, sendDirectAlert } from "@/lib/whatsapp";
 import { setAppDailyDigestTime, setAppWhatsAppGroup, setAppWorkHours } from "@/lib/appSettings";
 
 async function requireAdmin() {
@@ -41,6 +41,12 @@ export async function updateDefaultWhatsAppGroup(groupJid: string) {
 export async function disconnectWhatsApp() {
   await requireAdmin();
   stopWhatsApp();
+  return getWhatsAppStatus();
+}
+
+export async function unlinkWhatsAppNumber() {
+  await requireAdmin();
+  await unlinkWhatsApp();
   return getWhatsAppStatus();
 }
 
