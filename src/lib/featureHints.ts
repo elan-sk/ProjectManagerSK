@@ -39,6 +39,20 @@ export const FEATURE_HINTS: FeatureHint[] = [
     description: "Al marcar esta casilla, el asistente contesta los mensajes, documentos y notas de voz que el equipo le escribe a su número de WhatsApp.",
     publishedAt: "2026-10-28",
   },
+  {
+    id: "whatsapp-cloud-connection",
+    path: "/settings",
+    title: "Nuevo: conexión oficial de WhatsApp",
+    description: "Además del código QR, WhatsApp puede conectarse con la API oficial de Meta, que no corre riesgo de bloqueo. El QR queda de respaldo.",
+    publishedAt: "2026-10-30",
+  },
+  {
+    id: "bot-group-mentions",
+    path: "/settings",
+    title: "Nuevo: pedidos al asistente desde el grupo",
+    description: "Con esta casilla, el asistente atiende a quien lo menciona en el grupo del proyecto y publica ahí el resultado con su link.",
+    publishedAt: "2026-10-30",
+  },
 ];
 
 /** Novedades vigentes: publicadas hace menos de HINT_LIFETIME_DAYS días. */

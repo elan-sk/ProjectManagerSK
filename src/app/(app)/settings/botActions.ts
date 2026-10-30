@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { getBotSettings, setBotProfile, setBotApiKey, setBotConnection, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage, setWhatsappChatEnabled } from "@/lib/botSettings";
+import { getBotSettings, setBotProfile, setBotApiKey, setBotConnection, setBotMonthlyLimit, setBotPersonaPrompt, setBotIntroMessage, setWhatsappChatEnabled, setGroupMentionsEnabled } from "@/lib/botSettings";
+import { shouldRunQr, startWhatsApp, stopWhatsApp } from "@/lib/whatsapp";
 import { isBotProvider, providerNeedsUrl } from "@/lib/botProviders";
 
 async function requireAdmin() {
@@ -77,6 +78,15 @@ export async function updateBotMonthlyLimit(limit: number) {
     return { ok: false as const, error: "El tope tiene que ser un número entero mayor a 0." };
   }
   await setBotMonthlyLimit(limit);
+  revalidatePath("/settings");
+  return { ok: true as const };
+}
+
+export async function updateGroupMentionsEnabled(enabled: boolean) {
+  await requireAdmin();
+  await setGroupMentionsEnabled(Boolean(enabled));
+  if (await shouldRunQr()) void startWhatsApp().catch((err) => console.error("[whatsapp] no se pudo abrir el QR para el grupo", err));
+  else stopWhatsApp();
   revalidatePath("/settings");
   return { ok: true as const };
 }

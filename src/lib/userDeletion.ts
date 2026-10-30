@@ -142,6 +142,7 @@ export async function deleteUserPermanently(input: UserDeletionInput): Promise<U
             active: false,
             deletedAt: new Date(),
             whatsappIntroducedAt: null,
+            whatsappLastInboundAt: null,
             lastDigestSentAt: null,
             lastDigestScheduleKey: null,
             resetTokenHash: null,

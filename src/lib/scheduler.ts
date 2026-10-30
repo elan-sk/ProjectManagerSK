@@ -11,7 +11,20 @@ export const STALE_QUEUE_HOURS = 12;
 
 // Vacía la cola de alertas que cayeron fuera de horario laboral (ver
 // notifications.ts) apenas vuelve a abrir el horario.
+// Con la pausa entre mensajes vaciar la cola tarda minutos: la marca evita que la vuelta del minuto
+// siguiente lea los mismos pendientes y los mande dos veces.
+let queueRunning = false;
 async function dispatchQueuedAlerts() {
+  if (queueRunning) return;
+  queueRunning = true;
+  try {
+    await runQueuedAlerts();
+  } finally {
+    queueRunning = false;
+  }
+}
+
+async function runQueuedAlerts() {
   const { workHoursStart, workHoursEnd } = await getWhatsAppSettings();
   const countryCode = await getAppCountryCode();
   if (!(await isWorkingMoment(new Date(), countryCode, workHoursStart, workHoursEnd))) return;
@@ -81,7 +94,7 @@ export function startScheduler() {
   // como pasó en producción el 2026-09-13 (ver notifications.ts).
   setInterval(() => {
     // Reconexión de WhatsApp en segundo plano, con o sin admin en la web.
-    ensureWhatsAppAlive();
+    ensureWhatsAppAlive().catch((err) => console.error("[scheduler] ensureWhatsAppAlive falló", err));
     dispatchQueuedAlerts().catch((err) => console.error("[scheduler] dispatchQueuedAlerts falló", err));
     dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders falló", err));
     dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests falló", err));

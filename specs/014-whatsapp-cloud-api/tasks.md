@@ -1,0 +1,22 @@
+# Tareas 014
+
+- [x] **T1. Datos: columnas nuevas y migración.** RF-2, 5, 6, 18, 19, 20, 24
+  - Hecho cuando: la migración aplica en local y `tsc` pasa.
+- [x] **T2. Funciones puras + chequeo `verify:whatsapp-cloud`.** RF-9, 16, 19, 27, 36
+  - Hecho cuando: el chequeo pasa.
+- [x] **T3. Contador y tope (`whatsappUsage`).** RF-19, 21, 22, 23
+  - Hecho cuando: el chequeo cubre 80/100 % y reinicio mensual.
+- [x] **T4. Cliente de la API de Meta.** RF-5, 7, 8, 9, 13, 14, 15
+  - Hecho cuando: compila y la verificación de datos traduce errores a lenguaje simple.
+- [x] **T5. Envío según conexión (avisos, grupo por privado, pausas solo QR).** RF-1, 3, 4, 8-12, 21
+  - Hecho cuando: con «Código QR» todo se comporta como antes (verify:whatsapp-chat).
+- [x] **T6. Núcleo del chat con dos transportes + webhook.** RF-13-18
+  - Hecho cuando: firma inválida se rechaza y no hay duplicados (chequeo).
+- [x] **T7. Reenvíos juntos.** RF-35-37
+  - Hecho cuando: el chequeo junta reenvío + comentario < 5 s.
+- [x] **T8. Pedidos por mención en el grupo + `post_group_result`.** RF-24-34
+  - Hecho cuando: el contexto (citado + recientes) sale bien en el chequeo y compila.
+- [x] **T9. Configuración (WhatsApp y Bot), alarma, arranque, borrado de usuario, avisos de novedad.** RF-1-7, 20, 23, 24
+  - Hecho cuando: tsc y lint pasan.
+- [x] **T10. Validación RF por RF y guía de Meta.**
+  - Hecho cuando: tabla de validación completa y guía entregada.

@@ -7,6 +7,10 @@ import { STALE_QUEUE_HOURS } from "@/lib/scheduler";
 import { sendRawMessage } from "@/lib/whatsapp";
 import { startWhatsApp, stopWhatsApp, unlinkWhatsApp, getWhatsAppStatus, listGroups, sendDirectAlert } from "@/lib/whatsapp";
 import { setAppDailyDigestTime, setAppWhatsAppGroup, setAppWorkHours } from "@/lib/appSettings";
+import { shouldRunQr } from "@/lib/whatsapp";
+import { getCloudSettingsView, saveCloudSettings, setWhatsAppConnection, verifyCloudConnection, type WhatsAppConnection } from "@/lib/whatsappCloud";
+import { getWhatsAppUsage, setWhatsAppMonthlyLimit } from "@/lib/whatsappUsage";
+import { absoluteUrl } from "@/lib/appUrl";
 
 async function requireAdmin() {
   const session = await auth();
@@ -85,7 +89,7 @@ export async function testWhatsAppDelivery() {
   if (!session?.user || session.user.role !== "ADMIN") throw new Error("Solo un administrador puede hacer esto.");
   const me = await prisma.user.findUnique({ where: { id: session.user.id }, select: { phone: true } });
   if (!me?.phone) return { ok: false, error: "Tu usuario no tiene un teléfono registrado. Agregalo en tu perfil para recibir la prueba." };
-  const sent = await sendDirectAlert(me.phone, "🧪 *Prueba de entrega*\nLas notificaciones de ProjectManagerSK están activas.");
+  const sent = await sendDirectAlert(me.phone, "🧪 *Prueba de entrega*\nLas notificaciones de ProjectManagerSK están activas.", undefined, true);
   return { ok: sent, error: sent ? undefined : "WhatsApp no está conectado; no se pudo enviar la prueba." };
 }
 
@@ -99,18 +103,26 @@ export async function getStaleQueue() {
   return { hours: STALE_QUEUE_HOURS, count: items.length, samples: items.slice(0, 3).map((i) => i.message.replace(/\n/g, " ").slice(0, 90)) };
 }
 
+// Salen de a una con pausa (ver paced en whatsapp.ts), así que pueden tardar minutos: se envían en
+// segundo plano y la pantalla no espera. La marca evita mandarlas dos veces si se vuelve a pulsar.
+let staleSending = false;
 export async function sendStaleQueue() {
   await requireAdmin();
+  if (staleSending) return { ok: true as const, queued: 0, alreadySending: true };
   const items = await prisma.whatsAppQueueItem.findMany({ where: staleWhere() });
-  let sent = 0;
-  for (const item of items) {
-    if (await sendRawMessage(item.target, item.message)) {
-      await prisma.whatsAppQueueItem.update({ where: { id: item.id }, data: { sentAt: new Date() } });
-      sent++;
+  staleSending = true;
+  void (async () => {
+    for (const item of items) {
+      if (await sendRawMessage(item.target, item.message)) {
+        await prisma.whatsAppQueueItem.update({ where: { id: item.id }, data: { sentAt: new Date() } });
+      }
     }
-  }
-  revalidatePath("/settings");
-  return { ok: true as const, sent, failed: items.length - sent };
+  })()
+    .catch((err) => console.error("[whatsapp] falló el envío de alertas viejas", err))
+    .finally(() => {
+      staleSending = false;
+    });
+  return { ok: true as const, queued: items.length, alreadySending: false };
 }
 
 export async function discardStaleQueue() {
@@ -118,4 +130,37 @@ export async function discardStaleQueue() {
   const { count } = await prisma.whatsAppQueueItem.deleteMany({ where: staleWhere() });
   revalidatePath("/settings");
   return { ok: true as const, discarded: count };
+}
+
+export async function whatsAppCloudView() {
+  await requireAdmin();
+  const [cloud, usage] = await Promise.all([getCloudSettingsView(), getWhatsAppUsage()]);
+  return { ...cloud, webhookUrl: absoluteUrl("/api/whatsapp/cloud") ?? "/api/whatsapp/cloud", usage };
+}
+
+export async function updateWhatsAppConnection(mode: WhatsAppConnection) {
+  await requireAdmin();
+  if (mode !== "qr" && mode !== "cloud") return { ok: false as const, error: "Conexión inválida." };
+  await setWhatsAppConnection(mode);
+  if (await shouldRunQr()) void startWhatsApp().catch((err) => console.error("[whatsapp] no se pudo abrir el QR", err));
+  else stopWhatsApp();
+  revalidatePath("/settings");
+  return { ok: true as const };
+}
+
+export async function updateWhatsAppCloud(input: { phoneNumberId: string; accessToken: string; appSecret: string; templateName: string; templateLang: string }) {
+  await requireAdmin();
+  if (!/^\d{5,30}$/.test(input.phoneNumberId.trim())) return { ok: false as const, error: "El identificador del número son solo dígitos; se copia de Meta → WhatsApp → Configuración de la API." };
+  await saveCloudSettings(input);
+  const check = await verifyCloudConnection();
+  revalidatePath("/settings");
+  return check.ok ? { ok: true as const, displayNumber: check.displayNumber, name: check.name } : { ok: false as const, error: check.error };
+}
+
+export async function updateWhatsAppMonthlyLimit(limit: number) {
+  await requireAdmin();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100_000) return { ok: false as const, error: "El tope debe ser un número entre 1 y 100.000." };
+  await setWhatsAppMonthlyLimit(limit);
+  revalidatePath("/settings");
+  return { ok: true as const };
 }

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { absoluteUrl as absoluteUrlFromApp } from "@/lib/appUrl";
 import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendPushToUser } from "@/lib/push";
-import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus } from "@/lib/whatsapp";
+import { sendGroupAlert, sendDirectAlert, getWhatsAppStatus, whatsAppFailureReason } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isCurrentlyWorkingHour, isWorkingMoment, localDateKey, localParts } from "@/lib/workingHours";
 import { getHeaderAlertTasks } from "@/lib/headerAlerts";
@@ -784,7 +784,20 @@ export async function dispatchGroupAlertDigest() {
 // no se pueda alcanzar (sin teléfono, WhatsApp caído, error de envío) queda
 // en el reporte al administrador. Secuencial (no Promise.all) para no
 // ráfaguear el socket de WhatsApp.
+// Con la pausa entre mensajes una vuelta tarda minutos y el poller la llama cada minuto: sin esta
+// marca dos vueltas mandarían el mismo resumen dos veces.
+let dailyDigestRunning = false;
 export async function dispatchDailyDigests() {
+  if (dailyDigestRunning) return;
+  dailyDigestRunning = true;
+  try {
+    await runDailyDigests();
+  } finally {
+    dailyDigestRunning = false;
+  }
+}
+
+async function runDailyDigests() {
   const { workHoursStart, workHoursEnd, dailyDigestHour, dailyDigestMinute } = await getWhatsAppSettings();
   const countryCode = await getAppCountryCode();
   const now = new Date();
@@ -821,7 +834,7 @@ export async function dispatchDailyDigests() {
     const sent = await sendDirectAlert(user.phone, text);
     if (sent) digestsSent++;
     if (sent) await prisma.user.update({ where: { id: user.id }, data: { lastDigestSentAt: now, lastDigestScheduleKey: scheduleKey } });
-    else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío por WhatsApp" : "WhatsApp está desconectado" });
+    else failures.push({ name: user.name, reason: await whatsAppFailureReason() });
   }
 
   if (digestsSent > 0 || failures.length > 0) {
@@ -838,7 +851,7 @@ export async function dispatchDailyDigests() {
  * equipo activo o a una persona. No toca las marcas del envío programado.
  * Devuelve quién no lo recibió y por qué.
  */
-export async function sendDailyDigestNow(userId?: string) {
+export async function sendDailyDigestNow(userId?: string, urgent = false) {
   const users = await prisma.user.findMany({ where: { active: true, ...(userId ? { id: userId } : {}) }, select: { id: true, name: true, phone: true } });
   let sent = 0;
   const failures: { name: string; reason: string }[] = [];
@@ -852,8 +865,8 @@ export async function sendDailyDigestNow(userId?: string) {
       failures.push({ name: user.name, reason: "no tiene nada pendiente hoy" });
       continue;
     }
-    if (await sendDirectAlert(user.phone, text)) sent++;
-    else failures.push({ name: user.name, reason: getWhatsAppStatus().status === "connected" ? "falló el envío" : "WhatsApp está desconectado" });
+    if (await sendDirectAlert(user.phone, text, undefined, urgent)) sent++;
+    else failures.push({ name: user.name, reason: await whatsAppFailureReason() });
   }
   return { sent, failures };
 }

@@ -6,5 +6,5 @@ import { getWhatsAppHealth } from "@/lib/whatsapp";
 export async function GET() {
   const session = await auth();
   if (session?.user?.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  return NextResponse.json(getWhatsAppHealth());
+  return NextResponse.json(await getWhatsAppHealth());
 }

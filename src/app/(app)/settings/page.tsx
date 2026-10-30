@@ -13,6 +13,10 @@ import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { getBotSettings, getBotUsageByUser } from "@/lib/botSettings";
 import { getAvailableCountries } from "@/lib/holidays";
 import { WhatsAppConnectPanel } from "./WhatsAppConnectPanel";
+import { WhatsAppConnectionSettings } from "./WhatsAppConnectionSettings";
+import { getCloudSettingsView } from "@/lib/whatsappCloud";
+import { getWhatsAppUsage } from "@/lib/whatsappUsage";
+import { absoluteUrl } from "@/lib/appUrl";
 import { BotSettingsForm } from "./BotSettingsForm";
 import { FullBackupPanel } from "./FullBackupPanel";
 
@@ -34,7 +38,7 @@ export default async function SettingsPage({
 
   const { google_calendar, imported, usersCreated, importFailed, importError, backupRestored, backupError } = await searchParams;
   const isAdmin = session.user.role === "ADMIN";
-  const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings, botUsage] = await Promise.all([
+  const [me, connection, users, projects, countryCode, countries, whatsappSettings, botSettings, botUsage, whatsappCloud, whatsappUsage] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
       select: { name: true, email: true, username: true, avatarUrl: true, phone: true },
@@ -53,6 +57,8 @@ export default async function SettingsPage({
     isAdmin ? getWhatsAppSettings() : Promise.resolve(null),
     isAdmin ? getBotSettings() : Promise.resolve(null),
     isAdmin ? getBotUsageByUser() : Promise.resolve([]),
+    isAdmin ? getCloudSettingsView() : Promise.resolve(null),
+    isAdmin ? getWhatsAppUsage() : Promise.resolve(null),
   ]);
   const googleConfigured = isGoogleCalendarConfigured();
 
@@ -90,7 +96,22 @@ export default async function SettingsPage({
           <p className="text-sm text-slate-500">
             Vincula el número que va a mandar las alertas de tareas y proyectos al grupo del equipo.
           </p>
+          <WhatsAppConnectionSettings
+            connection={whatsappCloud!.connection}
+            phoneNumberId={whatsappCloud!.phoneNumberId}
+            accessTokenLast4={whatsappCloud!.accessTokenLast4}
+            appSecretLast4={whatsappCloud!.appSecretLast4}
+            verifyToken={whatsappCloud!.verifyToken}
+            templateName={whatsappCloud!.templateName}
+            templateLang={whatsappCloud!.templateLang}
+            lastError={whatsappCloud!.lastError}
+            webhookUrl={absoluteUrl("/api/whatsapp/cloud") ?? "/api/whatsapp/cloud"}
+            used={whatsappUsage!.used}
+            limit={whatsappUsage!.limit}
+          />
           <WhatsAppConnectPanel
+            connection={whatsappCloud!.connection}
+            showQr={whatsappCloud!.connection === "qr" || Boolean(botSettings?.groupMentionsEnabled)}
             currentGroupJid={whatsappSettings!.groupJid}
             workHoursStart={whatsappSettings!.workHoursStart}
             workHoursEnd={whatsappSettings!.workHoursEnd}
@@ -122,6 +143,7 @@ export default async function SettingsPage({
             introMessage={botSettings.introMessage}
             introMessageIsCustom={botSettings.introMessageIsCustom}
             whatsappChatEnabled={botSettings.whatsappChatEnabled}
+            groupMentionsEnabled={botSettings.groupMentionsEnabled}
           />
         </section>
       )}

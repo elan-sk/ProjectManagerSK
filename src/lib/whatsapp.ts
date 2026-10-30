@@ -1,4 +1,4 @@
-import type { WASocket } from "@whiskeysockets/baileys";
+import type { WASocket, WAMessage } from "@whiskeysockets/baileys";
 import { findUploadPath } from "@/lib/persistentUploads";
 import { rm, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -7,6 +7,11 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { getBotName, getBotAvatarBuffer, getBotIntroMessage } from "@/lib/botSettings";
 import { mimeFromFileName } from "@/lib/uploadLimits";
+import { absoluteUrl } from "@/lib/appUrl";
+import { APP_SETTING_ID } from "@/lib/appSettings";
+import { LIMIT_REACHED_REASON, recordWhatsAppSent, whatsAppLimitReached } from "@/lib/whatsappUsage";
+import { cloudSendImage, cloudSendTemplate, cloudSendText, getCloudConfig, getWhatsAppConnection } from "@/lib/whatsappCloud";
+import { cloudImageMime, isWindowOpen, noticeLink, oneLineSummary } from "@/lib/whatsappCloudFormat";
 
 // Alertas de WhatsApp vía sesión personal (estilo WhatsApp Web, no la API
 // oficial de Meta) — ver AGENTS.md. Se conecta una sola vez (al bootear el
@@ -26,6 +31,9 @@ type WhatsAppState = {
   lastDisconnectReason: string | null;
   lastDisconnectAt: number | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  // Fila de mensajes que inicia la app, con pausa entre uno y otro (ver paced).
+  paceChain?: Promise<unknown>;
+  nextSendAt?: number;
 };
 
 // ponytail: mismo patrón que prisma.ts (singleton en globalThis) — sin esto,
@@ -65,6 +73,28 @@ const RETRY_BASE_DELAY_MS = 2000;
 const RETRY_MAX_DELAY_MS = 60_000;
 const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
 
+// Pausa al azar entre mensajes que inicia la app (alertas, cola, resúmenes): una ráfaga desde un
+// número es de las señales más fuertes de spam para WhatsApp y puede bloquearlo. Las respuestas del
+// chat a quien escribe no pasan por acá. `urgent` (recuperar contraseña, prueba, pedidos al bot que
+// la persona espera) sale enseguida, pero igual corre la pausa del siguiente.
+// ponytail: fila en memoria; si el proceso se reinicia, lo pendiente vuelve a salir desde la cola.
+const PACE_MIN_MS = 20_000;
+const PACE_MAX_MS = 40_000;
+function paced(send: () => Promise<boolean>, urgent = false): Promise<boolean> {
+  const markSent = (sent: boolean) => {
+    if (sent) state.nextSendAt = Date.now() + PACE_MIN_MS + Math.random() * (PACE_MAX_MS - PACE_MIN_MS);
+    return sent;
+  };
+  if (urgent) return send().then(markSent);
+  const result = (state.paceChain ?? Promise.resolve()).then(async () => {
+    const wait = (state.nextSendAt ?? 0) - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    return markSent(await send());
+  });
+  state.paceChain = result.catch(() => false);
+  return result;
+}
+
 // Modo prueba: con WHATSAPP_ONLY_PHONE definido (solo en desarrollo), ÚNICAMENTE ese número puede
 // recibir mensajes; todo lo demás (otras personas y grupos) se descarta. En producción no se define.
 const blockedLogged = new Set<string>();
@@ -78,6 +108,45 @@ export function blockedByTestMode(jid: string) {
   return true;
 }
 
+type QrContent = Parameters<WASocket["sendMessage"]>[1];
+type QrOptions = Parameters<WASocket["sendMessage"]>[2];
+
+async function qrSend(jid: string, content: QrContent, options?: QrOptions) {
+  const sent = await state.sock!.sendMessage(jid, content, options);
+  void recordWhatsAppSent().catch((err) => console.error("[whatsapp] no se pudo contar el mensaje", err));
+  return sent;
+}
+
+export async function replyInGroup(groupJid: string, text: string, quoted: WAMessage | null) {
+  if (!state.sock || blockedByTestMode(groupJid)) return false;
+  try {
+    const botName = await getBotName();
+    await qrSend(groupJid, { text: `🤖 *${botName}*\n${text}` }, quoted ? { quoted } : undefined);
+    return true;
+  } catch (err) {
+    console.error("[whatsapp] no se pudo publicar en el grupo", err);
+    return false;
+  }
+}
+
+export function getQrSelf() {
+  return state.sock?.user ?? null;
+}
+
+export async function shouldRunQr() {
+  const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID }, select: { whatsappConnection: true, botGroupMentionsEnabled: true } });
+  return s?.whatsappConnection !== "cloud" || Boolean(s?.botGroupMentionsEnabled);
+}
+
+export async function whatsAppFailureReason() {
+  if (await whatsAppLimitReached()) return LIMIT_REACHED_REASON;
+  if ((await getWhatsAppConnection()) === "cloud") {
+    const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID }, select: { cloudLastError: true } });
+    return s?.cloudLastError ?? "falló el envío por la API oficial de WhatsApp";
+  }
+  return state.status === "connected" ? "falló el envío por WhatsApp" : "WhatsApp está desconectado";
+}
+
 export function getWhatsAppStatus() {
   return { status: state.status, qrDataUrl: state.qrDataUrl, hasSession: existsSync(path.join(AUTH_DIR, "creds.json")) };
 }
@@ -85,8 +154,21 @@ export function getWhatsAppStatus() {
 // Salud de la conexión para la alarma del header (solo admin). `expected` =
 // se espera que esté conectado (hay sesión guardada o se conectó a mano y no
 // se detuvo a propósito); si no, no hay nada que alarmar.
-export function getWhatsAppHealth() {
+export async function getWhatsAppHealth() {
   const hasSession = existsSync(path.join(AUTH_DIR, "creds.json"));
+  const settings = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID }, select: { whatsappConnection: true, botGroupMentionsEnabled: true, cloudLastError: true } });
+  if (settings?.whatsappConnection === "cloud") {
+    const config = await getCloudConfig();
+    const cloudReason = !config ? "Faltan datos de la API oficial de WhatsApp en Configuración." : settings.cloudLastError;
+    const qrDown = settings.botGroupMentionsEnabled && state.status !== "connected";
+    return {
+      status: cloudReason || qrDown ? ("disconnected" as const) : ("connected" as const),
+      expected: true,
+      needsQr: !cloudReason && qrDown && !hasSession,
+      reason: cloudReason ?? (qrDown ? `Número del QR para el grupo: ${state.lastDisconnectReason ?? "desconectado"}` : null),
+      since: state.lastDisconnectAt,
+    };
+  }
   const expected = !state.manualStop && (hasSession || process.env.WHATSAPP_ENABLED === "true");
   return {
     status: state.status,
@@ -99,9 +181,10 @@ export function getWhatsAppHealth() {
 
 // Vigilante (lo llama el poller cada minuto): si debería estar conectado y no
 // hay socket ni intento en curso ni reintento agendado, reconecta.
-export function ensureWhatsAppAlive() {
+export async function ensureWhatsAppAlive() {
   if (state.manualStop || state.sock || state.connecting || state.reconnectTimer) return;
   if (!existsSync(path.join(AUTH_DIR, "creds.json"))) return;
+  if (!(await shouldRunQr())) return;
   void startWhatsApp().catch((err) => console.error("[whatsapp] el vigilante no pudo reconectar", err));
 }
 
@@ -246,8 +329,21 @@ export async function listGroups() {
 // El link va al final (después de las menciones) en su propia línea, sin
 // nada pegado, para que WhatsApp lo detecte como clickeable. Con `inlineMentions` el cuerpo ya
 // trae sus "@teléfono" donde corresponde: no se agrega la línea de menciones al final.
-export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string, inlineMentions = false) {
-  if (!state.sock || blockedByTestMode(groupJid)) return false;
+export async function sendGroupAlert(groupJid: string, body: string, userIds: string[] = [], link?: string, inlineMentions = false, urgent = false) {
+  if (blockedByTestMode(groupJid)) return false;
+  if (!urgent && (await whatsAppLimitReached())) return false;
+  if ((await getWhatsAppConnection()) === "cloud") {
+    const people = await prisma.user.findMany({ where: { id: { in: userIds }, active: true, phone: { not: null } }, select: { phone: true } });
+    const text = `${body}${link ? `\n\n🔗 ${link}` : ""}`;
+    let any = false;
+    for (const p of people) if (await sendCloudNotice(p.phone!, text)) any = true;
+    return any;
+  }
+  return paced(() => sendGroupAlertNow(groupJid, body, userIds, link, inlineMentions), urgent);
+}
+
+async function sendGroupAlertNow(groupJid: string, body: string, userIds: string[], link: string | undefined, inlineMentions: boolean) {
+  if (!state.sock) return false;
 
   try {
     const botName = await getBotName();
@@ -264,7 +360,7 @@ export async function sendGroupAlert(groupJid: string, body: string, userIds: st
 
     // Los mensajes de grupo NUNCA llevan la foto de perfil del bot (decisión del
     // administrador): solo texto con el ícono 🤖 + nombre.
-    await state.sock.sendMessage(groupJid, { text, mentions });
+    await qrSend(groupJid, { text, mentions });
     return true;
   } catch (err) {
     console.error("[whatsapp] no se pudo enviar la alerta", err);
@@ -299,9 +395,9 @@ async function sendIntroMessage(jid: string, user: { id: string; username: strin
   const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
   const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}\n\nTu usuario para entrar es: *${user.username}*. Si olvidaste la contraseña, usá “¿Olvidaste tu contraseña?” en la pantalla de ingreso.`;
   if (avatar) {
-    await state.sock!.sendMessage(jid, { image: avatar, caption: introText });
+    await qrSend(jid, { image: avatar, caption: introText });
   } else {
-    await state.sock!.sendMessage(jid, { text: introText });
+    await qrSend(jid, { text: introText });
   }
   await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
 }
@@ -312,18 +408,46 @@ export async function sendWelcomeMessage(userId: string) {
   const user = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { id: true, username: true, phone: true } });
   if (!user?.phone) return false;
   const jid = `${user.phone}@s.whatsapp.net`;
-  if (!state.sock || blockedByTestMode(jid)) return false;
-  try {
-    await sendIntroMessage(jid, user);
-    return true;
-  } catch (err) {
-    console.error("[whatsapp] no se pudo enviar la bienvenida", err);
-    return false;
+  if (blockedByTestMode(jid)) return false;
+  if ((await getWhatsAppConnection()) === "cloud") {
+    const fresh = await prisma.user.findUnique({ where: { id: user.id }, select: { whatsappLastInboundAt: true } });
+    if (!isWindowOpen(fresh?.whatsappLastInboundAt)) {
+      await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: null } });
+      return "pending" as const;
+    }
+    try {
+      await sendCloudIntro(user.phone, user);
+      return true;
+    } catch {
+      return false;
+    }
   }
+  return paced(async () => {
+    if (!state.sock) return false;
+    try {
+      await sendIntroMessage(jid, user);
+      return true;
+    } catch (err) {
+      console.error("[whatsapp] no se pudo enviar la bienvenida", err);
+      return false;
+    }
+  }, true);
 }
 
-export async function sendRawMessage(jid: string, text: string, imageUrls?: string[]) {
+export async function sendRawMessage(jid: string, text: string, imageUrls?: string[], urgent = false) {
   if (blockedByTestMode(jid)) return false;
+  if (!urgent && (await whatsAppLimitReached())) return false;
+  if ((await getWhatsAppConnection()) === "cloud") {
+    if (jid.endsWith("@s.whatsapp.net")) return sendCloudNotice(jid.split("@")[0], text, imageUrls);
+    const phones = [...new Set([...text.matchAll(/@(\d{8,15})\b/g)].map((m) => m[1]))];
+    let any = false;
+    for (const phone of phones) if (await sendCloudNotice(phone, text)) any = true;
+    return any;
+  }
+  return paced(() => sendRawMessageNow(jid, text, imageUrls), urgent);
+}
+
+async function sendRawMessageNow(jid: string, text: string, imageUrls?: string[]) {
   if (!state.sock) {
     console.error(`[whatsapp] no se pudo enviar a ${jid}: no hay conexión activa.`);
     return false;
@@ -350,10 +474,10 @@ export async function sendRawMessage(jid: string, text: string, imageUrls?: stri
     // el resto (si hay más de una) como fotos sueltas a continuación.
     const sendFullText = async () => {
       if (images.length) {
-        await state.sock!.sendMessage(jid, { image: images[0], caption: fullText, mentions });
-        for (const img of images.slice(1)) await state.sock!.sendMessage(jid, { image: img });
+        await qrSend(jid, { image: images[0], caption: fullText, mentions });
+        for (const img of images.slice(1)) await qrSend(jid, { image: img });
       } else {
-        await state.sock!.sendMessage(jid, { text: fullText, mentions });
+        await qrSend(jid, { text: fullText, mentions });
       }
     };
 
@@ -375,8 +499,57 @@ export async function sendRawMessage(jid: string, text: string, imageUrls?: stri
 // DM directo a una persona (fono en formato internacional sin "+", ej.
 // "573144018901") — usado para las alertas de bajo impacto que le competen
 // solo a esa persona.
-export async function sendDirectAlert(phone: string, text: string, imageUrls?: string[]) {
-  return sendRawMessage(`${phone}@s.whatsapp.net`, text, imageUrls);
+async function sendCloudNotice(phone: string, text: string, imageUrls?: string[]) {
+  const config = await getCloudConfig();
+  if (!config) {
+    console.error("[whatsapp-cloud] faltan datos de la API oficial; no se envía.");
+    return false;
+  }
+  const user = await prisma.user.findFirst({
+    where: { phone, deletedAt: null },
+    select: { id: true, name: true, username: true, whatsappLastInboundAt: true, whatsappIntroducedAt: true },
+  });
+  try {
+    if (isWindowOpen(user?.whatsappLastInboundAt)) {
+      if (user && !user.whatsappIntroducedAt) await sendCloudIntro(phone, user);
+      const fullText = `🤖 *${await getBotName()}*\n${text}`;
+      const images = (imageUrls?.length ? await loadImageBuffers(imageUrls) : []).flatMap((buffer) => {
+        const mime = cloudImageMime(buffer);
+        return mime ? [{ buffer, mime }] : [];
+      });
+      if (images.length) {
+        await cloudSendImage(config, phone, images[0].buffer, images[0].mime, fullText);
+        for (const img of images.slice(1)) await cloudSendImage(config, phone, img.buffer, img.mime);
+      } else {
+        await cloudSendText(config, phone, fullText);
+      }
+    } else {
+      await cloudSendTemplate(config, phone, [user?.name ?? "equipo", oneLineSummary(text), noticeLink(text, absoluteUrl("/dashboard") ?? "")]);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sendCloudIntro(phone: string, user: { id: string; username: string }) {
+  const config = await getCloudConfig();
+  if (!config) return;
+  const [botName, avatar] = await Promise.all([getBotName(), getBotAvatarBuffer()]);
+  const introText = `🤖 *${botName}*\n${await getBotIntroMessage()}\n\nTu usuario para entrar es: *${user.username}*. Si olvidaste la contraseña, usá “¿Olvidaste tu contraseña?” en la pantalla de ingreso.`;
+  const avatarMime = avatar ? cloudImageMime(avatar) : null;
+  if (avatar && avatarMime) await cloudSendImage(config, phone, avatar, avatarMime, introText);
+  else await cloudSendText(config, phone, introText);
+  await prisma.user.update({ where: { id: user.id }, data: { whatsappIntroducedAt: new Date() } });
+}
+
+export async function sendCloudChatIntroIfNeeded(phone: string, userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, whatsappIntroducedAt: true } });
+  if (user && !user.whatsappIntroducedAt) await sendCloudIntro(phone, user);
+}
+
+export async function sendDirectAlert(phone: string, text: string, imageUrls?: string[], urgent = false) {
+  return sendRawMessage(`${phone}@s.whatsapp.net`, text, imageUrls, urgent);
 }
 
 export function getChatSocket() {
@@ -388,13 +561,13 @@ export async function sendChatReply(jid: string, userId: string, parts: string[]
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, whatsappIntroducedAt: true } });
     if (user && !user.whatsappIntroducedAt) await sendIntroMessage(jid, user);
-    for (const text of parts) await state.sock.sendMessage(jid, { text });
+    for (const text of parts) await qrSend(jid, { text });
     for (const file of files) {
       const filePath = await findUploadPath(file.url);
       if (!filePath) continue;
       const buffer = await readFile(filePath).catch(() => null);
       if (!buffer) continue;
-      await state.sock.sendMessage(jid, { document: buffer, fileName: file.name, mimetype: mimeFromFileName(file.name, file.url) || "application/octet-stream" });
+      await qrSend(jid, { document: buffer, fileName: file.name, mimetype: mimeFromFileName(file.name, file.url) || "application/octet-stream" });
     }
     return true;
   } catch (err) {
@@ -406,7 +579,7 @@ export async function sendChatReply(jid: string, userId: string, parts: string[]
 export async function sendConfirmPoll(jid: string, question: string, options: [string, string]) {
   if (!state.sock || blockedByTestMode(jid)) return null;
   try {
-    return (await state.sock.sendMessage(jid, { poll: { name: question, values: options, selectableCount: 1 } })) ?? null;
+    return (await qrSend(jid, { poll: { name: question, values: options, selectableCount: 1 } })) ?? null;
   } catch (err) {
     console.error("[whatsapp] no se pudo enviar la encuesta de confirmación", err);
     return null;

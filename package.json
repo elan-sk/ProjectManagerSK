@@ -19,6 +19,7 @@
     "verify:credentials": "tsx --env-file=.env scripts/verify-credentials.ts",
     "verify:delete-user": "tsx --env-file=.env scripts/verify-delete-user.ts",
     "verify:whatsapp-chat": "tsx --env-file=.env scripts/verify-whatsapp-chat.ts",
+    "verify:whatsapp-cloud": "tsx scripts/verify-whatsapp-cloud.ts",
     "verify:on-time-rate": "tsx scripts/verify-on-time-rate.ts",
     "verify:bot-file-prep": "tsx scripts/verify-bot-file-prep.ts",
     "verify:bot-openai": "tsx scripts/verify-bot-openai.ts",

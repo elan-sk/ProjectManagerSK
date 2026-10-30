@@ -72,7 +72,9 @@ export async function requestPasswordReset(identifier: string, phone: string) {
   const link = `${base}/login/recuperar/${rawToken}`;
   await sendDirectAlert(
     user.phone,
-    `Recuperación de contraseña — ProjectManagerSK\nUsá este link para elegir una nueva contraseña (válido 30 minutos):\n${link}\n\nSi no fuiste vos, ignorá este mensaje.`
+    `Recuperación de contraseña — ProjectManagerSK\nUsá este link para elegir una nueva contraseña (válido 30 minutos):\n${link}\n\nSi no fuiste vos, ignorá este mensaje.`,
+    undefined,
+    true
   );
 
   return genericResult;

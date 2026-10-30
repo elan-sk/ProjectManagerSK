@@ -38,6 +38,7 @@ export async function getBotSettings() {
     introMessage: s?.botIntroMessage?.trim() || buildDefaultBotIntroMessage(s?.botName ?? "Chontatec"),
     introMessageIsCustom: Boolean(s?.botIntroMessage?.trim()),
     whatsappChatEnabled: s?.botWhatsappChatEnabled ?? false,
+    groupMentionsEnabled: s?.botGroupMentionsEnabled ?? false,
   };
 }
 
@@ -201,6 +202,14 @@ export async function checkAndConsumeBotQuestion(): Promise<{ ok: true; remainin
 export async function isWhatsappChatEnabled(): Promise<boolean> {
   const s = await prisma.appSetting.findUnique({ where: { id: APP_SETTING_ID }, select: { botWhatsappChatEnabled: true } });
   return s?.botWhatsappChatEnabled ?? false;
+}
+
+export async function setGroupMentionsEnabled(enabled: boolean) {
+  await prisma.appSetting.upsert({
+    where: { id: APP_SETTING_ID },
+    create: { id: APP_SETTING_ID, botGroupMentionsEnabled: enabled },
+    update: { botGroupMentionsEnabled: enabled },
+  });
 }
 
 export async function setWhatsappChatEnabled(enabled: boolean) {

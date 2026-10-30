@@ -19,10 +19,12 @@ export async function register() {
     .catch((err) => console.error("[instrumentation] compresión de imágenes falló", err));
 
   if (process.env.WHATSAPP_ENABLED === "true") {
-    const { startWhatsApp } = await import("@/lib/whatsapp");
+    const { startWhatsApp, shouldRunQr } = await import("@/lib/whatsapp");
     // Mismo criterio que scheduler.ts: si falla la conexión, que quede en
     // el log, no que tumbe el arranque de todo el server.
-    startWhatsApp().catch((err) => console.error("[instrumentation] startWhatsApp falló", err));
+    shouldRunQr()
+      .then((run) => (run ? startWhatsApp() : undefined))
+      .catch((err) => console.error("[instrumentation] startWhatsApp falló", err));
   }
 
   // Poller de escalamiento (cola de horario laboral + recordatorios de

@@ -77,6 +77,8 @@ import {
 } from "@/app/(app)/projects/[id]/tasks/[taskId]/actions";
 import type { TaskStatus } from "@prisma/client";
 import { sendDirectAlert, sendGroupAlert, sendWelcomeMessage } from "@/lib/whatsapp";
+import { getWhatsAppConnection } from "@/lib/whatsappCloud";
+import { postGroupResult } from "@/lib/whatsappGroupRequests";
 import { contextActor } from "@/lib/actorContext";
 import { normalizePhone, toWhatsAppText } from "@/lib/whatsappFormat";
 import { getWhatsAppSettings } from "@/lib/appSettings";
@@ -112,6 +114,16 @@ const FILE_REFS = {
 };
 
 export const READ_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "post_group_result",
+    description:
+      "Publica en el grupo de WhatsApp el resultado de un pedido que la persona hizo mencionando al bot en el grupo (su mensaje empieza con «[Pedido hecho en el grupo…»). Una sola vez, al terminar o si no se pudo, con un texto corto (qué se hizo y el link de lo creado o cambiado, o en una línea por qué no se pudo). Las preguntas a la persona van por este chat, nunca al grupo.",
+    input_schema: {
+      type: "object",
+      properties: { text: { type: "string", description: "Resultado listo para leer en el grupo." } },
+      required: ["text"],
+    },
+  },
   {
     name: "send_to_other_channel",
     description:
@@ -1009,6 +1021,11 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
   const userId = await currentUserId();
 
   switch (name) {
+    case "post_group_result": {
+      const { text } = z.object({ text: z.string().trim().min(1).max(2000) }).parse(input);
+      const result = await postGroupResult(userId, toWhatsAppText(text));
+      return JSON.stringify(result.ok ? { ok: true, nota: "Publicado en el grupo." } : { error: result.error });
+    }
     case "send_to_other_channel": {
       const { text } = z.object({ text: z.string().min(1) }).parse(input);
       const channel = contextActor()?.channel ?? "web";
@@ -1019,7 +1036,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { phone: true } });
       const phone = normalizePhone(me.phone);
       if (!phone) return JSON.stringify({ error: "La persona no tiene un número de WhatsApp cargado en su perfil." });
-      const sent = await sendDirectAlert(phone, toWhatsAppText(text));
+      const sent = await sendDirectAlert(phone, toWhatsAppText(text), undefined, true);
       if (!sent) return JSON.stringify({ error: "WhatsApp no está conectado en este momento; no se pudo enviar." });
       await prisma.botMessage.create({ data: { userId, role: "assistant", channel: "whatsapp", content: JSON.stringify([{ type: "text", text }]) } });
       return JSON.stringify({ ok: true, nota: "Enviado al WhatsApp de esta persona." });
@@ -1583,7 +1600,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { phone: true, name: true } });
         if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
         if (/contrase(?:ñ|n)a|password/i.test(message)) return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
-        const sent = await sendDirectAlert(recipient.phone, message);
+        const sent = await sendDirectAlert(recipient.phone, message, undefined, true);
         return { ok: sent, message: sent ? `Listo, se envió el WhatsApp a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar el mensaje." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
@@ -1615,10 +1632,13 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         if (taskId !== undefined && !task) return { ok: false, message: "Esa tarea no pertenece al proyecto indicado." };
         if (project.hidden) return { ok: false, message: "Este proyecto está oculto y no envía mensajes a grupos de WhatsApp." };
 
+        if (!task && (await getWhatsAppConnection()) === "cloud") {
+          return { ok: false, message: "Con la API oficial de WhatsApp no se puede escribir en grupos; indique una tarea para avisarles por privado a sus responsables." };
+        }
         const groupJid = project.whatsappGroupJid ?? whatsapp.groupJid;
         if (!groupJid) return { ok: false, message: "Este proyecto no tiene un grupo de WhatsApp configurado." };
         const implicatedUserIds = task ? Array.from(new Set([project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])) : [];
-        const sent = await sendGroupAlert(groupJid, message, implicatedUserIds);
+        const sent = await sendGroupAlert(groupJid, message, implicatedUserIds, undefined, false, true);
         if (!sent) return { ok: false, message: "WhatsApp no está conectado; no se pudo enviar el mensaje al grupo." };
         return task
           ? {
@@ -2410,6 +2430,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { name: true, phone: true } });
         if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
         const sent = await sendWelcomeMessage(userId);
+        if (sent === "pending") return { ok: true, message: `Con la API oficial de WhatsApp, la bienvenida le llega a ${recipient.name} apenas le escriba al bot.` };
         return { ok: sent, message: sent ? `Listo, se envió la bienvenida a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar la bienvenida." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
@@ -2419,7 +2440,12 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     case "send_daily_digest": {
       try {
         const { userId } = z.object({ userId: z.string().optional() }).parse(input);
-        const result = await sendDailyDigestNow(userId);
+        if (!userId) {
+          // A todo el equipo sale de a uno con pausas (minutos): no se espera dentro del chat.
+          void sendDailyDigestNow().catch((err) => console.error("[bot] falló el resumen manual al equipo", err));
+          return { ok: true, message: "El resumen se está enviando a todo el equipo, de a una persona con pausas; puede tardar unos minutos." };
+        }
+        const result = await sendDailyDigestNow(userId, true);
         const failed = result.failures.length
           ? ` No llegó a: ${result.failures.map((f) => `${f.name} (${f.reason})`).join("; ")}.`
           : "";

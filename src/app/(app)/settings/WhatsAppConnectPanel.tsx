@@ -67,7 +67,11 @@ export function WhatsAppConnectPanel({
   workHoursEnd,
   dailyDigestHour,
   dailyDigestMinute,
+  connection,
+  showQr,
 }: {
+  connection: "qr" | "cloud";
+  showQr: boolean;
   currentGroupJid: string | null;
   workHoursStart: number;
   workHoursEnd: number;
@@ -137,9 +141,10 @@ export function WhatsAppConnectPanel({
 
   return (
     <div className="space-y-4">
-      {status === "connected" && <p className="text-sm text-emerald-600">Conectado.</p>}
+      {showQr && connection === "cloud" && <p className="text-sm font-medium text-slate-700">Número del QR para el grupo</p>}
+      {showQr && status === "connected" && <p className="text-sm text-emerald-600">Conectado.</p>}
 
-      {(status === "connected" || status === "connecting") && (
+      {showQr && (status === "connected" || status === "connecting") && (
         <button
           type="button"
           disabled={isPending}
@@ -164,7 +169,7 @@ export function WhatsAppConnectPanel({
         </button>
       )}
 
-      {(hasSession || status === "connected") && (
+      {showQr && (hasSession || status === "connected") && (
         <button
           type="button"
           disabled={isPending}
@@ -191,7 +196,7 @@ export function WhatsAppConnectPanel({
         </button>
       )}
 
-      {status !== "connected" && (
+      {showQr && status !== "connected" && (
         <button
           disabled={isPending}
           onClick={() =>
@@ -213,7 +218,7 @@ export function WhatsAppConnectPanel({
         </button>
       )}
 
-      {qrDataUrl && (
+      {showQr && qrDataUrl && (
         <div className="space-y-1">
           {/* eslint-disable-next-line @next/next/no-img-element -- data URL, no aplica optimización de next/image */}
           <img src={qrDataUrl} alt="Código QR de WhatsApp" className="h-56 w-56" />
@@ -224,7 +229,7 @@ export function WhatsAppConnectPanel({
       )}
       {connectionError && <p className="text-xs text-red-600">{connectionError}</p>}
 
-      {status === "connected" && (
+      {(connection === "cloud" || status === "connected") && (
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -257,12 +262,12 @@ export function WhatsAppConnectPanel({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={isPending || status !== "connected"}
-              title={status !== "connected" ? "Conectá WhatsApp primero" : undefined}
+              disabled={isPending || (connection !== "cloud" && status !== "connected")}
+              title={connection !== "cloud" && status !== "connected" ? "Falta conectar WhatsApp" : undefined}
               onClick={() =>
                 startTransition(async () => {
                   const r = await sendStaleQueue();
-                  setStaleMsg(`Enviadas: ${r.sent}${r.failed ? ` · fallaron: ${r.failed}` : ""}.`);
+                  setStaleMsg(r.alreadySending ? "Ya se están enviando." : `Se están enviando ${r.queued}, de a una con pausas.`);
                   setStale(await getStaleQueue());
                 })
               }

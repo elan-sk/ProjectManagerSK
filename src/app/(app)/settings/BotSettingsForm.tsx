@@ -11,6 +11,7 @@ import {
   updateBotPersonaPrompt,
   updateBotIntroMessage,
   updateWhatsappChatEnabled,
+  updateGroupMentionsEnabled,
 } from "./botActions";
 import { Avatar } from "@/components/Avatar";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
@@ -32,6 +33,7 @@ export function BotSettingsForm({
   introMessage,
   introMessageIsCustom,
   whatsappChatEnabled,
+  groupMentionsEnabled,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -48,6 +50,7 @@ export function BotSettingsForm({
   introMessage: string;
   introMessageIsCustom: boolean;
   whatsappChatEnabled: boolean;
+  groupMentionsEnabled: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -394,6 +397,24 @@ export function BotSettingsForm({
             className="rounded border-slate-300"
           />
           <span>Responder por WhatsApp</span>
+        </label>
+        <label data-feature-hint="bot-group-mentions" className="mt-2 flex w-fit items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={groupMentionsEnabled}
+            disabled={isPending}
+            onChange={(event) => {
+              const enabled = event.target.checked;
+              setError(null);
+              startTransition(async () => {
+                const result = await updateGroupMentionsEnabled(enabled);
+                if (!result.ok) setError("No se pudo guardar.");
+                else router.refresh();
+              });
+            }}
+            className="rounded border-slate-300"
+          />
+          <span>Atender menciones en grupos</span>
         </label>
       </div>
 

@@ -150,6 +150,7 @@ model User {
   // primer mensaje va con la presentación del bot + foto de perfil; de ahí
   // en más, solo ícono 🤖 + nombre, sin foto.
   whatsappIntroducedAt  DateTime?
+  whatsappLastInboundAt DateTime?
   // Último día (calendario Bogotá) en que se le mandó el resumen diario de
   // WhatsApp. La clave conserva además la hora configurada para permitir un
   // nuevo envío el mismo día si un administrador cambia ese horario.
@@ -877,6 +878,19 @@ model AppSetting {
   botMonthlyQuestionLimit    Int       @default(300)
   botQuestionsUsedThisPeriod Int       @default(0)
   botUsagePeriodStart        DateTime?
+  botGroupMentionsEnabled    Boolean   @default(false)
+  whatsappConnection         String    @default("qr")
+  cloudPhoneNumberId         String?
+  cloudAccessToken           String?   @db.Text
+  cloudAppSecret             String?   @db.Text
+  cloudVerifyToken           String?
+  cloudTemplateName          String?
+  cloudTemplateLang          String    @default("es")
+  cloudLastError             String?   @db.Text
+  whatsappMonthlyLimit       Int       @default(1500)
+  whatsappSentThisPeriod     Int       @default(0)
+  whatsappPeriodStart        DateTime?
+  whatsappLimitWarnedPct     Int       @default(0)
 }
 
 // Historial de chat con Chontatec (ver src/lib/chontatec.ts). Log plano

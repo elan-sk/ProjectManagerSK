@@ -1,0 +1,29 @@
+digraph G {
+  rankdir=LR; nodesep=0.35; ranksep=0.6; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_app { label="App (ProjectManagerSK)"; fontsize=12; color="#9E9E9E";
+    avisos [label="Avisos automáticos\n(resumen, alertas, cola, reunión)", fillcolor="#E0E0E0", color="#757575"];
+    bot [label="Bot (IA configurada)\nmismos permisos de la persona", fillcolor="#E0E0E0", color="#757575"];
+    selector [label="Selector «Conexión»\nQR / API oficial", fillcolor="#C8E6C9", color="#2E7D32"];
+    tope [label="Tope mensual de mensajes\n(1.500, aviso 80 % y 100 %)", fillcolor="#C8E6C9", color="#2E7D32"];
+    envio [label="Envío de WhatsApp\n(elige conexión, cuenta, pausas solo QR)", fillcolor="#FFE0B2", color="#EF6C00"];
+    chat [label="Chat por WhatsApp\n(texto, voz, imagen, documento)", fillcolor="#FFE0B2", color="#EF6C00"];
+    reenv [label="Reenvíos juntos\n= un pedido", fillcolor="#C8E6C9", color="#2E7D32"];
+    grupo [label="Pedidos por @mención en el grupo\n(mensaje citado + 20 mensajes recientes)", fillcolor="#C8E6C9", color="#2E7D32"];
+    resultado [label="Resultado con link\npublicado en el grupo", fillcolor="#C8E6C9", color="#2E7D32"];
+  }
+  qr [label="Conexión QR (Baileys)\nrespaldo / solo grupo", fillcolor="#FFE0B2", color="#EF6C00"];
+  meta [label="API oficial de Meta\n(texto, plantilla, botones)", fillcolor="#C8E6C9", color="#2E7D32"];
+  webhook [label="Webhook /api/whatsapp/cloud\n(firma de Meta)", fillcolor="#C8E6C9", color="#2E7D32"];
+  equipo [label="Equipo en WhatsApp\n(privado y grupo)", fillcolor="#E0E0E0", color="#757575"];
+
+  avisos -> envio; bot -> envio; selector -> envio; tope -> envio;
+  envio -> meta [label="API elegida"]; envio -> qr [label="QR elegido"];
+  meta -> equipo; qr -> equipo;
+  equipo -> webhook [label="escribe al bot"]; webhook -> chat;
+  qr -> chat [label="privado al QR"]; qr -> grupo [label="@mención"];
+  chat -> reenv; reenv -> bot; chat -> bot; grupo -> bot;
+  bot -> resultado; resultado -> qr;
+}
