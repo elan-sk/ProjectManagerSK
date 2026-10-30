@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "predev": "prisma generate",
     "dev": "next dev",
-    "build": "chmod +x node_modules/@prisma/engines/schema-engine-* 2>/dev/null; prisma migrate deploy && NODE_OPTIONS=--max-old-space-size=1792 tsc --noEmit && next build --webpack",
+    "build": "chmod +x node_modules/@prisma/engines/schema-engine-* 2>/dev/null; prisma migrate deploy && NODE_OPTIONS=--max-old-space-size=1792 tsc --noEmit && NODE_OPTIONS=--max-old-space-size=2048 next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
