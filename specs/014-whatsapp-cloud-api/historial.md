@@ -17,3 +17,5 @@
 - 2026-10-30 — T9: Configuración (selector, datos de Meta, tope), casilla en Bot, alarma, arranque, borrado de usuario, 2 avisos de novedad.
 - 2026-10-30 — Verificación: tsc OK, eslint OK (3 avisos previos), verify:whatsapp-cloud/whatsapp-chat/bot-history/bot-openai/bot-usage-reset/delete-user OK.
 - 2026-10-30 — Validación: webhook en local (token malo 403, token bueno devuelve el reto, POST sin firma 401); /settings compila. Sin probar en vivo: envíos reales por Meta y menciones en un grupo real. Estado: implementada.
+- 2026-10-30 — Subido a master: commit 9a79655 (deploy automático al VPS).
+- 2026-10-30 — Primer deploy falló por memoria en next build; fix 5f56b02 (2 GB). Deploy OK; webhook en producción: token malo 403, sin firma 401.
