@@ -86,7 +86,7 @@ Si una llamada devuelve **403**, es un problema de permiso real (avisale a la pe
 - `DELETE /api/v1/projects/:id/links/:linkId` — quita un link de la Definición.
 - `POST /api/v1/projects/:id/repos` — `{ "url" }` agrega un repositorio (el primero queda como principal). `DELETE /api/v1/projects/:id/repos?url=…` lo quita.
 - `POST /api/v1/projects/:id/phases/reorder` — `{ "phaseIds": [...] }` con TODAS las fases en el orden nuevo.
-- `POST /api/v1/projects/:id/tasks/merge` — `{ "taskIds": [2 o más], "title" }` combina tareas en una (no aplica a Prueba/Ajuste/Aceptación). Devuelve `{ id }`.
+- `POST /api/v1/projects/:id/tasks/merge` — `{ "taskIds": [2 o más], "title" }` combina tareas en una (no aplica a Prueba/Ajuste/Aceptación). Devuelve `{ id }`. **Revisar que la tarea combinada quede con las etiquetas del proyecto.**
 - `POST /api/v1/projects/:id/reassign-pm` — `{ "pmId": "string" }`. Requiere PM/admin.
 - `POST /api/v1/projects/:id/move-group` — mueve varias tareas el mismo delta de días hábiles: `{ "taskIds": ["..."], "deltaDays": 2 }`. Requiere PM/admin.
 
@@ -120,7 +120,7 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 ### Tareas
 
 - `GET /api/v1/projects/:id/tasks` — lista las tareas de un proyecto.
-- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin. Acepta `requirementIds` opcional: los requerimientos del mismo proyecto a los que responde la tarea (uno o varios).
+- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin. Acepta `requirementIds` opcional: los requerimientos del mismo proyecto a los que responde la tarea (uno o varios). **Etiquetas: después de crearla, `POST /tasks/:id/tags` con las mismas categorías que usan sus tareas hermanas (ver «Etiquetas», regla dura).**
   ```json
   {
     "phaseId": "string",
@@ -155,6 +155,10 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 - `DELETE /api/v1/tasks/:id/dependencies/:dependencyId` — Requiere PM/admin.
 
 `expectedUpdatedAt` (el `updatedAt` de la tarea al leerla) es opcional pero recomendado — si alguien más la cambió mientras tanto, la llamada rechaza en vez de pisar ese cambio.
+
+#### REGLA DURA: etiquetas en toda tarea de PMSK (usuario 2026-11-02)
+
+Toda tarea que se cree en PMSK lleva las etiquetas que usa su proyecto (p. ej. `Sprint | Sprint N`, `Componente | <nombre>`), y toda tarea que se toque se revisa: si le falta alguna, se agrega. Antes de crear, mirar las tareas hermanas (`GET /projects/:id`) y las categorías (`GET /tags`). Aplica a desarrollo, Prueba, Ajuste, Aceptación, Entregable, subproyectos, duplicadas y combinadas. Al cerrar, comprobar que cada tarea creada o tocada las tenga. Detalle en «Etiquetas».
 
 #### Asignados, revisores, checklist, etiquetas
 
