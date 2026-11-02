@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "@/lib/useAppRouter";
-import { addMonths, eachDayOfInterval, endOfMonth, format, getDay, isAfter, isBefore, isSameDay, parseISO, startOfMonth, subMonths } from "date-fns";
+import { addMonths, eachDayOfInterval, endOfMonth, format, getDay, isAfter, isBefore, isSameDay, isToday, parseISO, startOfMonth, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 
 const WEEKDAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
@@ -49,9 +49,10 @@ function Month({
           const isStart = from && isSameDay(day, from);
           const isEnd = rangeEnd && isSameDay(day, rangeEnd);
           const inRange = from && rangeEnd && isAfter(day, from) && isBefore(day, rangeEnd);
+          const today = isToday(day) ? "font-semibold ring-1 ring-inset ring-[#0a6b78]" : "";
           if (disableWeekends && [0, 6].includes(getDay(day))) {
             return (
-              <span key={day.toISOString()} className={`flex h-8 items-center justify-center text-xs text-slate-300 ${inRange ? "bg-[#0a6b78]/10" : ""}`}>
+              <span key={day.toISOString()} className={`flex h-8 items-center justify-center rounded-lg text-xs text-slate-300 ${inRange ? "bg-[#0a6b78]/10" : ""} ${today}`}>
                 {format(day, "d")}
               </span>
             );
@@ -71,7 +72,7 @@ function Month({
                   : "text-slate-700 hover:bg-slate-100"
               } ${isStart && rangeEnd && !isSameDay(from!, rangeEnd) ? "rounded-l-lg" : isStart ? "rounded-lg" : ""} ${
                 isEnd && from && !isSameDay(from, rangeEnd!) ? "rounded-r-lg" : isEnd ? "rounded-lg" : ""
-              } ${!isStart && !isEnd && !inRange ? "rounded-lg" : ""}`}
+              } ${!isStart && !isEnd && !inRange ? "rounded-lg" : ""} ${today}`}
             >
               {format(day, "d")}
             </button>

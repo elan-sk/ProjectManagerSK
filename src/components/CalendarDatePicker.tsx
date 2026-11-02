@@ -10,6 +10,7 @@ import {
   getDay,
   isSameDay,
   isSameMonth,
+  isToday,
   isWeekend,
   startOfMonth,
   subMonths,
@@ -171,7 +172,7 @@ export function CalendarDatePicker({
                     !isSameMonth(day, viewMonth) ? "text-slate-300" : weekend ? "text-slate-300" : "text-slate-700"
                   } ${selected ? "bg-slate-900 text-white" : inPreview ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"} ${
                     weekend ? "cursor-not-allowed" : ""
-                  }`}
+                  } ${isToday(day) ? "font-semibold ring-1 ring-inset ring-[#0a6b78]" : ""}`}
                 >
                   {format(day, "d")}
                 </button>
