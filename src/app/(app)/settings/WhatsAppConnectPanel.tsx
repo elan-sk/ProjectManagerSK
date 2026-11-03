@@ -132,12 +132,13 @@ export function WhatsAppConnectPanel({
     return () => clearInterval(interval);
   }, [status]);
 
+  const [groupAttempt, setGroupAttempt] = useState(0);
   useEffect(() => {
     if (status !== "connected" || groups) return;
     whatsAppGroups()
       .then(setGroups)
       .catch(() => setGroupError("No se pudieron cargar los grupos."));
-  }, [status, groups]);
+  }, [status, groups, groupAttempt]);
 
   return (
     <div className="space-y-4">
@@ -297,7 +298,21 @@ export function WhatsAppConnectPanel({
       {status === "connected" && (
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Grupo por defecto (alertas de proyectos sin grupo propio)</label>
-          {groupError && <p className="text-xs text-red-600">{groupError}</p>}
+          {groupError && (
+            <p className="flex items-center gap-2 text-xs text-red-600">
+              {groupError}
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupError(null);
+                  setGroupAttempt((n) => n + 1);
+                }}
+                className="rounded border border-slate-300 px-2 py-0.5 text-slate-700 hover:bg-slate-50"
+              >
+                Reintentar
+              </button>
+            </p>
+          )}
           <select
             value={selectedGroup}
             disabled={!groups}

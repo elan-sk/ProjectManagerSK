@@ -320,8 +320,19 @@ async function connect() {
 // proyecto. Vacío si no hay conexión activa.
 export async function listGroups() {
   if (!state.sock) return [];
-  const groups = await state.sock.groupFetchAllParticipating();
-  return Object.values(groups).map((g) => ({ id: g.id, name: g.subject }));
+  // Justo al conectar, WhatsApp suele rechazar la consulta mientras sincroniza: 3 intentos antes de fallar.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const groups = await state.sock.groupFetchAllParticipating();
+      return Object.values(groups).map((g) => ({ id: g.id, name: g.subject }));
+    } catch (err) {
+      if (attempt >= 3 || !state.sock) {
+        console.error("[whatsapp] no se pudieron listar los grupos", err);
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
 }
 
 // Best-effort: nunca tira error hacia notify(), si WhatsApp no está

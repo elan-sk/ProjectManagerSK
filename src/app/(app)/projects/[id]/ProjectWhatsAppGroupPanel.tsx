@@ -10,14 +10,33 @@ export function ProjectWhatsAppGroupPanel({ projectId, currentGroupJid }: { proj
   const [groups, setGroups] = useState<{ id: string; name: string }[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupAttempt, setGroupAttempt] = useState(0);
 
   useEffect(() => {
-    projectWhatsAppGroups(projectId).then(setGroups);
-  }, [projectId]);
+    projectWhatsAppGroups(projectId)
+      .then(setGroups)
+      .catch(() => setGroupError("No se pudieron cargar los grupos."));
+  }, [projectId, groupAttempt]);
 
   return (
     <div className="space-y-1">
       <p className="text-sm font-medium text-slate-700">Grupo de WhatsApp del proyecto</p>
+      {groupError && (
+        <p className="flex items-center gap-2 text-xs text-red-600">
+          {groupError}
+          <button
+            type="button"
+            onClick={() => {
+              setGroupError(null);
+              setGroupAttempt((n) => n + 1);
+            }}
+            className="rounded border border-slate-300 px-2 py-0.5 text-slate-700 hover:bg-slate-50"
+          >
+            Reintentar
+          </button>
+        </p>
+      )}
       <select
         defaultValue={currentGroupJid ?? ""}
         disabled={!groups || isPending}
@@ -37,7 +56,7 @@ export function ProjectWhatsAppGroupPanel({ projectId, currentGroupJid }: { proj
           </option>
         ))}
       </select>
-      {!groups && <p className="text-xs text-slate-400">Cargando grupos… (requiere WhatsApp conectado)</p>}
+      {!groups && !groupError && <p className="text-xs text-slate-400">Cargando grupos… (requiere WhatsApp conectado)</p>}
       {saved && <p className="text-xs text-emerald-600">Guardado.</p>}
     </div>
   );
