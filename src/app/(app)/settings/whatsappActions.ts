@@ -30,9 +30,9 @@ export async function whatsAppStatus() {
   return getWhatsAppStatus();
 }
 
-export async function whatsAppGroups() {
+export async function whatsAppGroups(refresh = false) {
   await requireAdmin();
-  return listGroups();
+  return listGroups(refresh);
 }
 
 export async function updateDefaultWhatsAppGroup(groupJid: string) {

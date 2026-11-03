@@ -1,6 +1,6 @@
-import type { WASocket, WAMessage } from "@whiskeysockets/baileys";
+import type { WASocket, WAMessage, GroupMetadata } from "@whiskeysockets/baileys";
 import { findUploadPath } from "@/lib/persistentUploads";
-import { rm, readFile } from "node:fs/promises";
+import { rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import QRCode from "qrcode";
@@ -34,6 +34,8 @@ type WhatsAppState = {
   // Fila de mensajes que inicia la app, con pausa entre uno y otro (ver paced).
   paceChain?: Promise<unknown>;
   nextSendAt?: number;
+  // Datos de cada grupo para los envíos (cachedGroupMetadata): sin esto, Baileys se los pide a WhatsApp en cada alerta.
+  groupMeta?: Map<string, GroupMetadata>;
 };
 
 // ponytail: mismo patrón que prisma.ts (singleton en globalThis) — sin esto,
@@ -72,6 +74,8 @@ globalForWhatsApp.whatsapp = state;
 const RETRY_BASE_DELAY_MS = 2000;
 const RETRY_MAX_DELAY_MS = 60_000;
 const AUTH_DIR = path.join(process.cwd(), ".baileys-auth");
+// Lista de grupos guardada junto a la sesión: se borra al desvincular el número.
+const GROUPS_FILE = path.join(AUTH_DIR, "groups.json");
 
 // Pausa al azar entre mensajes que inicia la app (alertas, cola, resúmenes): una ráfaga desde un
 // número es de las señales más fuertes de spam para WhatsApp y puede bloquearlo. Las respuestas del
@@ -241,7 +245,20 @@ async function connect() {
   const { state: authState, saveCreds } = await loadAuthState(AUTH_DIR);
   // Se detuvo o desvinculó mientras cargaba: no abrir un socket que vuelva a guardar la sesión.
   if (state.manualStop) return;
-  const socket = makeWASocket({ auth: authState });
+  const groupMeta = (state.groupMeta ??= new Map());
+  const socket = makeWASocket({
+    auth: authState,
+    cachedGroupMetadata: async (jid) => {
+      if (!groupMeta.has(jid)) {
+        const meta = await socket.groupMetadata(jid).catch(() => undefined);
+        if (meta) groupMeta.set(jid, meta);
+      }
+      return groupMeta.get(jid);
+    },
+  });
+  // Cambió el grupo o sus miembros: se vuelve a pedir en el próximo envío.
+  socket.ev.on("groups.update", (updates) => updates.forEach((g) => g.id && groupMeta.delete(g.id)));
+  socket.ev.on("group-participants.update", ({ id }) => groupMeta.delete(id));
   console.log(`[whatsapp] abriendo conexión (pid ${process.pid}, intento ${state.retryCount + 1})`);
   state.rawSocket = socket;
   socket.ev.on("creds.update", saveCreds);
@@ -269,6 +286,8 @@ async function connect() {
       state.lastDisconnectReason = null;
       state.lastDisconnectAt = null;
       console.log("[whatsapp] conectado. Elegí el grupo de alertas desde Configuración.");
+      // La lista de grupos se pide una sola vez por número vinculado; después se actualiza a mano.
+      if (!existsSync(GROUPS_FILE)) void listGroups().catch(() => {});
       // Conectarse (o reconectarse) no es un evento de resumen. El resumen
       // diario lo controla exclusivamente el scheduler en su minuto exacto;
       // de otro modo una acción sin relación —por ejemplo recuperar la
@@ -315,23 +334,30 @@ async function connect() {
   });
 }
 
-// Lista los grupos del dispositivo vinculado (consulta en vivo, sin caché):
-// alimenta el selector de "grupo de WhatsApp" en Configuración y en cada
-// proyecto. Vacío si no hay conexión activa.
-export async function listGroups() {
-  if (!state.sock) return [];
-  // Justo al conectar, WhatsApp suele rechazar la consulta mientras sincroniza: 3 intentos antes de fallar.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      const groups = await state.sock.groupFetchAllParticipating();
-      return Object.values(groups).map((g) => ({ id: g.id, name: g.subject }));
-    } catch (err) {
-      if (attempt >= 3 || !state.sock) {
-        console.error("[whatsapp] no se pudieron listar los grupos", err);
-        throw err;
-      }
-      await new Promise((r) => setTimeout(r, 3000));
-    }
+export type WhatsAppGroupsResult = { ok: true; groups: { id: string; name: string }[] } | { ok: false; error: string };
+
+// Grupos del número vinculado para los selectores de Configuración y de cada proyecto.
+// Sale de la lista guardada; solo se le pregunta a WhatsApp si no hay lista o se pide
+// «Actualizar lista» (consultarlo seguido hace que WhatsApp frene con rate-overlimit).
+export async function listGroups(refresh = false): Promise<WhatsAppGroupsResult> {
+  if (!refresh) {
+    const saved = await readFile(GROUPS_FILE, "utf8").then(JSON.parse).catch(() => null);
+    if (Array.isArray(saved)) return { ok: true, groups: saved };
+  }
+  if (!state.sock) return { ok: false, error: "WhatsApp no está conectado." };
+  try {
+    const all = Object.values(await state.sock.groupFetchAllParticipating());
+    all.forEach((g) => state.groupMeta?.set(g.id, g));
+    const groups = all.map((g) => ({ id: g.id, name: g.subject })).sort((a, b) => a.name.localeCompare(b.name, "es"));
+    await writeFile(GROUPS_FILE, JSON.stringify(groups));
+    return { ok: true, groups };
+  } catch (err) {
+    console.error("[whatsapp] no se pudieron listar los grupos", err);
+    const limited = (err as Error)?.message === "rate-overlimit";
+    return {
+      ok: false,
+      error: limited ? "WhatsApp pidió esperar unos minutos antes de volver a consultar los grupos." : "No se pudieron cargar los grupos.",
+    };
   }
 }
 

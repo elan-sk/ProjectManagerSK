@@ -11,32 +11,36 @@ export function ProjectWhatsAppGroupPanel({ projectId, currentGroupJid }: { proj
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
-  const [groupAttempt, setGroupAttempt] = useState(0);
+  const [refreshingGroups, setRefreshingGroups] = useState(false);
+
+  function loadGroups(refresh = false) {
+    return projectWhatsAppGroups(projectId, refresh)
+      .then((r) => (r.ok ? setGroups(r.groups) : setGroupError(r.error)))
+      .catch(() => setGroupError("No se pudieron cargar los grupos."));
+  }
 
   useEffect(() => {
-    projectWhatsAppGroups(projectId)
-      .then(setGroups)
-      .catch(() => setGroupError("No se pudieron cargar los grupos."));
-  }, [projectId, groupAttempt]);
+    loadGroups();
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-1">
-      <p className="text-sm font-medium text-slate-700">Grupo de WhatsApp del proyecto</p>
-      {groupError && (
-        <p className="flex items-center gap-2 text-xs text-red-600">
-          {groupError}
-          <button
-            type="button"
-            onClick={() => {
-              setGroupError(null);
-              setGroupAttempt((n) => n + 1);
-            }}
-            className="rounded border border-slate-300 px-2 py-0.5 text-slate-700 hover:bg-slate-50"
-          >
-            Reintentar
-          </button>
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium text-slate-700">Grupo de WhatsApp del proyecto</p>
+        <button
+          type="button"
+          disabled={refreshingGroups}
+          onClick={() => {
+            setGroupError(null);
+            setRefreshingGroups(true);
+            loadGroups(true).finally(() => setRefreshingGroups(false));
+          }}
+          className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {refreshingGroups ? "Actualizando…" : "Actualizar lista"}
+        </button>
+      </div>
+      {groupError && <p className="text-xs text-red-600">{groupError}</p>}
       <select
         defaultValue={currentGroupJid ?? ""}
         disabled={!groups || isPending}

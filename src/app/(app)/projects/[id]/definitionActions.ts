@@ -51,10 +51,10 @@ export async function updateProjectIdentity(projectId: string, formData: FormDat
   return { ok: true as const };
 }
 
-export async function projectWhatsAppGroups(projectId: string) {
+export async function projectWhatsAppGroups(projectId: string, refresh = false) {
   const denied = await guard(projectId);
-  if (denied) return [];
-  return listGroups();
+  if (denied) return { ok: false as const, error: denied.error };
+  return listGroups(refresh);
 }
 
 export async function updateProjectWhatsAppGroup(projectId: string, groupJid: string, actor?: Actor) {
