@@ -27,11 +27,12 @@ import type { NotificationType, TaskStatus } from "@prisma/client";
 // Escalamiento acordado con el usuario: lo grave (vencidas, bloqueos,
 // devoluciones) va al grupo del proyecto (o al de por defecto), mencionando a los
 // involucrados y al PM, todo junto en UN mensaje a la hora del resumen diario. Lo que solo le compete a
-// una persona (asignación, por vencer, revisión, etc. — antes iba directo a
+// una persona (por vencer, etc. — antes iba directo a
 // su WhatsApp evento por evento) ya NO se manda individual: queda en el
 // resumen diario (ver dispatchDailyDigests más abajo) para no saturarle el
 // WhatsApp con un mensaje por cada cosa. Sigue creando la Notification
 // in-app y el push de todos modos, eso no cambió.
+// Excepciones con WhatsApp directo: revisión (sendReviewWhatsApp) y asignación en horario laboral (notifyAssignment).
 const GROUP_ALERT_TYPES: NotificationType[] = ["OVERDUE", "BLOCKED", "RETURNED", "LATE_START_CRITICAL"];
 
 // Secciones de cada proyecto en el mensaje único de alertas de grupo, en orden de importancia.
@@ -117,11 +118,54 @@ async function sessionUserId() {
 }
 
 export async function notifyAssignment(taskId: string, userIds: string[], actorId?: string | null) {
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { project: { select: { name: true } } } });
   const url = `/projects/${task.projectId}/tasks/${taskId}`;
-  await notify(userIds, "ASSIGNED", `Quedó como responsable de la tarea "${task.title}"`, taskId, url, {
-    excludeUserId: actorId ?? (await sessionUserId()),
-  });
+  const excluded = actorId ?? (await sessionUserId());
+  await notify(userIds, "ASSIGNED", `Quedó como responsable de la tarea "${task.title}"`, taskId, url, { excludeUserId: excluded });
+  // WhatsApp solo en horario laboral; fuera de horario queda para el resumen diario («N nueva(s)»).
+  if (!(await isCurrentlyWorkingHour())) return;
+  for (const userId of userIds) {
+    if (userId !== excluded) bufferAssignmentWhatsApp(userId, { title: task.title, projectName: task.project.name, url });
+  }
+}
+
+// Asignaciones juntadas por persona: la API y el bot crean un proyecto tarea por tarea, así que
+// «varias de una vez» = otra asignación antes de 2 minutos. 1 → aviso con link a la tarea;
+// 2 o más → un solo resumen con link a la Agenda en «Tareas Nuevas».
+// ponytail: en memoria; un reinicio en esos 2 minutos pierde el aviso (queda el resumen diario).
+type PendingAssignment = { title: string; projectName: string; url: string };
+const ASSIGNMENT_WINDOW_MS = 2 * 60_000;
+const assignmentBuffer = ((globalThis as unknown as { assignmentBuffer?: Map<string, { items: PendingAssignment[]; timer: ReturnType<typeof setTimeout> }> }).assignmentBuffer ??= new Map());
+
+function bufferAssignmentWhatsApp(userId: string, item: PendingAssignment) {
+  const entry = assignmentBuffer.get(userId);
+  if (entry) clearTimeout(entry.timer);
+  const items = [...(entry?.items ?? []), item];
+  const timer = setTimeout(() => {
+    assignmentBuffer.delete(userId);
+    void flushAssignmentWhatsApp(userId, items).catch((err) => console.error("[notificaciones] no se pudo avisar la asignación por WhatsApp", err));
+  }, ASSIGNMENT_WINDOW_MS);
+  assignmentBuffer.set(userId, { items, timer });
+}
+
+export function assignmentWhatsAppText(items: PendingAssignment[], agendaLink: string, taskLink: string) {
+  if (items.length === 1) {
+    const [t] = items;
+    return `🔵 *Nueva tarea*\nQuedó como responsable de "${t.title}" (${t.projectName}).\n\n🔗 ${taskLink}`;
+  }
+  const perProject = new Map<string, number>();
+  for (const t of items) perProject.set(t.projectName, (perProject.get(t.projectName) ?? 0) + 1);
+  const parts = [...perProject].map(([name, n]) => `${name} (${n})`);
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} y ${parts.at(-1)}` : parts[0];
+  const projects = perProject.size === 1 ? "1 proyecto" : `${perProject.size} proyectos`;
+  return `🔵 *Tareas nuevas*\nQuedó como responsable de ${items.length} tareas en ${projects}: ${list}.\n\n🔗 ${agendaLink}`;
+}
+
+async function flushAssignmentWhatsApp(userId: string, items: PendingAssignment[]) {
+  // Se cerró el horario mientras se juntaban: no se manda (queda en el resumen diario).
+  if (!(await isCurrentlyWorkingHour())) return;
+  const text = assignmentWhatsAppText(items, absoluteUrl("/agenda?type=NEW")!, absoluteUrl(items[0].url)!);
+  await dispatchDirect(userId, text, true);
 }
 
 export async function notifyBlocked(taskId: string, pmId: string) {
