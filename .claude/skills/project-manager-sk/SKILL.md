@@ -273,6 +273,7 @@ La idea: la persona diseña en la conversación (los cambios pedidos, las prueba
 - `GET /api/v1/tasks/:id/threads` — todos los hilos de la tarea agrupados por lugar (`general`, `adjustmentItems`, `acceptanceChecks`, `qaChecks`, `rounds`, `conversation`), con las preguntas y su estadística. En `conversation` y `qaChecks`, `text` es texto plano sin URLs; las imágenes/archivos/links están en `body` como marcas `[[img:url]]`, `[[file:url|nombre]]`, `[[link:url|título]]`.
 - `GET /api/v1/polls/:id` — la pregunta con cuántas personas eligieron cada opción y quién. `POST /api/v1/polls/:id/vote` (`{ "optionIds": […] }`, con la persona que inició sesión). `PATCH /api/v1/polls/:id` (`{ "closed": true|false }`).
 - Los porcentajes son sobre las **personas que respondieron**: en selección múltiple pueden sumar más de 100 %.
+- **🤖 al inicio de todo lo que escribe la IA** (regla del usuario, 2026-11-02): todo comentario, respuesta o pregunta que se publique por la API (`body` de `POST /tasks/:id/comments` y `/projects/:id/comments`, en cualquier `scope`, también los que ve el cliente) empieza con `🤖 ` para que se sepa que se escribió con ayuda de la IA. Ej.: `🤖 *Qué se hizo:* …`.
 - **Aviso**: publicar en la conversación interna o en el hilo de una prueba con `mentions` avisa por WhatsApp a las personas mencionadas y a quienes participan de la tarea (igual que en la app). No publicar comentarios de prueba.
 
 ## No cubierto todavía por la API
