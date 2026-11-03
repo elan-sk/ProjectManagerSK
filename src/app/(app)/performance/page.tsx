@@ -7,6 +7,7 @@ import { getUserPerformance, getTeamContribution, getProjectReport, getCompletio
 import {
   getReviewPerformance,
   getCommonFailureCategories,
+  formatHours,
   getCommonResponseCategories,
   getRecentFirstPassTrend,
 } from "@/lib/reviewPerformance";
@@ -116,7 +117,7 @@ function ReviewPerformanceSection({
       )}
 
       {reviewPerformance.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-500">
               <tr>
@@ -126,6 +127,8 @@ function ReviewPerformanceSection({
                 <th className="px-4 py-2 font-medium">Aprobadas al 1er intento</th>
                 <th className="px-4 py-2 font-medium">Rondas/tarea</th>
                 <th className="px-4 py-2 font-medium">Devueltas</th>
+                <th className="px-4 py-2 font-medium">Tiempo de revisión</th>
+                <th className="px-4 py-2 font-medium">Tiempo de corrección</th>
                 <th className="px-4 py-2 font-medium">Tendencia (últimas 5)</th>
               </tr>
             </thead>
@@ -147,6 +150,8 @@ function ReviewPerformanceSection({
                     <td className={`px-4 py-2 font-medium ${p.roundsReturned > 0 ? "text-orange-600" : "text-slate-600"}`}>
                       {p.roundsReturned}
                     </td>
+                    <td className="px-4 py-2 text-slate-600">{formatHours(p.avgReviewHours)}</td>
+                    <td className="px-4 py-2 text-slate-600">{formatHours(p.avgFixHours)}</td>
                     <td className="px-4 py-2 font-medium">
                       <TrendCell recent={trendByUser.get(p.userId) ?? null} historicalRate={fpy} />
                     </td>

@@ -12,6 +12,7 @@ import { setCheckResponse, setDefaultTestTemplate, isResponseEvidence } from "@/
 import { DUPLICATE, inSection } from "@/lib/attachmentDedup";
 import { autoStartTask } from "@/lib/taskAutoStart";
 import type { CheckResult } from "@prisma/client";
+import { failureHistoryRows } from "@/lib/reviewPerformance";
 
 const isBlankHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim().length === 0;
 
@@ -182,6 +183,10 @@ export async function submitReviewRound(
     // se recrea), así su evidencia (ligada al id de la prueba, no a la
     // ronda) queda intacta sin ninguna duplicación. El resultado nace en
     // blanco para que el revisor la vuelva a mirar.
+    // El error de la ronda devuelta queda en el historial antes de dejar la prueba en blanco.
+    if (lastRound && carryForwardChecks.length) {
+      await tx.reviewCheckFailure.createMany({ data: failureHistoryRows(lastRound.id, carryForwardChecks) });
+    }
     for (const check of carryForwardChecks) {
       await tx.reviewCheck.update({
         where: { id: check.id },

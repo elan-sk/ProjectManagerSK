@@ -22,7 +22,36 @@ export type ReviewPerformance = {
   tasksReviewed: number;
   roundsApprovedFirstTry: number;
   roundsReturned: number;
+  // Promedios en horas corridas: envío → calificación, y devolución → reenvío. null sin datos.
+  avgReviewHours: number | null;
+  avgFixHours: number | null;
 };
+
+type TimedRound = { taskId: string; roundNumber: number; outcome: string | null; submittedAt: Date; closedAt: Date | null };
+
+/** Tiempos de revisión (envío → calificación) y de corrección (devolución → reenvío de la misma tarea). */
+function roundTimes(rounds: TimedRound[], allRounds: TimedRound[]) {
+  const next = new Map(allRounds.map((r) => [`${r.taskId}:${r.roundNumber}`, r]));
+  const hours = (from: Date, to: Date) => (to.getTime() - from.getTime()) / 3_600_000;
+  const avg = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
+  const review: number[] = [];
+  const fix: number[] = [];
+  for (const r of rounds) {
+    if (r.closedAt) review.push(hours(r.submittedAt, r.closedAt));
+    const resent = next.get(`${r.taskId}:${r.roundNumber + 1}`);
+    if (r.outcome === "RETURNED" && r.closedAt && resent) fix.push(hours(r.closedAt, resent.submittedAt));
+  }
+  return { avgReviewHours: avg(review), avgFixHours: avg(fix) };
+}
+
+/** «5 h», «menos de 1 h», «2,5 días». */
+export function formatHours(h: number | null) {
+  if (h === null) return "—";
+  if (h < 1) return "menos de 1 h";
+  if (h < 24) return `${Math.round(h)} h`;
+  const days = Math.round((h / 24) * 10) / 10;
+  return `${days.toLocaleString("es-CO")} ${days === 1 ? "día" : "días"}`;
+}
 
 /** Fórmulas únicas de la entrega a revisión (detalle de rendimiento y Agenda): sobre tareas revisadas, no sobre rondas. */
 export function reviewRates(r: Pick<ReviewPerformance, "tasksReviewed" | "roundsApprovedFirstTry" | "roundsSubmitted"> | undefined) {
@@ -36,7 +65,7 @@ export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?
   const [rounds, users] = await Promise.all([
     prisma.reviewRound.findMany({
       where: taskFilter,
-      select: { submittedById: true, roundNumber: true, outcome: true, taskId: true },
+      select: { submittedById: true, roundNumber: true, outcome: true, taskId: true, submittedAt: true, closedAt: true },
     }),
     prisma.user.findMany({ where: { deletedAt: null }, select: { id: true, name: true } }),
   ]);
@@ -52,6 +81,8 @@ export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?
         tasksReviewed: 0,
         roundsApprovedFirstTry: 0,
         roundsReturned: 0,
+        avgReviewHours: null,
+        avgFixHours: null,
       });
       tasksByUser.set(userId, new Set());
     }
@@ -68,6 +99,7 @@ export async function getReviewPerformance(taskType: ReviewTaskType, projectIds?
     if (round.outcome === "RETURNED") entry.roundsReturned++;
   }
   for (const [userId, tasks] of tasksByUser) byUser.get(userId)!.tasksReviewed = tasks.size;
+  for (const entry of byUser.values()) Object.assign(entry, roundTimes(rounds.filter((r) => r.submittedById === entry.userId), rounds));
 
   return Array.from(byUser.values()).sort((a, b) => b.roundsSubmitted - a.roundsSubmitted);
 }
@@ -89,6 +121,8 @@ export async function getReviewPerformanceByProject(
         roundNumber: true,
         outcome: true,
         taskId: true,
+        submittedAt: true,
+        closedAt: true,
         task: { select: { projectId: true, project: { select: { name: true } } } },
       },
     }),
@@ -107,6 +141,8 @@ export async function getReviewPerformanceByProject(
         tasksReviewed: 0,
         roundsApprovedFirstTry: 0,
         roundsReturned: 0,
+        avgReviewHours: null,
+        avgFixHours: null,
       });
     }
     return byProject.get(projectId)!;
@@ -122,97 +158,61 @@ export async function getReviewPerformanceByProject(
     if (round.outcome === "RETURNED") entry.roundsReturned++;
   }
   for (const [projectId, tasks] of tasksByProject) byProject.get(projectId)!.tasksReviewed = tasks.size;
+  for (const entry of byProject.values()) Object.assign(entry, roundTimes(rounds.filter((r) => r.task.projectId === entry.projectId), rounds));
 
   return Array.from(byProject.values()).sort((a, b) => a.projectName.localeCompare(b.projectName));
+}
+
+// Errores para las estadísticas: el historial (rondas devueltas que ya se reenviaron, donde la
+// prueba quedó en blanco) más las pruebas que hoy siguen «Con errores». Sin doble conteo: al
+// reenviar, el error pasa al historial y la prueba pierde su resultado.
+async function failedChecks(taskType: ReviewTaskType, projectIds?: string[], submittedById?: string) {
+  const roundFilter = { ...(submittedById ? { submittedById } : {}), task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
+  const select = { category: true, responseCategory: true };
+  const [history, current] = await Promise.all([
+    prisma.reviewCheckFailure.findMany({ where: { reviewRound: roundFilter }, select }),
+    prisma.reviewCheck.findMany({ where: { result: "FAILED", reviewRound: roundFilter }, select }),
+  ]);
+  return [...history, ...current];
+}
+
+/** Filas de historial de las pruebas «Con errores» de una ronda devuelta, al reenviarla. */
+export function failureHistoryRows(reviewRoundId: string, checks: { id: string; category: string | null; responseCategory: string | null; note: string | null }[]) {
+  return checks.map((c) => ({ reviewRoundId, checkId: c.id, category: c.category, responseCategory: c.responseCategory, note: c.note }));
+}
+
+function tally(values: (string | null)[], limit: number) {
+  const counts = new Map<string, number>();
+  for (const v of values) {
+    const key = v ?? "Sin categoría";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 }
 
 // Categorías de check (convenciones, responsividad, usabilidad, etc.) que
 // más frecuentemente terminan en "Con errores" — para detectar patrones y
 // priorizar dónde mejorar, no para señalar personas.
-export async function getCommonFailureCategories(
-  taskType: ReviewTaskType,
-  projectIds?: string[],
-  limit = 10
-): Promise<{ category: string; count: number }[]> {
-  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
-  const failed = await prisma.reviewCheck.findMany({
-    where: { result: "FAILED", reviewRound: taskFilter },
-    select: { category: true },
-  });
-
-  const counts = new Map<string, number>();
-  for (const c of failed) {
-    const key = c.category ?? "Sin categoría";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .map(([category, count]) => ({ category, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
+export async function getCommonFailureCategories(taskType: ReviewTaskType, projectIds?: string[], limit = 10) {
+  return tally((await failedChecks(taskType, projectIds)).map((f) => f.category), limit);
 }
 
-// Igual que getCommonFailureCategories pero sobre responseCategory (texto
-// libre que escribe QUIEN ENTREGÓ, no el revisor, describiendo su propia
-// corrección) en vez de category (la categoría fija de la plantilla, elegida
-// al armar la ronda) — otro ángulo de qué se repite, nunca analizado hasta
-// ahora en ningún informe. Ojo: al ser texto libre sin vocabulario fijo, es
-// normal que se agrupe peor que category (cada quien lo redacta distinto).
-export async function getCommonResponseCategories(
-  taskType: ReviewTaskType,
-  projectIds?: string[],
-  limit = 10
-): Promise<{ category: string; count: number }[]> {
-  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
-  const failed = await prisma.reviewCheck.findMany({
-    where: { result: "FAILED", reviewRound: taskFilter },
-    select: { responseCategory: true },
-  });
-
-  const counts = new Map<string, number>();
-  for (const c of failed) {
-    const key = c.responseCategory ?? "Sin categoría";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .map(([category, count]) => ({ category, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
+// Igual pero sobre responseCategory (texto libre que escribe QUIEN ENTREGÓ describiendo su
+// corrección). Al no tener vocabulario fijo, se agrupa peor que category.
+export async function getCommonResponseCategories(taskType: ReviewTaskType, projectIds?: string[], limit = 10) {
+  return tally((await failedChecks(taskType, projectIds)).map((f) => f.responseCategory), limit);
 }
 
 /**
- * Categorías de error (de plantilla) y de respuesta (corrección puntual) de
- * los checks FAILED en las rondas que ESTA persona entregó (no las que
- * revisó) — filosofía PSP: sus propios patrones de error, para identificar
- * en qué trabajar.
+ * Categorías de error y de respuesta de las rondas que ESTA persona entregó (no las que
+ * revisó) — filosofía PSP: sus propios patrones de error, para identificar en qué trabajar.
  */
-export async function getFailureAnalysisByUser(
-  userId: string,
-  taskType: ReviewTaskType,
-  projectIds?: string[],
-  limit = 10
-): Promise<{ byCategory: { category: string; count: number }[]; byResponseCategory: { category: string; count: number }[] }> {
-  const taskFilter = { task: { type: taskType, ...(projectIds ? { projectId: { in: projectIds } } : {}) } };
-  const failed = await prisma.reviewCheck.findMany({
-    where: { result: "FAILED", reviewRound: { submittedById: userId, ...taskFilter } },
-    select: { category: true, responseCategory: true },
-  });
-
-  function tally(values: (string | null)[]) {
-    const counts = new Map<string, number>();
-    for (const v of values) {
-      const key = v ?? "Sin categoría";
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, limit);
-  }
-
-  return {
-    byCategory: tally(failed.map((f) => f.category)),
-    byResponseCategory: tally(failed.map((f) => f.responseCategory)),
-  };
+export async function getFailureAnalysisByUser(userId: string, taskType: ReviewTaskType, projectIds?: string[], limit = 10) {
+  const failed = await failedChecks(taskType, projectIds, userId);
+  return { byCategory: tally(failed.map((f) => f.category), limit), byResponseCategory: tally(failed.map((f) => f.responseCategory), limit) };
 }
 
 /**

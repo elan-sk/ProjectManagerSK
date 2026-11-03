@@ -1017,6 +1017,24 @@ model ReviewRound {
   deliverables ReviewDeliverable[]
   checks       ReviewCheck[]
   messages     ReviewMessage[]
+  failures     ReviewCheckFailure[]
+}
+
+// Historial de pruebas/características «Con errores». Al reenviar una ronda devuelta, la
+// misma prueba pasa a la ronda nueva en blanco; acá queda el error de la ronda devuelta
+// para las estadísticas de Rendimiento. checkId sin relación: el historial sobrevive aunque
+// después se quite la prueba.
+model ReviewCheckFailure {
+  id               String      @id @default(cuid())
+  reviewRoundId    String
+  reviewRound      ReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  checkId          String
+  category         String?
+  responseCategory String?     @db.Text
+  note             String?     @db.Text
+  createdAt        DateTime    @default(now())
+
+  @@index([reviewRoundId])
 }
 
 // Lo que el responsable entrega para que se revise (link o archivo).

@@ -11,6 +11,7 @@ import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { notifyReturned } from "@/lib/notifications";
 import { autoStartTask } from "@/lib/taskAutoStart";
 import { canAddAcceptanceEvidence, isResponseEvidence, setCheckResponse } from "@/lib/taskDesign";
+import { failureHistoryRows } from "@/lib/reviewPerformance";
 
 // Tarea tipo ACCEPTANCE: mismo motor de rondas que Prueba (QA) — ReviewRound/
 // ReviewCheck — pero quien arma la lista de características es el equipo
@@ -117,6 +118,10 @@ export async function submitAcceptanceRound(
     }
     // Enviar la primera ronda al cliente arranca la tarea si estaba «Sin iniciar».
     await autoStartTask(taskId, "ROUND_SUBMITTED", tx);
+    // El error de la ronda devuelta queda en el historial antes de dejar la prueba en blanco.
+    if (lastRound && carryForwardChecks.length) {
+      await tx.reviewCheckFailure.createMany({ data: failureHistoryRows(lastRound.id, carryForwardChecks) });
+    }
     for (const check of carryForwardChecks) {
       await tx.reviewCheck.update({
         where: { id: check.id },

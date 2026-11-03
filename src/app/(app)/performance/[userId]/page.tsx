@@ -12,6 +12,7 @@ import {
   getFailureInsight,
   getRecentFirstPassTrend,
   reviewRates,
+  formatHours,
 } from "@/lib/reviewPerformance";
 import { PERFORMANCE_GOALS } from "@/lib/performanceGoals";
 import { Avatar } from "@/components/Avatar";
@@ -129,6 +130,8 @@ function ReviewUserSection({
                 <th className="px-4 py-2 font-medium">Proyecto</th>
                 <th className="px-4 py-2 font-medium">Rondas enviadas</th>
                 <th className="px-4 py-2 font-medium">Aprobado 1er intento</th>
+                <th className="px-4 py-2 font-medium">Tiempo de revisión</th>
+                <th className="px-4 py-2 font-medium">Tiempo de corrección</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/70">
@@ -146,6 +149,8 @@ function ReviewUserSection({
                     >
                       {revPct === null ? "—" : `${rev.roundsApprovedFirstTry}/${rev.tasksReviewed} (${revPct}%)`}
                     </td>
+                    <td className="px-4 py-2 text-slate-600">{formatHours(rev.avgReviewHours)}</td>
+                    <td className="px-4 py-2 text-slate-600">{formatHours(rev.avgFixHours)}</td>
                   </tr>
                 );
               })}
