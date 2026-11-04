@@ -181,7 +181,7 @@ export function StepCheckbox({
       className={`space-y-1.5 rounded-r-lg border-l-[3px] py-0.5 pl-2.5 ${dragOver ? "bg-slate-50 ring-1 ring-slate-400" : ""}`}
       style={{ borderLeftColor: accentColor }}
     >
-      <div className={`flex items-center gap-2 text-sm text-slate-700 ${canEdit ? "" : "cursor-default"}`}>
+      <div className={`flex flex-wrap items-center gap-2 text-sm text-slate-700 sm:flex-nowrap ${canEdit ? "" : "cursor-default"}`}>
         {dragHandle}
         <input
           type="checkbox"
@@ -202,7 +202,7 @@ export function StepCheckbox({
           <span className={`min-w-0 flex-1 ${done ? "text-slate-400 line-through" : ""}`}><Linkify text={description} /></span>
         )}
         {canEdit && !editing && (
-          <div className="flex flex-shrink-0 items-center gap-2 text-xs">
+          <div className="flex w-full flex-shrink-0 items-center justify-end gap-2 text-xs sm:w-auto">
             {canAddFiles && (
               <>
                 <StepAttachMenu
