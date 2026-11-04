@@ -99,7 +99,11 @@ export function contributionSums(tasks: ContributionTask[]) {
   );
 }
 
-export const contributionPct = (s: { progressSum: number; weightSum: number }) => (s.weightSum > 0 ? Math.round(s.progressSum / s.weightSum) : 0);
+// 100 % solo con todo terminado: el redondeo no puede tapar lo que falta (18/19 con una bloqueada daba 100 %).
+const capUnfinished = (pct: number, finished: boolean) => (finished ? pct : Math.min(99, pct));
+
+export const contributionPct = (s: { progressSum: number; weightSum: number }) =>
+  s.weightSum > 0 ? capUnfinished(Math.round(s.progressSum / s.weightSum), s.progressSum >= s.weightSum * 100) : 0;
 
 /** Avance de un grupo de tareas, ponderado por duración (proyecto, fase, requerimiento). */
 export const averageContribution = (tasks: ContributionTask[]) => contributionPct(contributionSums(tasks));
@@ -107,7 +111,7 @@ export const averageContribution = (tasks: ContributionTask[]) => contributionPc
 /** Promedio ponderado de grupos ya calculados (objetivo = sus requerimientos según el trabajo de cada uno). */
 export function weightedAverage(items: { pct: number; weight: number }[]) {
   const weightSum = items.reduce((s, i) => s + i.weight, 0);
-  return weightSum > 0 ? Math.round(items.reduce((s, i) => s + i.pct * i.weight, 0) / weightSum) : 0;
+  return weightSum > 0 ? capUnfinished(Math.round(items.reduce((s, i) => s + i.pct * i.weight, 0) / weightSum), items.every((i) => i.pct >= 100 || i.weight === 0)) : 0;
 }
 
 export const forecastRemainingShare = (task: ContributionTask) => (taskInReview(task) ? 0 : 1 - taskContribution(task) / 100);

@@ -67,6 +67,25 @@ async function dispatchGroup(groupJid: string, type: NotificationType, message: 
   await prisma.groupAlertItem.create({ data: { groupJid, projectId, taskId, type, message, mentionUserIds: mentionUserIds.join(",") } });
 }
 
+// Aviso que le llega al PM solo por su rol (no es responsable ni revisor de la tarea): una línea con
+// quiénes son los directos, para que sepa que es supervisión. Null si el PM está implicado directamente.
+async function supervisionNote(pmId: string, assigneeIds: string[], reviewerIds: string[]) {
+  if (assigneeIds.includes(pmId) || reviewerIds.includes(pmId)) return null;
+  const users = await prisma.user.findMany({ where: { id: { in: [...assigneeIds, ...reviewerIds] } }, select: { id: true, name: true } });
+  const names = (ids: string[]) => ids.map((id) => users.find((u) => u.id === id)?.name).filter(Boolean).join(", ");
+  const parts = [`responsable: ${names(assigneeIds) || "sin asignar"}`];
+  if (reviewerIds.length) parts.push(`revisor: ${names(reviewerIds)}`);
+  return { userId: pmId, note: `👀 Aviso de supervisión — ${parts.join(" · ")}` };
+}
+type Supervision = Awaited<ReturnType<typeof supervisionNote>>;
+
+// Inserta la línea de supervisión antes del link final del WhatsApp.
+const withSupervision = (text: string, note?: string | null) => {
+  if (!note) return text;
+  const i = text.lastIndexOf("\n\n🔗 ");
+  return i < 0 ? `${text}\n${note}` : `${text.slice(0, i)}\n${note}${text.slice(i)}`;
+};
+
 // Toda alarma pasa por acá: queda in-app (columna Notification) Y se manda
 // como Web Push a cada dispositivo suscrito del usuario asignado — así llega
 // aunque no tenga la app abierta, como pidió el punto 14 del manuscrito.
@@ -80,7 +99,7 @@ export async function notify(
   message: string,
   taskId?: string,
   url?: string,
-  options?: { projectId?: string; mentionUserIds?: string[]; excludeUserId?: string | null }
+  options?: { projectId?: string; mentionUserIds?: string[]; excludeUserId?: string | null; supervision?: Supervision }
 ) {
   // Regla "sin auto-notificación": quien ejecuta la acción no se avisa a sí
   // mismo por ningún canal (campana, push ni WhatsApp).
@@ -94,11 +113,14 @@ export async function notify(
   // de los avisos grupales (que siempre traen taskId igual) — se reusa acá
   // para guardarlo también en la Notification cuando NO hay tarea (ej.
   // comentario en la pestaña Definición), así la campana puede armar el link.
+  // Campana y push llevan la línea de supervisión; el grupo de WhatsApp, el mensaje base.
+  const sup = options?.supervision;
+  const messageFor = (userId: string) => (sup?.userId === userId ? `${message} · ${sup.note}` : message);
   await prisma.notification.createMany({
-    data: userIds.map((userId) => ({ userId, type, message, taskId, projectId: options?.projectId })),
+    data: userIds.map((userId) => ({ userId, type, message: messageFor(userId), taskId, projectId: options?.projectId })),
   });
 
-  await Promise.all(userIds.map((userId) => sendPushToUser(userId, message, url)));
+  await Promise.all(userIds.map((userId) => sendPushToUser(userId, messageFor(userId), url)));
 
   if (GROUP_ALERT_TYPES.includes(type)) {
     if (!options?.projectId) return;
@@ -169,13 +191,15 @@ async function flushAssignmentWhatsApp(userId: string, items: PendingAssignment[
 }
 
 export async function notifyBlocked(taskId: string, pmId: string) {
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { assignees: true } });
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: { assignees: true, reviewers: true } });
   const url = `/projects/${task.projectId}/tasks/${taskId}`;
-  const involvedIds = Array.from(new Set([pmId, ...task.assignees.map((a) => a.userId)]));
+  const assigneeIds = task.assignees.map((a) => a.userId);
+  const involvedIds = Array.from(new Set([pmId, ...assigneeIds]));
   await notify([pmId], "BLOCKED", `La tarea "${task.title}" fue marcada como bloqueada`, taskId, url, {
     projectId: task.projectId,
     mentionUserIds: involvedIds,
     excludeUserId: await sessionUserId(),
+    supervision: await supervisionNote(pmId, assigneeIds, task.reviewers.map((r) => r.userId)),
   });
 }
 
@@ -195,6 +219,7 @@ export async function notifyReturned(taskId: string) {
   await notify(involvedIds, "RETURNED", `La tarea "${task.title}" fue devuelta en revisión`, taskId, url, {
     projectId: task.projectId,
     excludeUserId: actorId,
+    supervision: await supervisionNote(task.project.pmId, task.assignees.map((a) => a.userId), task.reviewers.map((r) => r.userId)),
   });
   await sendReviewWhatsApp(taskId, "returned", actorId);
 }
@@ -341,7 +366,9 @@ export async function notifyShareActivity(taskId: string, message: string) {
   const involvedIds = Array.from(
     new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)])
   );
-  await notify(involvedIds, "SHARE_ACTIVITY", message, taskId, url);
+  await notify(involvedIds, "SHARE_ACTIVITY", message, taskId, url, {
+    supervision: await supervisionNote(task.project.pmId, task.assignees.map((a) => a.userId), task.reviewers.map((r) => r.userId)),
+  });
 }
 
 // Mensaje directo de WhatsApp a una persona: en horario laboral sale al
@@ -453,7 +480,13 @@ export async function notifyInternalComment(messageId: string, opts?: { onlyMent
   const link = absoluteUrl(path)!;
 
   for (const id of mentioned) await dispatchDirect(id, commentText("mention", message.author.name, where, content, link), false, images);
-  for (const id of participants) await dispatchDirect(id, commentText("comment", message.author.name, where, content, link), false, images);
+  const sup = message.task
+    ? await supervisionNote(message.project.pmId, message.task.assignees.map((a) => a.userId), message.task.reviewers.map((r) => r.userId))
+    : null;
+  for (const id of participants) {
+    const text = commentText("comment", message.author.name, where, content, link);
+    await dispatchDirect(id, withSupervision(text, sup?.userId === id ? sup.note : null), false, images);
+  }
 }
 
 /**
@@ -472,8 +505,11 @@ export async function notifyUrgentTask(taskId: string, actorId: string | null) {
   const ids = new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]);
   if (actorId) ids.delete(actorId);
   const text = urgentText(task.title, task.project.name, absoluteUrl(path)!);
-  await Promise.all([...ids].map((id) => sendPushToUser(id, `🚨 Tarea urgente: "${task.title}"`, path, true)));
-  for (const id of ids) await dispatchDirect(id, text, true);
+  const sup = await supervisionNote(task.project.pmId, task.assignees.map((a) => a.userId), task.reviewers.map((r) => r.userId));
+  const noteFor = (id: string) => (sup?.userId === id ? sup.note : null);
+  const push = `🚨 Tarea urgente: "${task.title}"`;
+  await Promise.all([...ids].map((id) => sendPushToUser(id, noteFor(id) ? `${push} · ${noteFor(id)}` : push, path, true)));
+  for (const id of ids) await dispatchDirect(id, withSupervision(text, noteFor(id)), true);
 }
 
 // Texto del aviso de credencial compartida (exportado para poder previsualizarlo). Nunca lleva la contraseña.
