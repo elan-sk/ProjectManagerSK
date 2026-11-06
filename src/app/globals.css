@@ -537,3 +537,7 @@ html.show-hotkeys .hotkey {
 html.img-gate img:not([data-img-ready]) {
   opacity: 0 !important;
 }
+
+html {
+  scrollbar-gutter: stable;
+}

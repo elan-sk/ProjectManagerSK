@@ -93,7 +93,7 @@ export async function setUserCargo(userId: string, cargo: string) {
     where: { id: userId },
     data: { cargo: parsed.data || null },
   });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/configuracion");
   return { ok: true as const };
 }

@@ -73,3 +73,5 @@ export function mimeFromFileName(...names: (string | null | undefined)[]) {
 export function resolveMime(given: string | null | undefined, ...names: (string | null | undefined)[]) {
   return given && given !== GENERIC_MIME ? given : mimeFromFileName(...names);
 }
+
+export const APP_VOICE_MAX_SECONDS = 300;

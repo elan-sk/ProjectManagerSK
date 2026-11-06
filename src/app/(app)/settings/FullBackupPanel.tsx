@@ -7,9 +7,9 @@ export function FullBackupPanel() {
   const [withFiles, setWithFiles] = useState(true);
 
   return (
-    <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+    <section className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50/50 px-6 py-7 sm:px-8">
       <div>
-        <h2 className="font-medium text-slate-900">Respaldo total</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Respaldo total</h2>
         <p className="mt-1 text-sm text-slate-600">
           Copia completa de la información de la aplicación: usuarios, proyectos, tareas, historial, configuración y datos relacionados.
         </p>

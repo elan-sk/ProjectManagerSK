@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -24,12 +23,8 @@ export default async function TagsSettingsPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <Link href="/settings" className="text-sm text-slate-500 hover:underline">
-        ← Configuración
-      </Link>
-      <h1 className="text-2xl font-semibold text-slate-900">Etiquetas</h1>
-      <p className="text-sm text-slate-500">
+    <div className="space-y-4">
+      <p className="px-1 text-sm text-slate-500">
         Categorías de etiqueta para seguir un mismo elemento (un componente, una fase de diseño) a través de varias
         tareas — la categoría (color + emoji) es global para todos los proyectos; el nombre de cada etiqueta se crea
         al vuelo dentro de una tarea y queda guardado solo para ese proyecto. Crear una categoría nueva es de PM o

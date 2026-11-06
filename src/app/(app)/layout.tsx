@@ -120,6 +120,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Agenda
             </NavLinkWithMemory>
             <Link href={performanceHref}>Rendimiento</Link>
+            {isAdmin && (
+              <Link href="/company" data-feature-hint="company-nav">
+                Empresa
+              </Link>
+            )}
             <Link href="/settings">Configuración</Link>
           </nav>
           <div className="order-3 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3 lg:flex-shrink-0 lg:flex-nowrap lg:border-t-0 lg:pt-0">

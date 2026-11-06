@@ -38,8 +38,8 @@ export function ResponseCategoriesPanel({ categories, isAdmin, canCreate }: { ca
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="font-medium text-slate-900">Categorías y respuestas para quien corrige</h2>
+    <section className="space-y-4 rounded-3xl border border-slate-100 bg-white px-6 py-7 sm:px-8">
+      <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Categorías y respuestas para quien corrige</h2>
       <div className="space-y-3">
         {categories.map((category) => (
           <CategoryCard key={category.id} category={category} isAdmin={isAdmin} canEdit={canCreate} />

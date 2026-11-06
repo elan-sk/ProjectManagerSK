@@ -1,228 +1,22 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import Link from "next/link";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
 import { Avatar } from "@/components/Avatar";
-import { ProjectIcon } from "@/components/ProjectIcon";
-import { ALERT_STYLE, ALERT_LEVEL_LABEL } from "@/components/AlertBadge";
-import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, PROJECT_PHASE_LABEL } from "@/lib/statusColors";
 import { useConfirm } from "@/components/Confirm";
 import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon, MicIcon } from "@/components/icons";
 import { useDictation } from "@/components/useDictation";
 import { appendDictation } from "@/lib/dictation";
-import type { TaskStatus } from "@prisma/client";
-import type { TaskAlert } from "@/lib/delays";
-import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { fitToContent } from "@/lib/fitToContent";
 import { Hotkey, isAltShortcut } from "@/components/Hotkey";
-import { isFileHref, useFileViewer, type ViewFile } from "@/components/FileViewer";
+import { useFileViewer } from "@/components/FileViewer";
 import { withUploadNote } from "@/lib/chatUploadNote";
-
-type ChatUiMessage = {
-  id: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-  pendingAction?: { toolUseId: string; label: string; destructive: boolean };
-};
-
-// Markdown mínimo que puede mandar el bot: **negrita**, [texto](url), y
-// miniaturas propias de la interfaz [[tipo:datos]] (persona/proyecto/estado/
-// alerta, ver buildOperatingRules en chontatec.ts) — nada de librerías,
-// alcanza con un split por regex. Los saltos de línea del texto se
-// resuelven aparte con whitespace-pre-wrap.
-// A veces el modelo arma la marca sin tipo ([[Nombre|/projects/…]] o [[Nombre|projectId|iconUrl]]):
-// se traduce a link o miniatura de proyecto para no mostrarle rutas ni ids a la persona.
-function fixMalformedMarkers(text: string): string {
-  return text.replace(/\[\[(?![a-z]+:)([^\]|]+)\|([^\]]*)\]\]/g, (_m, name: string, rawArgs: string) => {
-    const args = rawArgs.split("|");
-    const path = args.find((a) => a.startsWith("/projects/") || a.startsWith("http"));
-    if (path) return `[${name.trim()}](${path})`;
-    if (/^c[a-z0-9]{20,}$/.test(args[0])) return `[[project:${name.trim()}|${rawArgs}]]`;
-    return name.trim();
-  });
-}
-
-const INLINE_MARKDOWN = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|\[\[[a-z]+:[^\]]*\]\])/g;
-
-function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
-  return text.split(INLINE_MARKDOWN).map((part, i) => {
-    const bold = part.match(/^\*\*([^*]+)\*\*$/);
-    if (bold) return <strong key={i}>{renderInlineMarkdown(bold[1], openFile)}</strong>;
-
-    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    // Link a un archivo (subido a la app o con extensión conocida): se abre en su visor, no se descarga.
-    if (link && isFileHref(link[2])) {
-      return (
-        <button key={i} type="button" onClick={() => openFile({ url: link[2], name: link[1] })} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-slate-950">
-          {link[1]}
-        </button>
-      );
-    }
-    if (link) {
-      return (
-        <Link key={i} href={link[2]} className="underline decoration-dotted underline-offset-2 hover:text-slate-950">
-          {link[1]}
-        </Link>
-      );
-    }
-
-    const chip = part.match(/^\[\[([a-z]+):([^\]]*)\]\]$/);
-    if (chip) {
-      const [, type, rawArgs] = chip;
-      const args = rawArgs.split("|");
-      const rendered = renderChip(i, type, args);
-      if (rendered) return rendered;
-    }
-
-    return <Fragment key={i}>{part}</Fragment>;
-  });
-}
-
-const TABLE_ROW = /^\s*\|.*\|\s*$/;
-const TABLE_SEPARATOR = /^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{0,}:?\s*\|?\s*$/;
-
-function tableCells(line: string) {
-  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
-}
-
-function renderMessage(text: string, openFile: (f: ViewFile) => void) {
-  const lines = fixMalformedMarkers(text).split("\n");
-  const blocks: ({ kind: "text"; lines: string[] } | { kind: "table"; header: string[]; rows: string[][] })[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (TABLE_ROW.test(lines[i]) && TABLE_SEPARATOR.test(lines[i + 1] ?? "")) {
-      const header = tableCells(lines[i]);
-      const rows: string[][] = [];
-      i += 2;
-      while (i < lines.length && TABLE_ROW.test(lines[i])) rows.push(tableCells(lines[i++]));
-      i--;
-      blocks.push({ kind: "table", header, rows });
-      continue;
-    }
-    const last = blocks[blocks.length - 1];
-    if (last?.kind === "text") last.lines.push(lines[i]);
-    else blocks.push({ kind: "text", lines: [lines[i]] });
-  }
-  return blocks.map((b, i) => {
-    if (b.kind === "text") {
-      const body = b.lines.join("\n").replace(/^\n+|\n+$/g, "");
-      return body ? (
-        <span key={i} className="block whitespace-pre-wrap">
-          {renderInlineMarkdown(body, openFile)}
-        </span>
-      ) : null;
-    }
-    return (
-      <div key={i} className="my-1.5 overflow-x-auto">
-        <table className="w-full border-collapse text-xs leading-snug">
-          <thead>
-            <tr>
-              {b.header.map((h, j) => (
-                <th key={j} className="border-b border-slate-300 px-1.5 py-1 text-left align-bottom font-semibold">
-                  {renderInlineMarkdown(h, openFile)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {b.rows.map((r, j) => (
-              <tr key={j}>
-                {b.header.map((_, k) => (
-                  <td key={k} className="border-b border-slate-200 px-1.5 py-1 align-top">
-                    {renderInlineMarkdown(r[k] ?? "", openFile)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  });
-}
-
-const PROJECT_PHASE_STATUS: Record<keyof typeof PROJECT_PHASE_LABEL, TaskStatus> = {
-  PLANNING: "NOT_STARTED",
-  ACTIVE: "IN_PROGRESS",
-  COMPLETED: "COMPLETED",
-};
-
-function renderChip(key: number, type: string, args: string[]) {
-  if (type === "person") {
-    const [name, avatarUrl] = args;
-    if (!name) return null;
-    return (
-      <span key={key} className="inline-flex items-center gap-1 align-middle">
-        <Avatar name={name} avatarUrl={avatarUrl || null} size="h-4 w-4 text-[7px]" />
-        {name}
-      </span>
-    );
-  }
-
-  if (type === "project") {
-    const [name, projectId, iconUrl, parentName, parentIconUrl] = args;
-    if (!name) return null;
-    const chipBody = (
-      <span className="inline-flex items-center gap-1 align-middle">
-        <ProjectIcon name={name} iconUrl={iconUrl || null} parent={parentName ? { name: parentName, iconUrl: parentIconUrl || null } : null} inline size="h-4 w-4 text-[7px]" />
-        {name}
-      </span>
-    );
-    return projectId ? (
-      <Link key={key} href={`/projects/${projectId}`} className="hover:underline">
-        {chipBody}
-      </Link>
-    ) : (
-      <Fragment key={key}>{chipBody}</Fragment>
-    );
-  }
-
-  if (type === "status") {
-    const phase = args[0] as keyof typeof PROJECT_PHASE_LABEL;
-    const code = (PROJECT_PHASE_STATUS[phase] && !(args[0] in TASK_STATUS_LABEL) ? PROJECT_PHASE_STATUS[phase] : args[0]) as TaskStatus;
-    const color = TASK_STATUS_COLOR[code];
-    const label = args[0] in TASK_STATUS_LABEL ? TASK_STATUS_LABEL[code] : PROJECT_PHASE_LABEL[phase];
-    if (!color || !label) return null;
-    return (
-      <span key={key} className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${color.badge}`}>
-        {label}
-      </span>
-    );
-  }
-
-  if (type === "alert") {
-    const level = args[0] as TaskAlert["level"];
-    const style = ALERT_STYLE[level];
-    const label = ALERT_LEVEL_LABEL[level];
-    if (!style || !label) return null;
-    return (
-      <span key={key} className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${style}`}>
-        {label}
-      </span>
-    );
-  }
-
-  return null;
-}
-
-// Lo que no se debe leer en voz alta: marcado de negrita/links/miniaturas de
-// Markdown — de persona/proyecto solo interesa el nombre; de estado/alerta,
-// la etiqueta en español (no el código crudo en inglés).
-function stripMarkdownForSpeech(text: string): string {
-  return fixMalformedMarkers(text)
-    .replace(/\[\[([a-z]+):([^\]]*)\]\]/g, (_match, type: string, rawArgs: string) => {
-      const [first] = rawArgs.split("|");
-      if (type === "status") return TASK_STATUS_LABEL[first as TaskStatus] ?? PROJECT_PHASE_LABEL[first as keyof typeof PROJECT_PHASE_LABEL] ?? first;
-      if (type === "alert") return ALERT_LEVEL_LABEL[first as TaskAlert["level"]] ?? first;
-      return first ?? "";
-    })
-    .replace(/^\s*\|?(\s*:?-{3,}:?\s*\|?)+\s*$/gm, "")
-    .replace(/^\s*\|(.*)\|\s*$/gm, (_m, row: string) => row.split("|").map((c) => c.trim()).join(", ") + ".")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/[*_#`]/g, "");
-}
+import { ChatMessages, type ChatUiMessage } from "@/components/chat/ChatMessages";
+import { useChatAttachments } from "@/components/chat/useChatAttachments";
+import { stripMarkdownForSpeech } from "@/components/chat/chatMarkdown";
+import { AssistantComposer, AssistantTurns, useStickToBottom } from "@/components/chat/AssistantChat";
+import { useVoiceRecorder } from "@/components/useVoiceRecorder";
 
 export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; botAvatarUrl: string | null }) {
   const pathname = usePathname();
@@ -238,11 +32,9 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Reajusta el alto también cuando el texto cambia por dictado o al enviar.
   useLayoutEffect(() => fitToContent(textRef.current), [text]);
-  const [attached, setAttached] = useState<{ name: string; url: string }[]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const lastPending = messages.length > 0 ? messages[messages.length - 1].pendingAction : undefined;
+  const { attached, setAttached, openPicker, dropHandlers, fileInput, chips, dropOverlay } = useChatAttachments(!lastPending && !isPending);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   // Respuestas que llegaron con el chat cerrado: insignia sobre el ícono hasta que se abra.
   const [unread, setUnread] = useState(0);
@@ -265,6 +57,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     stop: stopDictation,
     toggle: toggleDictation,
   } = useDictation((spoken) => setText((current) => appendDictation(current, spoken)));
+  const voice = useVoiceRecorder((spoken) => handleSend(appendDictation(text, spoken)));
   // Alt+L con el historial sin cargar: se lee apenas llega.
   const speakLastOnLoad = useRef(false);
   const lastAssistant = messages.findLast((m) => m.role === "assistant" && m.text);
@@ -315,7 +108,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         if (loaded) {
           if (lastAssistant) toggleSpeak(lastAssistant.id, lastAssistant.text);
         } else speakLastOnLoad.current = true;
-      } else if (e.key === "Escape" && open && expanded && !e.defaultPrevented && !viewerOpenRef.current) {
+      } else if (e.key === "Escape" && open && expanded && voice.state === "idle" && !e.defaultPrevented && !viewerOpenRef.current) {
         setExpanded(false);
       }
     }
@@ -323,10 +116,11 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     return () => document.removeEventListener("keydown", onKeyDown);
   });
 
+  const onScroll = useStickToBottom(scrollRef, `${open}:${expanded}:${messages.length}:${optimisticMessage ? 1 : 0}:${isPending}:${voice.state}`, `${open}:${expanded}:${loaded}`);
+  const cancelVoice = voice.cancel;
   useEffect(() => {
-    if (!open) return;
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, optimisticMessage, open]);
+    if (!open || !expanded) cancelVoice();
+  }, [open, expanded, cancelVoice]);
 
   useEffect(() => {
     if (!open) return;
@@ -339,59 +133,13 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const lastPending = messages.length > 0 ? messages[messages.length - 1].pendingAction : undefined;
-
-  async function handleFile(file: File) {
-    setUploadError(null);
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const { ok, body } = await uploadWithProgress("/api/upload", form);
-      if (!ok) throw new Error(body.error ?? "No se pudo subir el archivo.");
-      setAttached((prev) => [...prev, { name: body.name, url: body.url }]);
-    } catch (err) {
-      setUploadError((err as Error).message);
-    }
-  }
-
-  // Varios archivos a la vez (botón, arrastrar y soltar, pegar): uno detrás de otro.
-  async function handleFiles(files: File[]) {
-    for (const file of files) await handleFile(file);
-  }
-
-  // Arrastrar y soltar o pegar (Ctrl+V) archivos en el panel: mismo camino que el botón 📎.
-  // Con una acción por confirmar no se adjunta nada (el campo de texto tampoco está).
-  const canAttach = !lastPending && !isPending;
-  const hasFiles = (types: readonly string[]) => types.includes("Files");
-  function handleDragOver(e: React.DragEvent) {
-    if (!canAttach || !hasFiles(e.dataTransfer.types)) return;
-    e.preventDefault();
-    setDragOver(true);
-  }
-  function handleDragLeave(e: React.DragEvent) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
-  }
-  function handleDrop(e: React.DragEvent) {
-    if (!hasFiles(e.dataTransfer.types)) return;
-    e.preventDefault();
-    setDragOver(false);
-    if (canAttach) void handleFiles(Array.from(e.dataTransfer.files));
-  }
-  function handlePaste(e: React.ClipboardEvent) {
-    const files = Array.from(e.clipboardData.files);
-    if (!canAttach || files.length === 0) return;
-    // preventDefault también le avisa a usePasteImage (áreas de subida de la página) que ya se atendió.
-    e.preventDefault();
-    void handleFiles(files);
-  }
-
   // Una falla del servidor se muestra en el propio chat: nunca debe tumbar la página.
   function showSendError() {
     setMessages((prev) => [...prev, { id: `error-${Date.now()}`, role: "system", text: "No se pudo procesar el mensaje. Intentarlo de nuevo en un momento." }]);
   }
 
-  function handleSend() {
-    const typed = text.trim();
+  function handleSend(raw = text) {
+    const typed = raw.trim();
     if ((!typed && attached.length === 0) || isPending) return;
     if (listening) stopDictation();
     // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
@@ -486,19 +234,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       {open && expanded && <div className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setExpanded(false)} />}
       {open && (
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onPaste={handlePaste}
+          {...dropHandlers}
           className={`fixed z-50 flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)] ${
             expanded ? "inset-3 md:inset-x-[8%] md:inset-y-6" : "right-3 bottom-[4.5rem] h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)]"
           }`}
         >
-          {dragOver && (
-            <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-[#0a6b78] bg-white/90 text-sm font-medium text-[#0a6b78]">
-              Soltar aquí para adjuntar
-            </div>
-          )}
+          {dropOverlay}
           <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-2">
               <Avatar name={botName} avatarUrl={botAvatarUrl} size="h-7 w-7 text-[11px]" />
@@ -530,7 +271,43 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
             </div>
           </header>
 
-          <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden p-3">
+          <div ref={scrollRef} onScroll={onScroll} className={`flex-1 overflow-y-auto overflow-x-hidden ${expanded ? "" : "space-y-2 p-3"}`}>
+            {expanded ? (
+              <div className="mx-auto max-w-3xl space-y-7 px-4 py-8 sm:px-6">
+                {!loaded && <p className="text-base text-slate-400">Cargando…</p>}
+                {loaded && messages.length === 0 && (
+                  <div className="flex gap-3">
+                    <span className="hidden shrink-0 sm:block">
+                      <Avatar name={botName} avatarUrl={botAvatarUrl} size="h-9 w-9 text-xs" />
+                    </span>
+                    <p className="pt-1 text-[17px] leading-[1.7] text-slate-900">¡Ey, qué más! Soy {botName} 🙌 Preguntame por tus proyectos, tareas o tiempos.</p>
+                  </div>
+                )}
+                <AssistantTurns
+                  messages={messages}
+                  optimisticMessage={optimisticMessage}
+                  isPending={isPending}
+                  botName={botName}
+                  botAvatarUrl={botAvatarUrl}
+                  openFile={fileViewer.open}
+                  onConfirm={handleConfirm}
+                  renderAssistantActions={(m) =>
+                    canSpeak && m.text ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSpeak(m.id, m.text)}
+                        aria-label={speakingId === m.id ? "Detener lectura" : "Leer en voz alta"}
+                        className="group relative mt-1 shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                      >
+                        {speakingId === m.id ? <SpeakerOffIcon className="h-4 w-4" /> : <SpeakerIcon className="h-4 w-4" />}
+                        {m.id === lastAssistant?.id && <Hotkey mod="Alt" keys="L" className="absolute top-0 right-full mr-1" />}
+                      </button>
+                    ) : null
+                  }
+                />
+              </div>
+            ) : (
+              <>
             {loaded && messages.length === 0 && (
               <div className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
                 ¡Ey, qué más! Soy {botName} 🙌 Preguntame por tus proyectos, tareas o tiempos.
@@ -538,90 +315,50 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
             )}
             {!loaded && <p className="p-2 text-sm text-slate-400">Cargando…</p>}
 
-            {messages.map((m) => {
-              if (m.role === "system") {
-                return (
-                  <p key={m.id} className="text-center text-xs text-slate-400">
-                    {m.text}
-                  </p>
-                );
-              }
-              return (
-                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                      m.role === "user" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
-                    }`}
+            <ChatMessages
+              messages={messages}
+              optimisticMessage={optimisticMessage}
+              isPending={isPending}
+              botName={botName}
+              openFile={fileViewer.open}
+              onConfirm={handleConfirm}
+              renderAssistantActions={(m) =>
+                canSpeak && m.text ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSpeak(m.id, m.text)}
+                    aria-label={speakingId === m.id ? "Detener lectura" : "Leer en voz alta"}
+                    className="group relative mt-0.5 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                   >
-                    <div className="flex items-start gap-1.5">
-                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">{renderMessage(m.text, fileViewer.open)}</div>
-                      {m.role === "assistant" && canSpeak && m.text && (
-                        <button
-                          type="button"
-                          onClick={() => toggleSpeak(m.id, m.text)}
-                          aria-label={speakingId === m.id ? "Detener lectura" : "Leer en voz alta"}
-                          className="group relative mt-0.5 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                        >
-                          {speakingId === m.id ? <SpeakerOffIcon className="h-3.5 w-3.5" /> : <SpeakerIcon className="h-3.5 w-3.5" />}
-                          {m.id === lastAssistant?.id && <Hotkey mod="Alt" keys="L" className="absolute top-0 right-full mr-1" />}
-                        </button>
-                      )}
-                    </div>
-                    {m.pendingAction && (
-                      <div
-                        className={`mt-2 space-y-1.5 rounded-lg border p-2 text-slate-800 ${
-                          m.pendingAction.destructive ? "border-red-200 bg-red-50" : "border-transparent bg-white"
-                        }`}
-                      >
-                        <p className={`whitespace-pre-line text-xs font-medium [overflow-wrap:anywhere] ${m.pendingAction.destructive ? "text-red-700" : ""}`}>{m.pendingAction.label}</p>
-                        {m.pendingAction.destructive && (
-                          <p className="text-[11px] text-red-600">Esta acción no se puede deshacer — confirmá con cuidado.</p>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleConfirm(m.pendingAction!.toolUseId, "confirm")}
-                            className={`rounded-lg px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60 ${
-                              m.pendingAction.destructive ? "bg-red-600 hover:bg-red-700" : "bg-slate-900 hover:bg-slate-800"
-                            }`}
-                          >
-                            {m.pendingAction.destructive ? "Sí, eliminar" : "Confirmar"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleConfirm(m.pendingAction!.toolUseId, "decline")}
-                            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            No, cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {optimisticMessage && (
-              <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-md bg-slate-900 px-3 py-2 text-sm text-white">
-                  <span className="whitespace-pre-wrap">{optimisticMessage.text}</span>
-                </div>
-              </div>
-            )}
-            {isPending && (
-              <div className="flex justify-start" aria-live="polite" aria-label={`${botName} está procesando tu mensaje`}>
-                <div className="flex h-8 items-center gap-1 rounded-2xl bg-slate-100 px-3" role="status">
-                  <span className="sr-only">{botName} está escribiendo</span>
-                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:0ms] motion-reduce:animate-none" />
-                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:120ms] motion-reduce:animate-none" />
-                  <i aria-hidden="true" className="typing-dot h-1.5 w-1.5 rounded-full bg-[#0a6b78] [animation-delay:240ms] motion-reduce:animate-none" />
-                </div>
-              </div>
+                    {speakingId === m.id ? <SpeakerOffIcon className="h-3.5 w-3.5" /> : <SpeakerIcon className="h-3.5 w-3.5" />}
+                    {m.id === lastAssistant?.id && <Hotkey mod="Alt" keys="L" className="absolute top-0 right-full mr-1" />}
+                  </button>
+                ) : null
+              }
+            />
+              </>
             )}
           </div>
 
+          {expanded ? (
+            <footer className="px-4 pt-2 pb-4 sm:px-6 sm:pb-6">
+              <div className="mx-auto max-w-3xl">
+                <AssistantComposer
+                  text={text}
+                  setText={setText}
+                  onSend={() => handleSend()}
+                  canWrite={!lastPending && !isPending && voice.state !== "transcribing"}
+                  hasAttachments={attached.length > 0}
+                  openPicker={openPicker}
+                  fileInput={fileInput}
+                  chips={chips}
+                  voice={voice}
+                  placeholder="Preguntale algo…"
+                  blockedNotice={lastPending ? "Confirmá o cancelá la acción de arriba primero." : null}
+                />
+              </div>
+            </footer>
+          ) : (
           <footer className="border-t border-slate-100 p-2">
             {lastPending ? (
               <p className="px-1 py-1.5 text-center text-xs text-slate-400">Confirmá o cancelá la acción de arriba primero.</p>
@@ -632,22 +369,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   {dictationError ?? (interim || "Escuchando…")}
                 </p>
               )}
-              {(attached.length > 0 || uploadError) && (
-                <div className="flex flex-wrap items-center gap-1 px-1 text-[11px]">
-                  {attached.map((f) => (
-                    <span key={f.url} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                      {f.name}
-                      <button type="button" aria-label={`Quitar ${f.name}`} onClick={() => setAttached((prev) => prev.filter((x) => x.url !== f.url))} className="cursor-pointer text-slate-400 hover:text-slate-900">×</button>
-                    </span>
-                  ))}
-                  {uploadError && <span className="text-red-600">{uploadError}</span>}
-                </div>
-              )}
+              {chips}
               <div className="flex items-end gap-2">
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
+                <button type="button" onClick={openPicker} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
                   📎
                 </button>
-                <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+                {fileInput}
                 <div className="relative flex-1">
                   <textarea
                     ref={textRef}
@@ -686,7 +413,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                 </div>
                 <button
                   type="button"
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={isPending || (!text.trim() && attached.length === 0)}
                   className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                 >
@@ -696,6 +423,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
               </div>
             )}
           </footer>
+          )}
         </div>
       )}
     </div>

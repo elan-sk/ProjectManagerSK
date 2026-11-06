@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,12 +25,8 @@ export default async function TestsSettingsPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <Link href="/settings" className="text-sm text-slate-500 hover:underline">
-        ← Configuración
-      </Link>
-      <h1 className="text-2xl font-semibold text-slate-900">Pruebas</h1>
-      <p className="text-sm text-slate-500">
+    <div className="space-y-4">
+      <p className="px-1 text-sm text-slate-500">
         Plantillas de pruebas para agilizar las revisiones, y categorías de respuesta para
         quien corrige. Crearlas y editarlas es de revisores, PM o administrador;
         eliminar definitivamente es solo del administrador.

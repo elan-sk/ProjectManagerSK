@@ -91,7 +91,7 @@ export async function createUser(formData: FormData) {
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -105,7 +105,7 @@ export async function updateUserRole(userId: string, role: "ADMIN" | "MEMBER") {
   if (deleted) return { ok: false, error: deleted };
   await prisma.user.update({ where: { id: userId }, data: { role } });
   forgetUserStatus(userId);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -154,7 +154,7 @@ export async function updateUserProfile(userId: string, formData: FormData) {
     where: { id: userId },
     data: { name: parsed.data.name, username: parsed.data.username, email: parsed.data.email || null, phone: parsed.data.phone || null, cargo: parsed.data.cargo?.trim() || null },
   });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -196,7 +196,7 @@ export async function deactivateUser(userId: string) {
 
   await prisma.user.update({ where: { id: userId }, data: { active: false } });
   forgetUserStatus(userId);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -211,7 +211,7 @@ export async function reactivateUser(userId: string) {
 
   await prisma.user.update({ where: { id: userId }, data: { active: true } });
   forgetUserStatus(userId);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 
@@ -224,7 +224,7 @@ export async function updateUserAvatar(userId: string, avatarUrl: string) {
   const deleted = await deletedUserError(userId);
   if (deleted) return { ok: false, error: deleted };
   await prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true };
 }
 

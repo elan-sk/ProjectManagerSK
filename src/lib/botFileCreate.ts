@@ -8,18 +8,22 @@ type Block =
   | { kind: "paragraph"; runs: Run[] }
   | { kind: "list"; items: { runs: Run[]; level: number; marker: string }[] }
   | { kind: "table"; rows: string[][] };
-type Doc = { title: string; date: string; blocks: Block[] };
+export type DocImage = { data: Buffer; width: number; height: number };
+export type DocTheme = { ink: string; muted: string; line: string; heading: string; headerFill: string; headerText: string; logo?: DocImage; icon?: DocImage; footer: string[] };
+type Doc = { title: string; date: string; blocks: Block[]; theme: DocTheme };
 
 const FORMATS_TEXT = "Word (.docx), Excel (.xlsx), PDF (.pdf), PowerPoint (.pptx), Markdown (.md), texto (.txt), CSV (.csv) y HTML (.html)";
 const RAW_EXTENSIONS = new Set([".md", ".txt", ".csv", ".html"]);
 const BUILDERS: Record<string, (doc: Doc) => Promise<Buffer>> = { ".docx": buildDocx, ".pdf": buildPdf, ".xlsx": buildXlsx, ".pptx": buildPptx };
 
-const INK = "0F172A";
-const MUTED = "64748B";
-const LINE = "CBD5E1";
-const HEADER_FILL = "E2E8F0";
+export const DEFAULT_THEME: DocTheme = { ink: "0F172A", muted: "64748B", line: "CBD5E1", heading: "0F172A", headerFill: "E2E8F0", headerText: "0F172A", footer: [] };
 
-export async function buildFile(fileName: string, content: string): Promise<BuiltFile> {
+function fit(img: DocImage, maxW: number, maxH: number) {
+  const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+  return { w: Math.round(img.width * scale), h: Math.round(img.height * scale) };
+}
+
+export async function buildFile(fileName: string, content: string, theme: DocTheme | null = null): Promise<BuiltFile> {
   const match = /^(.*)(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
   const ext = match?.[2].toLowerCase().replace(/^\.htm$/, ".html") ?? "";
   if (!RAW_EXTENSIONS.has(ext) && !BUILDERS[ext]) return { ok: false, error: `Formato no admitido. Se pueden crear: ${FORMATS_TEXT}.` };
@@ -33,7 +37,7 @@ export async function buildFile(fileName: string, content: string): Promise<Buil
   const first = blocks.findIndex((b) => b.kind === "heading" && b.level === 1);
   const title = first >= 0 ? plain((blocks.splice(first, 1)[0] as { runs: Run[] }).runs) : base;
   const date = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "long" }).format(new Date());
-  return { ok: true, name, buffer: await BUILDERS[ext]({ title, date, blocks }) };
+  return { ok: true, name, buffer: await BUILDERS[ext]({ title, date, blocks, theme: theme ?? DEFAULT_THEME }) };
 }
 
 const plain = (runs: Run[]) => runs.map((r) => r.text).join("");
@@ -76,14 +80,14 @@ const padded = (rows: string[][]) => {
   return rows.map((r) => [...r, ...Array(width - r.length).fill("")]);
 };
 
-async function buildDocx({ title, date, blocks }: Doc) {
-  const { AlignmentType, Document, Footer, HeadingLevel, Packer, PageNumber, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
+async function buildDocx({ title, date, blocks, theme }: Doc) {
+  const { AlignmentType, Document, Footer, Header, HeadingLevel, ImageRun, Packer, PageNumber, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
   const CONTENT_WIDTH = 9026;
   const runs = (list: Run[]) => list.map((r) => new TextRun({ text: r.text, bold: r.bold }));
   const headings = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3];
 
   const children = blocks.flatMap((b) => {
-    if (b.kind === "heading") return [new Paragraph({ heading: headings[Math.min(b.level, 3) - 1], children: runs(b.runs), spacing: { before: 240, after: 120 } })];
+    if (b.kind === "heading") return [new Paragraph({ heading: headings[Math.min(b.level, 3) - 1], children: b.runs.map((r) => new TextRun({ text: r.text, bold: true, color: theme.heading })), spacing: { before: 240, after: 120 } })];
     if (b.kind === "paragraph") return [new Paragraph({ children: runs(b.runs), spacing: { after: 160 } })];
     if (b.kind === "list")
       return b.items.map((item) =>
@@ -106,8 +110,9 @@ async function buildDocx({ title, date, blocks }: Doc) {
                   new TableCell({
                     width: { size: columnWidth, type: WidthType.DXA },
                     margins: { top: 60, bottom: 60, left: 100, right: 100 },
-                    shading: i === 0 ? { type: ShadingType.CLEAR, fill: HEADER_FILL, color: "auto" } : undefined,
-                    children: [new Paragraph({ children: [new TextRun({ text: cell, bold: i === 0 })] })],
+                    shading: i === 0 ? { type: ShadingType.CLEAR, fill: theme.headerFill, color: "auto" } : undefined,
+                    borders: { top: { style: "single", size: 4, color: theme.line }, bottom: { style: "single", size: 4, color: theme.line }, left: { style: "single", size: 4, color: theme.line }, right: { style: "single", size: 4, color: theme.line } },
+                    children: [new Paragraph({ children: [new TextRun({ text: cell, bold: i === 0, color: i === 0 ? theme.headerText : undefined })] })],
                   })
               ),
             })
@@ -122,10 +127,20 @@ async function buildDocx({ title, date, blocks }: Doc) {
     styles: { default: { document: { run: { font: "Calibri", size: 22 } } } },
     sections: [
       {
-        footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: ["Página ", PageNumber.CURRENT], color: MUTED, size: 18 })] })] }) },
+        headers: theme.logo
+          ? { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new ImageRun({ type: "png", data: theme.logo.data, transformation: (() => { const d = fit(theme.logo!, 160, 48); return { width: d.w, height: d.h }; })() })] })] }) }
+          : undefined,
+        footers: {
+          default: new Footer({
+            children: [
+              ...theme.footer.map((line) => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: line, color: theme.muted, size: 16 })] })),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: ["Página ", PageNumber.CURRENT], color: theme.muted, size: 18 })] }),
+            ],
+          }),
+        },
         children: [
-          new Paragraph({ children: [new TextRun({ text: title, bold: true, size: 40, color: INK })] }),
-          new Paragraph({ children: [new TextRun({ text: date, color: MUTED, size: 20 })], spacing: { after: 320 }, border: { bottom: { style: "single", size: 6, color: LINE, space: 8 } } }),
+          new Paragraph({ children: [new TextRun({ text: title, bold: true, size: 40, color: theme.heading })] }),
+          new Paragraph({ children: [new TextRun({ text: date, color: theme.muted, size: 20 })], spacing: { after: 320 }, border: { bottom: { style: "single", size: 6, color: theme.line, space: 8 } } }),
           ...children,
         ],
       },
@@ -134,9 +149,9 @@ async function buildDocx({ title, date, blocks }: Doc) {
   return Buffer.from(await Packer.toBuffer(doc));
 }
 
-async function buildPdf({ title, date, blocks }: Doc) {
+async function buildPdf({ title, date, blocks, theme }: Doc) {
   const PDFDocument = (await import("pdfkit")).default;
-  const doc = new PDFDocument({ size: "A4", margin: 56, bufferPages: true, info: { Title: title } });
+  const doc = new PDFDocument({ size: "A4", margins: { top: 56, left: 56, right: 56, bottom: 56 + 11 * theme.footer.length }, bufferPages: true, info: { Title: title } });
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
   const finished = new Promise<Buffer>((resolve, reject) => {
@@ -147,23 +162,28 @@ async function buildPdf({ title, date, blocks }: Doc) {
   const clean = (text: string) => text.replace(/[^\t\n\x20-\x7E\xA0-\xFF–—‘’“”•…€]/g, "").replace(/ {2,}/g, " ");
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
-  const write = (runs: Run[], size: number, x = left, forceBold = false) => {
+  const write = (runs: Run[], size: number, x = left, forceBold = false, color = theme.ink) => {
     const parts = runs.map((r) => ({ ...r, text: clean(r.text) })).filter((r) => r.text);
     if (parts.length === 0) return;
-    doc.fontSize(size).fillColor(`#${INK}`);
+    doc.fontSize(size).fillColor(`#${color}`);
     doc.x = x;
     parts.forEach((r, i) => doc.font(forceBold || r.bold ? "Helvetica-Bold" : "Helvetica").text(r.text, { continued: i < parts.length - 1, width: width - (x - left) }));
     doc.x = left;
   };
 
-  write([{ text: title }], 20, left, true);
-  doc.font("Helvetica").fontSize(10).fillColor(`#${MUTED}`).text(clean(date));
-  doc.moveDown(0.5).moveTo(left, doc.y).lineTo(left + width, doc.y).strokeColor(`#${LINE}`).stroke().moveDown(1);
+  if (theme.logo) {
+    const d = fit(theme.logo, 140, 44);
+    doc.image(theme.logo.data, left + width - d.w, doc.y, { width: d.w, height: d.h });
+    doc.y += d.h + 12;
+  }
+  write([{ text: title }], 20, left, true, theme.heading);
+  doc.font("Helvetica").fontSize(10).fillColor(`#${theme.muted}`).text(clean(date));
+  doc.moveDown(0.5).moveTo(left, doc.y).lineTo(left + width, doc.y).strokeColor(`#${theme.line}`).stroke().moveDown(1);
 
   for (const b of blocks) {
     if (b.kind === "heading") {
       doc.moveDown(0.4);
-      write(b.runs, [15, 13, 12][Math.min(b.level, 3) - 1], left, true);
+      write(b.runs, [15, 13, 12][Math.min(b.level, 3) - 1], left, true, theme.heading);
       doc.moveDown(0.3);
     } else if (b.kind === "paragraph") {
       write(b.runs, 11);
@@ -172,10 +192,10 @@ async function buildPdf({ title, date, blocks }: Doc) {
       for (const item of b.items) write([{ text: `${item.marker} ` }, ...item.runs], 11, left + 14 * (item.level + 1));
       doc.moveDown(0.6);
     } else {
-      doc.font("Helvetica").fontSize(10).fillColor(`#${INK}`);
+      doc.font("Helvetica").fontSize(10).fillColor(`#${theme.ink}`);
       doc.table({
-        defaultStyle: { border: 0.5, borderColor: `#${LINE}`, padding: 5 },
-        data: padded(b.rows).map((row, i) => row.map((cell) => ({ text: clean(cell), ...(i === 0 && { backgroundColor: `#${HEADER_FILL}`, font: { src: "Helvetica-Bold" } }) }))),
+        defaultStyle: { border: 0.5, borderColor: `#${theme.line}`, padding: 5 },
+        data: padded(b.rows).map((row, i) => row.map((cell) => ({ text: clean(cell), ...(i === 0 && { backgroundColor: `#${theme.headerFill}`, textColor: `#${theme.headerText}`, font: { src: "Helvetica-Bold" } }) }))),
       });
       doc.x = left;
       doc.moveDown(1);
@@ -186,7 +206,8 @@ async function buildPdf({ title, date, blocks }: Doc) {
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     doc.page.margins.bottom = 0;
-    doc.font("Helvetica").fontSize(9).fillColor(`#${MUTED}`).text(`Página ${i + 1} de ${range.count}`, left, doc.page.height - 36, { width, align: "center", lineBreak: false });
+    theme.footer.forEach((line, n) => doc.font("Helvetica").fontSize(8).fillColor(`#${theme.muted}`).text(clean(line), left, doc.page.height - 36 - 11 * (theme.footer.length - n), { width, align: "center", lineBreak: false }));
+    doc.font("Helvetica").fontSize(9).fillColor(`#${theme.muted}`).text(`Página ${i + 1} de ${range.count}`, left, doc.page.height - 30, { width, align: "center", lineBreak: false });
   }
   doc.end();
   return finished;
@@ -197,7 +218,7 @@ function cellValue(text: string): string | number {
   return /^-?(0|[1-9]\d{0,14})([.,]\d{1,2})?$/.test(value) ? Number(value.replace(",", ".")) : value;
 }
 
-async function buildXlsx({ title, blocks }: Doc) {
+async function buildXlsx({ title, blocks, theme }: Doc) {
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   let sheet: import("exceljs").Worksheet | null = null;
@@ -222,13 +243,14 @@ async function buildXlsx({ title, blocks }: Doc) {
       padded(b.rows).forEach((row, i) => {
         const added = ws.addRow(i === 0 ? row : row.map(cellValue));
         if (i > 0) return;
-        added.font = { bold: true };
-        added.eachCell((cell) => (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${HEADER_FILL}` } }));
+        added.font = { bold: true, color: { argb: `FF${theme.headerText}` } };
+        added.eachCell((cell) => (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${theme.headerFill}` } }));
       });
     }
   }
   if (workbook.worksheets.length === 0) sheetFor();
   for (const ws of workbook.worksheets) {
+    if (theme.footer.length > 0) ws.headerFooter.oddFooter = `&C&8${theme.footer.join(" · ").replace(/&/g, "&&")}`;
     ws.columns.forEach((column) => {
       let longest = 8;
       column.eachCell?.({ includeEmpty: false }, (cell) => (longest = Math.max(longest, String(cell.value ?? "").length)));
@@ -238,7 +260,7 @@ async function buildXlsx({ title, blocks }: Doc) {
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
-async function buildPptx({ title, date, blocks }: Doc) {
+async function buildPptx({ title, date, blocks, theme }: Doc) {
   const PptxGenJS = (await import("pptxgenjs")).default;
   const pres = new PptxGenJS();
   pres.layout = "LAYOUT_WIDE";
@@ -247,8 +269,15 @@ async function buildPptx({ title, date, blocks }: Doc) {
   const W = 12.1;
 
   const cover = pres.addSlide();
-  cover.addText(title, { x: X, y: 2.3, w: W, h: 1.6, fontSize: 36, bold: true, color: INK, valign: "bottom" });
-  cover.addText(date, { x: X, y: 4.0, w: W, h: 0.5, fontSize: 16, color: MUTED });
+  const image = (img: DocImage, maxW: number, maxH: number) => {
+    const d = fit(img, maxW * 100, maxH * 100);
+    return { data: `image/png;base64,${img.data.toString("base64")}`, w: d.w / 100, h: d.h / 100 };
+  };
+  if (theme.logo) cover.addImage({ ...image(theme.logo, 3, 1.1), x: X, y: 0.6 });
+  cover.addShape("rect", { x: X, y: 4.0 - 0.15, w: 1.2, h: 0.06, fill: { color: theme.line }, line: { color: theme.line } });
+  cover.addText(title, { x: X, y: 2.1, w: W, h: 1.6, fontSize: 36, bold: true, color: theme.heading, valign: "bottom" });
+  cover.addText(date, { x: X, y: 4.0, w: W, h: 0.5, fontSize: 16, color: theme.muted });
+  if (theme.footer.length > 0) cover.addText(theme.footer.join("\n"), { x: X, y: 6.5, w: W, h: 0.7, fontSize: 10, color: theme.muted, valign: "bottom" });
 
   type SlideData = { title: string; lines: { text: string; bullet: boolean; level: number }[]; table?: string[][] };
   const slides: SlideData[] = [];
@@ -267,19 +296,24 @@ async function buildPptx({ title, date, blocks }: Doc) {
 
   for (const data of slides) {
     const slide = pres.addSlide();
-    slide.slideNumber = { x: 12.2, y: 6.95, fontSize: 10, color: MUTED };
-    slide.addText(data.title, { x: X, y: 0.35, w: W, h: 0.8, fontSize: 26, bold: true, color: INK });
+    slide.slideNumber = { x: 12.2, y: 6.95, fontSize: 10, color: theme.muted };
+    if (theme.icon) {
+      const img = image(theme.icon, 1.1, 0.55);
+      slide.addImage({ ...img, x: 12.7 - img.w, y: 0.4 });
+    }
+    slide.addText(data.title, { x: X, y: 0.35, w: theme.icon ? W - 1.3 : W, h: 0.8, fontSize: 26, bold: true, color: theme.heading });
+    slide.addShape("rect", { x: X, y: 1.12, w: 1.2, h: 0.05, fill: { color: theme.line }, line: { color: theme.line } });
     const textHeight = data.table ? Math.min(0.45 * data.lines.length + 0.2, 2.4) : 5.4;
     if (data.lines.length > 0) {
       slide.addText(
         data.lines.map((line) => ({ text: line.text, options: { bullet: line.bullet ? { indent: 18 } : false, indentLevel: line.level, breakLine: true } })),
-        { x: X, y: 1.3, w: W, h: textHeight, fontSize: data.table ? 14 : 18, color: INK, valign: "top" }
+        { x: X, y: 1.3, w: W, h: textHeight, fontSize: data.table ? 14 : 18, color: theme.ink, valign: "top" }
       );
     }
     if (data.table) {
       slide.addTable(
-        data.table.map((row, i) => row.map((cell) => ({ text: cell, options: { bold: i === 0, ...(i === 0 && { fill: { color: HEADER_FILL } }) } }))),
-        { x: X, y: data.lines.length > 0 ? 1.4 + textHeight : 1.3, w: W, fontSize: 12, color: INK, border: { type: "solid", color: LINE, pt: 1 } }
+        data.table.map((row, i) => row.map((cell) => ({ text: cell, options: { bold: i === 0, ...(i === 0 && { fill: { color: theme.headerFill }, color: theme.headerText }) } }))),
+        { x: X, y: data.lines.length > 0 ? 1.4 + textHeight : 1.3, w: W, fontSize: 12, color: theme.ink, border: { type: "solid", color: theme.line, pt: 1 } }
       );
     }
   }

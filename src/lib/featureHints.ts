@@ -19,6 +19,13 @@ export const HINT_LIFETIME_DAYS = 7;
 
 export const FEATURE_HINTS: FeatureHint[] = [
   {
+    id: "company-nav",
+    path: "/projects",
+    title: "Nuevo: Empresa",
+    description: "Sección para administradores con el perfil de la empresa, su identidad para los documentos y un asistente que pregunta por ella, para que los consejos de la IA se ajusten a la empresa.",
+    publishedAt: "2026-11-05",
+  },
+  {
     id: "agenda-credentials-page",
     path: "/agenda",
     title: "Nuevo: Contraseñas",
@@ -34,21 +41,21 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "bot-whatsapp-chat-toggle",
-    path: "/settings",
+    path: "/settings/bot-whatsapp",
     title: "Nuevo: el asistente responde por WhatsApp",
     description: "Al marcar esta casilla, el asistente contesta los mensajes, documentos y notas de voz que el equipo le escribe a su número de WhatsApp.",
     publishedAt: "2026-10-28",
   },
   {
     id: "whatsapp-cloud-connection",
-    path: "/settings",
+    path: "/settings/bot-whatsapp",
     title: "Nuevo: conexión oficial de WhatsApp",
     description: "Además del código QR, WhatsApp puede conectarse con la API oficial de Meta, que no corre riesgo de bloqueo. El QR queda de respaldo.",
     publishedAt: "2026-10-30",
   },
   {
     id: "bot-group-mentions",
-    path: "/settings",
+    path: "/settings/bot-whatsapp",
     title: "Nuevo: pedidos al asistente desde el grupo",
     description: "Con esta casilla, el asistente atiende a quien lo menciona en el grupo del proyecto y publica ahí el resultado con su link.",
     publishedAt: "2026-10-30",

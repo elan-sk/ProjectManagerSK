@@ -1,0 +1,23 @@
+# Historial — 015 Asistente y perfil de la empresa
+
+- 2026-11-05 — Modo chat. Fuentes: conversación, chontatec.ts, ChontatecWidget.tsx, voiceTranscription.ts, settings/page.tsx, constitution.md. Biblioteca: no aplica (app propia, sin componentes equivalentes).
+- 2026-11-05 — Entrevista: perfil solo admins; temas con avance; voz con Whisper; edición a mano o con asistente (repaso tema por tema); chat normal consulta bajo demanda con institucional/delicado; archivos guardados; móvil con barra arriba.
+- 2026-11-05 — Spec escrita (borrador), pendiente aprobación 1.
+- 2026-11-05 — Al revisar: se agregan RF-30/31 (ofrecer el asistente desde el chat web y WhatsApp, solo a admins; proyectos en entrega 2). Vuelve a aprobación.
+- 2026-11-05 — Al revisar: tema 10 «Cómo trabaja» con equivalencia de tipos de tarea (RF-32/33/34); solo orienta a la IA, nombres visibles sin cambio. Vuelve a aprobación.
+- 2026-11-05 — APROBACIÓN 1: spec aprobada. Gráficos de empresa → entrega 3.
+- 2026-11-05 — Plan escrito con inventario y diagrama; RF-35 (API) agregado por regla de paridad. Pendiente aprobación 2.
+- 2026-11-05 — Aprobación 2 (plan). Hay cambios sin commit de otra sesión (WhatsApp grupos) en chontatec.ts, chontatecTools.ts, whatsapp*.ts y MEMORY.md: no se tocan esas zonas; separar al commitear.
+- 2026-11-05 — T1-T10 implementadas. Verificación: tsc ok; lint sin errores nuevos (los 11 errores son de archivos que no se tocaron); verify:company-profile, bot-history, bot-openai, whatsapp-chat y bot-create-file ok; rutas nuevas compilan en dev (página → login sin sesión, API 401, voz 401).
+- 2026-11-05 — Medición Whisper local (7 núcleos): 5 min = 87 s, 2 min = 30 s → tope del asistente 90 s (RF-18, en Cambios).
+- 2026-11-05 — Sin probar: conversación real con la IA (gasta saldo), grabar audio desde el navegador, arrastrar archivos, responsive. Pendiente de autorización para Chrome.
+- 2026-11-05 — Prueba en Chrome (autorizada) con perfil de prueba «Estudio Prueba»: guardar varios temas de una respuesta, saltar, Cómo trabaja + tipos (confirmar y cancelar), archivo .md → documento + Clientes/Portafolio, barra de temas en celular, sección Empresa con datos y chat normal leyendo el perfil. 4 correcciones (ver Cambios en spec). Datos de prueba borrados. Contraseña local de elan-sk cambiada a pedido del usuario.
+- 2026-11-05 — Sin probar: grabación de voz real (la automatización no tiene micrófono); filtro para no admin probado solo con verify.
+- 2026-11-06 — Rediseño del asistente a pedido (estilo Claude/ChatGPT/Gemini): respuestas sin burbuja a 17 px, etiqueta de paso, barra de avance, pasos conectados, cuadro de respuesta redondeado con clip/micrófono/enviar, inicio centrado. PendingActionCard extraída de ChatMessages (versión grande con Confirmar al final). Probado en Chrome escritorio y celular; datos de prueba borrados.
+- 2026-11-06 — Cambio de alcance (identidad en documentos), RF-36..45; spec vuelve a borrador, pendiente aprobación.
+- 2026-11-06 — Aprobado el cambio de alcance (identidad) con su plan.
+- 2026-11-06 — Identidad implementada: tabla CompanyBrand (migración 20261106120000), companyBrand.ts (+ companyBrandFields.ts para el navegador), tema en botFileCreate (Word/PDF/PPT con logo; Excel colores + pie), create_file con withBrand, contexto HTML, bloque «Identidad» en Empresa, herramienta save_company_brand del asistente, API e identidad en get_company_profile. verify:company-profile amplía colores, contraste, pie y los 4 formatos con/sin marca. PDF de muestra revisado.
+- 2026-11-06 — Audio: tope 5 min; /api/voice/transcribe responde jobId (202) y transcribe en segundo plano (Map en memoria, 15 min); GET ?id= consulta. Prueba con curl: POST 0 s, texto a los 129 s. Grabador estilo WhatsApp (eliminar, pausa, barras, enviar directo).
+- 2026-11-06 — Sin probar en navegador: bloque «Identidad», grabador nuevo con micrófono real, documentos con marca desde el chat.
+- 2026-11-06 — SVG grande (logo 2890×1130 pt) fallaba al pasar a PNG: densidad fija 300 superaba el límite de píxeles. Ahora la densidad se calcula según el tamaño (≈1600 px). Resultados de herramientas con {"error"} se muestran como ❌ con el mensaje (también en el chat flotante).
+- 2026-11-06 — Chat flotante en tamaño grande con la interfaz del asistente (pedido del usuario): piezas compartidas en src/components/chat/AssistantChat.tsx (AssistantTurns, AssistantComposer con grabador, useStickToBottom); el asistente de empresa también las usa. El tamaño de la ventana grande y el chat chico no cambian. Esc no cierra la ventana grande mientras se graba.

@@ -58,8 +58,8 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categor
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="font-medium text-slate-900">Categorías de etiqueta</h2>
+    <section className="space-y-4 rounded-3xl border border-slate-100 bg-white px-6 py-7 sm:px-8">
+      <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Categorías de etiqueta</h2>
       <div className="space-y-2">
         {categories.map((c) => (
           <div key={c.id} className="overflow-hidden rounded-lg border border-slate-200">

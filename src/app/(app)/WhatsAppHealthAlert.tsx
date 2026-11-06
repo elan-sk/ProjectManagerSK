@@ -34,7 +34,7 @@ export function WhatsAppHealthAlert() {
       : "La conexión está detenida.";
   return (
     <Link
-      href="/settings#whatsapp"
+      href="/settings/bot-whatsapp#whatsapp"
       title={`WhatsApp desconectado — ${detail}`}
       aria-label={`WhatsApp desconectado. ${detail}`}
       className="whatsapp-health-alert relative flex items-center gap-1 rounded-full bg-red-500/90 px-2 py-0.5 text-[11px] font-medium leading-4 text-white hover:bg-red-600"

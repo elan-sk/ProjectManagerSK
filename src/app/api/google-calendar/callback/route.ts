@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   if (!code || !state || state !== expectedState) {
     return NextResponse.redirect(
-      new URL("/settings?google_calendar=error", process.env.NEXTAUTH_URL)
+      new URL("/settings/integrations?google_calendar=error", process.env.NEXTAUTH_URL)
     );
   }
 
@@ -41,6 +41,6 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.redirect(
-    new URL("/settings?google_calendar=connected", process.env.NEXTAUTH_URL)
+    new URL("/settings/integrations?google_calendar=connected", process.env.NEXTAUTH_URL)
   );
 }

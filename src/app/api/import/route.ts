@@ -56,23 +56,23 @@ const importSchema = z.object({ version: z.number(), users: z.array(userSchema).
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/settings?importError=No+autorizado", request.url), 303);
+    return NextResponse.redirect(new URL("/settings/backups?importError=No+autorizado", request.url), 303);
   }
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.redirect(new URL("/settings?importError=Falta+el+archivo", request.url), 303);
+  if (!file) return NextResponse.redirect(new URL("/settings/backups?importError=Falta+el+archivo", request.url), 303);
 
   let raw: unknown;
   try {
     raw = JSON.parse(await file.text());
   } catch {
-    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+es+JSON+válido", request.url), 303);
+    return NextResponse.redirect(new URL("/settings/backups?importError=El+archivo+no+es+JSON+válido", request.url), 303);
   }
 
   const parsed = importSchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.redirect(new URL("/settings?importError=El+archivo+no+tiene+el+formato+esperado", request.url), 303);
+    return NextResponse.redirect(new URL("/settings/backups?importError=El+archivo+no+tiene+el+formato+esperado", request.url), 303);
   }
 
   let created = 0;
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const url = new URL("/settings", request.url);
+  const url = new URL("/settings/backups", request.url);
   url.searchParams.set("imported", String(created));
   if (usersCreated > 0) url.searchParams.set("usersCreated", String(usersCreated));
   if (failures.length > 0) url.searchParams.set("importFailed", failures.join(" | "));

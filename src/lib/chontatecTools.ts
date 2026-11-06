@@ -147,10 +147,10 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "create_file",
     description:
-      "Crea un archivo descargable y devuelve su enlace. El formato sale de la extensión de fileName: .docx, .pdf, .xlsx, .pptx, .md, .txt, .csv o .html. content va en Markdown (# título del documento; ## sección, hoja de Excel o diapositiva; listas; tablas); en .txt, .csv y .html, el contenido final tal cual.",
+      "Crea un archivo descargable y devuelve su enlace. El formato sale de la extensión de fileName: .docx, .pdf, .xlsx, .pptx, .md, .txt, .csv o .html. content va en Markdown (# título del documento; ## sección, hoja de Excel o diapositiva; listas; tablas); en .txt, .csv y .html, el contenido final tal cual. Word, PDF, PowerPoint y Excel salen solos con la identidad de la empresa (logo, colores y datos) si está cargada; withBrand false solo si piden el documento «sin logo» o «sin marca».",
     input_schema: {
       type: "object",
-      properties: { fileName: { type: "string" }, content: { type: "string" } },
+      properties: { fileName: { type: "string" }, content: { type: "string" }, withBrand: { type: "boolean", description: "Por defecto true." } },
       required: ["fileName", "content"],
     },
   },
@@ -318,6 +318,12 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     name: "list_tags",
     description: "Categorías de etiqueta de la app (id, nombre, emoji y color) y, con projectId, las etiquetas ya usadas en ese proyecto y en cuántas tareas está cada una.",
     input_schema: { type: "object", properties: { projectId: { type: "string", description: "Opcional." } } },
+  },
+  {
+    name: "get_company_profile",
+    description:
+      "Perfil de la empresa (nombre, sector, qué hace, historia, propósito, cómo trabaja, portafolio y, solo para administradores, clientes, crecimiento, qué quiere revisar con la aplicación, consejos que espera y documentos). Usala solo cuando la pregunta lo necesite. Ya viene filtrado según quién conversa.",
+    input_schema: { type: "object", properties: {} },
   },
 ];
 
@@ -1208,6 +1214,12 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
     }
 
+    case "get_company_profile": {
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+      const { getCompanyProfile, profileViewFor } = await import("@/lib/companyProfile");
+      const { getCompanyBrand, brandView } = await import("@/lib/companyBrand");
+      return JSON.stringify({ ...profileViewFor(await getCompanyProfile(), me.role === "ADMIN"), identidad: brandView(await getCompanyBrand()) });
+    }
     case "list_tags": {
       const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);
       const categories = await prisma.tagCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true, colorHex: true } });
@@ -1392,11 +1404,12 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       return readAttachmentContent({ fileUrl, fileName, mimeType: mimeFromFileName(fileName, fileUrl) });
     }
     case "create_file": {
-      const parsed = z.object({ fileName: z.string(), content: z.string() }).safeParse(input);
+      const parsed = z.object({ fileName: z.string(), content: z.string(), withBrand: z.boolean().optional() }).safeParse(input);
       if (!parsed.success) return JSON.stringify({ error: "Faltan el nombre o el contenido del archivo." });
       const isHtml = /\.html?$/i.test(parsed.data.fileName.trim());
       if (isHtml && !(await isAdminOrPm(userId))) return JSON.stringify({ error: "Los archivos HTML solo los pueden crear administradores y PM. Ofrecer otro formato." });
-      const built = await buildFile(parsed.data.fileName, parsed.data.content);
+      const { getDocTheme } = await import("@/lib/companyBrand");
+      const built = await buildFile(parsed.data.fileName, parsed.data.content, parsed.data.withBrand === false ? null : await getDocTheme());
       if (!built.ok) return JSON.stringify({ error: built.error });
       const saved = await saveUploadedFile(new File([new Uint8Array(built.buffer)], built.name), { allowHtml: isHtml });
       if (!saved.ok) return JSON.stringify({ error: saved.error });

@@ -38,7 +38,7 @@ export async function whatsAppGroups(refresh = false) {
 export async function updateDefaultWhatsAppGroup(groupJid: string) {
   await requireAdmin();
   await setAppWhatsAppGroup(groupJid || null);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -64,7 +64,7 @@ export async function updateWorkHours(startHour: number, endHour: number) {
   } catch (error) {
     return { ok: false as const, error: (error as Error).message };
   }
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -78,7 +78,7 @@ export async function updateDailyDigestTime(hour: number, minute: number) {
   } catch (error) {
     return { ok: false as const, error: (error as Error).message };
   }
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -128,7 +128,7 @@ export async function sendStaleQueue() {
 export async function discardStaleQueue() {
   await requireAdmin();
   const { count } = await prisma.whatsAppQueueItem.deleteMany({ where: staleWhere() });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const, discarded: count };
 }
 
@@ -144,7 +144,7 @@ export async function updateWhatsAppConnection(mode: WhatsAppConnection) {
   await setWhatsAppConnection(mode);
   if (await shouldRunQr()) void startWhatsApp().catch((err) => console.error("[whatsapp] no se pudo abrir el QR", err));
   else stopWhatsApp();
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -153,7 +153,7 @@ export async function updateWhatsAppCloud(input: { phoneNumberId: string; access
   if (!/^\d{5,30}$/.test(input.phoneNumberId.trim())) return { ok: false as const, error: "El identificador del número son solo dígitos; se copia de Meta → WhatsApp → Configuración de la API." };
   await saveCloudSettings(input);
   const check = await verifyCloudConnection();
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return check.ok ? { ok: true as const, displayNumber: check.displayNumber, name: check.name } : { ok: false as const, error: check.error };
 }
 
@@ -161,6 +161,6 @@ export async function updateWhatsAppMonthlyLimit(limit: number) {
   await requireAdmin();
   if (!Number.isInteger(limit) || limit < 1 || limit > 100_000) return { ok: false as const, error: "El tope debe ser un número entre 1 y 100.000." };
   await setWhatsAppMonthlyLimit(limit);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }

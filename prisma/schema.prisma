@@ -891,6 +891,7 @@ model AppSetting {
   whatsappSentThisPeriod     Int       @default(0)
   whatsappPeriodStart        DateTime?
   whatsappLimitWarnedPct     Int       @default(0)
+  companyAssistantFocus      String?
 }
 
 // Historial de chat con Chontatec (ver src/lib/chontatec.ts). Log plano
@@ -1278,4 +1279,45 @@ model UserFeatureHint {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, hintId])
+}
+
+model CompanyProfileTopic {
+  key         String   @id @db.VarChar(40)
+  text        String?  @db.Text
+  skipped     Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}
+
+model CompanyDocument {
+  id        String   @id @default(cuid())
+  url       String
+  name      String
+  mimeType  String
+  addedById String?
+  createdAt DateTime @default(now())
+}
+
+model CompanyTaskTypeMeaning {
+  type    TaskType @id
+  meaning String?  @db.Text
+  unused  Boolean  @default(false)
+}
+
+model CompanyBrand {
+  id             String   @id @default("main")
+  logoUrl        String?
+  logoPngUrl     String?
+  iconUrl        String?
+  iconPngUrl     String?
+  primaryColor   String?  @db.VarChar(7)
+  secondaryColor String?  @db.VarChar(7)
+  legalName      String?
+  taxId          String?
+  address        String?
+  city           String?
+  phone          String?
+  email          String?
+  website        String?
+  updatedAt      DateTime @updatedAt
 }

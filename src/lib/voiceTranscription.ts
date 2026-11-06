@@ -82,3 +82,7 @@ export function transcribeAudio(audio: Buffer, declaredSeconds?: number | null):
   globalForVoice.voiceQueue = run.catch(() => undefined);
   return run;
 }
+
+export function transcriptionErrorText(reason: "too_long" | "failed", maxSeconds = MAX_VOICE_SECONDS) {
+  return reason === "too_long" ? `El audio es muy largo; máximo ${maxSeconds >= 60 ? `${Math.round(maxSeconds / 60)} minutos` : `${maxSeconds} segundos`}.` : "No se pudo entender el audio; puede intentarlo de nuevo o escribir la respuesta.";
+}

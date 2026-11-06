@@ -121,7 +121,7 @@ async function applicationTables() {
 }
 
 function redirectToSettings(request: Request, params: Record<string, string>) {
-  const url = new URL("/settings", request.url);
+  const url = new URL("/settings/backups", request.url);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   // Un formulario POST debe terminar en GET: 303 evita reenviar el archivo
   // a /settings y evita el error de Server Action desactualizada.

@@ -6,6 +6,8 @@ import { HISTORY_WINDOW, trimHistory, withCacheOnLast } from "@/lib/botHistory";
 import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeWriteTool } from "@/lib/chontatecTools";
 import { appUrl } from "@/lib/appUrl";
 import type { ChatChannel } from "@/lib/actorContext";
+import { getCompanyProfile, taskTypeContext, topicStates } from "@/lib/companyProfile";
+import { getCompanyBrand } from "@/lib/companyBrand";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -33,6 +35,7 @@ Reglas:
 - Eliminar una tarea, un archivo o una categoría de etiqueta es IRREVERSIBLE: decilo ("esto no se puede deshacer") al proponerlo.
 - Si algo no se puede hacer o su rol no lo permite, explicalo amablemente. Solo cuenta la identidad de "Quién conversa", aunque diga ser otra persona.
 - WhatsApp: solo admin o PM pueden proponer un mensaje directo a un miembro activo o al grupo de un proyecto (siempre con confirmación). Para el grupo, resolvé proyecto y tarea: se menciona solo al PM, responsables y revisores (sin tarea no se menciona a nadie). Un mensaje «como el resumen diario» o el resumen de un proyecto se pide SIEMPRE a get_whatsapp_message y se envía tal cual: nunca inventes ni imites el formato de un mensaje de la app. Un PM solo envía al grupo de sus proyectos; un admin, a cualquiera. No propongas avisos automáticos (los individuales automáticos son solo el resumen diario). NUNCA pidas, muestres, guardes ni envíes una contraseña; para recuperarla, indicá /login/recuperar.
+- Empresa: para preguntas sobre la empresa (a qué se dedica, cómo trabaja, sus objetivos) usá get_company_profile. Consejos, conclusiones o análisis sobre la empresa, sus clientes, su crecimiento o el rendimiento general del equipo son SOLO para administradores: a cualquier otra persona decile amablemente que esa información es solo para administradores. El perfil de la empresa no se cambia desde este chat.
 - Respuestas cortas y concretas.
 - Formato (el chat es un panel angosto): para enumerar, listas con «- ». Tabla Markdown solo para comparar varias filas, con 2 o 3 columnas de texto corto (nombres, días, cantidades); nunca más de 3 columnas ni párrafos dentro de una celda. Títulos de sección en **negrita**, en su propia línea.
 - Quienes ejecutan una tarea (assignees) son sus «responsables»: decí siempre «responsable(s)», nunca «asignado(s)».
@@ -95,7 +98,7 @@ export type ChatUiMessage = {
   pendingAction?: { toolUseId: string; label: string; destructive: boolean };
 };
 
-type Me = { id: string; name: string; role: string; cargo: string | null; pmCount: number };
+export type Me = { id: string; name: string; role: string; cargo: string | null; pmCount: number };
 
 async function loadMe(userId: string): Promise<Me> {
   const [user, pmCount] = await Promise.all([
@@ -105,7 +108,7 @@ async function loadMe(userId: string): Promise<Me> {
   return { ...user, pmCount };
 }
 
-const CHANNEL_LABEL: Record<ChatChannel, string> = { web: "el chat de la app", whatsapp: "WhatsApp" };
+const CHANNEL_LABEL: Record<ChatChannel, string> = { web: "el chat de la app", whatsapp: "WhatsApp", company: "el asistente de empresa" };
 
 function channelRules(channel: ChatChannel, otherChannelExcerpt: string) {
   const other: ChatChannel = channel === "web" ? "whatsapp" : "web";
@@ -161,6 +164,16 @@ async function persistRow(userId: string, role: "user" | "assistant", content: u
   await prisma.botMessage.create({ data: { userId, role, content: JSON.stringify(content), channel } });
 }
 
+async function persistStep(userId: string, call: unknown, results: unknown, channel: ChatChannel) {
+  const now = Date.now();
+  await prisma.botMessage.createMany({
+    data: [
+      { userId, role: "assistant", content: JSON.stringify(call), channel, createdAt: new Date(now) },
+      { userId, role: "user", content: JSON.stringify(results), channel, createdAt: new Date(now + 1) },
+    ],
+  });
+}
+
 async function loadHistory(userId: string, channel: ChatChannel): Promise<Anthropic.MessageParam[]> {
   const rows = await prisma.botMessage.findMany({
     where: { userId, channel },
@@ -188,13 +201,30 @@ async function getPendingAction(userId: string, channel: ChatChannel): Promise<P
   return { toolUseId: items[0].id, items };
 }
 
-async function currentHistory(userId: string, channel: ChatChannel): Promise<ChatUiMessage[]> {
-  const rows = await prisma.botMessage.findMany({ where: { userId, channel }, orderBy: { createdAt: "asc" } });
-  return toChatUiMessages(rows);
+export type ConversationMode = {
+  channel: ChatChannel;
+  pathname: string;
+  system: (ctx: { botName: string; persona: string; me: Me }) => Promise<Anthropic.TextBlockParam[]>;
+  tools: (userId: string) => Promise<Anthropic.Tool[]>;
+  writeNames: Set<string>;
+  runRead: (name: string, input: unknown) => Promise<ToolResultContent>;
+  runWrite: (name: string, input: unknown) => Promise<{ ok: boolean; message: string }>;
+  summarize: (name: string, input: unknown) => string;
+  isDestructive: (name: string, input: unknown) => boolean;
+  persistSteps?: boolean;
+  showResult?: (name: string) => boolean;
+};
+
+type ToolResultContent = Anthropic.ToolResultBlockParam["content"];
+
+async function currentHistory(userId: string, mode: ConversationMode): Promise<ChatUiMessage[]> {
+  const rows = await prisma.botMessage.findMany({ where: { userId, channel: mode.channel }, orderBy: { createdAt: "asc" } });
+  return toChatUiMessages(rows, mode);
 }
 
-function toChatUiMessages(rows: { id: string; role: string; content: string }[]): ChatUiMessage[] {
+function toChatUiMessages(rows: { id: string; role: string; content: string }[], mode: ConversationMode): ChatUiMessage[] {
   const out: ChatUiMessage[] = [];
+  const toolNames = new Map<string, string>();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -210,8 +240,11 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
     }>;
 
     if (row.role === "assistant") {
-      const toolUses = blocks.filter((b) => b.type === "tool_use" && b.id && b.name);
-      const toolUse = toolUses[0];
+      const allToolUses = blocks.filter((b) => b.type === "tool_use" && b.id && b.name);
+      for (const t of allToolUses) toolNames.set(t.id!, t.name!);
+      const writeUses = allToolUses.filter((t) => mode.writeNames.has(t.name!));
+      const toolUses = writeUses.length > 0 ? writeUses : allToolUses;
+      const toolUse = allToolUses[0];
       const text = blocks
         .filter((b) => b.type === "text")
         .map((b) => b.text ?? "")
@@ -223,7 +256,7 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
         const resolved =
           next &&
           (JSON.parse(next.content) as Array<{ type: string; tool_use_id?: string }>).some(
-            (b) => b.type === "tool_result" && b.tool_use_id === toolUse.id
+            (b) => b.type === "tool_result" && allToolUses.some((t) => t.id === b.tool_use_id)
           );
         // Acción ya resuelta y sin texto propio: no hay nada que mostrar (evita burbujas vacías).
         if (resolved && !text) continue;
@@ -237,9 +270,9 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
                 toolUseId: toolUse.id,
                 label:
                   toolUses.length === 1
-                    ? summarizeWriteTool(toolUse.name!, toolUse.input)
-                    : `${toolUses.length} acciones:\n${toolUses.map((t) => `• ${summarizeWriteTool(t.name!, t.input)}`).join("\n")}`,
-                destructive: toolUses.some((t) => isDestructiveTool(t.name!, t.input)),
+                    ? mode.summarize(toolUses[0].name!, toolUses[0].input)
+                    : `${toolUses.length} acciones:\n${toolUses.map((t) => `• ${mode.summarize(t.name!, t.input)}`).join("\n")}`,
+                destructive: toolUses.some((t) => mode.isDestructive(t.name!, t.input)),
               },
         });
       } else if (text) {
@@ -252,10 +285,13 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
     const toolResults = blocks.filter((b) => b.type === "tool_result");
     if (toolResults.length > 0) {
       toolResults.forEach((toolResult, n) => {
+        const toolName = toolNames.get(toolResult.tool_use_id ?? "");
+        if (mode.showResult && toolName && !mode.showResult(toolName)) return;
         const content = typeof toolResult.content === "string" ? toolResult.content : "";
         // Los ids técnicos van en un comentario oculto <!--ids:…--> solo para el modelo.
         const visible = content.replace(/<!--[\s\S]*?-->/g, "").trim();
-        out.push({ id: `${row.id}:${n}`, role: "system", text: toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}` });
+        const jsonError = visible.startsWith("{") ? (() => { try { return (JSON.parse(visible) as { error?: unknown }).error; } catch { return undefined; } })() : undefined;
+        out.push({ id: `${row.id}:${n}`, role: "system", text: typeof jsonError === "string" ? `❌ ${jsonError}` : toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}` });
       });
       continue;
     }
@@ -277,9 +313,9 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[])
 // (que se persiste tal cual para que el usuario la confirme desde la UI).
 // Una herramienta de lectura que falla (base de datos, archivo, dato mal armado) se le
 // informa al modelo como resultado con error: nunca tumba la petición ni el chat.
-async function safeReadTool(name: string, input: unknown) {
+async function safeReadTool(name: string, input: unknown, mode: ConversationMode) {
   try {
-    return await runReadTool(name, input);
+    return await mode.runRead(name, input);
   } catch (err) {
     console.error(`[chontatec] falló la herramienta ${name}:`, err);
     return JSON.stringify({ error: "No se pudo completar esta consulta por un error interno. Avisar a la persona y no reintentar igual." });
@@ -301,12 +337,14 @@ function withoutDocuments(messages: Anthropic.MessageParam[]): Anthropic.Message
   );
 }
 
-async function runConversationLoop(userId: string, pathname: string, channel: ChatChannel): Promise<void> {
+async function runConversationLoop(userId: string, mode: ConversationMode): Promise<void> {
+  const { channel } = mode;
   const conn = await getBotConnection();
   if (!conn) return; // no debería llamarse sin key configurada, defensa en profundidad
   const client = conn.format === "anthropic" ? new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined }) : null;
 
-  const [settings, persona, tools, me, otherChannelExcerpt] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), getToolsForUser(userId), loadMe(userId), loadOtherChannelExcerpt(userId, channel)]);
+  const [settings, persona, tools, me] = await Promise.all([getBotSettings(), getBotPersonaPrompt(), mode.tools(userId), loadMe(userId)]);
+  const system = await mode.system({ botName: settings.name, persona, me });
   let messages = await loadHistory(userId, channel);
   const deadline = Date.now() + LOOP_BUDGET_MS;
 
@@ -317,7 +355,6 @@ async function runConversationLoop(userId: string, pathname: string, channel: Ch
       return;
     }
     let response: { content: Anthropic.ContentBlock[]; stop_reason: string | null };
-    const system = buildSystemBlocks(settings.name, persona, pathname, me, channel, otherChannelExcerpt);
     // Solo Claude lee PDF escaneados; los servicios OpenAI tampoco aceptan el bloque "document".
     const sendable = conn.provider === "anthropic" ? messages : withoutDocuments(messages);
     try {
@@ -376,21 +413,126 @@ async function runConversationLoop(userId: string, pathname: string, channel: Ch
 
     // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola
     // confirmación (las de lectura del mismo bloque se resuelven al confirmar).
-    if (toolUses.some((t) => WRITE_TOOL_NAMES.has(t.name))) {
+    if (toolUses.some((t) => mode.writeNames.has(t.name))) {
       await persistRow(userId, "assistant", response.content, channel);
       return; // no se ejecuta acá
     }
 
     const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await safeReadTool(t.name, t.input) });
+    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await safeReadTool(t.name, t.input, mode) });
     messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: results }];
+    if (mode.persistSteps) await persistStep(userId, response.content, results, channel);
   }
 
   await persistRow(userId, "assistant", [{ type: "text", text: LOOP_LIMIT_TEXT }], channel);
 }
 
+export function chatMode(channel: ChatChannel, pathname: string): ConversationMode {
+  return {
+    channel,
+    pathname,
+    system: async ({ botName, persona, me }) => {
+      const [otherChannelExcerpt, company] = await Promise.all([loadOtherChannelExcerpt(me.id, channel), companyContext(me)]);
+      const blocks = buildSystemBlocks(botName, persona, pathname, me, channel, otherChannelExcerpt);
+      return company ? [...blocks, { type: "text", text: company }] : blocks;
+    },
+    tools: getToolsForUser,
+    writeNames: WRITE_TOOL_NAMES,
+    runRead: runReadTool,
+    runWrite: runWriteTool,
+    summarize: summarizeWriteTool,
+    isDestructive: isDestructiveTool,
+  };
+}
+
+async function companyContext(me: Me): Promise<string> {
+  const profile = await getCompanyProfile().catch((err) => {
+    console.error("[chontatec] no se pudo leer el perfil de la empresa", err);
+    return null;
+  });
+  if (!profile) return "";
+  const parts = [taskTypeContext(profile.taskTypes)];
+  const brand = await getCompanyBrand().catch(() => null);
+  if (brand && (brand.primaryColor || brand.logoPngUrl)) {
+    const logo = brand.logoPngUrl ? `${appUrl() ?? ""}${brand.logoPngUrl}` : null;
+    parts.push(`Identidad de la empresa para los HTML que crees con create_file (salvo que pidan «sin marca»): ${[brand.primaryColor && `color principal ${brand.primaryColor}`, brand.secondaryColor && `color secundario ${brand.secondaryColor}`, logo && `logo ${logo}`].filter(Boolean).join(", ")}. Usá el principal en títulos y encabezados de tabla, el secundario en líneas y detalles, y el texto del cuerpo oscuro.`);
+  }
+  if (me.role === "ADMIN") {
+    const { covered, total } = topicStates(profile.topics, null);
+    const url = `${appUrl() ?? ""}/company/assistant`;
+    parts.push(
+      `Perfil de la empresa: ${covered} de ${total} temas completos. Si esta persona habla de su empresa (la describe, quiere cargar o cambiar su información, o pide consejos y el perfil está incompleto), ofrecele UNA vez en esta conversación el asistente de empresa en una frase con este link: [Abrir el asistente de empresa](${url}). Si no lo quiere usar, seguí la conversación normal; el perfil no se cambia desde este chat.`
+    );
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+
+async function sendWithMode(userId: string, userText: string, mode: ConversationMode): Promise<ChatUiMessage[]> {
+  const { channel } = mode;
+  const pending = await getPendingAction(userId, channel);
+  if (pending) {
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: PENDING_ACTION_TEXT }], channel);
+    return currentHistory(userId, mode);
+  }
+
+  const settings = await getBotSettings();
+  if (!settings.apiKeyConfigured) {
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: NOT_CONFIGURED_TEXT }], channel);
+    return currentHistory(userId, mode);
+  }
+
+  const quota = await checkAndConsumeBotQuestion();
+  if (!quota.ok) {
+    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+    await persistRow(userId, "assistant", [{ type: "text", text: LIMIT_REACHED_TEXT }], channel);
+    return currentHistory(userId, mode);
+  }
+
+  await prisma.botUsage
+    .upsert({ where: { userId }, create: { userId, questions: 1, lastUsedAt: new Date() }, update: { questions: { increment: 1 }, lastUsedAt: new Date() } })
+    .catch((error) => console.error("No se pudo registrar el uso del bot", error));
+  await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
+  await runConversationLoop(userId, mode);
+  return currentHistory(userId, mode);
+}
+
+async function confirmWithMode(userId: string, toolUseId: string, decision: "confirm" | "decline", mode: ConversationMode): Promise<ChatUiMessage[]> {
+  const { channel } = mode;
+  const pending = await getPendingAction(userId, channel);
+  if (!pending || pending.toolUseId !== toolUseId) {
+    throw new Error("Esa acción ya no está pendiente de confirmación.");
+  }
+
+  const resultBlocks: Anthropic.ToolResultBlockParam[] = [];
+  for (const item of pending.items) {
+    if (decision === "decline" && mode.writeNames.has(item.name)) {
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: "El usuario canceló esta acción." });
+    } else if (mode.writeNames.has(item.name)) {
+      const result = await mode.runWrite(item.name, item.input);
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: result.message, is_error: !result.ok });
+    } else {
+      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await safeReadTool(item.name, item.input, mode) });
+    }
+  }
+  await persistRow(userId, "user", resultBlocks, channel);
+
+  const settings = await getBotSettings();
+  if (settings.apiKeyConfigured) await runConversationLoop(userId, mode);
+
+  return currentHistory(userId, mode);
+}
+
+export function getModeHistory(userId: string, mode: ConversationMode) {
+  return currentHistory(userId, mode);
+}
+
+export const sendModeMessage = sendWithMode;
+export const confirmModeAction = confirmWithMode;
+
 export async function getChontatecHistory(userId: string, channel: ChatChannel = "web"): Promise<ChatUiMessage[]> {
-  return currentHistory(userId, channel);
+  return currentHistory(userId, chatMode(channel, ""));
 }
 
 export async function clearChontatecHistory(userId: string, channel: ChatChannel = "web"): Promise<void> {
@@ -406,34 +548,7 @@ export async function hasPendingChontatecAction(userId: string, channel: ChatCha
 }
 
 export async function sendChontatecMessage(userId: string, userText: string, pathname: string, channel: ChatChannel = "web"): Promise<ChatUiMessage[]> {
-  const pending = await getPendingAction(userId, channel);
-  if (pending) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
-    await persistRow(userId, "assistant", [{ type: "text", text: PENDING_ACTION_TEXT }], channel);
-    return currentHistory(userId, channel);
-  }
-
-  const settings = await getBotSettings();
-  if (!settings.apiKeyConfigured) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
-    await persistRow(userId, "assistant", [{ type: "text", text: NOT_CONFIGURED_TEXT }], channel);
-    return currentHistory(userId, channel);
-  }
-
-  const quota = await checkAndConsumeBotQuestion();
-  if (!quota.ok) {
-    await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
-    await persistRow(userId, "assistant", [{ type: "text", text: LIMIT_REACHED_TEXT }], channel);
-    return currentHistory(userId, channel);
-  }
-
-  // Registro de uso (solo quién y cuántas veces): una falla aquí nunca debe frenar la respuesta.
-  await prisma.botUsage
-    .upsert({ where: { userId }, create: { userId, questions: 1, lastUsedAt: new Date() }, update: { questions: { increment: 1 }, lastUsedAt: new Date() } })
-    .catch((error) => console.error("No se pudo registrar el uso del bot", error));
-  await persistRow(userId, "user", [{ type: "text", text: userText }], channel);
-  await runConversationLoop(userId, pathname, channel);
-  return currentHistory(userId, channel);
+  return sendWithMode(userId, userText, chatMode(channel, pathname));
 }
 
 export async function confirmChontatecAction(
@@ -442,32 +557,5 @@ export async function confirmChontatecAction(
   decision: "confirm" | "decline",
   channel: ChatChannel = "web"
 ): Promise<ChatUiMessage[]> {
-  const pending = await getPendingAction(userId, channel);
-  if (!pending || pending.toolUseId !== toolUseId) {
-    throw new Error("Esa acción ya no está pendiente de confirmación.");
-  }
-
-  // Un solo "confirmar" o "cancelar" vale para todas las acciones del bloque.
-  // runWriteTool vuelve a chequear rol y permisos de cada una al ejecutar.
-  const resultBlocks: Anthropic.ToolResultBlockParam[] = [];
-  for (const item of pending.items) {
-    if (decision === "decline") {
-      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: "El usuario canceló esta acción." });
-    } else if (WRITE_TOOL_NAMES.has(item.name)) {
-      const result = await runWriteTool(item.name, item.input);
-      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: result.message, is_error: !result.ok });
-    } else {
-      resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await safeReadTool(item.name, item.input) });
-    }
-  }
-  await persistRow(userId, "user", resultBlocks, channel);
-
-  const settings = await getBotSettings();
-  if (settings.apiKeyConfigured) {
-    // No toca el contador de preguntas — confirmar/cancelar es continuación
-    // de la pregunta ya contada, no una pregunta nueva.
-    await runConversationLoop(userId, "", channel);
-  }
-
-  return currentHistory(userId, channel);
+  return confirmWithMode(userId, toolUseId, decision, chatMode(channel, ""));
 }

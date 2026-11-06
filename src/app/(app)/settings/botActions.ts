@@ -16,7 +16,7 @@ async function requireAdmin() {
 export async function updateBotProfile(name: string, avatarUrl: string | null) {
   await requireAdmin();
   await setBotProfile(name, avatarUrl);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -24,7 +24,7 @@ export async function updateBotAvatar(url: string) {
   await requireAdmin();
   const current = await getBotSettings();
   await setBotProfile(current.name, url);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -45,14 +45,14 @@ export async function updateBotConnection(input: { provider: string; baseUrl: st
     return { ok: false as const, error: "Falta la clave de ese servicio." };
   }
   await setBotConnection(input.provider, needsUrl ? baseUrl : null, model || null, apiKey || null);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
 export async function clearBotApiKey() {
   await requireAdmin();
   await setBotApiKey(null);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -60,7 +60,7 @@ export async function clearBotApiKey() {
 export async function updateBotPersonaPrompt(text: string) {
   await requireAdmin();
   await setBotPersonaPrompt(text);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -68,7 +68,7 @@ export async function updateBotPersonaPrompt(text: string) {
 export async function updateBotIntroMessage(text: string) {
   await requireAdmin();
   await setBotIntroMessage(text);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -78,7 +78,7 @@ export async function updateBotMonthlyLimit(limit: number) {
     return { ok: false as const, error: "El tope tiene que ser un número entero mayor a 0." };
   }
   await setBotMonthlyLimit(limit);
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
@@ -87,13 +87,13 @@ export async function updateGroupMentionsEnabled(enabled: boolean) {
   await setGroupMentionsEnabled(Boolean(enabled));
   if (await shouldRunQr()) void startWhatsApp().catch((err) => console.error("[whatsapp] no se pudo abrir el QR para el grupo", err));
   else stopWhatsApp();
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }
 
 export async function updateWhatsappChatEnabled(enabled: boolean) {
   await requireAdmin();
   await setWhatsappChatEnabled(Boolean(enabled));
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { ok: true as const };
 }

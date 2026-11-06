@@ -1,0 +1,40 @@
+digraph G {
+  rankdir=LR; nodesep=0.35; ranksep=0.6; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  admin [label="Administrador", fillcolor="#E0E0E0", color="#757575"];
+  equipo [label="PM y miembros", fillcolor="#E0E0E0", color="#757575"];
+
+  subgraph cluster_ui { label="Pantallas"; fontsize=12; color="#9E9E9E";
+    seccion [label="Configuración → «Empresa»\ndocumento por tema, Editar,\nDocumentos de la empresa", fillcolor="#C8E6C9", color="#2E7D32"];
+    asistente [label="Asistente a pantalla completa\ntemas con avance N de 10,\nvoz, arrastrar archivos", fillcolor="#C8E6C9", color="#2E7D32"];
+    piezas [label="Piezas compartidas del chat\nlista de mensajes, confirmar,\nadjuntar y arrastrar", fillcolor="#FFE0B2", color="#EF6C00"];
+    widget [label="Chat flotante", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+
+  subgraph cluster_srv { label="Servidor"; fontsize=12; color="#9E9E9E";
+    motor [label="Motor de conversación\n(acepta reglas y herramientas\nsegún el modo)", fillcolor="#FFE0B2", color="#EF6C00"];
+    reglasAsis [label="Reglas del asistente\n+ herramientas: guardar tema,\nsaltar, documento, tipos de tarea", fillcolor="#C8E6C9", color="#2E7D32"];
+    reglasChat [label="Reglas del chat normal\n+ get_company_profile,\nofrecer asistente, tipos de tarea", fillcolor="#FFE0B2", color="#EF6C00"];
+    voz [label="Transcribir audio\n(Whisper del servidor)", fillcolor="#C8E6C9", color="#2E7D32"];
+    whisper [label="Whisper\n(ya lo usa WhatsApp)", fillcolor="#E0E0E0", color="#757575"];
+    identidad [label="Identidad de la empresa\nlogo, ícono, 2 colores,\nrazón social, NIT, contacto", fillcolor="#C8E6C9", color="#2E7D32"];
+    docs [label="Crear documentos\nWord, PDF, PowerPoint,\nExcel, HTML", fillcolor="#FFE0B2", color="#EF6C00"];
+    perfil [label="Perfil de la empresa\ntemas + documentos +\nsignificado de tipos de tarea", fillcolor="#C8E6C9", color="#2E7D32"];
+    api [label="API v1\n/company-profile", fillcolor="#C8E6C9", color="#2E7D32"];
+    wa [label="Chat por WhatsApp", fillcolor="#E0E0E0", color="#757575"];
+  }
+
+  admin -> seccion; seccion -> asistente [label="Empezar / Seguir / Repasar"];
+  asistente -> piezas; widget -> piezas;
+  asistente -> voz; voz -> whisper;
+  asistente -> motor [label="modo asistente"]; widget -> motor [label="modo chat"]; wa -> motor [label="modo chat"];
+  motor -> reglasAsis; motor -> reglasChat;
+  reglasAsis -> perfil [label="guarda"]; seccion -> perfil [label="edita a mano"];
+  reglasChat -> perfil [label="lee (filtrado por rol)"];
+  api -> perfil;
+  equipo -> widget; equipo -> wa;
+  seccion -> identidad [label="bloque Identidad"]; reglasAsis -> identidad [label="logo / manual"];
+  reglasChat -> docs [label="create_file"]; identidad -> docs [label="marca (salvo «sin marca»)"];
+}

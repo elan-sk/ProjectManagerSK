@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
-export type ChatChannel = "web" | "whatsapp";
+export type ChatChannel = "web" | "whatsapp" | "company";
 
 export type ContextActor = { userId: string; role: string; name: string; channel: ChatChannel };
 
