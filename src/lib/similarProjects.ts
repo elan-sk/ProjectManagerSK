@@ -48,7 +48,18 @@ export async function similarProjects(userId: string, target: { projectId?: stri
             };
           })
       );
-      return { name: p.name, client: p.clientName, archived: Boolean(p.archivedAt), phases: phaseInfo };
+      const learnings = await prisma.learning.findMany({
+        where: { projectId: p.id, status: { not: "DISCARDED" }, personId: null },
+        select: { topic: true, title: true, recommendation: true, status: true },
+        take: 10,
+      });
+      return {
+        name: p.name,
+        client: p.clientName,
+        archived: Boolean(p.archivedAt),
+        phases: phaseInfo,
+        learnings: learnings.map((l) => ({ tema: l.topic, conclusion: l.title, recomendacion: l.recommendation, estado: l.status === "APPLIED" ? "Aplicada" : "Propuesta" })),
+      };
     })
   );
 }

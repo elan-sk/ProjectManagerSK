@@ -1,0 +1,32 @@
+digraph G {
+  rankdir=LR; nodesep=0.35; ranksep=0.6; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+  admin [label="Administrador", fillcolor="#E0E0E0", color="#757575"];
+  pm [label="PM", fillcolor="#E0E0E0", color="#757575"];
+  claude [label="Claude por la API\n(a pedido)", fillcolor="#E0E0E0", color="#757575"];
+  subgraph cluster_ui { label="Pantallas"; fontsize=12; color="#9E9E9E";
+    tablero [label="Empresa → Tablero\n9 indicadores, período y cliente", fillcolor="#C8E6C9", color="#2E7D32"];
+    aprendEmp [label="Empresa → Aprendizajes\nfiltros + Retrospectiva de archivados", fillcolor="#C8E6C9", color="#2E7D32"];
+    aprendProy [label="Proyecto → Definición\nsección Aprendizajes", fillcolor="#C8E6C9", color="#2E7D32"];
+    campana [label="Campana\naviso «listo para aprendizajes»", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+  subgraph cluster_srv { label="Servidor"; fontsize=12; color="#9E9E9E";
+    indicadores [label="Catálogo de indicadores\n(reutiliza Rendimiento)", fillcolor="#C8E6C9", color="#2E7D32"];
+    rendimiento [label="Cálculos de Rendimiento\n(a tiempo, rondas, errores, tiempos)", fillcolor="#E0E0E0", color="#757575"];
+    generar [label="Generar aprendizajes\nIA conectada, solo con indicadores", fillcolor="#C8E6C9", color="#2E7D32"];
+    eventos [label="Eventos: archivar, fase completa,\ninicio de mes (tareas programadas)", fillcolor="#FFE0B2", color="#EF6C00"];
+    chat [label="Chat y asistentes\nleen aprendizajes + rendimiento\ncon alcance por rol", fillcolor="#FFE0B2", color="#EF6C00"];
+    api [label="API v1 /indicators\n/learnings", fillcolor="#C8E6C9", color="#2E7D32"];
+  }
+  subgraph cluster_db { label="Datos"; fontsize=12; color="#9E9E9E";
+    learning [label="Aprendizaje\ntema, conclusión, evidencia,\nrecomendación, estado", fillcolor="#C8E6C9", color="#2E7D32"];
+    perfil [label="Perfil de la empresa\n(qué quiere revisar)", fillcolor="#E0E0E0", color="#757575"];
+  }
+  admin -> tablero; admin -> aprendEmp; pm -> aprendProy; claude -> api;
+  tablero -> indicadores; indicadores -> rendimiento; tablero -> perfil [label="orden"];
+  aprendEmp -> generar; aprendProy -> generar; generar -> indicadores; generar -> learning [label="Propuesta"];
+  api -> indicadores; api -> learning;
+  eventos -> campana; campana -> aprendProy [label="link"];
+  chat -> learning; chat -> rendimiento;
+}

@@ -337,6 +337,16 @@ export const READ_TOOLS: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {} },
   },
   {
+    name: "get_learnings",
+    description: "Aprendizajes guardados (conclusiones de consultor con tema, evidencia, recomendación y estado Propuesta/Aplicada/Descartada), de la empresa o de un proyecto. Ya vienen filtrados por lo que la persona puede ver. Usala para dar consejos o contar qué dejó un proyecto; los Descartados no se usan como consejo.",
+    input_schema: { type: "object", properties: { projectId: { type: "string", description: "Opcional — solo los de ese proyecto." } } },
+  },
+  {
+    name: "get_team_performance",
+    description: "Rendimiento de las personas: tareas asignadas, completadas, a tiempo, días de atraso y rondas de pruebas. Alcance según quién pregunta: administrador, todos; PM, solo sus proyectos; los demás, solo el suyo.",
+    input_schema: { type: "object", properties: { projectId: { type: "string", description: "Opcional — acotar a un proyecto." } } },
+  },
+  {
     name: "list_clients",
     description: "Clientes de la empresa que la persona puede ver (administrador: todos; PM: los de sus proyectos), con id, nombre, si tienen perfil y cuántos proyectos.",
     input_schema: { type: "object", properties: {} },
@@ -869,6 +879,11 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "set_learning_status",
+    description: "Marca un aprendizaje como Aplicada (APPLIED), Descartada (DISCARDED) o lo vuelve a Propuesta (PROPOSED). Administrador o PM del proyecto.",
+    input_schema: { type: "object", properties: { learningId: { type: "string" }, status: { type: "string", enum: ["PROPOSED", "APPLIED", "DISCARDED"] } }, required: ["learningId", "status"] },
+  },
+  {
     name: "save_client",
     description: "Crea un cliente (sin clientId; administrador o PM) o actualiza su ficha (con clientId; solo administrador). Mandá solo los campos que cambian. profile = texto libre: a qué se dedica, qué espera, cómo es trabajar con él.",
     input_schema: {
@@ -1278,6 +1293,33 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
     }
 
+    case "get_learnings": {
+      const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
+      const { listLearnings, LEARNING_STATUS_LABEL } = await import("@/lib/learnings");
+      const rows = await listLearnings(me, projectId ? { projectId } : {});
+      return JSON.stringify(rows.map((l) => ({ id: l.id, project: l.project?.name ?? "Empresa", tema: l.topic, conclusion: l.title, evidencia: l.evidence, recomendacion: l.recommendation, estado: LEARNING_STATUS_LABEL[l.status], persona: l.person?.name })));
+    }
+    case "get_team_performance": {
+      const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
+      const managed = me.role === "ADMIN" ? null : (await prisma.project.findMany({ where: { pmId: me.id }, select: { id: true } })).map((p) => p.id);
+      if (projectId && managed && !managed.includes(projectId)) {
+        if (!hasAccess(await getAccessibleProjectIds(userId), projectId)) return JSON.stringify(NO_ACCESS);
+      }
+      const scopeIds = projectId ? [projectId] : managed && managed.length ? managed : undefined;
+      const onlySelf = me.role !== "ADMIN" && (!managed || managed.length === 0 || (projectId !== undefined && !managed.includes(projectId)));
+      const { getUserPerformance } = await import("@/lib/delays");
+      const { getReviewPerformance } = await import("@/lib/reviewPerformance");
+      const [perf, qa] = await Promise.all([getUserPerformance(onlySelf ? me.id : undefined, scopeIds), getReviewPerformance("QA", scopeIds)]);
+      const rows = perf
+        .filter((p) => p.tasksAssigned > 0 && (!onlySelf || p.userId === me.id))
+        .map((p) => {
+          const r = qa.find((q) => q.userId === p.userId);
+          return { persona: p.userName, asignadas: p.tasksAssigned, completadas: p.tasksCompleted, aTiempo: p.tasksOnTime, porcentajeATiempo: p.onTimeRate === null ? null : Math.round(p.onTimeRate * 100), diasDeAtraso: p.totalDelayDays, rondasDePruebaEnviadas: r?.roundsSubmitted ?? 0, aprobadasAlPrimerIntento: r?.roundsApprovedFirstTry ?? 0 };
+        });
+      return JSON.stringify({ alcance: onlySelf ? "solo su propio rendimiento" : scopeIds ? "proyectos que administra o el pedido" : "todos los proyectos", personas: rows });
+    }
     case "list_clients": {
       const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
       return JSON.stringify(await listClientsFor(me));
@@ -1574,6 +1616,10 @@ export function summarizeWriteTool(name: string, input: unknown, names: Map<stri
 function baseSummary(name: string, input: unknown, names: Map<string, string>): string {
   const who = (id?: string) => (id && names.get(id)) || "una persona";
   switch (name) {
+    case "set_learning_status": {
+      const { status } = input as { status?: string };
+      return `Marcar el aprendizaje como «${{ PROPOSED: "Propuesta", APPLIED: "Aplicada", DISCARDED: "Descartada" }[status ?? ""] ?? status}»`;
+    }
     case "save_client": {
       const c = input as Record<string, string | undefined>;
       const labels: Record<string, string> = { name: "nombre", logoUrl: "logo", contactName: "contacto", contactEmail: "correo", contactPhone: "teléfono", website: "sitio web", profile: "perfil" };
@@ -1792,6 +1838,17 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
     return { ok: false, message: (err as Error).message };
   }
   switch (name) {
+    case "set_learning_status": {
+      try {
+        const { learningId, status } = z.object({ learningId: z.string(), status: z.enum(["PROPOSED", "APPLIED", "DISCARDED"]) }).parse(input);
+        const me = await prisma.user.findUniqueOrThrow({ where: { id: await currentUserId() }, select: { id: true, role: true } });
+        const { updateLearningAs, LEARNING_STATUS_LABEL } = await import("@/lib/learnings");
+        const r = await updateLearningAs(me, learningId, { status });
+        return r.ok ? { ok: true, message: `Listo, el aprendizaje quedó como «${LEARNING_STATUS_LABEL[status]}».` } : { ok: false, message: r.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
     case "save_client": {
       try {
         const { clientId, ...fields } = clientBodySchema.extend({ clientId: z.string().optional() }).parse(input);

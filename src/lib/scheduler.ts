@@ -99,5 +99,8 @@ export function startScheduler() {
     dispatchMeetingReminders().catch((err) => console.error("[scheduler] dispatchMeetingReminders falló", err));
     dispatchDailyDigests().catch((err) => console.error("[scheduler] dispatchDailyDigests falló", err));
     dispatchGroupAlertDigest().catch((err) => console.error("[scheduler] dispatchGroupAlertDigest falló", err));
+    import("@/lib/learnings")
+      .then(({ promptMonthlyLearnings }) => promptMonthlyLearnings())
+      .catch((err) => console.error("[scheduler] aviso mensual de aprendizajes falló", err));
   }, POLL_INTERVAL_MS);
 }

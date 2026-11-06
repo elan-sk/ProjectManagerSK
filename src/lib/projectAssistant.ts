@@ -60,7 +60,7 @@ function stepTool(steps: readonly StepDef[]): Anthropic.Tool {
 
 const SIMILAR_TOOL: Anthropic.Tool = {
   name: "find_similar_projects",
-  description: "Proyectos parecidos que la persona puede ver (del mismo cliente o del mismo tipo de trabajo, activos o archivados): sus fases, tareas, días hábiles que tomó cada fase y rondas de pruebas. Usala antes de proponer fases y tareas.",
+  description: "Proyectos parecidos que la persona puede ver (del mismo cliente o del mismo tipo de trabajo, activos o archivados): sus fases, tareas, días hábiles que tomó cada fase, rondas de pruebas y sus aprendizajes (conclusión y recomendación). Usala antes de proponer fases, tiempos y pruebas, y tené en cuenta esos aprendizajes diciendo de qué proyecto salen.",
   input_schema: { type: "object", properties: { clientId: { type: "string" }, text: { type: "string", description: "Nombre y de qué trata el proyecto nuevo." } }, required: ["text"] },
 };
 

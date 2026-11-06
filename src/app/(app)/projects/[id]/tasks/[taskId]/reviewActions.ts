@@ -1,5 +1,6 @@
 "use server";
 
+import { promptIfPhaseComplete } from "@/lib/learnings";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -571,6 +572,7 @@ export async function completeReviewTask(taskId: string, actor?: Actor) {
     return { ok: false as const, error: "Esta revisión necesita una ronda aprobada antes de poder completarse." };
   }
   await prisma.task.update({ where: { id: taskId }, data: { status: "COMPLETED", actualEnd: new Date() } });
+  await promptIfPhaseComplete(taskId);
   await revalidateTask(taskId);
   return { ok: true as const };
 }

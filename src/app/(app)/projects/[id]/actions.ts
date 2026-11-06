@@ -1,5 +1,6 @@
 "use server";
 
+import { promptIfPhaseComplete } from "@/lib/learnings";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -530,6 +531,8 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus, expec
       await tx.claudeLink.updateMany({ where: { taskId, revokedAt: null }, data: { revokedAt: new Date() } });
     }
   });
+
+  if (status === "COMPLETED" && task.status !== "COMPLETED") await promptIfPhaseComplete(taskId);
 
   if (status === "BLOCKED" && task.status !== "BLOCKED" && pmId) {
     const actingUserId = (await resolveActor(actor))?.id;

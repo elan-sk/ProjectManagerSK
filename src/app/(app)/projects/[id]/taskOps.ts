@@ -1,5 +1,6 @@
 "use server";
 
+import { promptLearningsOnce } from "@/lib/learnings";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -254,7 +255,11 @@ export async function setProjectArchived(projectId: string, archived: boolean, a
     await requireProjectAdmin(projectId, actor);
     // Spec 004: archivar o desarchivar un proyecto principal hace lo mismo con sus subproyectos.
     await prisma.project.updateMany({ where: { OR: [{ id: projectId }, { parentId: projectId }] }, data: { archivedAt: archived ? new Date() : null } });
-    if (archived) scheduleArchivedImageCompression();
+    if (archived) {
+      scheduleArchivedImageCompression();
+      const p = await prisma.project.findUnique({ where: { id: projectId }, select: { name: true } });
+      await promptLearningsOnce(`project:${projectId}`, `El proyecto «${p?.name ?? ""}» se archivó: está listo para sacar aprendizajes.`, projectId).catch((err) => console.error("[aprendizajes] aviso de archivo falló", err));
+    }
     refresh(projectId);
     revalidatePath("/projects/archived");
     return { ok: true, id: projectId };

@@ -17,6 +17,8 @@ const SECTIONS = [
   { id: "identidad", label: "Identidad" },
   { id: "documentos", label: "Documentos" },
   { id: "clientes", label: "Clientes" },
+  { id: "tablero", label: "Tablero" },
+  { id: "aprendizajes", label: "Aprendizajes" },
 ];
 
 function TopicBlock({ topicKey, label, text, openFile, children }: { topicKey: string; label: string; text: string | null; openFile: (f: ViewFile) => void; children?: React.ReactNode }) {
@@ -72,7 +74,7 @@ function TopicBlock({ topicKey, label, text, openFile, children }: { topicKey: s
   );
 }
 
-export function CompanyPageView({ profile, aiConfigured, clients }: { profile: CompanyProfileUi; aiConfigured: boolean; clients: CompanyClientRow[] }) {
+export function CompanyPageView({ profile, aiConfigured, clients, dashboard, learnings }: { profile: CompanyProfileUi; aiConfigured: boolean; clients: CompanyClientRow[]; dashboard: React.ReactNode; learnings: React.ReactNode }) {
   const router = useRouter();
   const confirm = useConfirm();
   const fileViewer = useFileViewer();
@@ -182,6 +184,14 @@ export function CompanyPageView({ profile, aiConfigured, clients }: { profile: C
 
         <section id="clientes" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
           <CompanyClients clients={clients} aiConfigured={aiConfigured} />
+        </section>
+
+        <section id="tablero" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
+          {dashboard}
+        </section>
+
+        <section id="aprendizajes" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
+          {learnings}
         </section>
       </div>
     </div>

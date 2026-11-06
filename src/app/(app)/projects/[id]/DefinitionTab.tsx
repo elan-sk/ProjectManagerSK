@@ -34,6 +34,7 @@ export function DefinitionTab({
   taskProgress,
   roles,
   members,
+  learnings,
 }: {
   projectId: string;
   name: string;
@@ -62,6 +63,7 @@ export function DefinitionTab({
   /** Roles del equipo en este proyecto (informativos, no dan permisos). */
   roles: ProjectRoleRow[];
   members: { id: string; name: string; cargo: string | null }[];
+  learnings?: React.ReactNode;
 }) {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -126,6 +128,12 @@ export function DefinitionTab({
         canManage={canManage}
         phases={phases}
       />
+
+      {learnings && (
+        <section id="aprendizajes" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4">
+          {learnings}
+        </section>
+      )}
     </div>
   );
 }

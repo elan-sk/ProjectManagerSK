@@ -25,6 +25,27 @@ export function hintMatchesPath(pattern: string, pathname: string): boolean {
 
 export const FEATURE_HINTS: FeatureHint[] = [
   {
+    id: "company-dashboard",
+    path: "/company",
+    title: "Tablero de la empresa",
+    description: "Los indicadores de la empresa en un solo lugar, primero los que más le interesan según su perfil.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "company-learnings",
+    path: "/company",
+    title: "Aprendizajes",
+    description: "Conclusiones con su evidencia y recomendación, sacadas de los datos de los proyectos. Se marcan como aplicadas o descartadas.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "project-learnings",
+    path: "/projects/*",
+    title: "Aprendizajes del proyecto",
+    description: "Lo que deja este proyecto para los siguientes, con su evidencia. Se generan cuando se pide.",
+    publishedAt: "2026-11-06",
+  },
+  {
     id: "task-assistant-create",
     path: "/projects/*",
     title: "Crear la tarea con el asistente",

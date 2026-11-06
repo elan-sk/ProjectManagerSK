@@ -1,3 +1,6 @@
+import { LearningsPanel } from "../../LearningsPanel";
+import { toLearningUi } from "../../learningUi";
+import { listLearnings } from "@/lib/learnings";
 import { getBotSettings } from "@/lib/botSettings";
 import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { averageContribution, deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
@@ -1130,6 +1133,17 @@ export default async function ProjectPage({
         />
       ) : view === "definition" ? (
         <DefinitionTab
+          learnings={
+            canManage ? (
+              <LearningsPanel
+                learnings={(await listLearnings(session.user, { projectId: project.id })).map(toLearningUi)}
+                projectId={project.id}
+                canGenerate
+                isAdmin={session.user.role === "ADMIN"}
+                aiConfigured={(await getBotSettings()).apiKeyConfigured}
+              />
+            ) : undefined
+          }
           projectId={project.id}
           name={project.name}
           iconUrl={project.iconUrl}

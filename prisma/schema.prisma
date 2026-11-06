@@ -198,6 +198,7 @@ model User {
   credentialAccessLogs  CredentialAccessLog[]
   projectRoles          ProjectRole[]
   featureHintsSeen      UserFeatureHint[]
+  learningsAbout        Learning[]                @relation("LearningPerson")
 }
 
 // Rol de una persona DENTRO de un proyecto (pestaña Definición): quién hace
@@ -309,6 +310,7 @@ model Project {
   credentials      Credential[]
   // Roles del equipo en este proyecto (pestaña Definición), ver ProjectRole.
   roles            ProjectRole[]
+  learnings        Learning[]
 
   @@index([clientId])
 }
@@ -1340,4 +1342,35 @@ model Client {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   projects     Project[]
+}
+
+enum LearningStatus {
+  PROPOSED
+  APPLIED
+  DISCARDED
+}
+
+model Learning {
+  id             String         @id @default(cuid())
+  projectId      String?
+  project        Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  personId       String?
+  person         User?          @relation("LearningPerson", fields: [personId], references: [id], onDelete: SetNull)
+  topic          String
+  title          String         @db.Text
+  evidence       String         @db.Text
+  recommendation String         @db.Text
+  status         LearningStatus @default(PROPOSED)
+  cutoff         String?
+  source         String         @default("app")
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([projectId])
+}
+
+model LearningPrompt {
+  key       String   @id
+  createdAt DateTime @default(now())
 }
