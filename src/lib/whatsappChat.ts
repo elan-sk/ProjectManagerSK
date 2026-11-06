@@ -7,10 +7,10 @@ import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { INTERNAL_CHAT_HEADER, internalChatSecret } from "@/lib/actorContext";
 import { isWhatsappChatEnabled } from "@/lib/botSettings";
 import { getChontatecHistory, hasPendingChontatecAction, type ChatUiMessage } from "@/lib/chontatec";
-import { blockedByTestMode, sendChatReply, sendCloudChatIntroIfNeeded, sendConfirmPoll } from "@/lib/whatsapp";
+import { blockedByTestMode, replyInGroup, sendChatReply, sendCloudChatIntroIfNeeded, sendConfirmPoll } from "@/lib/whatsapp";
 import { cloudDownloadMedia, cloudSendButtons, cloudSendDocument, cloudSendText, cloudTyping, getWhatsAppConnection, type CloudConfig } from "@/lib/whatsappCloud";
 import { buildGroupRequest, FORWARD_JOIN_MS, joinChatParts, recentGroupLines, stripBotMention, type ChatPart } from "@/lib/whatsappCloudFormat";
-import { groupLines, openGroupRequest, rememberGroupLine } from "@/lib/whatsappGroupRequests";
+import { groupLines, groupRequestIn, openGroupRequest, rememberGroupLine } from "@/lib/whatsappGroupRequests";
 import { extractUploadFiles, normalizePhone, parseConfirmation, splitWhatsApp, toWhatsAppText } from "@/lib/whatsappFormat";
 import { withUploadNote } from "@/lib/chatUploadNote";
 import { findUploadPath } from "@/lib/persistentUploads";
@@ -31,6 +31,7 @@ const INTERNAL_ERROR_TEXT = "Hubo un problema al responder. Puede intentarlo de 
 const IRREVERSIBLE_TEXT = "⚠️ Esto no se puede deshacer.";
 const ANSWER_HINT_POLL = "Toque una opción de la encuesta o responda *sí* o *no*.";
 const ANSWER_HINT_BUTTONS = "Toque un botón o responda *sí* o *no*.";
+const ANSWER_HINT_GROUP = "Responda *sí* o *no* a este mensaje.";
 
 type ChatUser = { id: string; name: string; role: string };
 type PendingPoll = { userId: string; toolUseId: string; secret: Uint8Array; jid: string; createdAt: number };
@@ -88,6 +89,25 @@ function qrTransport(sock: WASocket, jid: string, userId: string): Transport {
       } finally {
         clearInterval(timer);
         await sock.sendPresenceUpdate("paused", jid).catch(() => undefined);
+      }
+    },
+  };
+}
+
+// Pedido hecho en un grupo: se responde y se confirma en el mismo grupo, citando el mensaje de la persona.
+function groupTransport(sock: WASocket, groupJid: string, quoted: WAMessage): Transport {
+  return {
+    reply: async (parts, files = []) => {
+      for (const [i, text] of parts.entries()) await replyInGroup(groupJid, text, i === 0 ? quoted : null, i === parts.length - 1 ? files : []);
+    },
+    confirm: async () => undefined,
+    answerHint: ANSWER_HINT_GROUP,
+    typing: async (task) => {
+      await sock.sendPresenceUpdate("composing", groupJid).catch(() => undefined);
+      try {
+        await task();
+      } finally {
+        await sock.sendPresenceUpdate("paused", groupJid).catch(() => undefined);
       }
     },
   };
@@ -336,7 +356,10 @@ async function handleGroupMessage(sock: WASocket, msg: WAMessage, content: proto
   const mentioned = (info?.mentionedJid ?? []).map(jidNormalizedUser).some((j) => botIds.includes(j));
   const previous = recentGroupLines(groupLines(groupJid));
   rememberGroupLine(groupJid, { author, at, text });
-  if (!mentioned) return;
+  if (!mentioned) {
+    if (user && groupRequestIn(user.id, groupJid)) await continueGroupRequest(sock, msg, user, text, info, botIds);
+    return;
+  }
   if (!user || !phone || blockedByTestMode(`${phone}@s.whatsapp.net`)) {
     console.warn(`[whatsapp-chat] mención al bot en un grupo de alguien no registrado (${phone ? `${phone.slice(0, 4)}***` : "sin número"}); no se responde`);
     return;
@@ -358,9 +381,18 @@ async function handleGroupMessage(sock: WASocket, msg: WAMessage, content: proto
     request: stripBotMention(text, botIds.map(jidUser)),
   });
   openGroupRequest(user.id, groupJid, msg);
-  const dm = `${phone}@s.whatsapp.net`;
-  const t = qrTransport(sock, dm, user.id);
+  const t = groupTransport(sock, groupJid, msg);
   enqueue(user.id, () => t.typing(() => dispatch(t, user, request)));
+}
+
+// Sin mención, solo sigue la conversación el «sí/no» a una confirmación pendiente o la respuesta citando al bot.
+async function continueGroupRequest(sock: WASocket, msg: WAMessage, user: ChatUser, text: string, info: proto.IContextInfo | null | undefined, botIds: string[]) {
+  const { jidNormalizedUser } = await import("@whiskeysockets/baileys");
+  const isDecision = Boolean((await hasPendingChontatecAction(user.id, "whatsapp")) && parseConfirmation(text));
+  const quotesBot = Boolean(info?.participant && botIds.includes(jidNormalizedUser(info.participant)));
+  if (!isDecision && !quotesBot) return;
+  const t = groupTransport(sock, msg.key.remoteJid!, msg);
+  enqueue(user.id, () => t.typing(() => dispatch(t, user, isDecision ? text : `[Respuesta en el grupo]\n${text}`)));
 }
 
 export async function handleIncomingMessage(sock: WASocket, msg: WAMessage) {

@@ -25,6 +25,11 @@ export function openGroupRequest(userId: string, groupJid: string, mention: WAMe
   requests.set(userId, { groupJid, mention, createdAt: Date.now() });
 }
 
+// Pedido abierto de esta persona en este grupo: sus respuestas ahí (sin volver a mencionar) siguen la conversación.
+export function groupRequestIn(userId: string, groupJid: string) {
+  return hasOpenGroupRequest(userId) && requests.get(userId)!.groupJid === groupJid;
+}
+
 export function hasOpenGroupRequest(userId: string) {
   const r = requests.get(userId);
   if (r && Date.now() - r.createdAt > REQUEST_TTL_MS) requests.delete(userId);

@@ -121,11 +121,16 @@ async function qrSend(jid: string, content: QrContent, options?: QrOptions) {
   return sent;
 }
 
-export async function replyInGroup(groupJid: string, text: string, quoted: WAMessage | null) {
+export async function replyInGroup(groupJid: string, text: string, quoted: WAMessage | null, files: { url: string; name: string }[] = []) {
   if (!state.sock || blockedByTestMode(groupJid)) return false;
   try {
     const botName = await getBotName();
     await qrSend(groupJid, { text: `🤖 *${botName}*\n${text}` }, quoted ? { quoted } : undefined);
+    for (const file of files) {
+      const filePath = await findUploadPath(file.url);
+      const buffer = filePath ? await readFile(filePath).catch(() => null) : null;
+      if (buffer) await qrSend(groupJid, { document: buffer, fileName: file.name, mimetype: mimeFromFileName(file.name, file.url) || "application/octet-stream" });
+    }
     return true;
   } catch (err) {
     console.error("[whatsapp] no se pudo publicar en el grupo", err);

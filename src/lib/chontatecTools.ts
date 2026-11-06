@@ -117,10 +117,20 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "post_group_result",
     description:
-      "Publica en el grupo de WhatsApp el resultado de un pedido que la persona hizo mencionando al bot en el grupo (su mensaje empieza con «[Pedido hecho en el grupo…»). Una sola vez, al terminar o si no se pudo, con un texto corto (qué se hizo y el link de lo creado o cambiado, o en una línea por qué no se pudo). Las preguntas a la persona van por este chat, nunca al grupo.",
+      "Publica en el grupo de WhatsApp el resultado de un pedido hecho en el grupo cuando la conversación siguió por privado (después de ask_privately). Una sola vez, al terminar o si no se pudo, con un texto corto (qué se hizo y el link, o en una línea por qué no se pudo). Si la conversación sigue en el grupo no hace falta: tu respuesta ya sale ahí.",
     input_schema: {
       type: "object",
       properties: { text: { type: "string", description: "Resultado listo para leer en el grupo." } },
+      required: ["text"],
+    },
+  },
+  {
+    name: "ask_privately",
+    description:
+      "Escribe por el chat privado de WhatsApp a la persona que hizo un pedido en el grupo. Solo para una duda o algo delicado que no conviene tratar delante del grupo; la confirmación simple (sí/no) va en el grupo. Después de usarla no escribas nada más en esta respuesta.",
+    input_schema: {
+      type: "object",
+      properties: { text: { type: "string", description: "La pregunta o el tema, listo para leer en el chat privado." } },
       required: ["text"],
     },
   },
@@ -1031,6 +1041,14 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const { text } = z.object({ text: z.string().trim().min(1).max(2000) }).parse(input);
       const result = await postGroupResult(userId, toWhatsAppText(text));
       return JSON.stringify(result.ok ? { ok: true, nota: "Publicado en el grupo." } : { error: result.error });
+    }
+    case "ask_privately": {
+      const { text } = z.object({ text: z.string().trim().min(1).max(2000) }).parse(input);
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { phone: true } });
+      const phone = normalizePhone(me.phone);
+      if (!phone) return JSON.stringify({ error: "La persona no tiene un número de WhatsApp cargado en su perfil." });
+      const sent = await sendDirectAlert(phone, toWhatsAppText(text), undefined, true);
+      return JSON.stringify(sent ? { ok: true, nota: "Enviado por privado." } : { error: "WhatsApp no está conectado en este momento; no se pudo enviar." });
     }
     case "send_to_other_channel": {
       const { text } = z.object({ text: z.string().min(1) }).parse(input);
