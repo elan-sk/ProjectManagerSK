@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { ClientPicker } from "@/components/ClientPicker";
 import { createProject } from "./actions";
 
 // Antes era un <form action={createProject}> directo sin componente cliente
@@ -32,7 +33,7 @@ export function CreateProjectForm({ users, parentId }: { users: { id: string; na
       </div>
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Cliente (opcional)</label>
-        <input name="clientName" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <ClientPicker />
       </div>
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Inicio</label>

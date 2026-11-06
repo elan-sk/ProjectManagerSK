@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getBotConnection, getBotSettings, getBotPersonaPrompt, checkAndConsumeBotQuestion } from "@/lib/botSettings";
 import { createOpenAICompatMessage, withoutOpenAIExtras } from "@/lib/botOpenAI";
 import { HISTORY_WINDOW, trimHistory, withCacheOnLast } from "@/lib/botHistory";
-import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeWriteTool } from "@/lib/chontatecTools";
+import { getToolsForUser, WRITE_TOOL_NAMES, isDestructiveTool, runReadTool, runWriteTool, summarizeGroupedWriteTools, summarizeWriteTool } from "@/lib/chontatecTools";
 import { appUrl } from "@/lib/appUrl";
 import type { ChatChannel } from "@/lib/actorContext";
 import { getCompanyProfile, taskTypeContext, topicStates } from "@/lib/companyProfile";
 import { getCompanyBrand } from "@/lib/companyBrand";
+import { countWebSearches, webSearchTool } from "@/lib/webSearch";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -28,6 +29,7 @@ Reglas:
 - «¿Quién hace qué?», «¿a quién le pido esto?», «¿quién es el diseñador de X?»: usá el "cargo" de list_team_members (lo que hace la persona en general) y "team" de get_project_definition (su rol en ESE proyecto). Son informativos: describen, no dan permisos. Si no está cargado el rol, decí que no está definido; nunca lo inventes ni lo deduzcas del tipo de tareas de las que es responsable. Para cargar, cambiar o quitar ese rol usá set_project_role (solo PM del proyecto o admin).
 - Preguntas de análisis (próxima tarea por vencer, qué hacer en paralelo): traé los datos con list_project_tasks o get_schedule_analysis y razoná vos.
 - Varias escrituras independientes: proponelas TODAS en la misma respuesta (se confirman una sola vez). Dividí solo si una necesita el resultado de otra.
+- Autorización: el botón «Confirmar» (en WhatsApp, la encuesta) ES la autorización. Cuando ya está claro qué hacer, proponé la acción directo con una frase de qué vas a hacer; nunca preguntes antes en texto «¿lo hago?», «¿lo creo?» ni esperes un «sí»: eso obliga a autorizar dos veces. Preguntá en texto solo si falta un dato o hay que elegir entre opciones.
 - Podés proponer escrituras cuando te las pidan explícitamente: estado de tareas, pasos del checklist, etiquetas de una tarea, reasignar, comentar, adjuntar enlaces o archivos; y, si es PM del proyecto o admin: crear/editar proyectos (nombre, cliente, fechas, ícono y DESCRIPCIÓN, que es el texto de la pestaña Definición —sí existe—), fases, objetivos, requerimientos, categorías de etiqueta, crear tareas, editar título/descripción/fase/tipo, fechas y duración, dependencias, revisores, eliminar tareas o archivos. Solo un admin archiva proyectos o dispara el resumen diario. TODA escritura se ejecuta recién cuando la persona pulsa el botón de confirmar: nunca la des por hecha al proponerla, aunque te diga "sí" por texto.
 - Urgente («urgente», «prioridad alta», «para ya»): es la marca de la tarea (set_task_urgent; viene como urgent/isUrgent en las tareas), NUNCA una etiqueta. Si piden crear una tarea urgente, proponé create_task y, con su resultado, set_task_urgent.
 - Etiquetas: sirven para seguir un mismo elemento a través de varias tareas. Cada tarea lleva como máximo UNA por categoría y se nombra «Categoría | etiqueta» (o solo la categoría). Las categorías (nombre, color, emoji) son de toda la app; el nombre de la etiqueta vale solo en su proyecto y se crea al usarlo. Vienen en "tags" de las tareas; categorías y etiquetas de un proyecto: list_tags. Poner o quitar (set_task_tag, remove_task_tag): quien puede editar la tarea (responsable, PM del proyecto o admin). Crear o editar una categoría (manage_tag_category): PM de algún proyecto o admin. Eliminar una categoría: solo admin, y borra sus etiquetas de todas las tareas.
@@ -82,6 +84,7 @@ function errorTextFor(err: unknown, service: string) {
 const SCANNED_PDF_TEXT = JSON.stringify({ error: "Este PDF es escaneado (sin texto) y el servicio de IA configurado no puede leerlo. Pedir el archivo con texto o una imagen de las páginas." });
 const REFUSAL_TEXT = "Uy, esa la tengo que dejar pasar — probá preguntando de otra forma.";
 const PENDING_ACTION_TEXT = "Todavía tenés una acción pendiente de confirmar arriba — confirmala o cancelala antes de seguir, melo.";
+const CUT_BLOCK_TEXT = JSON.stringify({ error: "No se ejecutó nada: la respuesta era demasiado larga y se cortó. Proponé de nuevo las mismas acciones en dos o más partes más chicas (por ejemplo, primero fases y la mitad de las tareas), sin avisarle a la persona del corte." });
 const FILE_TOO_LONG_TEXT = JSON.stringify({ error: "El archivo no se creó: el contenido es demasiado largo para una sola respuesta. Avisar a la persona y proponer dividirlo en partes más cortas." });
 const SLOW_TEXT = "Me está tomando demasiado tiempo responder — probá de nuevo en un momento, o preguntame algo más puntual, melo.";
 // El servidor web de Hostinger corta un pedido a los ~60 s (504 Gateway Time-out): la respuesta del
@@ -108,7 +111,7 @@ async function loadMe(userId: string): Promise<Me> {
   return { ...user, pmCount };
 }
 
-const CHANNEL_LABEL: Record<ChatChannel, string> = { web: "el chat de la app", whatsapp: "WhatsApp", company: "el asistente de empresa" };
+const CHANNEL_LABEL: Record<string, string> = { web: "el chat de la app", whatsapp: "WhatsApp", company: "el asistente de empresa" };
 
 function channelRules(channel: ChatChannel, otherChannelExcerpt: string) {
   const other: ChatChannel = channel === "web" ? "whatsapp" : "web";
@@ -209,20 +212,37 @@ export type ConversationMode = {
   writeNames: Set<string>;
   runRead: (name: string, input: unknown) => Promise<ToolResultContent>;
   runWrite: (name: string, input: unknown) => Promise<{ ok: boolean; message: string }>;
-  summarize: (name: string, input: unknown) => string;
+  summarize: (name: string, input: unknown, names?: Map<string, string>) => string;
   isDestructive: (name: string, input: unknown) => boolean;
   persistSteps?: boolean;
   showResult?: (name: string) => boolean;
+  webSearch?: boolean;
 };
 
 type ToolResultContent = Anthropic.ToolResultBlockParam["content"];
 
 async function currentHistory(userId: string, mode: ConversationMode): Promise<ChatUiMessage[]> {
   const rows = await prisma.botMessage.findMany({ where: { userId, channel: mode.channel }, orderBy: { createdAt: "asc" } });
-  return toChatUiMessages(rows, mode);
+  return toChatUiMessages(rows, mode, await peopleNamesIn(rows.slice(-3).map((r) => r.content)));
 }
 
-function toChatUiMessages(rows: { id: string; role: string; content: string }[], mode: ConversationMode): ChatUiMessage[] {
+async function peopleNamesIn(contents: string[]): Promise<Map<string, string>> {
+  const ids = new Set<string>();
+  for (const c of contents) {
+    for (const m of c.matchAll(/"(?:userId|addUserId|removeUserId|pmId|taskId|predecessorId|projectId)":"([A-Za-z0-9]+)"/g)) ids.add(m[1]);
+    for (const m of c.matchAll(/"(?:assigneeIds|reviewerIds)":\[([^\]]*)\]/g)) for (const id of m[1].match(/[A-Za-z0-9]+/g) ?? []) ids.add(id);
+  }
+  if (ids.size === 0) return new Map();
+  const where = { id: { in: [...ids] } };
+  const [users, tasks, projects] = await Promise.all([
+    prisma.user.findMany({ where, select: { id: true, name: true } }),
+    prisma.task.findMany({ where, select: { id: true, title: true } }),
+    prisma.project.findMany({ where, select: { id: true, name: true } }),
+  ]);
+  return new Map([...users.map((u) => [u.id, u.name] as const), ...tasks.map((t) => [t.id, t.title] as const), ...projects.map((p) => [p.id, p.name] as const)]);
+}
+
+function toChatUiMessages(rows: { id: string; role: string; content: string }[], mode: ConversationMode, names = new Map<string, string>()): ChatUiMessage[] {
   const out: ChatUiMessage[] = [];
   const toolNames = new Map<string, string>();
 
@@ -270,8 +290,8 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
                 toolUseId: toolUse.id,
                 label:
                   toolUses.length === 1
-                    ? mode.summarize(toolUses[0].name!, toolUses[0].input)
-                    : `${toolUses.length} acciones:\n${toolUses.map((t) => `• ${mode.summarize(t.name!, t.input)}`).join("\n")}`,
+                    ? mode.summarize(toolUses[0].name!, toolUses[0].input, names)
+                    : summarizeGroupedWriteTools(toolUses.map((t) => ({ name: t.name!, input: t.input })), names, mode.summarize),
                 destructive: toolUses.some((t) => mode.isDestructive(t.name!, t.input)),
               },
         });
@@ -337,6 +357,11 @@ function withoutDocuments(messages: Anthropic.MessageParam[]): Anthropic.Message
   );
 }
 
+async function searchesUsed(userId: string, channel: ChatChannel): Promise<number> {
+  const rows = await prisma.botMessage.findMany({ where: { userId, channel, role: "assistant", content: { contains: "server_tool_use" } }, select: { content: true } });
+  return countWebSearches(rows.map((r) => r.content));
+}
+
 async function runConversationLoop(userId: string, mode: ConversationMode): Promise<void> {
   const { channel } = mode;
   const conn = await getBotConnection();
@@ -347,6 +372,7 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
   const system = await mode.system({ botName: settings.name, persona, me });
   let messages = await loadHistory(userId, channel);
   const deadline = Date.now() + LOOP_BUDGET_MS;
+  let searches = mode.webSearch && client ? await searchesUsed(userId, channel) : null;
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
     if (deadline - Date.now() < 5_000) {
@@ -357,13 +383,15 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
     let response: { content: Anthropic.ContentBlock[]; stop_reason: string | null };
     // Solo Claude lee PDF escaneados; los servicios OpenAI tampoco aceptan el bloque "document".
     const sendable = conn.provider === "anthropic" ? messages : withoutDocuments(messages);
+    const searchTool = searches === null ? null : webSearchTool(conn.provider, searches);
+    const anthropicTools: Anthropic.ToolUnion[] = searchTool ? [...tools, searchTool] : tools;
     try {
       if (client) {
         response = await client.messages.create({
           model: conn.model,
-          max_tokens: 4096,
+          max_tokens: 16384,
           system,
-          tools,
+          tools: anthropicTools,
           tool_choice: { type: "auto" },
           messages: conn.provider === "anthropic" ? withCacheOnLast(withoutOpenAIExtras(sendable)) : withoutOpenAIExtras(sendable),
         }, { timeout: deadline - Date.now(), maxRetries: deadline - Date.now() > 30_000 ? 1 : 0 });
@@ -398,11 +426,23 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
       return;
     }
 
+    if (searches !== null) searches += response.content.filter((b) => b.type === "server_tool_use").length;
+    if (response.stop_reason === "pause_turn") {
+      messages = [...messages, { role: "assistant", content: response.content }];
+      continue;
+    }
+
     const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
     if (toolUses.length === 0) {
       await persistRow(userId, "assistant", response.content, channel);
       return;
+    }
+
+    if (response.stop_reason === "max_tokens" && toolUses.length > 0 && !toolUses.some((t) => t.name === "create_file")) {
+      const cut = toolUses.map((t): Anthropic.ToolResultBlockParam => ({ type: "tool_result", tool_use_id: t.id, content: CUT_BLOCK_TEXT }));
+      messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: cut }];
+      continue;
     }
 
     if (response.stop_reason === "max_tokens" && toolUses.some((t) => t.name === "create_file")) {
@@ -456,6 +496,11 @@ async function companyContext(me: Me): Promise<string> {
   if (brand && (brand.primaryColor || brand.logoPngUrl)) {
     const logo = brand.logoPngUrl ? `${appUrl() ?? ""}${brand.logoPngUrl}` : null;
     parts.push(`Identidad de la empresa para los HTML que crees con create_file (salvo que pidan «sin marca»): ${[brand.primaryColor && `color principal ${brand.primaryColor}`, brand.secondaryColor && `color secundario ${brand.secondaryColor}`, logo && `logo ${logo}`].filter(Boolean).join(", ")}. Usá el principal en títulos y encabezados de tabla, el secundario en líneas y detalles, y el texto del cuerpo oscuro.`);
+  }
+  if (me.role === "ADMIN" || me.pmCount > 0) {
+    parts.push(
+      `Asistentes guiados: si esta persona pide algo complejo —crear o armar un proyecto, varias tareas a la vez, o una tarea con muchas partes o mucha información por definir—, ofrecele UNA vez en esta conversación el asistente que corresponde, en una frase con su link (el asistente arranca con lo que la persona ya escribió acá y solo pregunta lo que falta): proyectos → [Abrir el asistente de proyectos](${appUrl() ?? ""}/projects/assistant?from=chat); tareas de un proyecto → [Abrir el asistente de tareas](${appUrl() ?? ""}/tasks/assistant?project=<projectId>&from=chat) (resolvé el projectId con list_projects). Si no lo quiere o el pedido es simple, seguí normal y hacelo vos como siempre.`
+    );
   }
   if (me.role === "ADMIN") {
     const { covered, total } = topicStates(profile.topics, null);

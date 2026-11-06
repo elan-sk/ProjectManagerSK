@@ -1,5 +1,6 @@
 "use server";
 
+import { clientFieldsFromChoice } from "@/lib/clients";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -11,7 +12,6 @@ import { newSubprojectParentError } from "@/lib/subprojectsServer";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
-  clientName: z.string().optional(),
   startDate: z.coerce.date(),
   pmId: z.string().min(1),
   parentId: z.string().optional(),
@@ -23,7 +23,6 @@ export async function createProject(formData: FormData) {
 
   const parsed = createProjectSchema.safeParse({
     name: formData.get("name"),
-    clientName: formData.get("clientName") || undefined,
     startDate: formData.get("startDate"),
     pmId: formData.get("pmId"),
     parentId: formData.get("parentId") || undefined,
@@ -41,6 +40,7 @@ export async function createProject(formData: FormData) {
   const project = await prisma.project.create({
     data: {
       ...data,
+      ...(await clientFieldsFromChoice(formData.get("client"), session.user.id)),
       countryCode: await getAppCountryCode(),
       phases: {
         // ponytail: una fase "General" de arranque — evita bloquear la

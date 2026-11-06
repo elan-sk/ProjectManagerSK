@@ -236,7 +236,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         <div
           {...dropHandlers}
           className={`fixed z-50 flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(15,23,42,0.18)] ${
-            expanded ? "inset-3 md:inset-x-[8%] md:inset-y-6" : "right-3 bottom-[4.5rem] h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)]"
+            expanded ? "inset-3 md:inset-y-6 md:right-auto md:left-1/2 md:w-[min(54rem,calc(100vw-1.5rem))] md:-translate-x-1/2" : "right-3 bottom-[4.5rem] h-[32rem] max-h-[75vh] w-96 max-w-[calc(100vw-1.5rem)]"
           }`}
         >
           {dropOverlay}

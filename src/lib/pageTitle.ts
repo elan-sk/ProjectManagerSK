@@ -48,14 +48,16 @@ function extractTitle(html: string) {
   return title ? title.slice(0, 120) : null;
 }
 
-export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
+type Fetched = { ok: true; html: string; url: string } | { ok: false; reason: "blocked" | "unreachable" | "not_html" };
+
+async function fetchHtml(rawUrl: string, maxBytes: number, timeoutMs: number, untilHead: boolean): Promise<Fetched> {
   try {
     let url = new URL(rawUrl);
     for (let i = 0; i <= MAX_REDIRECTS; i++) {
-      if (!(await isSafeUrl(url))) return null;
+      if (!(await isSafeUrl(url))) return { ok: false, reason: "blocked" };
       const res = await fetch(url, {
         redirect: "manual",
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(timeoutMs),
         headers: { "user-agent": "Mozilla/5.0 (compatible; ProjectManagerSK/1.0)", accept: "text/html" },
       });
       const location = res.headers.get("location");
@@ -63,22 +65,62 @@ export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
         url = new URL(location, url);
         continue;
       }
-      if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html") || !res.body) return null;
-      // Lee solo el inicio: el título vive en el <head>.
+      if (!res.ok || !res.body) return { ok: false, reason: "unreachable" };
+      if (!(res.headers.get("content-type") ?? "").includes("html")) return { ok: false, reason: "not_html" };
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let html = "";
-      while (html.length < MAX_BYTES) {
+      while (html.length < maxBytes) {
         const { done, value } = await reader.read();
         if (done) break;
         html += decoder.decode(value, { stream: true });
-        if (/<\/head>/i.test(html)) break;
+        if (untilHead && /<\/head>/i.test(html)) break;
       }
       reader.cancel().catch(() => {});
-      return extractTitle(html);
+      return { ok: true, html, url: url.toString() };
     }
   } catch {
-    // sin red, timeout o URL inválida: se trata como "no se pudo obtener"
+    return { ok: false, reason: "unreachable" };
   }
-  return null;
+  return { ok: false, reason: "unreachable" };
+}
+
+export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
+  const page = await fetchHtml(rawUrl, MAX_BYTES, 4000, true);
+  return page.ok ? extractTitle(page.html) : null;
+}
+
+const TEXT_MAX_BYTES = 2_000_000;
+const TEXT_MAX_CHARS = 20_000;
+
+export function htmlToText(html: string): string {
+  const body = html
+    .replace(/<(script|style|noscript|svg|template)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+  return decodeEntities(body)
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function fetchPageText(rawUrl: string): Promise<{ ok: true; url: string; title: string | null; text: string } | { ok: false; error: string }> {
+  let url: string;
+  try {
+    url = new URL(/^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : `https://${rawUrl.trim()}`).toString();
+  } catch {
+    return { ok: false, error: "La dirección no es válida." };
+  }
+  const page = await fetchHtml(url, TEXT_MAX_BYTES, 10_000, false);
+  if (!page.ok) {
+    return {
+      ok: false,
+      error: page.reason === "blocked" ? "Esa dirección no se puede leer." : page.reason === "not_html" ? "Esa dirección no es una página web." : "No se pudo abrir la página (puede pedir iniciar sesión o estar caída).",
+    };
+  }
+  const text = htmlToText(page.html);
+  if (text.length < 80) return { ok: false, error: "La página no muestra texto sin iniciar sesión o sin abrirla en un navegador." };
+  return { ok: true, url: page.url, title: extractTitle(page.html), text: text.slice(0, TEXT_MAX_CHARS) };
 }

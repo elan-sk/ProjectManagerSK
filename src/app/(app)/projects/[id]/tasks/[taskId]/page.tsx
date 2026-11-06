@@ -1,3 +1,4 @@
+import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { format as formatDay, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { TaskDatesEditor } from "./TaskDatesEditor";
@@ -537,7 +538,7 @@ export default async function TaskDetailPage({
         )}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-end gap-x-4 gap-y-2">
+        <div className="mt-10 flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="w-full sm:w-auto">
             <p className="mb-1 text-xs font-semibold text-slate-600">Estado</p>
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 p-1.5">
@@ -560,9 +561,12 @@ export default async function TaskDetailPage({
             </div>
           </div>
           {canManage && (
-            <div className="flex w-full flex-nowrap items-center justify-start gap-1.5 max-sm:[&_button]:px-1.5 max-sm:[&_button]:text-[11px] sm:ml-auto sm:w-auto sm:gap-2">
+            <div className="flex w-full flex-col items-start gap-6 sm:ml-auto sm:w-auto sm:items-end">
+            {!task.archivedAt && <AssistantEntryButton href={`/tasks/assistant?project=${projectId}&task=${taskId}`} label="Completar tarea con asistente" hint="task-assistant-complete" />}
+            <div className="flex w-full flex-nowrap items-center justify-start gap-1.5 max-sm:[&_button]:px-1.5 max-sm:[&_button]:text-[11px] sm:w-auto sm:gap-2">
               <TaskOpsButtons taskId={taskId} projectId={projectId} isUrgent={task.isUrgent} completed={task.status === "COMPLETED"} archived={task.archivedAt !== null} />
               <DeleteTaskButton taskId={taskId} projectId={projectId} title={task.title} pill />
+            </div>
             </div>
           )}
         </div>

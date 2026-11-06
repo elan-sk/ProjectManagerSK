@@ -1,5 +1,6 @@
 "use client";
 
+import { SparklesIcon } from "@/components/icons";
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { addTask } from "./actions";
@@ -41,6 +42,7 @@ export function NewTaskForm({
   templates,
   tagCategories,
   projectTagNamesByCategory,
+  assistantEnabled = false,
 }: {
   projectId: string;
   phases: { id: string; name: string }[];
@@ -50,6 +52,7 @@ export function NewTaskForm({
   templates: { id: string; name: string }[];
   tagCategories: { id: string; name: string; colorHex: string; emoji: string | null }[];
   projectTagNamesByCategory: Record<string, string[]>;
+  assistantEnabled?: boolean;
 }) {
   const onDone = useModalClose();
   const router = useRouter();
@@ -76,6 +79,29 @@ export function NewTaskForm({
       }}
       className="space-y-3"
     >
+      {assistantEnabled && (
+        <button
+          type="button"
+          data-feature-hint="task-assistant-create"
+          onClick={(e) => {
+            const form = e.currentTarget.form;
+            const value = (n: string) => {
+              const el = form?.elements.namedItem(n);
+              return el && "value" in el ? String(el.value) : "";
+            };
+            const description = value("description").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            const params = new URLSearchParams({ project: projectId });
+            if (value("title").trim()) params.set("title", value("title").trim());
+            if (description) params.set("description", description.slice(0, 1500));
+            onDone();
+            router.push(`/tasks/assistant?${params}`);
+          }}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white py-2 text-sm font-medium text-slate-800 hover:border-[#0a6b78] hover:bg-slate-50"
+        >
+          <SparklesIcon className="h-4 w-4 text-[#0a6b78]" />
+          Crear tarea con asistente
+        </button>
+      )}
       <div className="space-y-1">
         <label className="text-sm text-slate-600">Título</label>
         <input name="title" required autoFocus className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />

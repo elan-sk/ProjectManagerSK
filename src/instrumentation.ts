@@ -18,6 +18,11 @@ export async function register() {
     .then(({ scheduleArchivedImageCompression }) => scheduleArchivedImageCompression())
     .catch((err) => console.error("[instrumentation] compresión de imágenes falló", err));
 
+  import("@/lib/clients")
+    .then(({ linkLegacyClients }) => linkLegacyClients())
+    .then((n) => n > 0 && console.log(`[arranque] ${n} proyectos unidos a su cliente`))
+    .catch((err) => console.error("[instrumentation] unir clientes falló", err));
+
   if (process.env.WHATSAPP_ENABLED === "true") {
     const { startWhatsApp, shouldRunQr } = await import("@/lib/whatsapp");
     // Mismo criterio que scheduler.ts: si falla la conexión, que quede en

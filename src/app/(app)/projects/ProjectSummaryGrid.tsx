@@ -1,3 +1,4 @@
+import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
 import { FILTER_BAR } from "@/lib/filterLayout";
@@ -36,6 +37,7 @@ export async function ProjectSummaryGrid({
   users,
   projectShareTokenById = new Map(),
   showCreateButton = true,
+  showAssistant = false,
 }: {
   rows: ProjectSummaryRow[];
   basePath: string;
@@ -45,6 +47,7 @@ export async function ProjectSummaryGrid({
   users: { id: string; name: string }[];
   projectShareTokenById?: Map<string, string>;
   showCreateButton?: boolean;
+  showAssistant?: boolean;
 }) {
   function href(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
@@ -121,9 +124,12 @@ export async function ProjectSummaryGrid({
           )}
         </div>
         {showCreateButton && (
-          <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">
-            <CreateProjectForm users={users} />
-          </ModalTrigger>
+          <div className="flex flex-wrap items-center gap-2">
+            {showAssistant && <AssistantEntryButton href="/projects/assistant" label="Crear proyecto con asistente" hint="project-assistant" />}
+            <ModalTrigger label="+ Nuevo proyecto" title="Nuevo proyecto">
+              <CreateProjectForm users={users} />
+            </ModalTrigger>
+          </div>
         )}
       </div>
 

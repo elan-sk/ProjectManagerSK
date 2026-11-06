@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import "driver.js/dist/driver.css";
-import { FEATURE_HINTS } from "@/lib/featureHints";
+import { FEATURE_HINTS, hintMatchesPath } from "@/lib/featureHints";
 import { markFeatureHintSeen } from "@/app/(app)/featureHintActions";
 
 const selector = (id: string) => `[data-feature-hint="${id}"]`;
 
 /**
- * Muestra las novedades pendientes de la pantalla actual: oscurece el resto, resalta el elemento y
+ * Muestra las novedades pendientes de la pantalla actual, también si su elemento aparece después (ej. dentro de un popup): oscurece el resto, resalta el elemento y
  * explica qué es (driver.js), hasta que la persona presiona «Entendido». Varias en la misma pantalla salen una tras otra. Si el elemento no está
  * a la vista (p. ej. menú cerrado en el celular) no se muestra ni se marca como vista.
  */
@@ -22,17 +22,23 @@ export function FeatureHints({ pending }: { pending: string[] }) {
   const [initialPending] = useState(pending);
 
   useEffect(() => {
-    const hints = FEATURE_HINTS.filter((h) => initialPending.includes(h.id) && !seen.current.has(h.id) && h.path === pathname);
+    const hints = FEATURE_HINTS.filter((h) => initialPending.includes(h.id) && !seen.current.has(h.id) && hintMatchesPath(h.path, pathname));
     if (hints.length === 0) return;
     let cancelled = false;
+    let running = false;
     let tour: { destroy: () => void } | null = null;
-    // Deja que la pantalla termine de dibujarse antes de buscar los elementos.
-    const timer = setTimeout(async () => {
-      const visible = hints.filter((h) => (document.querySelector(selector(h.id))?.getClientRects().length ?? 0) > 0);
-      if (cancelled || visible.length === 0) return;
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const check = async () => {
+      if (cancelled || running) return;
+      const visible = hints.filter((h) => !seen.current.has(h.id) && (document.querySelector(selector(h.id))?.getClientRects().length ?? 0) > 0);
+      if (visible.length === 0) return;
+      running = true;
       const { driver } = await import("driver.js");
       if (cancelled) return;
       const d = driver({
+        onDestroyed: () => {
+          running = false;
+        },
         popoverClass: "feature-hint",
         overlayOpacity: 0.45,
         stagePadding: 6,
@@ -65,10 +71,18 @@ export function FeatureHints({ pending }: { pending: string[] }) {
       });
       tour = d;
       d.drive();
-    }, 600);
+    };
+    const timer = setTimeout(check, 600);
+    const observer = new MutationObserver(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(check, 400);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(debounce);
+      observer.disconnect();
       tour?.destroy();
     };
   }, [pathname, initialPending]);

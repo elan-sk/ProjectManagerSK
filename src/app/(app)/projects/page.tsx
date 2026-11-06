@@ -1,3 +1,4 @@
+import { canUseProjectAssistant } from "@/lib/projectAssistant";
 import { deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
@@ -603,6 +604,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
           currentParams={{}}
           users={users}
           projectShareTokenById={projectShareTokenById}
+          showAssistant={await canUseProjectAssistant(session.user, null)}
         />
       </div>
 

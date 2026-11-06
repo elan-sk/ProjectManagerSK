@@ -1,3 +1,5 @@
+import { getBotSettings } from "@/lib/botSettings";
+import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { averageContribution, deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
@@ -735,7 +737,14 @@ export default async function ProjectPage({
               </p>
             )}
             <div className="text-sm text-slate-500">
-              {project.clientName ?? "Interno"} · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
+              {canManage && project.clientId ? (
+                <Link href={`/clients/${project.clientId}`} className="hover:underline">
+                  {project.clientName}
+                </Link>
+              ) : (
+                project.clientName ?? "Interno"
+              )}{" "}
+              · Inicio: {project.startDate.toLocaleDateString("es-CO", DATE_FMT)}
               {project.targetEndDate && (
                 <> · Cierre: {project.targetEndDate.toLocaleDateString("es-CO", DATE_FMT)}</>
               )}
@@ -857,6 +866,7 @@ export default async function ProjectPage({
               templates={testTemplates}
               tagCategories={tagCategories}
               projectTagNamesByCategory={projectTagNamesByCategory}
+              assistantEnabled={(await getBotSettings()).apiKeyConfigured}
               otherTasks={project.tasks.map((t) => ({
                 id: t.id,
                 title: t.title,
@@ -882,6 +892,12 @@ export default async function ProjectPage({
             { label: "Comentarios", href: filterHref({ view: "conversation" }), active: view === "conversation" },
           ]}
         />
+
+        {canManage && !project.archivedAt && (
+          <div className="ml-auto">
+            <AssistantEntryButton href={`/projects/assistant?project=${project.id}`} label="Completar proyecto con asistente" hint="project-assistant-complete" />
+          </div>
+        )}
 
         {view === "calendar" && calendarMode !== "day" && (
           <div className="flex items-center gap-2">
@@ -1118,6 +1134,7 @@ export default async function ProjectPage({
           name={project.name}
           iconUrl={project.iconUrl}
           clientName={project.clientName}
+          clientId={project.clientId}
           description={project.description}
           canManage={canManage}
           objectives={orderedDefinition.objectives}

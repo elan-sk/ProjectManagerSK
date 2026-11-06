@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientPicker } from "@/components/ClientPicker";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateProjectIdentity } from "./definitionActions";
@@ -13,12 +14,14 @@ export function ProjectIdentityForm({
   name,
   iconUrl,
   clientName,
+  clientId,
   children,
 }: {
   projectId: string;
   name: string;
   iconUrl: string | null;
   clientName: string | null;
+  clientId: string | null;
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -111,7 +114,7 @@ export function ProjectIdentityForm({
         <span className="mb-1 block font-medium text-slate-700">
           Cliente <span className="font-normal text-slate-400">(opcional)</span>
         </span>
-        <input type="text" name="clientName" defaultValue={clientName ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <ClientPicker clientId={clientId} clientName={clientName} />
       </label>
 
       {/* Campos extra del modal (ej. grupo de WhatsApp): van antes de «Guardar». */}

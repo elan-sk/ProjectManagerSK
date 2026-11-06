@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { appUrl } from "@/lib/appUrl";
 import { READ_TOOLS, runReadTool } from "@/lib/chontatecTools";
+import { READ_WEB_PAGE_TOOL, runReadWebPage, webResearchRules } from "@/lib/assistantWebTools";
 import type { ConversationMode } from "@/lib/chontatec";
 import { TASK_TYPE_LABEL } from "@/lib/statusColors";
 import { mimeFromFileName } from "@/lib/uploadLimits";
@@ -123,7 +124,7 @@ Reglas:
 - Una sola pregunta por mensaje, corta y amable. Antes de cada pregunta, una frase con lo que entendiste de la respuesta anterior (feedback).
 - Cada vez que pasás a un tema, llamá focus_company_topic.
 - El nombre de la empresa (name) se guarda SOLO como el nombre, tal cual lo escribe la persona (ej. «Elan-sk»), nunca como frase.
-- Cuando un tema quedó cubierto, redactá su texto claro, en tercera persona, sin inventar nada que no te hayan dicho o que no esté en sus archivos, y guardalo con company_topic (save). Si una respuesta cubre varios temas, guardalos todos. Si la respuesta es corta o ambigua, repreguntá antes de guardar.
+- Cuando un tema quedó cubierto, redactá su texto claro, en tercera persona, con **negrita** en las palabras o frases clave (pocas, nunca párrafos enteros), sin inventar nada que no te hayan dicho o que no esté en sus archivos, y guardalo con company_topic (save). Si una respuesta cubre varios temas, guardalos todos. Si la respuesta es corta o ambigua, repreguntá antes de guardar.
 - Si la persona dice «después», «no sé», «saltar» o parecido, company_topic (skip) y seguí con el siguiente pendiente.
 - Perfil vacío: saludá en una frase y preguntá el nombre de la empresa.
 - Perfil con información (repaso): en cada tema mostrá en pocas líneas lo guardado y preguntá si agrega algo, lo cambia o lo deja así. Si agrega o cambia, reescribí el tema completo y guardalo.
@@ -155,6 +156,7 @@ Fecha de hoy: ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" })
 
 async function runRead(name: string, input: unknown): Promise<Anthropic.ToolResultBlockParam["content"]> {
   if (name === "read_uploaded_file") return runReadTool(name, input);
+  if (name === "read_web_page") return runReadWebPage(input);
   const userId = await requireAdminId().catch((err: Error) => err);
   if (userId instanceof Error) return JSON.stringify({ error: userId.message });
 
@@ -249,10 +251,10 @@ export function companyAssistantMode(): ConversationMode {
     channel: "company",
     pathname: "/company/assistant",
     system: async ({ botName, persona }) => [
-      { type: "text", text: `${rules(botName)}\n\n${persona}`, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `${rules(botName)}\n\n${await webResearchRules("la empresa propia y su sector")}\n\n${persona}`, cache_control: { type: "ephemeral" } },
       { type: "text", text: snapshot(...(await Promise.all([getCompanyProfile(), getCompanyBrand()]))) },
     ],
-    tools: async () => (uploadTool ? [...TOOLS, uploadTool] : TOOLS),
+    tools: async () => [...TOOLS, READ_WEB_PAGE_TOOL, ...(uploadTool ? [uploadTool] : [])],
     writeNames: WRITE_NAMES,
     runRead,
     runWrite,
@@ -260,5 +262,6 @@ export function companyAssistantMode(): ConversationMode {
     isDestructive: () => false,
     persistSteps: true,
     showResult: (n) => VISIBLE_RESULTS.has(n),
+    webSearch: true,
   };
 }

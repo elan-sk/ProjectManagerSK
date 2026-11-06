@@ -252,6 +252,8 @@ model Project {
   id            String        @id @default(cuid())
   name          String
   clientName    String?
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
   countryCode   String        @default("CO")
   status        ProjectStatus @default(PLANNING)
   startDate     DateTime
@@ -307,6 +309,8 @@ model Project {
   credentials      Credential[]
   // Roles del equipo en este proyecto (pestaña Definición), ver ProjectRole.
   roles            ProjectRole[]
+
+  @@index([clientId])
 }
 
 model ProjectRepo {
@@ -1320,4 +1324,20 @@ model CompanyBrand {
   email          String?
   website        String?
   updatedAt      DateTime @updatedAt
+}
+
+model Client {
+  id           String    @id @default(cuid())
+  name         String
+  nameKey      String    @unique
+  logoUrl      String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  website      String?
+  profile      String?   @db.Text
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
 }

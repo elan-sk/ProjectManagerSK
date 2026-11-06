@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { getBotSettings } from "@/lib/botSettings";
 import { getCompanyProfileUi } from "./actions";
 import { CompanyPageView } from "./CompanyPageView";
@@ -14,6 +15,11 @@ export default async function CompanyPage() {
       </div>
     );
   }
-  const [profile, bot] = await Promise.all([getCompanyProfileUi(), getBotSettings()]);
-  return <CompanyPageView profile={profile} aiConfigured={bot.apiKeyConfigured} />;
+  const [profile, bot, clients] = await Promise.all([
+    getCompanyProfileUi(),
+    getBotSettings(),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true, _count: { select: { projects: { where: { status: { not: "ARCHIVED" } } } } } } }),
+  ]);
+  const rows = clients.map((c) => ({ id: c.id, name: c.name, logoUrl: c.logoUrl, projects: c._count.projects }));
+  return <CompanyPageView profile={profile} aiConfigured={bot.apiKeyConfigured} clients={rows} />;
 }

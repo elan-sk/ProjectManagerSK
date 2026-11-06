@@ -1,0 +1,45 @@
+digraph G {
+  rankdir=LR; nodesep=0.35; ranksep=0.6; fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  admin [label="Administrador", fillcolor="#E0E0E0", color="#757575"];
+  pm [label="PM", fillcolor="#E0E0E0", color="#757575"];
+
+  subgraph cluster_ui { label="Pantallas"; fontsize=12; color="#9E9E9E";
+    proyectos [label="Proyectos\n«+ Nuevo proyecto» (cliente = buscador)\n+ «Crear con asistente»", fillcolor="#FFE0B2", color="#EF6C00"];
+    proyecto [label="Proyecto\nencabezado «Completar con asistente»\nficha del cliente junto al nombre", fillcolor="#FFE0B2", color="#EF6C00"];
+    empresa [label="Empresa → bloque «Clientes»\nlista, ficha, «Nuevo cliente»,\n«Crear con asistente»", fillcolor="#C8E6C9", color="#2E7D32"];
+    pantalla [label="Pantalla de asistente compartida\n(pasos, avance, voz, archivos)", fillcolor="#C8E6C9", color="#2E7D32"];
+    asisEmp [label="Asistente de empresa", fillcolor="#FFE0B2", color="#EF6C00"];
+    asisProy [label="Asistente de proyectos\n9 pasos, 4 bloques con Confirmar", fillcolor="#C8E6C9", color="#2E7D32"];
+    asisCli [label="Asistente de clientes\n4 pasos", fillcolor="#C8E6C9", color="#2E7D32"];
+    chat [label="Chat de la app y WhatsApp\nofrece el link (admin y PM)", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+
+  subgraph cluster_srv { label="Servidor"; fontsize=12; color="#9E9E9E";
+    motor [label="Motor de conversación\n+ búsqueda web de DeepSeek/Claude\n(hasta 5 por conversación)", fillcolor="#FFE0B2", color="#EF6C00"];
+    leerWeb [label="Leer página web\n(solo direcciones públicas)", fillcolor="#C8E6C9", color="#2E7D32"];
+    herrProy [label="Herramientas del bot\ncrear proyecto, fases, objetivos,\nrequerimientos, tareas (por título)", fillcolor="#FFE0B2", color="#EF6C00"];
+    herrCli [label="Herramientas de clientes\nlistar, ver, crear, editar", fillcolor="#C8E6C9", color="#2E7D32"];
+    parecidos [label="Proyectos parecidos\n(fases, duraciones, rondas)", fillcolor="#C8E6C9", color="#2E7D32"];
+    api [label="API v1 /clients\n+ /projects acepta cliente", fillcolor="#C8E6C9", color="#2E7D32"];
+  }
+
+  subgraph cluster_db { label="Datos"; fontsize=12; color="#9E9E9E";
+    cliente [label="Cliente\nnombre, logo, contacto, Perfil", fillcolor="#C8E6C9", color="#2E7D32"];
+    proyectoDb [label="Proyecto\n+ cliente unido (el nombre\nse sigue mostrando igual)", fillcolor="#FFE0B2", color="#EF6C00"];
+    perfil [label="Perfil de la empresa", fillcolor="#E0E0E0", color="#757575"];
+    arranque [label="Al arrancar: nombres de cliente\nexistentes → lista de clientes", fillcolor="#C8E6C9", color="#2E7D32"];
+  }
+
+  admin -> empresa; admin -> proyectos; pm -> proyectos; pm -> proyecto; pm -> chat;
+  proyectos -> asisProy; proyecto -> asisProy; empresa -> asisCli; chat -> asisProy [label="link"];
+  asisProy -> pantalla; asisCli -> pantalla; asisEmp -> pantalla;
+  pantalla -> motor;
+  motor -> leerWeb; motor -> herrProy; motor -> herrCli; motor -> parecidos;
+  herrProy -> proyectoDb [label="por bloques, con Confirmar"];
+  herrCli -> cliente [label="guarda al confirmar"];
+  proyectoDb -> cliente; arranque -> cliente; api -> herrCli [label="mismos permisos"];
+  motor -> perfil [label="lee"];
+}

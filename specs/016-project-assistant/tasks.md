@@ -1,0 +1,21 @@
+# Tareas 016
+
+- [x] **T1. Tabla Client + Project.clientId, migración y `src/lib/clients.ts` (clave, buscar o crear, visibilidad, unir existentes) + arranque.** RF-4, RF-5
+  - Hecho cuando: migración aplicada, `verify:project-assistant` cubre clave, unión y visibilidad.
+- [x] **T2. Cliente en formularios, API de proyectos, bot y export/import.** RF-6, RF-8
+  - Hecho cuando: crear/editar proyecto (app, API, bot) une o crea el cliente; tsc ok.
+- [x] **T3. Bloque «Clientes» en Empresa, ficha con edición/eliminación y ficha de lectura para PM; API /clients; herramientas list/get/save_client.** RF-1–3, RF-7–9, RF-37
+  - Hecho cuando: pantallas compilan; permisos cubiertos en verify.
+- [x] **T4. `readWebPage` y `webSearchTool`; motor con herramienta de servidor, `pause_turn` y tope de 5.** RF-39–44
+  - Hecho cuando: verify rechaza direcciones internas y elige búsqueda según servicio.
+- [x] **T5. `GuidedAssistant` sacado de CompanyAssistant; asistente de empresa con leer web y búsqueda.** RF-12, RF-13, RF-36, RF-45
+  - Hecho cuando: verify:company-profile ok; tsc ok.
+- [x] **T6. Herramientas por título (requerimiento→objetivo, dependencia por título) y create_project con cliente, descripción y cierre.** RF-22, RF-23
+  - Hecho cuando: tsc ok; verify cubre resolución por título.
+- [x] **T7. `projectAssistantSteps`, `similarProjects`, `projectAssistantMode` y `clientAssistantMode`.** RF-16–28, RF-33, RF-34
+  - Hecho cuando: verify cubre estado de pasos.
+- [x] **T8. Pantallas `/projects/assistant` y `/company/clients/assistant`, botones de entrada y paso de la conversación al proyecto creado.** RF-10, RF-11, RF-14, RF-15, RF-31, RF-32, RF-38
+  - Hecho cuando: tsc y lint ok; permiso cubierto en verify.
+- [x] **T9. Chat y WhatsApp ofrecen el asistente; avisos de novedad.** RF-29, RF-30, RF-35
+  - Hecho cuando: tsc ok; verify cubre que el miembro común no lo reciba.
+- [ ] **T10. Validación RF por RF, MEMORY.md e historial.**

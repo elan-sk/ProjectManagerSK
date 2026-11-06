@@ -1,4 +1,5 @@
 import { credentialVisibleWhere } from "@/lib/credentials";
+import { clientBodySchema, clientDetailFor, clientFieldsFor, listClientsFor, saveClientAs } from "@/lib/clients";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -335,6 +336,16 @@ export const READ_TOOLS: Anthropic.Tool[] = [
       "Perfil de la empresa (nombre, sector, qué hace, historia, propósito, cómo trabaja, portafolio y, solo para administradores, clientes, crecimiento, qué quiere revisar con la aplicación, consejos que espera y documentos). Usala solo cuando la pregunta lo necesite. Ya viene filtrado según quién conversa.",
     input_schema: { type: "object", properties: {} },
   },
+  {
+    name: "list_clients",
+    description: "Clientes de la empresa que la persona puede ver (administrador: todos; PM: los de sus proyectos), con id, nombre, si tienen perfil y cuántos proyectos.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_client",
+    description: "Ficha de un cliente: contacto, sitio web, perfil (a qué se dedica, qué espera, cómo es trabajar con él) y sus proyectos.",
+    input_schema: { type: "object", properties: { clientId: { type: "string" } }, required: ["clientId"] },
+  },
 ];
 
 // Tools de ESCRITURA — acotadas a bajo riesgo, TODAS llaman a server
@@ -613,8 +624,11 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         name: { type: "string" },
-        clientName: { type: "string", description: "Opcional." },
+        clientName: { type: "string", description: "Opcional. Si ya existe un cliente con ese nombre se usa ese; si no, se crea." },
+        clientId: { type: "string", description: "Opcional — id de list_clients (tiene prioridad sobre clientName)." },
         startDate: { type: "string", description: "Fecha de inicio YYYY-MM-DD." },
+        targetEndDate: { type: "string", description: "Opcional — fecha de cierre comprometida YYYY-MM-DD." },
+        description: { type: "string", description: "Opcional — descripción del proyecto (pestaña Definición), texto plano." },
         pmId: { type: "string", description: "Opcional — id del usuario que será PM." },
         parentId: { type: "string", description: "Opcional — id del proyecto principal (crearlo como subproyecto)." },
       },
@@ -630,7 +644,8 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
       properties: {
         projectId: { type: "string" },
         name: { type: "string" },
-        clientName: { type: "string" },
+        clientName: { type: "string", description: "Nombre del cliente (usa el existente o lo crea); vacío = sin cliente." },
+        clientId: { type: "string", description: "Id de list_clients." },
         startDate: { type: "string", description: "YYYY-MM-DD." },
         targetEndDate: { type: "string", description: "YYYY-MM-DD, o vacío para quitarla." },
         description: { type: "string", description: "Descripción del proyecto en texto plano (reemplaza la actual)." },
@@ -731,6 +746,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         title: { type: "string" },
         description: { type: "string" },
         objectiveIds: { type: "array", items: { type: "string" } },
+        objectiveTitles: { type: "array", items: { type: "string" }, description: "Alternativa a objectiveIds: títulos de objetivos del proyecto (sirve para crear objetivos y requerimientos en la misma confirmación)." },
       },
       required: ["action"],
     },
@@ -821,15 +837,17 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "set_task_dependency",
-    description: "Vincula una tarea (sucesora) a una predecesora — recalcula fechas en cascada del resto del cronograma.",
+    description: "Vincula una tarea (sucesora) a una predecesora — recalcula fechas en cascada del resto del cronograma. Por ids, o por títulos con projectId (sirve para crear tareas y sus dependencias en la misma confirmación).",
     input_schema: {
       type: "object",
       properties: {
         taskId: { type: "string", description: "La tarea sucesora (la que depende de la otra)." },
         predecessorId: { type: "string" },
+        projectId: { type: "string", description: "Con taskTitle y predecessorTitle." },
+        taskTitle: { type: "string" },
+        predecessorTitle: { type: "string" },
         type: { type: "string", description: "Opcional: FINISH_TO_START (default, la normal) o START_TO_START (en paralelo)." },
       },
-      required: ["taskId", "predecessorId"],
     },
   },
   {
@@ -848,6 +866,23 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { taskId: { type: "string" } },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "save_client",
+    description: "Crea un cliente (sin clientId; administrador o PM) o actualiza su ficha (con clientId; solo administrador). Mandá solo los campos que cambian. profile = texto libre: a qué se dedica, qué espera, cómo es trabajar con él.",
+    input_schema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        name: { type: "string" },
+        logoUrl: { type: "string", description: "Ruta /uploads/… de una imagen subida en esta conversación." },
+        contactName: { type: "string" },
+        contactEmail: { type: "string" },
+        contactPhone: { type: "string" },
+        website: { type: "string" },
+        profile: { type: "string" },
+      },
     },
   },
   {
@@ -897,6 +932,17 @@ const MEMBER_WRITE_TOOLS = WRITE_TOOLS.filter(
 // Solo admins y PM pueden proponer mensajes individuales de WhatsApp. Para
 // miembros, la única comunicación individual automática es el resumen diario;
 // por eso ni siquiera reciben esta tool en el chat.
+async function uploadedInConversation(userId: string, url: string) {
+  const own = await prisma.botMessage.findMany({ where: { userId, role: "user" }, orderBy: { createdAt: "desc" }, take: 300, select: { content: true } });
+  return own.some((m) => m.content.includes(url));
+}
+
+function plainTextToHtml(text: string): string {
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const clean = text.trim();
+  return clean ? clean.split(/\n{2,}/).map((para) => `<p>${esc(para).replace(/\n/g, "<br>")}</p>`).join("") : "";
+}
+
 export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]> {
   return (await isAdminOrPm(userId)) ? ALL_TOOLS : [...READ_TOOLS, ...MEMBER_WRITE_TOOLS];
 }
@@ -939,7 +985,7 @@ async function credentialsForBot(where: Prisma.CredentialWhereInput, userId: str
   return list.map((c) => ({ name: c.name, link: absoluteUrl(`/credentials/${c.id}`), note: "Contraseña guardada: por seguridad solo se ve abriendo el enlace." }));
 }
 
-async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
+export async function getAccessibleProjectIds(userId: string): Promise<string[] | null> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   // Administrador: todos los proyectos salvo los ocultos de los que no es responsable (PM).
   if (user.role === "ADMIN") return (await prisma.project.findMany({ where: visibleProjectWhere(user, { includeArchived: true }), select: { id: true } })).map((p) => p.id);
@@ -1232,6 +1278,16 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
     }
 
+    case "list_clients": {
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
+      return JSON.stringify(await listClientsFor(me));
+    }
+    case "get_client": {
+      const { clientId } = z.object({ clientId: z.string() }).parse(input);
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
+      const r = await clientDetailFor(me, clientId);
+      return JSON.stringify(r.ok ? r.client : { error: r.error });
+    }
     case "get_company_profile": {
       const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
       const { getCompanyProfile, profileViewFor } = await import("@/lib/companyProfile");
@@ -1455,10 +1511,81 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
   }
 }
 
-export function summarizeWriteTool(name: string, input: unknown): string {
+type Rec = Record<string, unknown>;
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+export function writeToolGroup(name: string, input: unknown, names: Map<string, string> = new Map()): { group: string; item: string } | null {
+  const i = (input ?? {}) as Rec;
+  const action = str(i.action);
+  const title = str(i.title) ?? str(i.name);
   switch (name) {
-    case "send_whatsapp_message":
-      return "Enviar un mensaje directo por WhatsApp";
+    case "manage_objective":
+      return action === "add" && title ? { group: "Objetivos nuevos", item: title } : null;
+    case "manage_requirement": {
+      if (action !== "add" || !title) return null;
+      const objectives = Array.isArray(i.objectiveTitles) ? (i.objectiveTitles as string[]).join(", ") : "";
+      return { group: "Requerimientos nuevos", item: objectives ? `${title} → ${objectives}` : title };
+    }
+    case "manage_phase":
+      return action === "create" && title ? { group: "Fases nuevas", item: title } : null;
+    case "create_task": {
+      const item = summarizeWriteTool(name, input, names).replace(/^Crear la tarea /, "");
+      return { group: "Tareas nuevas", item };
+    }
+    case "set_task_dependency":
+      return str(i.taskTitle) && str(i.predecessorTitle) ? { group: "Orden de las tareas", item: `«${i.taskTitle}» después de «${i.predecessorTitle}»` } : null;
+    case "set_project_role":
+      return action === "set" ? { group: "Equipo", item: `${names.get(String(i.userId)) ?? "una persona"}${str(i.role) ? ` — ${i.role}` : ""}` } : null;
+    case "set_task_tag":
+      return str(i.name) ? { group: "Etiquetas", item: String(i.name) } : null;
+    default:
+      return null;
+  }
+}
+
+export function summarizeGroupedWriteTools(uses: { name: string; input: unknown }[], names: Map<string, string> = new Map(), summarize = summarizeWriteTool): string {
+  if (uses.length === 1) return summarize(uses[0].name, uses[0].input, names);
+  const sections: { group: string | null; items: string[] }[] = [];
+  for (const u of uses) {
+    const g = writeToolGroup(u.name, u.input, names);
+    const key = g?.group ?? null;
+    const item = g?.item ?? summarize(u.name, u.input, names);
+    const last = sections[sections.length - 1];
+    const same = key ? sections.find((s) => s.group === key) : last && last.group === null ? last : undefined;
+    if (same) same.items.push(item);
+    else sections.push({ group: key, items: [item] });
+  }
+  const MAX_ITEMS = 10;
+  const list = (items: string[]) => {
+    const shown = items.slice(0, MAX_ITEMS).map((x) => `• ${x}`);
+    if (items.length > MAX_ITEMS) shown.push(`y ${items.length - MAX_ITEMS} más`);
+    return shown.join("\n");
+  };
+  return sections.map((s) => (s.group ? `${s.group} (${s.items.length})\n` : "") + list(s.items)).join("\n\n");
+}
+
+export function summarizeWriteTool(name: string, input: unknown, names: Map<string, string> = new Map()): string {
+  const text = baseSummary(name, input, names);
+  const { taskId, projectId } = (input ?? {}) as { taskId?: string; projectId?: string };
+  const target = (taskId && names.get(taskId)) || (name !== "create_task" && name !== "create_project" && projectId && names.get(projectId)) || null;
+  return target && !text.includes(`«${target}»`) && !text.includes(`"${target}"`) ? `${text} — «${target}»` : text;
+}
+
+function baseSummary(name: string, input: unknown, names: Map<string, string>): string {
+  const who = (id?: string) => (id && names.get(id)) || "una persona";
+  switch (name) {
+    case "save_client": {
+      const c = input as Record<string, string | undefined>;
+      const labels: Record<string, string> = { name: "nombre", logoUrl: "logo", contactName: "contacto", contactEmail: "correo", contactPhone: "teléfono", website: "sitio web", profile: "perfil" };
+      const fields = Object.keys(labels).filter((k) => c[k] !== undefined);
+      const head = c.clientId ? `Actualizar la ficha del cliente${c.name ? ` «${c.name}»` : ""}` : `Crear el cliente «${c.name ?? "?"}»`;
+      const profile = c.profile ? `\nPerfil: ${c.profile.length > 400 ? `${c.profile.slice(0, 400)}…` : c.profile}` : "";
+      return `${head} (${fields.map((k) => labels[k]).join(", ")})${profile}`;
+    }
+    case "send_whatsapp_message": {
+      const { userId, message } = input as { userId?: string; message?: string };
+      return `Enviar un WhatsApp a ${who(userId)}${message ? `: «${message.length > 120 ? `${message.slice(0, 120)}…` : message}»` : ""}`;
+    }
     case "send_whatsapp_group_message":
       return (input as { taskId?: string }).taskId ? "Enviar un mensaje al grupo del proyecto y mencionar a los implicados" : "Enviar un mensaje al grupo del proyecto";
     case "update_task_status": {
@@ -1471,13 +1598,15 @@ export function summarizeWriteTool(name: string, input: unknown): string {
     }
     case "reassign_task": {
       const { addUserId, removeUserId } = input as { addUserId?: string; removeUserId?: string };
-      if (addUserId && removeUserId) return "Cambiar los responsables de la tarea (agregar y quitar personas)";
-      if (addUserId) return "Agregar una persona a la tarea";
-      if (removeUserId) return "Quitar una persona de la tarea";
+      if (addUserId && removeUserId) return `Cambiar el responsable de la tarea: quitar a ${who(removeUserId)} y agregar a ${who(addUserId)}`;
+      if (addUserId) return `Agregar a ${who(addUserId)} como responsable de la tarea`;
+      if (removeUserId) return `Quitar a ${who(removeUserId)} de la tarea`;
       return "Cambiar los responsables de la tarea";
     }
-    case "set_task_tag":
-      return "Poner una etiqueta a la tarea";
+    case "set_task_tag": {
+      const { name: tagName } = input as { name?: string };
+      return tagName ? `Poner la etiqueta «${tagName}»` : "Poner una etiqueta a la tarea";
+    }
     case "remove_task_tag":
       return "Quitar una etiqueta de la tarea";
     case "manage_tag_category": {
@@ -1498,8 +1627,10 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return templateId ? "Asignar la plantilla de pruebas a la tarea" : "Quitar la plantilla de pruebas de la tarea";
     }
     case "create_task": {
-      const { title } = input as { title?: string };
-      return `Crear la tarea "${title ?? "?"}"`;
+      const { title, phaseName, plannedStart, durationDays, assigneeIds } = input as { title?: string; phaseName?: string; plannedStart?: string; durationDays?: number; assigneeIds?: string[] };
+      const people = (assigneeIds ?? []).map((id) => names.get(id)).filter(Boolean);
+      const detail = [phaseName && `fase «${phaseName}»`, people.length > 0 && `responsable: ${people.join(", ")}`, plannedStart && `desde ${plannedStart}`, durationDays && `${durationDays} ${durationDays === 1 ? "día" : "días"}`].filter(Boolean).join(", ");
+      return `Crear la tarea "${title ?? "?"}"${detail ? ` (${detail})` : ""}`;
     }
     case "update_task": {
       const { title, description, phaseId, type, requirementIds, requirementTitles } = input as { title?: string; description?: string; phaseId?: string; type?: string; requirementIds?: string[]; requirementTitles?: string[] };
@@ -1507,12 +1638,20 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       const fields = [title !== undefined && "título", description !== undefined && "descripción", phaseId !== undefined && "fase", type !== undefined && "tipo", requirementChange && "requerimientos"].filter(Boolean);
       return `Actualizar ${fields.join(", ") || "la tarea"}`;
     }
-    case "set_task_dependency":
-      return "Vincular esta tarea a una predecesora (recalcula el cronograma)";
+    case "set_task_dependency": {
+      const { taskTitle, predecessorTitle } = input as { taskTitle?: string; predecessorTitle?: string };
+      const { taskId: depTask, predecessorId } = input as { taskId?: string; predecessorId?: string };
+      const after = taskTitle ?? (depTask && names.get(depTask));
+      const before = predecessorTitle ?? (predecessorId && names.get(predecessorId));
+      return after && before ? `«${after}» empieza después de «${before}»` : "Vincular la tarea a una predecesora (recalcula el cronograma)";
+    }
     case "remove_task_dependency":
       return "Quitar el vínculo de dependencia";
-    case "add_task_comment":
-      return "Dejar un comentario en la tarea";
+    case "add_task_comment": {
+      const { body, taskId } = input as { body?: string; taskId?: string };
+      const preview = body ? `: «${body.length > 120 ? `${body.slice(0, 120)}…` : body}»` : "";
+      return `${taskId ? "Dejar un comentario en la tarea" : "Dejar un comentario en el proyecto"}${preview}`;
+    }
     case "add_checklist_steps": {
       const { steps } = input as { steps?: (string | { files?: unknown[] })[] };
       const images = steps?.reduce((n, st) => n + (typeof st === "string" ? 0 : (st.files?.length ?? 0)), 0) ?? 0;
@@ -1566,35 +1705,52 @@ export function summarizeWriteTool(name: string, input: unknown): string {
       return `Subir ${files?.length ?? 0} archivo(s) o link(s) al proyecto`;
     }
     case "create_project": {
-      const { name: projectName } = input as { name?: string };
-      return `Crear el proyecto "${projectName ?? "?"}"`;
+      const { name: projectName, clientName, startDate, targetEndDate, pmId } = input as { name?: string; clientName?: string; startDate?: string; targetEndDate?: string; pmId?: string };
+      const detail = [clientName && `cliente «${clientName}»`, pmId && names.get(pmId) && `PM: ${names.get(pmId)}`, startDate && `inicio ${startDate}`, targetEndDate && `cierre ${targetEndDate}`].filter(Boolean).join(", ");
+      return `Crear el proyecto "${projectName ?? "?"}"${detail ? ` (${detail})` : ""}`;
     }
-    case "update_project":
-      return "Editar el proyecto";
+    case "update_project": {
+      const p = input as Record<string, unknown>;
+      const labels: Record<string, string> = { name: "nombre", clientName: "cliente", clientId: "cliente", startDate: "fecha de inicio", targetEndDate: "fecha de cierre", description: "descripción", iconUrl: "ícono", parentId: "proyecto principal" };
+      const fields = [...new Set(Object.keys(labels).filter((k) => p[k] !== undefined).map((k) => labels[k]))];
+      return `Editar el proyecto${fields.length ? ` (${fields.join(", ")})` : ""}`;
+    }
     case "archive_project":
       return "⚠️ Archivar (eliminar de la vista) este proyecto";
     case "manage_phase": {
-      const { action } = input as { action?: string };
-      return { create: "Crear una fase", rename: "Renombrar una fase", reorder: "Reordenar las fases", delete: "⚠️ Eliminar una fase" }[action ?? ""] ?? "Gestionar fases";
+      const { action, name: phaseName } = input as { action?: string; name?: string };
+      const label = { create: "Crear la fase", rename: "Renombrar la fase a", reorder: "Reordenar las fases", delete: "⚠️ Eliminar una fase" }[action ?? ""] ?? "Gestionar fases";
+      return phaseName && action !== "reorder" && action !== "delete" ? `${label} «${phaseName}»` : label;
     }
     case "manage_objective": {
-      const { action } = input as { action?: string };
-      return { add: "Agregar un objetivo", update: "Editar un objetivo", delete: "⚠️ Eliminar un objetivo" }[action ?? ""] ?? "Gestionar objetivos";
+      const { action, title } = input as { action?: string; title?: string };
+      const label = { add: "Agregar el objetivo", update: "Editar el objetivo", delete: "⚠️ Eliminar un objetivo" }[action ?? ""] ?? "Gestionar objetivos";
+      return title && action !== "delete" ? `${label} «${title}»` : label;
     }
     case "manage_requirement": {
-      const { action } = input as { action?: string };
-      return { add: "Agregar un requerimiento", update: "Editar un requerimiento", delete: "⚠️ Eliminar un requerimiento" }[action ?? ""] ?? "Gestionar requerimientos";
+      const { action, title, objectiveTitles } = input as { action?: string; title?: string; objectiveTitles?: string[] };
+      const label = { add: "Agregar el requerimiento", update: "Editar el requerimiento", delete: "⚠️ Eliminar un requerimiento" }[action ?? ""] ?? "Gestionar requerimientos";
+      return title && action !== "delete" ? `${label} «${title}»${objectiveTitles?.length ? ` → ${objectiveTitles.join(", ")}` : ""}` : label;
     }
-    case "update_task_schedule":
-      return "Cambiar las fechas o la duración de la tarea";
-    case "set_task_reviewers":
-      return "Agregar o quitar un revisor";
-    case "set_project_role":
-      return (input as { action?: string }).action === "remove" ? "Quitar a una persona del equipo del proyecto" : "Guardar el rol de una persona en el proyecto";
+    case "update_task_schedule": {
+      const { plannedStart, durationDays } = input as { plannedStart?: string; durationDays?: number };
+      const detail = [plannedStart && `inicio ${plannedStart}`, durationDays && `${durationDays} días`].filter(Boolean).join(", ");
+      return `Cambiar las fechas de la tarea${detail ? ` (${detail})` : ""}`;
+    }
+    case "set_task_reviewers": {
+      const { addUserId, removeUserId } = input as { addUserId?: string; removeUserId?: string };
+      return [addUserId && `Agregar a ${who(addUserId)} como revisor`, removeUserId && `Quitar a ${who(removeUserId)} como revisor`].filter(Boolean).join(" y ") || "Cambiar los revisores";
+    }
+    case "set_project_role": {
+      const { action, userId, role } = input as { action?: string; userId?: string; role?: string };
+      return action === "remove" ? `Quitar a ${who(userId)} del equipo del proyecto` : `Equipo: ${who(userId)}${role ? ` — ${role}` : ""}`;
+    }
     case "send_welcome_message":
       return "Enviar el mensaje de bienvenida con la foto del bot";
-    case "send_daily_digest":
-      return "Enviar ahora el resumen diario por WhatsApp";
+    case "send_daily_digest": {
+      const { userId } = input as { userId?: string };
+      return userId ? `Enviar ahora el resumen diario por WhatsApp a ${who(userId)}` : "Enviar ahora el resumen diario por WhatsApp a todo el equipo";
+    }
     case "delete_task":
       return "⚠️ Eliminar esta tarea por completo (no se puede deshacer)";
     case "remove_attachment":
@@ -1611,12 +1767,44 @@ export function summarizeWriteTool(name: string, input: unknown): string {
 // adentro de cada una) — si algo cambió mientras la confirmación estaba
 // pendiente, se rechaza solo, sin código nuevo acá.
 export async function runWriteTool(name: string, input: unknown): Promise<{ ok: boolean; message: string; taskLink?: string | null }> {
+  const result = await runWriteToolUnsafe(name, input);
+  return result.ok ? result : { ...result, message: plainError(result.message) };
+}
+
+const FIELD_LABEL: Record<string, string> = { projectId: "proyecto", taskId: "tarea", title: "título", type: "tipo", plannedStart: "fecha de inicio", durationDays: "duración", assigneeIds: "responsable", name: "nombre", startDate: "fecha de inicio", userId: "persona", role: "rol", action: "acción" };
+
+export function plainError(message: string): string {
+  if (!message.trim().startsWith("[")) return message;
+  try {
+    const issues = JSON.parse(message) as Array<{ path?: unknown[] }>;
+    if (!Array.isArray(issues)) return message;
+    const fields = [...new Set(issues.map((i) => String(i.path?.[0] ?? "")).filter(Boolean).map((f) => FIELD_LABEL[f] ?? f))];
+    return `No se pudo: la acción llegó incompleta${fields.length ? ` (falta ${fields.join(", ")})` : ""}. Hay que proponerla de nuevo.`;
+  } catch {
+    return message;
+  }
+}
+
+async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: boolean; message: string; taskLink?: string | null }> {
   try {
     await assertToolAllowed(await currentUserId(), name);
   } catch (err) {
     return { ok: false, message: (err as Error).message };
   }
   switch (name) {
+    case "save_client": {
+      try {
+        const { clientId, ...fields } = clientBodySchema.extend({ clientId: z.string().optional() }).parse(input);
+        const me = await prisma.user.findUniqueOrThrow({ where: { id: await currentUserId() }, select: { id: true, role: true } });
+        if (fields.logoUrl && !(await uploadedInConversation(me.id, fields.logoUrl))) return { ok: false, message: "Ese logo no fue subido en esta conversación." };
+        const r = await saveClientAs(me, clientId ?? null, fields);
+        if (!r.ok) return { ok: false, message: r.error };
+        revalidatePath("/company");
+        return { ok: true, message: withHiddenIds(clientId ? `Listo, se actualizó la ficha de «${r.name}».` : `Listo, se creó el cliente «${r.name}».`, { clientId: r.id }) };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
     case "send_whatsapp_message": {
       try {
         const { userId, message } = z.object({ userId: z.string(), message: z.string().trim().min(1).max(2000) }).parse(input);
@@ -1886,12 +2074,23 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
 
     case "set_task_dependency": {
       try {
-        const parsed = z.object({ taskId: z.string(), predecessorId: z.string(), type: z.string().optional() }).parse(input);
+        const parsed = z
+          .object({ taskId: z.string().optional(), predecessorId: z.string().optional(), projectId: z.string().optional(), taskTitle: z.string().optional(), predecessorTitle: z.string().optional(), type: z.string().optional() })
+          .parse(input);
+        let { taskId, predecessorId } = parsed;
+        if ((!taskId || !predecessorId) && parsed.projectId) {
+          const tasks = await prisma.task.findMany({ where: { projectId: parsed.projectId }, select: { id: true, title: true }, orderBy: { createdAt: "desc" } });
+          taskId ??= parsed.taskTitle ? matchTitle(tasks, parsed.taskTitle)?.id : undefined;
+          predecessorId ??= parsed.predecessorTitle ? matchTitle(tasks, parsed.predecessorTitle)?.id : undefined;
+        }
+        if (!taskId || !predecessorId) return { ok: false, message: `No encontré ${!taskId ? `la tarea «${parsed.taskTitle ?? "?"}»` : `la predecesora «${parsed.predecessorTitle ?? "?"}»`} en el proyecto.` };
         const fd = new FormData();
-        fd.set("predecessorId", parsed.predecessorId);
+        fd.set("predecessorId", predecessorId);
         if (parsed.type) fd.set("type", parsed.type);
-        await setDependency(parsed.taskId, fd);
-        return { ok: true, message: "Listo, se vinculó la dependencia." };
+        await setDependency(taskId, fd);
+        const pair = await prisma.task.findMany({ where: { id: { in: [taskId, predecessorId] } }, select: { id: true, title: true } });
+        const title = (id: string) => pair.find((t) => t.id === id)?.title ?? "?";
+        return { ok: true, message: `Listo: «${title(taskId)}» empieza después de «${title(predecessorId)}».` };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }
@@ -2233,8 +2432,18 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
       try {
         const userId = await currentUserId();
         const parsed = z
-          .object({ name: z.string().trim().min(1), clientName: z.string().optional(), startDate: z.coerce.date(), pmId: z.string().optional(), parentId: z.string().optional() })
+          .object({
+            name: z.string().trim().min(1),
+            clientName: z.string().optional(),
+            clientId: z.string().optional(),
+            startDate: z.coerce.date(),
+            targetEndDate: z.coerce.date().optional(),
+            description: z.string().optional(),
+            pmId: z.string().optional(),
+            parentId: z.string().optional(),
+          })
           .parse(input);
+        if (parsed.targetEndDate && parsed.targetEndDate < parsed.startDate) return { ok: false, message: "La fecha de cierre no puede ser anterior al inicio." };
         if (parsed.parentId) {
           const parentError = await newSubprojectParentError(parsed.parentId);
           if (parentError) return { ok: false, message: parentError };
@@ -2244,8 +2453,10 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         const project = await prisma.project.create({
           data: {
             name: parsed.name,
-            clientName: parsed.clientName || null,
+            ...(await clientFieldsFor({ clientId: parsed.clientId, clientName: parsed.clientId ? undefined : parsed.clientName || null }, userId)),
             startDate: parsed.startDate,
+            targetEndDate: parsed.targetEndDate ?? null,
+            description: parsed.description?.trim() ? plainTextToHtml(parsed.description) : null,
             pmId,
             parentId: parsed.parentId || null,
             countryCode: await getAppCountryCode(),
@@ -2266,6 +2477,7 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
             projectId: z.string(),
             name: z.string().trim().min(1).optional(),
             clientName: z.string().optional(),
+            clientId: z.string().optional(),
             startDate: z.string().optional(),
             targetEndDate: z.string().optional(),
             description: z.string().optional(),
@@ -2274,10 +2486,13 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           })
           .parse(input);
         await requireProjectAdmin(parsed.projectId);
-        const data: { name?: string; clientName?: string | null; iconUrl?: string } = {};
+        const data: { name?: string; clientName?: string | null; clientId?: string | null; iconUrl?: string } = {};
         const changed: string[] = [];
         if (parsed.name !== undefined) (data.name = parsed.name), changed.push("nombre");
-        if (parsed.clientName !== undefined) (data.clientName = parsed.clientName.trim() || null), changed.push("cliente");
+        if (parsed.clientId !== undefined || parsed.clientName !== undefined) {
+          Object.assign(data, await clientFieldsFor({ clientId: parsed.clientId || undefined, clientName: parsed.clientId ? undefined : (parsed.clientName ?? "") }, await currentUserId()));
+          changed.push("cliente");
+        }
         if (parsed.iconUrl !== undefined) (data.iconUrl = parsed.iconUrl), changed.push("ícono");
         if (Object.keys(data).length > 0) await prisma.project.update({ where: { id: parsed.projectId }, data });
         if (parsed.parentId !== undefined) {
@@ -2300,11 +2515,8 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
           changed.push("fecha de cierre");
         }
         if (parsed.description !== undefined) {
-          // La descripción se guarda como HTML (editor de Definición): el texto plano pasa a párrafos escapados.
-          const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          const text = parsed.description.trim();
           const fd = new FormData();
-          fd.set("description", text ? text.split(/\n{2,}/).map((para) => `<p>${esc(para).replace(/\n/g, "<br>")}</p>`).join("") : "");
+          fd.set("description", plainTextToHtml(parsed.description));
           const r = await updateProjectDescription(parsed.projectId, fd);
           if (!r.ok) return { ok: false, message: r.error ?? "No se pudo cambiar la descripción." };
           changed.push("descripción");
@@ -2337,7 +2549,9 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
         if (parsed.action === "create") {
           const fd = new FormData();
           fd.set("name", parsed.name ?? "");
-          r = await addPhase(parsed.projectId, fd);
+          const phases = await prisma.phase.findMany({ where: { projectId: parsed.projectId }, select: { id: true, name: true, _count: { select: { tasks: true } } } });
+          const placeholder = phases.length === 1 && normalizeSearchText(phases[0].name.trim()) === "general" && phases[0]._count.tasks === 0 ? phases[0] : null;
+          r = placeholder ? await updatePhase(placeholder.id, fd) : await addPhase(parsed.projectId, fd);
         } else if (parsed.action === "reorder") {
           r = await reorderPhases(parsed.projectId, parsed.orderedPhaseIds ?? []);
         } else {
@@ -2378,8 +2592,21 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
     case "manage_requirement": {
       try {
         const parsed = z
-          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), requirementId: z.string().optional(), title: z.string().optional(), description: z.string().optional(), objectiveIds: z.array(z.string()).optional() })
+          .object({ action: z.enum(["add", "update", "delete"]), projectId: z.string().optional(), requirementId: z.string().optional(), title: z.string().optional(), description: z.string().optional(), objectiveIds: z.array(z.string()).optional(), objectiveTitles: z.array(z.string()).optional() })
           .parse(input);
+        if (parsed.objectiveTitles?.length) {
+          const projectId = parsed.projectId ?? (parsed.requirementId ? (await prisma.requirement.findUnique({ where: { id: parsed.requirementId }, select: { projectId: true } }))?.projectId : undefined);
+          const objectives = projectId ? await prisma.objective.findMany({ where: { projectId }, select: { id: true, title: true } }) : [];
+          const missing: string[] = [];
+          const ids = new Set(parsed.objectiveIds ?? []);
+          for (const t of parsed.objectiveTitles) {
+            const o = matchTitle(objectives, t);
+            if (o) ids.add(o.id);
+            else missing.push(t);
+          }
+          if (missing.length) return { ok: false, message: `No encontré estos objetivos: ${missing.map((m) => `«${m}»`).join(", ")}.` };
+          parsed.objectiveIds = [...ids];
+        }
         let r: { ok: boolean; error?: string };
         if (parsed.action === "delete") {
           r = parsed.requirementId ? await deleteRequirement(parsed.requirementId) : { ok: false, error: "Falta indicar el requerimiento." };
@@ -2494,6 +2721,11 @@ export async function runWriteTool(name: string, input: unknown): Promise<{ ok: 
 // Spec 001: lo que ya estaba cargado en esa sección no se repite; se le cuenta a la persona.
 function skippedNote(skipped?: string[]) {
   return skipped && skipped.length > 0 ? ` No se repitieron porque ya estaban cargados ahí: ${skipped.join(", ")}.` : "";
+}
+
+function matchTitle<T extends { title: string }>(list: T[], title: string): T | undefined {
+  const wanted = normalizeSearchText(title.trim());
+  return list.find((x) => normalizeSearchText(x.title) === wanted) ?? list.find((x) => normalizeSearchText(x.title).includes(wanted));
 }
 
 async function resolveRequirementsForBot(projectId: string, requirementIds: string[] = [], requirementTitles: string[] = []) {

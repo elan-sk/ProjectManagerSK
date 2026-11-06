@@ -59,7 +59,8 @@
     "verify:thumbnails": "tsx scripts/verify-thumbnails.ts",
     "verify:image-gate": "tsx scripts/verify-image-gate.ts",
     "verify:file-mime": "tsx scripts/verify-file-mime.ts",
-    "verify:company-profile": "tsx --env-file=.env scripts/verify-company-profile.ts"
+    "verify:company-profile": "tsx --env-file=.env scripts/verify-company-profile.ts",
+    "verify:project-assistant": "tsx --env-file=.env scripts/verify-project-assistant.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

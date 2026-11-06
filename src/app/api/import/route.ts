@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { linkLegacyClients } from "@/lib/clients";
 
 // Import "completo" (punto confirmado con el usuario) — pero deliberadamente
 // SOLO crea proyectos nuevos, nunca sobrescribe uno existente: es la única
@@ -174,6 +175,7 @@ export async function POST(request: Request) {
     }
   }
 
+  await linkLegacyClients().catch((err) => console.error("[import] no se pudieron unir los clientes", err));
   const url = new URL("/settings/backups", request.url);
   url.searchParams.set("imported", String(created));
   if (usersCreated > 0) url.searchParams.set("usersCreated", String(usersCreated));

@@ -7,7 +7,7 @@
 export type FeatureHint = {
   /** Único y estable: es lo que queda guardado como visto. */
   id: string;
-  /** Pantalla donde se muestra (pathname exacto). */
+  /** Pantalla donde se muestra: pathname exacto, o con «*» para un tramo variable (ej. «/projects/*»). */
   path: string;
   title: string;
   description: string;
@@ -17,7 +17,48 @@ export type FeatureHint = {
 
 export const HINT_LIFETIME_DAYS = 7;
 
+export function hintMatchesPath(pattern: string, pathname: string): boolean {
+  const a = pattern.split("/");
+  const b = pathname.split("/");
+  return a.length === b.length && a.every((seg, i) => seg === "*" || seg === b[i]);
+}
+
 export const FEATURE_HINTS: FeatureHint[] = [
+  {
+    id: "task-assistant-create",
+    path: "/projects/*",
+    title: "Crear la tarea con el asistente",
+    description: "El asistente pregunta qué hay que hacer, deduce el tipo de tarea y propone responsable, fechas y checklist; la tarea se crea con una sola confirmación.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "task-assistant-complete",
+    path: "/projects/*/tasks/*",
+    title: "Completar la tarea con el asistente",
+    description: "El asistente dice qué le falta a la tarea (insumos, descripción, checklist, responsable o pruebas) y lo completa pregunta por pregunta.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "project-assistant-complete",
+    path: "/projects/*",
+    title: "Completar el proyecto con el asistente",
+    description: "El asistente revisa lo que le falta al proyecto (equipo, objetivos, fases o tareas) y lo completa conversando, con una confirmación por bloque.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "project-assistant",
+    path: "/projects",
+    title: "Crear proyectos con el asistente",
+    description: "El asistente pregunta paso a paso por el proyecto, el cliente, el equipo y las tareas, y crea todo después de cada confirmación.",
+    publishedAt: "2026-11-06",
+  },
+  {
+    id: "company-clients",
+    path: "/company",
+    title: "Clientes de la empresa",
+    description: "Cada cliente tiene su ficha con contacto y perfil, y se reutiliza en todos sus proyectos.",
+    publishedAt: "2026-11-06",
+  },
   {
     id: "company-nav",
     path: "/projects",

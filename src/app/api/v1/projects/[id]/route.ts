@@ -1,3 +1,4 @@
+import { clientFieldsFor } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { projectVisibleTo } from "@/lib/visibility";
 import { z } from "zod";
@@ -84,6 +85,7 @@ const updateProjectSchema = z.object({
   startDate: z.coerce.date().optional(),
   targetEndDate: z.coerce.date().nullable().optional(),
   clientName: z.string().trim().nullable().optional(),
+  clientId: z.string().min(1).nullable().optional(),
   repoUrl: z.string().url().nullable().optional(),
   color: z.string().nullable().optional(),
   iconUrl: z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "iconUrl debe ser la url que devolvió /api/upload.").nullable().optional(),
@@ -130,8 +132,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const r = await updateProjectWhatsAppGroup(id, whatsappGroupJid ?? "", actor);
       if (!r.ok) return r;
     }
-    if (fields.clientName === "") fields.clientName = null;
-    const project = Object.keys(fields).length > 0 ? await prisma.project.update({ where: { id }, data: fields }) : await prisma.project.findUniqueOrThrow({ where: { id } });
+    const { clientId, clientName, ...rest } = fields;
+    let client;
+    try {
+      client = await clientFieldsFor({ clientId, clientName: clientId === null ? null : clientName }, actor.id);
+    } catch (err) {
+      return { ok: false, status: 400, error: (err as Error).message };
+    }
+    const update = { ...rest, ...client };
+    const project = Object.keys(update).length > 0 ? await prisma.project.update({ where: { id }, data: update }) : await prisma.project.findUniqueOrThrow({ where: { id } });
     revalidatePath(`/projects/${id}`);
     revalidatePath("/projects");
     return { ok: true, ...project };

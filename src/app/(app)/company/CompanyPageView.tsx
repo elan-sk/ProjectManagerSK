@@ -4,19 +4,22 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "@/lib/useAppRouter";
 import { useConfirm } from "@/components/Confirm";
-import { useFileViewer } from "@/components/FileViewer";
+import { useFileViewer, type ViewFile } from "@/components/FileViewer";
+import { renderMessage } from "@/components/chat/chatMarkdown";
 import { CheckIcon, PaperclipIcon, SparklesIcon, TrashIcon } from "@/components/icons";
 import { removeCompanyDocumentAction, saveCompanyTopicText, type CompanyProfileUi } from "./actions";
 import { CompanyBrandForm } from "./CompanyBrandForm";
+import { CompanyClients, type CompanyClientRow } from "./CompanyClients";
 
 const ASSISTANT_PATH = "/company/assistant";
 const SECTIONS = [
   { id: "perfil", label: "Perfil" },
   { id: "identidad", label: "Identidad" },
   { id: "documentos", label: "Documentos" },
+  { id: "clientes", label: "Clientes" },
 ];
 
-function TopicBlock({ topicKey, label, text, children }: { topicKey: string; label: string; text: string | null; children?: React.ReactNode }) {
+function TopicBlock({ topicKey, label, text, openFile, children }: { topicKey: string; label: string; text: string | null; openFile: (f: ViewFile) => void; children?: React.ReactNode }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(text ?? "");
@@ -60,7 +63,7 @@ function TopicBlock({ topicKey, label, text, children }: { topicKey: string; lab
           </div>
         </div>
       ) : text ? (
-        <p className="text-[17px] leading-[1.7] whitespace-pre-line text-slate-900 [overflow-wrap:anywhere]">{text}</p>
+        <div className="text-[17px] leading-[1.7] text-slate-900 [overflow-wrap:anywhere] [&_strong]:font-semibold">{renderMessage(text, openFile)}</div>
       ) : (
         <p className="text-[17px] text-slate-400">Pendiente</p>
       )}
@@ -69,7 +72,7 @@ function TopicBlock({ topicKey, label, text, children }: { topicKey: string; lab
   );
 }
 
-export function CompanyPageView({ profile, aiConfigured }: { profile: CompanyProfileUi; aiConfigured: boolean }) {
+export function CompanyPageView({ profile, aiConfigured, clients }: { profile: CompanyProfileUi; aiConfigured: boolean; clients: CompanyClientRow[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const fileViewer = useFileViewer();
@@ -134,9 +137,9 @@ export function CompanyPageView({ profile, aiConfigured }: { profile: CompanyPro
 
         <section id="perfil" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
           <h2 className="mb-6 font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Perfil</h2>
-          <TopicBlock topicKey="name" label="Nombre de la empresa" text={profile.name} />
+          <TopicBlock topicKey="name" label="Nombre de la empresa" text={profile.name} openFile={fileViewer.open} />
           {profile.items.map((item) => (
-            <TopicBlock key={item.key} topicKey={item.key} label={item.label} text={item.text}>
+            <TopicBlock key={item.key} topicKey={item.key} label={item.label} text={item.text} openFile={fileViewer.open}>
               {item.key === "workflow" && profile.taskTypes.length > 0 && (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {profile.taskTypes.map((t) => (
@@ -175,6 +178,10 @@ export function CompanyPageView({ profile, aiConfigured }: { profile: CompanyPro
             </ul>
           )}
           {docError && <p className="mt-2 text-sm text-red-600">{docError}</p>}
+        </section>
+
+        <section id="clientes" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
+          <CompanyClients clients={clients} aiConfigured={aiConfigured} />
         </section>
       </div>
     </div>

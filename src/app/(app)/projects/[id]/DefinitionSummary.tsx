@@ -66,7 +66,7 @@ export function DefinitionSummary({
     .filter((p) => p.tasks.length > 0);
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4" aria-label="Resumen de avance">
+    <section data-scroll-anchor className="scroll-mt-20 space-y-4 rounded-xl border border-slate-200 bg-white p-4" aria-label="Resumen de avance">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[21px] font-semibold text-slate-900">Resumen de avance</h2>

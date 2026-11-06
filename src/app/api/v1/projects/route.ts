@@ -1,3 +1,4 @@
+import { clientFieldsFor } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
 const createProjectSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().optional(),
+  clientId: z.string().min(1).optional(),
   startDate: z.coerce.date(),
   pmId: z.string().min(1),
   // Spec 004: crearlo ya como subproyecto de este proyecto principal.
@@ -52,8 +54,15 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error }, { status: error.startsWith("Solo") ? 403 : 400 });
   }
 
+  const { clientId, clientName, ...rest } = parsed.data;
+  let client;
+  try {
+    client = await clientFieldsFor({ clientId, clientName }, auth.actor.id);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  }
   const project = await prisma.project.create({
-    data: { ...parsed.data, countryCode: await getAppCountryCode(), phases: { create: [{ name: "General", order: 0 }] } },
+    data: { ...rest, ...client, countryCode: await getAppCountryCode(), phases: { create: [{ name: "General", order: 0 }] } },
     include: { phases: true },
   });
   return NextResponse.json(project, { status: 201 });
