@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "@/lib/useAppRouter";
 import { useConfirm } from "@/components/Confirm";
 import { SparklesIcon } from "@/components/icons";
-import { deleteLearningAction, editLearningAction, generateLearningsAction, setLearningStatusAction } from "./learningActions";
+import { ModalTrigger } from "@/components/Modal";
+import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
+import { deleteLearningAction, editLearningAction, exportLearningsAction, generateLearningsAction, setLearningStatusAction } from "./learningActions";
 
 export type LearningUi = {
   id: string;
@@ -30,6 +32,16 @@ const PERIODS = [
   { id: "all", label: "Todo" },
 ];
 const PILL = "rounded-full border px-3 py-1 text-sm";
+const FAILED = { ok: false as const, error: "No se pudo completar. Recargar la página e intentarlo de nuevo." };
+
+async function safe<T>(fn: () => Promise<T>): Promise<T | typeof FAILED> {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error("[aprendizajes] falló la acción", err);
+    return FAILED;
+  }
+}
 
 type Props = {
   learnings: LearningUi[];
@@ -41,7 +53,68 @@ type Props = {
   archived?: { id: string; name: string }[];
 };
 
-function LearningCard({ l, isAdmin, showProject, onError }: { l: LearningUi; isAdmin: boolean; showProject: boolean; onError: (e: string) => void }) {
+const FORMATS = [
+  { id: "docx", label: "Word" },
+  { id: "pdf", label: "PDF" },
+  { id: "pptx", label: "PowerPoint" },
+  { id: "md", label: "Texto (.md)" },
+] as const;
+
+function ExportLearnings({ ids }: { ids: string[] }) {
+  const [format, setFormat] = useState<(typeof FORMATS)[number]["id"]>("docx");
+  const [file, setFile] = useState<{ url: string; name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">{ids.length === 1 ? "1 aprendizaje" : `${ids.length} aprendizajes`}</p>
+      <div className="flex flex-wrap gap-2">
+        {FORMATS.map((f) => (
+          <button key={f.id} type="button" onClick={() => setFormat(f.id)} className={`${PILL} ${format === f.id ? "border-[#073b4c] bg-[#073b4c] text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {file && (
+        <a href={file.url} download={file.name} className="block truncate text-sm font-medium text-[#0a6b78] hover:underline">
+          Descargar {file.name}
+        </a>
+      )}
+      <button
+        type="button"
+        disabled={pending || ids.length === 0}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            setFile(null);
+            const r = await safe(() => exportLearningsAction(ids, format));
+            if (r.ok) setFile({ url: r.url, name: r.name });
+            else setError(r.error);
+          })
+        }
+        className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+      >
+        {pending ? "Armando el documento…" : "Exportar"}
+      </button>
+    </div>
+  );
+}
+
+function LearningTools({ ids, learningKey }: { ids: string[]; learningKey: string }) {
+  return (
+    <>
+      <ModalTrigger label="Exportar" title="Exportar plan de mejora" variant="secondary" compact>
+        <ExportLearnings ids={ids} />
+      </ModalTrigger>
+      <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+        <ClaudeLinkPanel learning={{ key: learningKey, ids }} activeLastUsedLabel={null} />
+      </ModalTrigger>
+    </>
+  );
+}
+
+function LearningCard({ l, isAdmin, showProject, onError, checked, onToggle }: { l: LearningUi; isAdmin: boolean; showProject: boolean; onError: (e: string) => void; checked: boolean; onToggle: () => void }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -49,7 +122,7 @@ function LearningCard({ l, isAdmin, showProject, onError }: { l: LearningUi; isA
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
     start(async () => {
-      const r = await fn();
+      const r = await safe(fn);
       if (!r.ok) onError(r.error ?? "No se pudo.");
       else router.refresh();
     });
@@ -57,6 +130,7 @@ function LearningCard({ l, isAdmin, showProject, onError }: { l: LearningUi; isA
   return (
     <article className={`space-y-3 rounded-2xl border border-slate-100 bg-white p-5 ${l.status === "DISCARDED" ? "opacity-70" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        {l.status !== "DISCARDED" && <input type="checkbox" checked={checked} onChange={onToggle} aria-label={`Seleccionar «${l.title}»`} className="h-4 w-4 cursor-pointer" />}
         <span className="font-semibold tracking-wide text-[#0a6b78] uppercase">{l.topic}</span>
         <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_STYLE[l.status]}`}>{STATUS[l.status]}</span>
         {showProject && l.project && (
@@ -145,12 +219,17 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
   const [pending, start] = useTransition();
   const topics = [...new Set(learnings.map((l) => l.topic))];
   const shown = learnings.filter((l) => (!status || l.status === status) && (!topic || l.topic === topic));
+  const [picked, setPicked] = useState<string[]>([]);
+  const selectable = shown.filter((l) => l.status !== "DISCARDED").map((l) => l.id);
+  const pickedShown = picked.filter((id) => selectable.includes(id));
+  const allPicked = selectable.length > 0 && pickedShown.length === selectable.length;
+  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   function generate() {
     setError(null);
     setNotice(null);
     start(async () => {
-      const r = await generateLearningsAction(projectId, period);
+      const r = await safe(() => generateLearningsAction(projectId, period));
       if (!r.ok) setError(r.error);
       else {
         setNotice(`Se generaron ${r.count} aprendizajes.`);
@@ -166,7 +245,7 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
       for (let i = 0; i < selected.length; i++) {
         const p = archived.find((a) => a.id === selected[i]);
         setProgress(`Generando ${i + 1} de ${selected.length}: ${p?.name ?? ""}`);
-        const r = await generateLearningsAction(selected[i], "all", "Proyecto archivado");
+        const r = await safe(() => generateLearningsAction(selected[i], "all", "Proyecto archivado"));
         if (!r.ok) failed.push(`${p?.name}: ${r.error}`);
       }
       setProgress(null);
@@ -225,12 +304,29 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
         </div>
       )}
 
+      {selectable.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? [] : selectable)} className="h-4 w-4 cursor-pointer" />
+            Seleccionar todos
+          </label>
+          {pickedShown.length > 0 && (
+            <>
+              <span className="text-sm text-slate-500">{pickedShown.length === 1 ? "1 seleccionado" : `${pickedShown.length} seleccionados`}</span>
+              <span className="flex flex-wrap gap-2 sm:ml-auto">
+                <LearningTools ids={pickedShown} learningKey={`learnings:${projectId ?? "empresa"}`} />
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <p className="text-[17px] text-slate-400">{learnings.length === 0 ? "Sin aprendizajes" : "Sin resultados."}</p>
       ) : (
         <div className="space-y-3">
           {shown.map((l) => (
-            <LearningCard key={l.id} l={l} isAdmin={isAdmin} showProject={showProject} onError={setError} />
+            <LearningCard key={l.id} l={l} isAdmin={isAdmin} showProject={showProject} onError={setError} checked={picked.includes(l.id)} onToggle={() => toggle(l.id)} />
           ))}
         </div>
       )}

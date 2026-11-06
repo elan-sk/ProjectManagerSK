@@ -53,9 +53,10 @@ export async function loginWithPassword(identifier: string, password: string, ip
 // misma tarea/proyecto revoca el anterior, los de otras tareas siguen.
 const CLAUDE_LINK_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type ClaudeLinkTarget = { taskId: string } | { projectId: string };
+export type ClaudeLinkTarget = { taskId: string } | { projectId: string } | { learningKey: string; learningIds: string[] };
 
 function claudeLinkWhere(userId: string, target: ClaudeLinkTarget) {
+  if ("learningKey" in target) return { userId, revokedAt: null, learningKey: target.learningKey };
   return { userId, revokedAt: null, ...("taskId" in target ? { taskId: target.taskId } : { projectId: target.projectId }) };
 }
 

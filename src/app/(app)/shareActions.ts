@@ -1,5 +1,6 @@
 "use server";
 
+import { listLearnings } from "@/lib/learnings";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -63,6 +64,12 @@ export async function revokeTaskShareLink(taskId: string, linkId: string) {
 export async function createClaudeLink(target: ClaudeLinkTarget) {
   const session = await auth();
   if (!session?.user) return { ok: false as const, error: "Hace falta iniciar sesión para hacer esto." };
+  if ("learningKey" in target) {
+    const visible = await listLearnings(session.user);
+    const ids = target.learningIds.filter((id) => visible.some((l) => l.id === id && l.status !== "DISCARDED"));
+    if (ids.length === 0) return { ok: false as const, error: "No hay aprendizajes para conectar (los descartados no se incluyen)." };
+    return { ok: true as const, token: await createClaudeLinkToken(session.user.id, { learningKey: target.learningKey, learningIds: ids }) };
+  }
   if ("taskId" in target) {
     const task = await prisma.task.findUnique({ where: { id: target.taskId }, select: { status: true } });
     if (!task) return { ok: false as const, error: "La tarea ya no existe." };

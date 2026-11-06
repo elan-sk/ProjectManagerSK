@@ -67,6 +67,13 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - RF-19: Tablero y tarjetas en una columna en celular, sin scroll horizontal (las tablas anchas con scroll propio).
 - RF-20: Avisos de novedad para «Tablero» y «Aprendizajes» en Empresa y para «Aprendizajes» en el proyecto (textos en el plan).
 
+**Exportar y conectar con IA** (cambio de alcance 2026-11-06)
+- RF-21: CADA aprendizaje no descartado tiene un check, con «Seleccionar todos» (de los que se ven con el filtro); un solo «Exportar» (y «Conectar IA») arriba trabaja con los seleccionados. Nunca incluye los descartados.
+- RF-22: AL exportar, se elige el formato (Word, PDF, PowerPoint o texto .md) y la IA conectada arma un plan de mejora para el equipo o la gerencia: qué pasó con su evidencia, qué hacer, prioridad y responsable sugerido; el documento lleva la identidad de la empresa (salvo el .md) y se descarga.
+- RF-23: EL SISTEMA ofrece «Conectar IA» para los seleccionados: un link con token, como el de proyectos y tareas, que entrega a una IA externa los aprendizajes con su evidencia, los indicadores del alcance e instrucciones para trabajarlos y marcarlos como aplicados por la API, con los permisos de quien creó el link.
+- RF-24: EL link vence a los 7 días sin uso y se puede desactivar desde la app; uno vigente por persona y alcance.
+- RF-25: SI la IA falla al exportar, ENTONCES EL SISTEMA lo dice en lenguaje simple y no descarga nada.
+
 ## Requisitos no funcionales
 - Cada generación cuenta como una pregunta del tope mensual del bot.
 - Textos visibles impersonales, sin jerga técnica.
@@ -98,6 +105,8 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - Avisos solo por campana (supuesto: evitar mensajes de WhatsApp de más).
 
 ## Cambios
+- 2026-11-06 — Exportar y Conectar IA: un solo botón arriba que trabaja con los aprendizajes marcados con check (más «Seleccionar todos»), en vez de botones en cada tarjeta (pedido del usuario).
+- 2026-11-06 — Exportar con IA (Word, PDF, PowerPoint, .md) y «Conectar IA» para los aprendizajes (RF-21 a RF-25), aprobado por el usuario.
 
 ## Dudas abiertas
 (ninguna)

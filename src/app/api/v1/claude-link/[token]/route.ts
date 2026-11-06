@@ -1,3 +1,5 @@
+import { listLearnings } from "@/lib/learnings";
+import { computeIndicators, indicatorsAsText } from "@/lib/companyIndicators";
 import { resolveClaudeLink } from "@/lib/apiAuth";
 import { GET as getProject } from "@/app/api/v1/projects/[id]/route";
 import { GET as getProjectThreads } from "@/app/api/v1/projects/[id]/threads/route";
@@ -32,7 +34,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const section = async (title: string, res: Response) =>
     `## ${title}\n\n\`\`\`json\n${JSON.stringify(await res.json(), null, 2).replace(/(?<![\w/.-])\/uploads\//g, `${base}/uploads/`)}\n\`\`\``;
   let context = "";
-  if (link.taskId) {
+  if (link.learningKey) {
+    const ids = Array.isArray(link.learningIds) ? (link.learningIds as string[]) : [];
+    const rows = (await listLearnings(link.user)).filter((l) => ids.includes(l.id) && l.status !== "DISCARDED");
+    const projectIds = [...new Set(rows.map((l) => l.projectId).filter(Boolean))] as string[];
+    const indicators = await computeIndicators({ projectIds: projectIds.length ? projectIds : null });
+    context = `## Qué hacer
+
+Estas son recomendaciones de mejora de la empresa, sacadas de sus proyectos («Aprendizajes»). Ayudá a ponerlas en práctica: proponé pasos concretos, documentos, cambios de proceso o tareas, según lo que pida la persona. Cuando una recomendación quede aplicada, marcala con \`PATCH ${base}/api/v1/learnings/<id>\` y cuerpo \`{"status":"APPLIED"}\` (o \`DISCARDED\` si se decide no hacerla). Para releer, \`GET ${base}/api/v1/learnings\`.
+
+## Aprendizajes (${rows.length})
+
+${rows
+  .map((l) => `### ${l.title}\n- id: ${l.id}\n- Proyecto: ${l.project?.name ?? "Empresa"}\n- Tema: ${l.topic}\n- Estado: ${l.status === "APPLIED" ? "Aplicada" : "Propuesta"}\n- Evidencia: ${l.evidence}\n- Recomendación: ${l.recommendation}${l.person ? `\n- Persona: ${l.person.name}` : ""}`)
+  .join("\n\n") || "(ninguno vigente)"}
+
+## Indicadores del alcance
+
+${indicatorsAsText(indicators)}`;
+  } else if (link.taskId) {
     // Toda la tarea: datos base + insumos/evidencias, el diseño (cambios de un
     // Ajuste con antes/después/insumos, rondas de Prueba/Aceptación) y los hilos.
     const p = { params: Promise.resolve({ id: link.taskId }) };

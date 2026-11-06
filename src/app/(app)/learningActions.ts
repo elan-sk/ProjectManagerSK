@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { LearningStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteLearningAs, generateLearnings, updateLearningAs } from "@/lib/learnings";
+import { deleteLearningAs, exportLearnings, generateLearnings, updateLearningAs } from "@/lib/learnings";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -58,4 +58,14 @@ export async function deleteLearningAction(id: string): Promise<ActionResult> {
   const r = await deleteLearningAs(await viewer(), id);
   if (!r.ok) return { ok: false, error: r.error };
   return done(l?.projectId ?? null);
+}
+
+export async function exportLearningsAction(ids: string[], format: "docx" | "pdf" | "pptx" | "md"): Promise<{ ok: true; url: string; name: string } | { ok: false; error: string }> {
+  try {
+    const r = await exportLearnings(await viewer(), ids, format);
+    return r.ok ? { ok: true, url: r.url, name: r.name } : { ok: false, error: r.error };
+  } catch (err) {
+    console.error("[aprendizajes] no se pudo exportar", err);
+    return { ok: false, error: "No se pudo exportar. Intentarlo de nuevo en un momento." };
+  }
 }

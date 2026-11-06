@@ -134,6 +134,37 @@ const PROPOSE_TOOL: Anthropic.Tool = {
 
 const NO_AI = "Falta conectar un servicio de IA en Configuración → Bot.";
 
+type Conn = NonNullable<Awaited<ReturnType<typeof getBotConnection>>>;
+
+async function askAi(conn: Conn, system: string, user: string, tools: Anthropic.Tool[]): Promise<{ ok: true; content: Anthropic.ContentBlock[] } | { ok: false; status: number; error: string }> {
+  try {
+    const deadline = Date.now() + 50_000;
+    if (conn.format === "anthropic") {
+      const client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined });
+      const r = await client.messages.create(
+        { model: conn.model, max_tokens: 8192, system, ...(tools.length ? { tools, tool_choice: { type: "auto" as const } } : {}), messages: [{ role: "user", content: user }] },
+        { timeout: deadline - Date.now(), maxRetries: 1 }
+      );
+      return { ok: true, content: r.content };
+    }
+    const r = await createOpenAICompatMessage({ baseURL: conn.baseURL ?? "", apiKey: conn.apiKey, model: conn.model, maxTokens: 8192, system, tools, messages: [{ role: "user", content: user }], deadline });
+    return { ok: true, content: r.content };
+  } catch (err) {
+    console.error("[aprendizajes] falló la IA", err);
+    const status = (err as { status?: number }).status;
+    const timedOut = /timeout|timed out|aborted/i.test(String((err as Error).message));
+    return {
+      ok: false,
+      status: 502,
+      error: timedOut
+        ? "La IA tardó demasiado. Intentarlo con menos aprendizajes o de nuevo en un momento."
+        : status === 402
+          ? "El servicio de IA no tiene saldo."
+          : "El servicio de IA no respondió. Intentarlo de nuevo en un momento.",
+    };
+  }
+}
+
 export async function generateLearnings(viewer: Viewer, scope: { projectId: string | null; from?: Date | null; cutoff: string }): Promise<Result<{ count: number }>> {
   if (!(await canManageScope(viewer, scope.projectId))) return NO_ACCESS;
   const conn = await getBotConnection();
@@ -154,34 +185,9 @@ export async function generateLearnings(viewer: Viewer, scope: { projectId: stri
 Reglas: entre 3 y 7 aprendizajes; cada evidencia cita cifras exactas de los indicadores; nunca inventes un dato; no repitas los ya existentes; tema de la lista; recomendación concreta y accionable; personName solo si la conclusión es sobre el desempeño de una persona. Orientá las conclusiones por lo que la empresa quiere lograr: ${intent || "(sin definir)"}. Si los datos no alcanzan, notEnoughData=true y lista vacía. Español neutro, tercera persona. Respondé SOLO con la herramienta propose_learnings.`;
   const user = `Indicadores:\n${indicatorsAsText(indicators)}\n\nAprendizajes ya existentes (no repetir):\n${existing.map((e) => `- ${e.title}`).join("\n") || "(ninguno)"}`;
 
-  let input: unknown;
-  try {
-    const deadline = Date.now() + 50_000;
-    if (conn.format === "anthropic") {
-      const client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined });
-      const r = await client.messages.create(
-        { model: conn.model, max_tokens: 8192, system, tools: [PROPOSE_TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: user }] },
-        { timeout: deadline - Date.now(), maxRetries: 1 }
-      );
-      input = r.content.find((b) => b.type === "tool_use")?.input;
-    } else {
-      const r = await createOpenAICompatMessage({ baseURL: conn.baseURL ?? "", apiKey: conn.apiKey, model: conn.model, maxTokens: 8192, system, tools: [PROPOSE_TOOL], messages: [{ role: "user", content: user }], deadline });
-      input = r.content.find((b) => b.type === "tool_use")?.input;
-    }
-  } catch (err) {
-    console.error("[aprendizajes] falló la IA", err);
-    const status = (err as { status?: number }).status;
-    const timedOut = /timeout|timed out|aborted/i.test(String((err as Error).message));
-    return {
-      ok: false,
-      status: 502,
-      error: timedOut
-        ? "La IA tardó demasiado. Intentarlo con un período más corto o de nuevo en un momento."
-        : status === 402
-          ? "El servicio de IA no tiene saldo."
-          : "El servicio de IA no respondió. Intentarlo de nuevo en un momento.",
-    };
-  }
+  const ai = await askAi(conn, system, user, [PROPOSE_TOOL]);
+  if (!ai.ok) return ai;
+  const input = ai.content.find((b) => b.type === "tool_use")?.input;
 
   const parsed = input as { learnings?: { topic: string; title: string; evidence: string; recommendation: string; personName?: string }[]; notEnoughData?: boolean } | undefined;
   if (!parsed?.learnings?.length) return { ok: false, status: 409, error: parsed?.notEnoughData ? "Todavía no hay datos suficientes para sacar aprendizajes." : "La IA no devolvió aprendizajes. Intentarlo de nuevo." };
@@ -230,4 +236,44 @@ export async function promptMonthlyLearnings(now = new Date()) {
   const day = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", day: "numeric" }).format(now));
   if (day !== 1) return false;
   return promptLearningsOnce(`month:${month}`, "Empezó un mes nuevo: se pueden sacar los aprendizajes de la empresa del mes anterior.", null);
+}
+
+export const EXPORT_FORMATS = { docx: "Word", pdf: "PDF", pptx: "PowerPoint", md: "Texto (.md)" } as const;
+export type ExportFormat = keyof typeof EXPORT_FORMATS;
+
+export async function exportLearnings(viewer: Viewer, ids: string[], format: ExportFormat): Promise<Result<{ url: string; name: string }>> {
+  const rows = (await listLearnings(viewer)).filter((l) => ids.includes(l.id) && l.status !== "DISCARDED");
+  if (rows.length === 0) return { ok: false, status: 400, error: "No hay aprendizajes para exportar (los descartados no se incluyen)." };
+  const conn = await getBotConnection();
+  if (!conn) return { ok: false, status: 409, error: NO_AI };
+  const quota = await checkAndConsumeBotQuestion();
+  if (!quota.ok) return { ok: false, status: 409, error: "Se acabaron las preguntas del mes para la IA." };
+
+  const profile = await getCompanyProfile();
+  const scope = [...new Set(rows.map((l) => l.project?.name ?? "Empresa"))].join(", ");
+  const slides = format === "pptx";
+  const system = `Sos un consultor de gestión. Escribís un plan de mejora para el equipo y la gerencia de ${profile.name ?? "la empresa"}, en Markdown, con SOLO los aprendizajes de abajo (no inventes datos ni cifras).
+Estructura: «# Plan de mejora — ${scope}»; ${slides ? "una diapositiva por sección con «## Título» y como máximo 5 viñetas cortas" : "secciones con «##»"}: Resumen (2-3 líneas); Prioridades (tabla: Recomendación | Prioridad Alta/Media/Baja | Responsable sugerido por rol, nunca un nombre que no esté en los datos); una sección por aprendizaje con Qué pasó (la evidencia con sus cifras), Qué hacer (pasos concretos) y Cómo medirlo; Próximos pasos. Español neutro, tercera persona, sin jerga técnica. Respondé solo con el Markdown.`;
+  const user = rows
+    .map((l) => `- [${l.topic}] ${l.title}\n  Proyecto: ${l.project?.name ?? "Empresa"} · Estado: ${LEARNING_STATUS_LABEL[l.status]}\n  Evidencia: ${l.evidence}\n  Recomendación: ${l.recommendation}${l.person ? `\n  Persona: ${l.person.name}` : ""}`)
+    .join("\n");
+  const ai = await askAi(conn, system, user, []);
+  if (!ai.ok) return ai;
+  const markdown = ai.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { text: string }).text)
+    .join("\n")
+    .replace(/^```(?:markdown|md)?\s*|\s*```$/g, "")
+    .trim();
+  if (!markdown) return { ok: false, status: 502, error: "La IA no devolvió el documento. Intentarlo de nuevo." };
+
+  const { buildFile } = await import("@/lib/botFileCreate");
+  const { getDocTheme } = await import("@/lib/companyBrand");
+  const { saveUploadedFile } = await import("@/lib/uploadFile");
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+  const built = await buildFile(`Plan de mejora ${date}.${format}`, markdown, format === "md" ? null : await getDocTheme());
+  if (!built.ok) return { ok: false, status: 400, error: built.error };
+  const saved = await saveUploadedFile(new File([new Uint8Array(built.buffer)], built.name));
+  if (!saved.ok) return { ok: false, status: 400, error: saved.error };
+  return { ok: true, url: saved.url, name: built.name };
 }

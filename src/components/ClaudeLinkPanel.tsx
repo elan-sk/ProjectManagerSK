@@ -16,10 +16,12 @@ import { createClaudeLink, revokeMyClaudeLink } from "@/app/(app)/shareActions";
 export function ClaudeLinkPanel({
   projectId,
   taskId,
+  learning,
   activeLastUsedLabel,
 }: {
   projectId?: string;
   taskId?: string;
+  learning?: { key: string; ids: string[] };
   activeLastUsedLabel: string | null;
 }) {
   const router = useRouter();
@@ -28,7 +30,7 @@ export function ClaudeLinkPanel({
   const [isPending, startTransition] = useTransition();
   const [url, setUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const target = taskId ? { taskId } : { projectId: projectId! };
+  const target = learning ? { learningKey: learning.key, learningIds: learning.ids } : taskId ? { taskId } : { projectId: projectId! };
 
   async function handleCreate() {
     if (activeLastUsedLabel && !url) {

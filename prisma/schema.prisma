@@ -821,12 +821,15 @@ model ClaudeLink {
   project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskId     String?
   task       Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  learningKey String?
+  learningIds Json?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime  @default(now())
   revokedAt  DateTime?
 
   @@index([userId, taskId])
   @@index([userId, projectId])
+  @@index([userId, learningKey])
 }
 
 // Configuración global de la app — una sola fila fija (id="app"). Hoy solo
