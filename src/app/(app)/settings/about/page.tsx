@@ -1,6 +1,6 @@
 export default function AboutSettingsPage() {
   return (
-    <section className="grid gap-8 rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 lg:grid-cols-[1fr_minmax(16rem,22rem)]">
+    <section className="space-y-10 rounded-3xl border border-slate-100 bg-white p-6 sm:p-8">
         <div className="space-y-4">
           <div className="flex items-center justify-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- ícono estático de la app (el mismo de la instalación) */}
@@ -32,7 +32,7 @@ export default function AboutSettingsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col justify-center space-y-3 text-center lg:border-l lg:border-slate-100 lg:pl-8">
+        <div className="flex flex-col items-center space-y-3 border-t border-slate-100 pt-10 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático de marca, no aplica optimización de next/image */}
           <img src="/brand/logo-elan-sk-soft.svg" alt="Elan SK Soft" className="mx-auto h-24" />
           <h2 className="font-black text-xl text-slate-900">ProjectManagerSK</h2>
