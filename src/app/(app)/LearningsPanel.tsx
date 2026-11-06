@@ -103,17 +103,23 @@ function ExportLearnings({ ids }: { ids: string[] }) {
   );
 }
 
-function LearningTools({ ids, numbers, learningKey }: { ids: string[]; numbers: number[]; learningKey: string }) {
+function AskAiButton({ numbers, all }: { numbers: number[]; all: boolean }) {
+  const list = numbers.map((n) => `#${n}`).join(", ");
+  return (
+    <button
+      type="button"
+      onClick={() => askInChat(all ? `Sobre todos los aprendizajes que se ven (${list}): ` : `Sobre los aprendizajes ${list}: `)}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-[#0a6b78] hover:bg-slate-50"
+    >
+      <SparklesIcon className="h-3.5 w-3.5 text-[#0a6b78]" />
+      Preguntar a la IA
+    </button>
+  );
+}
+
+function LearningTools({ ids, learningKey }: { ids: string[]; learningKey: string }) {
   return (
     <>
-      <button
-        type="button"
-        onClick={() => askInChat(`Sobre los aprendizajes ${numbers.map((n) => `#${n}`).join(", ")}: `)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-[#0a6b78] hover:bg-slate-50"
-      >
-        <SparklesIcon className="h-3.5 w-3.5 text-[#0a6b78]" />
-        Preguntar a la IA
-      </button>
       <ModalTrigger label="Exportar" title="Exportar plan de mejora" variant="secondary" compact>
         <ExportLearnings ids={ids} />
       </ModalTrigger>
@@ -321,14 +327,14 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
             <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? [] : selectable)} className="h-4 w-4 cursor-pointer" />
             Seleccionar todos
           </label>
-          {pickedShown.length > 0 && (
-            <>
-              <span className="text-sm text-slate-500">{pickedShown.length === 1 ? "1 seleccionado" : `${pickedShown.length} seleccionados`}</span>
-              <span className="flex flex-wrap gap-2 sm:ml-auto">
-                <LearningTools ids={pickedShown} numbers={shown.filter((l) => pickedShown.includes(l.id)).map((l) => l.number)} learningKey={`learnings:${projectId ?? "empresa"}`} />
-              </span>
-            </>
-          )}
+          {pickedShown.length > 0 && <span className="text-sm text-slate-500">{pickedShown.length === 1 ? "1 seleccionado" : `${pickedShown.length} seleccionados`}</span>}
+          <span className="flex flex-wrap gap-2 sm:ml-auto">
+            <AskAiButton
+              all={pickedShown.length === 0}
+              numbers={shown.filter((l) => l.status !== "DISCARDED" && (pickedShown.length === 0 || pickedShown.includes(l.id))).map((l) => l.number)}
+            />
+            {pickedShown.length > 0 && <LearningTools ids={pickedShown} learningKey={`learnings:${projectId ?? "empresa"}`} />}
+          </span>
         </div>
       )}
 

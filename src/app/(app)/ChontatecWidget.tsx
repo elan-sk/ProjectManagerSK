@@ -121,6 +121,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     function onAsk(e: Event) {
       const value = (e as CustomEvent<{ text?: string }>).detail?.text ?? "";
       setOpen(true);
+      setExpanded(true);
       setText(value);
       requestAnimationFrame(() => {
         const el = textRef.current;
