@@ -121,7 +121,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </NavLinkWithMemory>
             <Link href={performanceHref}>Rendimiento</Link>
             {isAdmin && (
-              <Link href="/company" data-feature-hint="company-nav">
+              <Link href="/company" data-feature-hint="company-nav company-news">
                 Empresa
               </Link>
             )}

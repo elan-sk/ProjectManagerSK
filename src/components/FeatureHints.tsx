@@ -6,7 +6,7 @@ import "driver.js/dist/driver.css";
 import { FEATURE_HINTS, hintMatchesPath } from "@/lib/featureHints";
 import { markFeatureHintSeen } from "@/app/(app)/featureHintActions";
 
-const selector = (id: string) => `[data-feature-hint="${id}"]`;
+const selector = (id: string) => `[data-feature-hint~="${id}"]`;
 
 /**
  * Muestra las novedades pendientes de la pantalla actual, también si su elemento aparece después (ej. dentro de un popup): oscurece el resto, resalta el elemento y

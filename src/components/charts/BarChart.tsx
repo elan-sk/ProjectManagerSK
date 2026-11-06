@@ -4,7 +4,7 @@ export function BarChart({
   valueSuffix = "",
   emptyLabel = "Sin datos.",
 }: {
-  data: { label: string; value: number; colorClass?: string; note?: string }[];
+  data: { label: string; value: number; colorClass?: string; note?: string; detail?: string }[];
   valueSuffix?: string;
   emptyLabel?: string;
 }) {
@@ -15,8 +15,9 @@ export function BarChart({
     <div className="space-y-2">
       {data.map((d) => (
         <div key={d.label} className="flex items-center gap-2 text-sm">
-          <span className="w-28 flex-shrink-0 truncate text-slate-600" title={d.label}>
-            {d.label}
+          <span className="flex w-28 flex-shrink-0 flex-col" title={d.detail ? `${d.label} · ${d.detail}` : d.label}>
+            <span className="truncate text-slate-600">{d.label}</span>
+            {d.detail && <span className="truncate text-[11px] leading-tight text-slate-400">{d.detail}</span>}
           </span>
           <div className="h-3 flex-1 overflow-hidden bg-slate-100">
             <div
@@ -24,7 +25,7 @@ export function BarChart({
               style={{ width: `${(d.value / max) * 100}%` }}
             />
           </div>
-          <span className="w-16 flex-shrink-0 text-right text-xs text-slate-500">
+          <span className="min-w-16 flex-shrink-0 text-right text-xs whitespace-nowrap text-slate-500">
             {d.value}
             {valueSuffix}
             {d.note && <span className="ml-1 text-red-500">{d.note}</span>}

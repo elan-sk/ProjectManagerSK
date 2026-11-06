@@ -7,7 +7,7 @@
 export type FeatureHint = {
   /** Único y estable: es lo que queda guardado como visto. */
   id: string;
-  /** Pantalla donde se muestra: pathname exacto, o con «*» para un tramo variable (ej. «/projects/*»). */
+  /** Pantalla donde se muestra: pathname exacto, con «*» para un tramo variable (ej. «/projects/*»), o «*» solo para cualquier pantalla. */
   path: string;
   title: string;
   description: string;
@@ -18,12 +18,20 @@ export type FeatureHint = {
 export const HINT_LIFETIME_DAYS = 7;
 
 export function hintMatchesPath(pattern: string, pathname: string): boolean {
+  if (pattern === "*") return true;
   const a = pattern.split("/");
   const b = pathname.split("/");
   return a.length === b.length && a.every((seg, i) => seg === "*" || seg === b[i]);
 }
 
 export const FEATURE_HINTS: FeatureHint[] = [
+  {
+    id: "company-news",
+    path: "*",
+    title: "Nuevo en Empresa: Tablero y Aprendizajes",
+    description: "Los indicadores de la empresa en un tablero y las conclusiones sacadas de los proyectos, con su evidencia y recomendación.",
+    publishedAt: "2026-11-06",
+  },
   {
     id: "company-dashboard",
     path: "/company",

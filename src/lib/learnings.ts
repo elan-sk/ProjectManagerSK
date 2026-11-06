@@ -160,7 +160,7 @@ Reglas: entre 3 y 7 aprendizajes; cada evidencia cita cifras exactas de los indi
     if (conn.format === "anthropic") {
       const client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined });
       const r = await client.messages.create(
-        { model: conn.model, max_tokens: 8192, system, tools: [PROPOSE_TOOL], tool_choice: { type: "tool", name: PROPOSE_TOOL.name }, messages: [{ role: "user", content: user }] },
+        { model: conn.model, max_tokens: 8192, system, tools: [PROPOSE_TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: user }] },
         { timeout: deadline - Date.now(), maxRetries: 1 }
       );
       input = r.content.find((b) => b.type === "tool_use")?.input;
@@ -170,7 +170,17 @@ Reglas: entre 3 y 7 aprendizajes; cada evidencia cita cifras exactas de los indi
     }
   } catch (err) {
     console.error("[aprendizajes] falló la IA", err);
-    return { ok: false, status: 502, error: "El servicio de IA no respondió. Intentarlo de nuevo en un momento." };
+    const status = (err as { status?: number }).status;
+    const timedOut = /timeout|timed out|aborted/i.test(String((err as Error).message));
+    return {
+      ok: false,
+      status: 502,
+      error: timedOut
+        ? "La IA tardó demasiado. Intentarlo con un período más corto o de nuevo en un momento."
+        : status === 402
+          ? "El servicio de IA no tiene saldo."
+          : "El servicio de IA no respondió. Intentarlo de nuevo en un momento.",
+    };
   }
 
   const parsed = input as { learnings?: { topic: string; title: string; evidence: string; recommendation: string; personName?: string }[]; notEnoughData?: boolean } | undefined;
