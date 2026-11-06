@@ -73,6 +73,9 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - RF-23: EL SISTEMA ofrece «Conectar IA» para los seleccionados: un link con token, como el de proyectos y tareas, que entrega a una IA externa los aprendizajes con su evidencia, los indicadores del alcance e instrucciones para trabajarlos y marcarlos como aplicados por la API, con los permisos de quien creó el link.
 - RF-24: EL link vence a los 7 días sin uso y se puede desactivar desde la app; uno vigente por persona y alcance.
 - RF-25: SI la IA falla al exportar, ENTONCES EL SISTEMA lo dice en lenguaje simple y no descarga nada.
+- RF-26: CADA aprendizaje tiene un número fijo (#N) que se ve en su tarjeta y que entienden el chat, la API y el link de «Conectar IA».
+- RF-27: CON aprendizajes seleccionados, «Preguntar a la IA» abre el chat de la app con «Sobre los aprendizajes #… :» escrito para completar la pregunta.
+- RF-28: EL chat y WhatsApp ofrecen a los administradores el asistente de clientes (nuevo o completar ficha) una vez por conversación, con su link.
 
 ## Requisitos no funcionales
 - Cada generación cuenta como una pregunta del tope mensual del bot.
@@ -105,6 +108,7 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - Avisos solo por campana (supuesto: evitar mensajes de WhatsApp de más).
 
 ## Cambios
+- 2026-11-06 — Número fijo por aprendizaje, «Preguntar a la IA» sobre los seleccionados (abre el chat de la app) y oferta del asistente de clientes desde el chat (RF-26 a RF-28), pedido del usuario.
 - 2026-11-06 — Exportar y Conectar IA: un solo botón arriba que trabaja con los aprendizajes marcados con check (más «Seleccionar todos»), en vez de botones en cada tarjeta (pedido del usuario).
 - 2026-11-06 — Exportar con IA (Word, PDF, PowerPoint, .md) y «Conectar IA» para los aprendizajes (RF-21 a RF-25), aprobado por el usuario.
 

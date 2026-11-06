@@ -1,5 +1,6 @@
 "use client";
 
+import { CHAT_ASK_EVENT } from "@/lib/chatBridge";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
@@ -115,6 +116,22 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   });
+
+  useEffect(() => {
+    function onAsk(e: Event) {
+      const value = (e as CustomEvent<{ text?: string }>).detail?.text ?? "";
+      setOpen(true);
+      setText(value);
+      requestAnimationFrame(() => {
+        const el = textRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(value.length, value.length);
+      });
+    }
+    window.addEventListener(CHAT_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(CHAT_ASK_EVENT, onAsk);
+  }, []);
 
   const onScroll = useStickToBottom(scrollRef, `${open}:${expanded}:${messages.length}:${optimisticMessage ? 1 : 0}:${isPending}:${voice.state}`, `${open}:${expanded}:${loaded}`);
   const cancelVoice = voice.cancel;

@@ -46,7 +46,7 @@ Estas son recomendaciones de mejora de la empresa, sacadas de sus proyectos («A
 ## Aprendizajes (${rows.length})
 
 ${rows
-  .map((l) => `### ${l.title}\n- id: ${l.id}\n- Proyecto: ${l.project?.name ?? "Empresa"}\n- Tema: ${l.topic}\n- Estado: ${l.status === "APPLIED" ? "Aplicada" : "Propuesta"}\n- Evidencia: ${l.evidence}\n- Recomendación: ${l.recommendation}${l.person ? `\n- Persona: ${l.person.name}` : ""}`)
+  .map((l) => `### #${l.number} ${l.title}\n- id: ${l.id}\n- Proyecto: ${l.project?.name ?? "Empresa"}\n- Tema: ${l.topic}\n- Estado: ${l.status === "APPLIED" ? "Aplicada" : "Propuesta"}\n- Evidencia: ${l.evidence}\n- Recomendación: ${l.recommendation}${l.person ? `\n- Persona: ${l.person.name}` : ""}`)
   .join("\n\n") || "(ninguno vigente)"}
 
 ## Indicadores del alcance

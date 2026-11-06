@@ -338,7 +338,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_learnings",
-    description: "Aprendizajes guardados (conclusiones de consultor con tema, evidencia, recomendación y estado Propuesta/Aplicada/Descartada), de la empresa o de un proyecto. Ya vienen filtrados por lo que la persona puede ver. Usala para dar consejos o contar qué dejó un proyecto; los Descartados no se usan como consejo.",
+    description: "Aprendizajes guardados (cada uno con su número fijo #N, conclusión de consultor con tema, evidencia, recomendación y estado Propuesta/Aplicada/Descartada), de la empresa o de un proyecto. Si la persona nombra «#3» o «el aprendizaje 3», buscalo por ese número. Ya vienen filtrados por lo que la persona puede ver. Usala para dar consejos o contar qué dejó un proyecto; los Descartados no se usan como consejo.",
     input_schema: { type: "object", properties: { projectId: { type: "string", description: "Opcional — solo los de ese proyecto." } } },
   },
   {
@@ -1298,7 +1298,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
       const { listLearnings, LEARNING_STATUS_LABEL } = await import("@/lib/learnings");
       const rows = await listLearnings(me, projectId ? { projectId } : {});
-      return JSON.stringify(rows.map((l) => ({ id: l.id, project: l.project?.name ?? "Empresa", tema: l.topic, conclusion: l.title, evidencia: l.evidence, recomendacion: l.recommendation, estado: LEARNING_STATUS_LABEL[l.status], persona: l.person?.name })));
+      return JSON.stringify(rows.map((l) => ({ id: l.id, numero: `#${l.number}`, project: l.project?.name ?? "Empresa", tema: l.topic, conclusion: l.title, evidencia: l.evidence, recomendacion: l.recommendation, estado: LEARNING_STATUS_LABEL[l.status], persona: l.person?.name })));
     }
     case "get_team_performance": {
       const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);

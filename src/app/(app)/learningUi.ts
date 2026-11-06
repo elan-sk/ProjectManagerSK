@@ -2,6 +2,7 @@ import type { LearningUi } from "./LearningsPanel";
 
 type Row = {
   id: string;
+  number: number;
   topic: string;
   title: string;
   evidence: string;

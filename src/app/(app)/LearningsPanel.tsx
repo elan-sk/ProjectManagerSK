@@ -6,6 +6,7 @@ import { useRouter } from "@/lib/useAppRouter";
 import { useConfirm } from "@/components/Confirm";
 import { SparklesIcon } from "@/components/icons";
 import { ModalTrigger } from "@/components/Modal";
+import { askInChat } from "@/lib/chatBridge";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
 import { deleteLearningAction, editLearningAction, exportLearningsAction, generateLearningsAction, setLearningStatusAction } from "./learningActions";
 
@@ -15,6 +16,7 @@ export type LearningUi = {
   title: string;
   evidence: string;
   recommendation: string;
+  number: number;
   status: "PROPOSED" | "APPLIED" | "DISCARDED";
   cutoff: string | null;
   source: string;
@@ -101,9 +103,17 @@ function ExportLearnings({ ids }: { ids: string[] }) {
   );
 }
 
-function LearningTools({ ids, learningKey }: { ids: string[]; learningKey: string }) {
+function LearningTools({ ids, numbers, learningKey }: { ids: string[]; numbers: number[]; learningKey: string }) {
   return (
     <>
+      <button
+        type="button"
+        onClick={() => askInChat(`Sobre los aprendizajes ${numbers.map((n) => `#${n}`).join(", ")}: `)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-[#0a6b78] hover:bg-slate-50"
+      >
+        <SparklesIcon className="h-3.5 w-3.5 text-[#0a6b78]" />
+        Preguntar a la IA
+      </button>
       <ModalTrigger label="Exportar" title="Exportar plan de mejora" variant="secondary" compact>
         <ExportLearnings ids={ids} />
       </ModalTrigger>
@@ -131,6 +141,7 @@ function LearningCard({ l, isAdmin, showProject, onError, checked, onToggle }: {
     <article className={`space-y-3 rounded-2xl border border-slate-100 bg-white p-5 ${l.status === "DISCARDED" ? "opacity-70" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {l.status !== "DISCARDED" && <input type="checkbox" checked={checked} onChange={onToggle} aria-label={`Seleccionar «${l.title}»`} className="h-4 w-4 cursor-pointer" />}
+        <span className="font-semibold text-slate-500">#{l.number}</span>
         <span className="font-semibold tracking-wide text-[#0a6b78] uppercase">{l.topic}</span>
         <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_STYLE[l.status]}`}>{STATUS[l.status]}</span>
         {showProject && l.project && (
@@ -314,7 +325,7 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
             <>
               <span className="text-sm text-slate-500">{pickedShown.length === 1 ? "1 seleccionado" : `${pickedShown.length} seleccionados`}</span>
               <span className="flex flex-wrap gap-2 sm:ml-auto">
-                <LearningTools ids={pickedShown} learningKey={`learnings:${projectId ?? "empresa"}`} />
+                <LearningTools ids={pickedShown} numbers={shown.filter((l) => pickedShown.includes(l.id)).map((l) => l.number)} learningKey={`learnings:${projectId ?? "empresa"}`} />
               </span>
             </>
           )}

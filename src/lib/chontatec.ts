@@ -504,6 +504,9 @@ async function companyContext(me: Me): Promise<string> {
     );
   }
   if (me.role === "ADMIN") {
+    parts.push(
+      `Asistente de clientes: si esta persona quiere registrar un cliente nuevo o completar la ficha de uno (a qué se dedica, contacto, qué espera), ofrecele UNA vez en esta conversación el asistente con su link: nuevo → [Abrir el asistente de clientes](${appUrl() ?? ""}/clients/assistant); existente → [Completar el cliente con el asistente](${appUrl() ?? ""}/clients/assistant?client=<clientId>) (resolvé el clientId con list_clients). Si no lo quiere, seguí normal.`
+    );
     const { covered, total } = topicStates(profile.topics, null);
     const url = `${appUrl() ?? ""}/company/assistant`;
     parts.push(

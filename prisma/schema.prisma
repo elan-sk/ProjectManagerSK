@@ -1355,6 +1355,7 @@ enum LearningStatus {
 
 model Learning {
   id             String         @id @default(cuid())
+  number         Int            @unique @default(autoincrement())
   projectId      String?
   project        Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   personId       String?
