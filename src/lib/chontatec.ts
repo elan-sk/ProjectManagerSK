@@ -9,6 +9,7 @@ import type { ChatChannel } from "@/lib/actorContext";
 import { getCompanyProfile, taskTypeContext, topicStates } from "@/lib/companyProfile";
 import { getCompanyBrand } from "@/lib/companyBrand";
 import { countWebSearches, webSearchTool } from "@/lib/webSearch";
+import { stripHiddenContext } from "@/lib/chatBridge";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -322,7 +323,8 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
       .map((b) => b.text ?? "")
       .join("\n")
       .trim();
-    if (text) out.push({ id: row.id, role: "user", text });
+    const shown = stripHiddenContext(text);
+    if (shown) out.push({ id: row.id, role: "user", text: shown });
   }
 
   return out;

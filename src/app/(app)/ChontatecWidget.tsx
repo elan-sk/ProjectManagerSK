@@ -1,6 +1,6 @@
 "use client";
 
-import { CHAT_ASK_EVENT } from "@/lib/chatBridge";
+import { CHAT_ASK_EVENT, withHiddenContext, type ChatContext } from "@/lib/chatBridge";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
@@ -30,6 +30,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
   const [text, setText] = useState("");
+  const [chatContext, setChatContext] = useState<ChatContext | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Reajusta el alto también cuando el texto cambia por dictado o al enviar.
   useLayoutEffect(() => fitToContent(textRef.current), [text]);
@@ -119,16 +120,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
 
   useEffect(() => {
     function onAsk(e: Event) {
-      const value = (e as CustomEvent<{ text?: string }>).detail?.text ?? "";
+      const detail = (e as CustomEvent<ChatContext>).detail;
+      if (!detail?.prompt) return;
       setOpen(true);
       setExpanded(true);
-      setText(value);
-      requestAnimationFrame(() => {
-        const el = textRef.current;
-        if (!el) return;
-        el.focus();
-        el.setSelectionRange(value.length, value.length);
-      });
+      setChatContext(detail);
+      requestAnimationFrame(() => containerRef.current?.querySelector<HTMLTextAreaElement>("footer textarea")?.focus());
     }
     window.addEventListener(CHAT_ASK_EVENT, onAsk);
     return () => window.removeEventListener(CHAT_ASK_EVENT, onAsk);
@@ -161,10 +158,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     if ((!typed && attached.length === 0) || isPending) return;
     if (listening) stopDictation();
     // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
-    const value = withUploadNote(typed, attached);
+    const visible = withUploadNote(typed, attached);
+    const value = withHiddenContext(visible, chatContext);
     setText("");
     setAttached([]);
-    setOptimisticMessage({ id: `pending-${Date.now()}`, role: "user", text: value });
+    setChatContext(null);
+    setOptimisticMessage({ id: `pending-${Date.now()}`, role: "user", text: visible });
     startTransition(async () => {
       try {
         const updated = await sendChontatecMessage(value, pathname);
@@ -369,7 +368,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   hasAttachments={attached.length > 0}
                   openPicker={openPicker}
                   fileInput={fileInput}
-                  chips={chips}
+                  chips={<>{chatContext && (
+                  <span className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                    <span className="truncate">Sobre: {chatContext.label}</span>
+                    <button type="button" onClick={() => setChatContext(null)} aria-label="Quitar" className="shrink-0 text-slate-400 hover:text-slate-700">
+                      ✕
+                    </button>
+                  </span>
+                )}{chips}</>}
                   voice={voice}
                   placeholder="Preguntale algo…"
                   blockedNotice={lastPending ? "Confirmá o cancelá la acción de arriba primero." : null}
@@ -387,6 +393,14 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   {dictationError ?? (interim || "Escuchando…")}
                 </p>
               )}
+              {chatContext && (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                    <span className="truncate">Sobre: {chatContext.label}</span>
+                    <button type="button" onClick={() => setChatContext(null)} aria-label="Quitar" className="shrink-0 text-slate-400 hover:text-slate-700">
+                      ✕
+                    </button>
+                  </span>
+                )}
               {chips}
               <div className="flex items-end gap-2">
                 <button type="button" onClick={openPicker} disabled={isPending} title="Subir un archivo al chat" aria-label="Subir un archivo al chat" className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-60">
