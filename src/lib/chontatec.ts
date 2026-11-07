@@ -309,15 +309,18 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
     // role === "user"
     const toolResults = blocks.filter((b) => b.type === "tool_result");
     if (toolResults.length > 0) {
-      toolResults.forEach((toolResult, n) => {
+      const showResult = mode.showResult ?? ((name: string) => mode.writeNames.has(name));
+      const lines = new Map<string, number>();
+      for (const toolResult of toolResults) {
         const toolName = toolNames.get(toolResult.tool_use_id ?? "");
-        if (mode.showResult && toolName && !mode.showResult(toolName)) return;
+        if (!toolName || !showResult(toolName)) continue;
         const content = typeof toolResult.content === "string" ? toolResult.content : "";
-        // Los ids técnicos van en un comentario oculto <!--ids:…--> solo para el modelo.
         const visible = content.replace(/<!--[\s\S]*?-->/g, "").trim();
         const jsonError = visible.startsWith("{") ? (() => { try { return (JSON.parse(visible) as { error?: unknown }).error; } catch { return undefined; } })() : undefined;
-        out.push({ id: `${row.id}:${n}`, role: "system", text: typeof jsonError === "string" ? `❌ ${jsonError}` : toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}` });
-      });
+        const line = typeof jsonError === "string" ? `❌ ${jsonError}` : toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}`;
+        lines.set(line, (lines.get(line) ?? 0) + 1);
+      }
+      [...lines].forEach(([line, count], n) => out.push({ id: `${row.id}:${n}`, role: "system", text: count > 1 ? `${line} (${count} en total)` : line }));
       continue;
     }
 

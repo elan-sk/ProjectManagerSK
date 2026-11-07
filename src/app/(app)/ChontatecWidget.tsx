@@ -1,7 +1,7 @@
 "use client";
 
 import { CHAT_ASK_EVENT, withHiddenContext, type ChatContext } from "@/lib/chatBridge";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
 import { Avatar } from "@/components/Avatar";
@@ -31,6 +31,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   const [optimisticMessage, setOptimisticMessage] = useState<ChatUiMessage | null>(null);
   const [text, setText] = useState("");
   const [chatContext, setChatContext] = useState<ChatContext | null>(null);
+  const [autoAsk, setAutoAsk] = useState<ChatContext | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Reajusta el alto también cuando el texto cambia por dictado o al enviar.
   useLayoutEffect(() => fitToContent(textRef.current), [text]);
@@ -124,7 +125,8 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       if (!detail?.prompt) return;
       setOpen(true);
       setExpanded(true);
-      setChatContext(detail);
+      if (detail.autoSend) setAutoAsk(detail);
+      else setChatContext(detail);
       requestAnimationFrame(() => containerRef.current?.querySelector<HTMLTextAreaElement>("footer textarea")?.focus());
     }
     window.addEventListener(CHAT_ASK_EVENT, onAsk);
@@ -153,13 +155,23 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
     setMessages((prev) => [...prev, { id: `error-${Date.now()}`, role: "system", text: "No se pudo procesar el mensaje. Intentarlo de nuevo en un momento." }]);
   }
 
-  function handleSend(raw = text) {
+  const sendAutoAsk = useEffectEvent((context: ChatContext) => handleSend(context.autoSend, context));
+  useEffect(() => {
+    if (!autoAsk || !loaded || isPending) return;
+    const timer = setTimeout(() => {
+      setAutoAsk(null);
+      sendAutoAsk(autoAsk);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [autoAsk, loaded, isPending]);
+
+  function handleSend(raw = text, context = chatContext) {
     const typed = raw.trim();
     if ((!typed && attached.length === 0) || isPending) return;
     if (listening) stopDictation();
     // Los archivos subidos viajan como texto con su ruta: el bot los adjunta a la tarea que se le pida.
     const visible = withUploadNote(typed, attached);
-    const value = withHiddenContext(visible, chatContext);
+    const value = withHiddenContext(visible, context);
     setText("");
     setAttached([]);
     setChatContext(null);

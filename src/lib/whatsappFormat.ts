@@ -1,3 +1,4 @@
+import { stripStrayIds } from "@/lib/chatBridge";
 import type { TaskStatus } from "@prisma/client";
 import { TASK_STATUS_LABEL } from "@/lib/statusColors";
 import { absoluteUrl, appUrl } from "@/lib/appUrl";
@@ -25,10 +26,12 @@ export function toWhatsAppText(markdown: string) {
   text = text.replace(/\[\[project:([^|\]]+)\|[^\]]*\]\]/g, "$1");
   text = text.replace(/\[\[status:([A-Z_]+)\]\]/g, (_m, code: string) => TASK_STATUS_LABEL[code as TaskStatus] ?? code);
   text = text.replace(/\[\[alert:([A-Za-z]+)\]\]/g, (_m, level: string) => ALERT_LABEL[level] ?? "");
+  text = text.replace(/\[\[(?:[a-z]+:)?([^|\]]+)(?:\|[^\]]*)?\]\]/g, (_m, name: string) => name.trim());
   text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
     const full = toAbsolute(url);
     return label.trim() === url || label.trim() === full ? full : `${label}: ${full}`;
   });
+  text = stripStrayIds(text);
   text = text.replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
   text = text.replace(/__([^_\n]+)__/g, "*$1*");
   text = text.replace(/^#{1,6}\s+(.+)$/gm, "*$1*");

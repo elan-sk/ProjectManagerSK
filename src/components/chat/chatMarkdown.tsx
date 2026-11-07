@@ -8,6 +8,7 @@ import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { isFileHref, type ViewFile } from "@/components/FileViewer";
 import { SparklesIcon } from "@/components/icons";
+import { stripStrayIds } from "@/lib/chatBridge";
 
 // Markdown mínimo que puede mandar el bot: **negrita**, [texto](url), y
 // miniaturas propias de la interfaz [[tipo:datos]] (persona/proyecto/estado/
@@ -67,7 +68,7 @@ function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
       if (rendered) return rendered;
     }
 
-    return <Fragment key={i}>{part}</Fragment>;
+    return <Fragment key={i}>{stripStrayIds(part)}</Fragment>;
   });
 }
 

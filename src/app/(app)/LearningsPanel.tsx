@@ -118,7 +118,8 @@ function AskAiButton({ numbers, all }: { numbers: number[]; all: boolean }) {
       onClick={() =>
         askInChat({
           label: all ? `todos los aprendizajes que se ven (${numbers.length})` : `aprendizajes ${list}`,
-          prompt: `La pregunta es sobre ${all ? "todos los aprendizajes que se ven" : "los aprendizajes"} ${list} (consultalos con get_learnings por su número).`,
+          prompt: `La pregunta es sobre ${all ? "todos los aprendizajes que se ven" : "los aprendizajes"} ${list} (consultalos con get_learnings por su número). Si la persona pide que se los expliques: en lenguaje sencillo y corto (máximo 5 líneas, sin repetir la evidencia completa), qué dicen y qué significan para el equipo; después, en una línea, preguntá qué necesita (por ejemplo, convertirlos en tareas, priorizarlos o profundizar en uno).`,
+          autoSend: all ? "Explicame los aprendizajes que se ven" : `Explicame ${numbers.length === 1 ? "el aprendizaje" : "los aprendizajes"} ${list}`,
         })
       }
       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-[#0a6b78] hover:bg-slate-50"
