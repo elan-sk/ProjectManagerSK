@@ -277,3 +277,20 @@ Estructura: «# Plan de mejora — ${scope}»; ${slides ? "una diapositiva por s
   if (!saved.ok) return { ok: false, status: 400, error: saved.error };
   return { ok: true, url: saved.url, name: built.name };
 }
+
+export async function appliedRulesText(viewer: Viewer): Promise<string> {
+  const managed = viewer.role === "ADMIN" ? null : (await prisma.project.findMany({ where: { pmId: viewer.id }, select: { id: true } })).map((p) => p.id);
+  const rows = await prisma.learning.findMany({
+    where: {
+      status: "APPLIED",
+      personId: null,
+      OR: [{ projectId: null }, { project: { status: { not: "ARCHIVED" }, ...(managed ? { id: { in: managed } } : {}) } }],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 40,
+    select: { number: true, topic: true, recommendation: true, projectId: true, project: { select: { name: true } } },
+  });
+  if (rows.length === 0) return "";
+  const lines = rows.map((l) => `- #${l.number} [${l.topic}] (${l.project?.name ?? "Empresa"}): ${l.recommendation}`);
+  return `Reglas de la empresa (aprendizajes APLICADOS: decisiones ya tomadas). Al proponer o crear proyectos, fases, tareas, tiempos o pruebas, aplicá las que correspondan y decí en una frase cuál aplicás con su número (ej. «Según el aprendizaje #4, dejo holgura en diseño»). No las apliques si no tienen que ver con lo que se está creando:\n${lines.join("\n")}`;
+}

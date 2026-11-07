@@ -76,6 +76,7 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - RF-26: CADA aprendizaje tiene un número fijo (#N) que se ve en su tarjeta y que entienden el chat, la API y el link de «Conectar IA».
 - RF-27: CON aprendizajes seleccionados, «Preguntar a la IA» abre el chat de la app con «Sobre los aprendizajes #… :» escrito para completar la pregunta.
 - RF-28: EL chat y WhatsApp ofrecen a los administradores el asistente de clientes (nuevo o completar ficha) una vez por conversación, con su link.
+- RF-29: LOS aprendizajes «Aplicada» (generales y de proyectos) funcionan como reglas de la empresa: los asistentes de proyectos y tareas, y el chat y WhatsApp para administradores y PM, los tienen siempre presentes al crear proyectos, fases, tareas, tiempos o pruebas, y dicen cuál aplican (#N). Al PM solo le llega la recomendación de las reglas generales, sin evidencia.
 
 ## Requisitos no funcionales
 - Cada generación cuenta como una pregunta del tope mensual del bot.
@@ -108,6 +109,7 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - Avisos solo por campana (supuesto: evitar mensajes de WhatsApp de más).
 
 ## Cambios
+- 2026-11-06 — Aplicados como reglas de la empresa al crear (RF-29), sugerencia aceptada por el usuario.
 - 2026-11-06 — Número fijo por aprendizaje, «Preguntar a la IA» sobre los seleccionados (abre el chat de la app) y oferta del asistente de clientes desde el chat (RF-26 a RF-28), pedido del usuario.
 - 2026-11-06 — Exportar y Conectar IA: un solo botón arriba que trabaja con los aprendizajes marcados con check (más «Seleccionar todos»), en vez de botones en cada tarjeta (pedido del usuario).
 - 2026-11-06 — Exportar con IA (Word, PDF, PowerPoint, .md) y «Conectar IA» para los aprendizajes (RF-21 a RF-25), aprobado por el usuario.

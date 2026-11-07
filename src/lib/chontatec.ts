@@ -10,6 +10,7 @@ import { getCompanyProfile, taskTypeContext, topicStates } from "@/lib/companyPr
 import { getCompanyBrand } from "@/lib/companyBrand";
 import { countWebSearches, webSearchTool } from "@/lib/webSearch";
 import { stripHiddenContext } from "@/lib/chatBridge";
+import { appliedRulesText } from "@/lib/learnings";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -501,6 +502,8 @@ async function companyContext(me: Me): Promise<string> {
     parts.push(`Identidad de la empresa para los HTML que crees con create_file (salvo que pidan «sin marca»): ${[brand.primaryColor && `color principal ${brand.primaryColor}`, brand.secondaryColor && `color secundario ${brand.secondaryColor}`, logo && `logo ${logo}`].filter(Boolean).join(", ")}. Usá el principal en títulos y encabezados de tabla, el secundario en líneas y detalles, y el texto del cuerpo oscuro.`);
   }
   if (me.role === "ADMIN" || me.pmCount > 0) {
+    const rules = await appliedRulesText(me).catch(() => "");
+    if (rules) parts.push(rules);
     parts.push(
       `Asistentes guiados: si esta persona pide algo complejo —crear o armar un proyecto, varias tareas a la vez, o una tarea con muchas partes o mucha información por definir—, ofrecele UNA vez en esta conversación el asistente que corresponde, en una frase con su link (el asistente arranca con lo que la persona ya escribió acá y solo pregunta lo que falta): proyectos → [Abrir el asistente de proyectos](${appUrl() ?? ""}/projects/assistant?from=chat); tareas de un proyecto → [Abrir el asistente de tareas](${appUrl() ?? ""}/tasks/assistant?project=<projectId>&from=chat) (resolvé el projectId con list_projects). Si no lo quiere o el pedido es simple, seguí normal y hacelo vos como siempre.`
     );

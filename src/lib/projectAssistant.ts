@@ -9,6 +9,7 @@ import { ALL_TOOLS, isDestructiveTool, runReadTool, runWriteTool, summarizeWrite
 import { READ_WEB_PAGE_TOOL, runReadWebPage, webResearchRules } from "@/lib/assistantWebTools";
 import { getCompanyProfile, profileViewFor, taskTypeContext } from "@/lib/companyProfile";
 import { similarProjects } from "@/lib/similarProjects";
+import { appliedRulesText } from "@/lib/learnings";
 import { CLIENT_STEPS, PROJECT_STEPS, TASK_STEPS, clientCoverage, clientGaps, projectCoverage, stepMarksFromHistory, stepStates, taskCoverage, taskGaps, type StepDef, type TaskFacts } from "@/lib/projectAssistantSteps";
 
 export const NEW_PROJECT_CHANNEL = "project:new";
@@ -214,7 +215,7 @@ export function projectAssistantMode(projectId: string | null, me: { id: string;
       const state = projectId ? await projectSnapshot(projectId) : "Proyecto nuevo: todavía no fue creado.";
       return [
         { type: "text", text: `${projectRules(botName, !projectId, me.role === "ADMIN", company.empty)}\n\n${await webResearchRules("el cliente y su sector")}\n\n${persona}`, cache_control: { type: "ephemeral" } },
-        { type: "text", text: `${company.text}\n\n${state}\n\nFecha de hoy: ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Quien conversa: ${who.name} (userId=${who.id}).` },
+        { type: "text", text: `${company.text}\n\n${await appliedRulesText(me)}\n\n${state}\n\nFecha de hoy: ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Quien conversa: ${who.name} (userId=${who.id}).` },
       ];
     },
     tools: async () => [...base.tools, SIMILAR_TOOL],
@@ -398,7 +399,7 @@ export function taskAssistantMode(projectId: string, taskId: string | null, me: 
         : "Tarea nueva: todavía no fue creada.";
       return [
         { type: "text", text: `${taskRules(botName, projectId, taskId)}\n\n${persona}`, cache_control: { type: "ephemeral" } },
-        { type: "text", text: `${company.text}\n\n${await projectSnapshot(projectId)}\n\n${state}\n\nFecha de hoy: ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Quien conversa: ${who.name} (userId=${who.id}).` },
+        { type: "text", text: `${company.text}\n\n${await appliedRulesText(me)}\n\n${await projectSnapshot(projectId)}\n\n${state}\n\nFecha de hoy: ${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date())}. Quien conversa: ${who.name} (userId=${who.id}).` },
       ];
     },
     tools: async () => [...base.tools, SIMILAR_TOOL],

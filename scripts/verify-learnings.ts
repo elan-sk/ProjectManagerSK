@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
 import { computeIndicators, rankByIntent, INDICATOR_CATALOG } from "../src/lib/companyIndicators";
-import { createLearningsAs, learningVisibleWhere, promptLearningsOnce, updateLearningAs, validateLearning } from "../src/lib/learnings";
+import { appliedRulesText, createLearningsAs, learningVisibleWhere, promptLearningsOnce, updateLearningAs, validateLearning } from "../src/lib/learnings";
 
 const TAG = `zz-learn-${Date.now()}`;
 
@@ -38,6 +38,10 @@ async function main() {
     assert.equal(l.source, "claude");
     assert.equal((await updateLearningAs(pm, l.id, { status: "APPLIED" })).ok, true, "el PM marca el estado");
     assert.equal((await updateLearningAs(pm, l.id, { title: "otro" })).ok, false, "el PM no edita el texto");
+    const withNumber = await prisma.learning.findUniqueOrThrow({ where: { id: l.id }, select: { number: true } });
+    assert.match(await appliedRulesText(admin), new RegExp(`#${withNumber.number} \\[Plazos\\]`), "la aplicada entra como regla");
+    await updateLearningAs(admin, l.id, { status: "DISCARDED" });
+    assert.doesNotMatch(await appliedRulesText(admin), new RegExp(`#${withNumber.number} `), "la descartada no es regla");
 
     await prisma.learningPrompt.create({ data: { key: `${TAG}:prompt` } });
     assert.equal(await promptLearningsOnce(`${TAG}:prompt`, "x", null), false, "un solo aviso por evento");
