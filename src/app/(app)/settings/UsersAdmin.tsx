@@ -165,12 +165,19 @@ export function UsersAdmin({ users, currentUserId }: { users: UserRow[]; current
                   <ModalTrigger label="Restablecer clave" title={`Restablecer contraseña — ${u.name}`} variant="secondary" small>
                     <ResetPasswordForm userId={u.id} />
                   </ModalTrigger>
-                  {u.id !== currentUserId && (
-                    <div className="ml-1.5 flex items-center gap-2.5 border-l border-slate-200 pl-2.5">
-                      <DeactivateUserButton userId={u.id} name={u.name} />
-                      <DeleteUserTrigger user={u} users={users} />
-                    </div>
-                  )}
+                  <div className={`ml-1.5 flex items-center gap-2.5 border-l border-slate-200 pl-2.5 ${u.id === currentUserId ? "invisible" : ""}`} aria-hidden={u.id === currentUserId || undefined}>
+                    {u.id !== currentUserId ? (
+                      <>
+                        <DeactivateUserButton userId={u.id} name={u.name} />
+                        <DeleteUserTrigger user={u} users={users} />
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-medium">Desactivar</span>
+                        <span className="text-xs font-medium">Eliminar</span>
+                      </>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
