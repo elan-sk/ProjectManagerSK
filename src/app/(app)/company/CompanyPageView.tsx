@@ -190,7 +190,7 @@ export function CompanyPageView({ profile, aiConfigured, clients, dashboard, lea
           {dashboard}
         </section>
 
-        <section id="aprendizajes" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10">
+        <section id="aprendizajes" className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white px-6 py-8 sm:px-10 sticky-view-panel-kanban sm:sticky sm:top-[65px] sm:flex sm:h-[calc(100dvh-81px)] sm:flex-col">
           {learnings}
         </section>
       </div>

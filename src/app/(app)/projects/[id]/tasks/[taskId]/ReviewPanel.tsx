@@ -39,6 +39,7 @@ import {
   setDefaultTestTemplateAction,
 } from "./reviewActions";
 import type { CheckResult, TaskStatus } from "@prisma/client";
+import { CHECK_RESULT_COLOR, CHECK_RESULT_BUTTON } from "@/lib/statusColors";
 import { uploadWithProgress } from "@/lib/uploadWithProgress";
 import { LinkFavicon } from "@/components/LinkFavicon";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -79,12 +80,7 @@ const RESULT_LABEL: Record<CheckResult, string> = {
   FAILED: "Con errores",
   NOT_APPLICABLE: "No aplica",
 };
-const RESULT_COLOR: Record<CheckResult, string> = {
-  APPROVED: "bg-emerald-600 text-white",
-  FLAGGED: "bg-amber-500 text-white",
-  FAILED: "bg-red-600 text-white",
-  NOT_APPLICABLE: "bg-slate-400 text-white",
-};
+const RESULT_COLOR = CHECK_RESULT_COLOR;
 const ACCEPT = UPLOAD_ACCEPT;
 
 function FileChip({ file, onClick }: { file: FileRef; onClick?: () => void }) {
@@ -872,7 +868,7 @@ function CheckRow({ index, total, check, canReview, canEdit, responseCategories 
                   disabled={isPending || needsEvidence}
                   title={needsEvidence ? "Se debe subir evidencia antes de calificar «Con errores» o «Recomendación»." : undefined}
                   onClick={() => setResult(r)}
-                  className={`rounded-lg px-2 py-1 text-[17px] font-medium ${RESULT_COLOR[r]} disabled:opacity-50`}
+                  className={`${CHECK_RESULT_BUTTON} ${RESULT_COLOR[r]}`}
                 >
                   {RESULT_LABEL[r]}
                 </button>

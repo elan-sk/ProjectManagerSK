@@ -3,12 +3,14 @@ export function BarChart({
   data,
   valueSuffix = "",
   emptyLabel = "Sin datos.",
+  reference,
 }: {
   data: { label: string; value: number; colorClass?: string; note?: string; detail?: string }[];
   valueSuffix?: string;
   emptyLabel?: string;
+  reference?: number;
 }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
+  const max = Math.max(1, reference ?? 0, ...data.map((d) => d.value));
   if (data.length === 0) return <p className="text-sm text-slate-400">{emptyLabel}</p>;
 
   return (
@@ -19,11 +21,12 @@ export function BarChart({
             <span className="truncate text-slate-600">{d.label}</span>
             {d.detail && <span className="truncate text-[11px] leading-tight text-slate-400">{d.detail}</span>}
           </span>
-          <div className="h-3 flex-1 overflow-hidden bg-slate-100">
+          <div className="relative h-3 flex-1 overflow-hidden bg-slate-100">
             <div
-              className={`h-full ${d.colorClass ?? "bg-slate-900"}`}
+              className={`h-full ${d.colorClass ?? (reference !== undefined && d.value > reference ? "bg-red-500" : "bg-slate-900")}`}
               style={{ width: `${(d.value / max) * 100}%` }}
             />
+            {reference !== undefined && <div className="absolute inset-y-0 w-0.5 bg-amber-500" style={{ left: `${(reference / max) * 100}%` }} />}
           </div>
           <span className="min-w-16 flex-shrink-0 text-right text-xs whitespace-nowrap text-slate-500">
             {d.value}

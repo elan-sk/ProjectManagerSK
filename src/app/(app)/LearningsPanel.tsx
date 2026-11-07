@@ -8,6 +8,7 @@ import { SparklesIcon } from "@/components/icons";
 import { ModalTrigger } from "@/components/Modal";
 import { askInChat } from "@/lib/chatBridge";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
+import { CHECK_RESULT_BUTTON, CHECK_RESULT_COLOR } from "@/lib/statusColors";
 import { deleteLearningAction, editLearningAction, exportLearningsAction, generateLearningsAction, setLearningStatusAction } from "./learningActions";
 
 export type LearningUi = {
@@ -33,6 +34,11 @@ const PERIODS = [
   { id: "year", label: "Último año" },
   { id: "all", label: "Todo" },
 ];
+const CARD_BY_STATUS: Record<keyof typeof STATUS_STYLE, string> = {
+  PROPOSED: "border-slate-100 border-l-amber-400 bg-white",
+  APPLIED: "border-emerald-100 border-l-emerald-500 bg-emerald-50/60",
+  DISCARDED: "border-slate-200 border-l-slate-400 bg-slate-50 opacity-75",
+};
 const PILL = "rounded-full border px-3 py-1 text-sm";
 const FAILED = { ok: false as const, error: "No se pudo completar. Recargar la página e intentarlo de nuevo." };
 
@@ -149,8 +155,8 @@ function LearningCard({ l, isAdmin, showProject, onError, checked, onToggle }: {
     });
 
   return (
-    <article className={`space-y-3 rounded-2xl border border-slate-100 bg-white p-5 ${l.status === "DISCARDED" ? "opacity-70" : ""}`}>
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+    <article className={`space-y-3 rounded-2xl border border-l-4 p-5 ${CARD_BY_STATUS[l.status]}`}>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {l.status !== "DISCARDED" && <input type="checkbox" checked={checked} onChange={onToggle} aria-label={`Seleccionar «${l.title}»`} className="h-4 w-4 cursor-pointer" />}
         <span className="font-semibold text-slate-500">#{l.number}</span>
         <span className="font-semibold tracking-wide text-[#0a6b78] uppercase">{l.topic}</span>
@@ -172,7 +178,7 @@ function LearningCard({ l, isAdmin, showProject, onError, checked, onToggle }: {
           {(["title", "evidence", "recommendation"] as const).map((k) => (
             <label key={k} className="block space-y-1">
               <span className="text-sm font-medium text-slate-700">{{ title: "Conclusión", evidence: "Evidencia", recommendation: "Recomendación" }[k]}</span>
-              <textarea value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} rows={k === "title" ? 2 : 3} className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-[15px]" />
+              <textarea value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} rows={k === "title" ? 2 : 3} className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-[17px]" />
             </label>
           ))}
           <div className="flex justify-end gap-2">
@@ -186,22 +192,22 @@ function LearningCard({ l, isAdmin, showProject, onError, checked, onToggle }: {
         </div>
       ) : (
         <>
-          <p className="text-[17px] font-semibold leading-snug text-slate-900">{l.title}</p>
-          <p className="text-[15px] text-slate-600"><span className="font-medium text-slate-700">Evidencia: </span>{l.evidence}</p>
-          <p className="text-[15px] text-slate-800"><span className="font-medium">Recomendación: </span>{l.recommendation}</p>
+          <p className="text-[20px] font-semibold leading-snug text-slate-900">{l.title}</p>
+          <p className="text-[17px] leading-relaxed text-slate-600"><span className="font-medium text-slate-700">Evidencia: </span>{l.evidence}</p>
+          <p className="text-[17px] leading-relaxed text-slate-800"><span className="font-medium">Recomendación: </span>{l.recommendation}</p>
           <div className="flex flex-wrap gap-2 pt-1">
             {l.status !== "APPLIED" && (
-              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "APPLIED"))} className={`${PILL} border-emerald-300 text-emerald-700 hover:bg-emerald-50`}>
+              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "APPLIED"))} className={`${CHECK_RESULT_BUTTON} ${CHECK_RESULT_COLOR.APPROVED}`}>
                 Aplicada
               </button>
             )}
             {l.status !== "DISCARDED" && (
-              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "DISCARDED"))} className={`${PILL} border-slate-300 text-slate-600 hover:bg-slate-50`}>
+              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "DISCARDED"))} className={`${CHECK_RESULT_BUTTON} ${CHECK_RESULT_COLOR.NOT_APPLICABLE}`}>
                 Descartada
               </button>
             )}
             {l.status !== "PROPOSED" && (
-              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "PROPOSED"))} className={`${PILL} border-slate-300 text-slate-600 hover:bg-slate-50`}>
+              <button type="button" disabled={pending} onClick={() => run(() => setLearningStatusAction(l.id, "PROPOSED"))} className={`${CHECK_RESULT_BUTTON} ${CHECK_RESULT_COLOR.FLAGGED}`}>
                 Volver a propuesta
               </button>
             )}
@@ -279,7 +285,8 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5 sm:h-full sm:min-h-0">
+      <div className="space-y-5 sm:shrink-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Aprendizajes</h2>
         {canGenerate &&
@@ -343,6 +350,9 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
         </div>
       )}
 
+      </div>
+
+      <div className="space-y-5 sm:min-h-0 sm:flex-1 sm:overflow-x-hidden sm:overflow-y-auto sm:pr-1">
       {shown.length === 0 ? (
         <p className="text-[17px] text-slate-400">{learnings.length === 0 ? "Sin aprendizajes" : "Sin resultados."}</p>
       ) : (
@@ -376,6 +386,7 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
           )}
         </section>
       )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { Prisma, TaskStatus, NotificationType } from "@prisma/client";
+import type { Prisma, TaskStatus, NotificationType, CheckResult } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 
 // Vive acá (no en delays.ts) por el mismo motivo que TASK_TYPE_LABEL de más
@@ -242,3 +242,12 @@ export function taskCardTint(status: TaskStatus, alertLevel: TaskAlert["level"])
   if (alertLevel === "warning") return "bg-amber-50";
   return TASK_STATUS_COLOR[status].tint;
 }
+
+export const CHECK_RESULT_COLOR: Record<CheckResult, string> = {
+  APPROVED: "bg-emerald-600 text-white",
+  FLAGGED: "bg-amber-500 text-white",
+  FAILED: "bg-red-600 text-white",
+  NOT_APPLICABLE: "bg-slate-400 text-white",
+};
+
+export const CHECK_RESULT_BUTTON = "rounded-lg px-2 py-1 text-[17px] font-medium disabled:opacity-50";

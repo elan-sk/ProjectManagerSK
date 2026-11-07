@@ -130,7 +130,7 @@ export function DefinitionTab({
       />
 
       {learnings && (
-        <section id="aprendizajes" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4">
+        <section id="aprendizajes" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 sticky-view-panel-kanban sm:sticky sm:top-[65px] sm:flex sm:h-[calc(100dvh-81px)] sm:flex-col">
           {learnings}
         </section>
       )}

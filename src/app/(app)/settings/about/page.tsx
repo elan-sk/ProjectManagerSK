@@ -36,7 +36,7 @@ export default function AboutSettingsPage() {
           {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático de marca, no aplica optimización de next/image */}
           <img src="/brand/logo-elan-sk-soft.svg" alt="Elan SK Soft" className="mx-auto h-24" />
           <h2 className="font-black text-xl text-slate-900">ProjectManagerSK</h2>
-          <p className="text-sm text-slate-600">
+          <p className="max-w-md text-sm text-slate-600 text-balance">
             Es un producto de <b>Elan-SK Soft</b>, elaborado por <b>ELAN-SK</b>, para organizar proyectos, tareas y tiempos del equipo en un solo lugar.
           </p>
           <p className="text-sm text-slate-600">

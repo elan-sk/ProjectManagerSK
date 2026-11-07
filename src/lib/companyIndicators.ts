@@ -4,7 +4,7 @@ import { isDeliveredOnTime, getTeamContribution } from "@/lib/delays";
 import { getCommonFailureCategories, getReviewPerformance, formatHours } from "@/lib/reviewPerformance";
 
 export type IndicatorRow = { label: string; value: number; note?: string };
-export type Indicator = { key: string; title: string; kind: "bars" | "donut"; unit: string; rows: IndicatorRow[]; summary: string };
+export type Indicator = { key: string; title: string; kind: "bars" | "donut"; unit: string; rows: IndicatorRow[]; summary: string; reference?: number };
 export type IndicatorScope = { projectIds?: string[] | null; from?: Date | null; clientId?: string | null };
 
 export const INDICATOR_CATALOG = [
@@ -67,7 +67,9 @@ export async function computeIndicators(scope: IndicatorScope): Promise<Indicato
     const realEnd = allDone ? new Date(Math.max(...ts.map((t) => (t.actualEnd ?? t.plannedEnd).getTime()))) : new Date();
     const planned = Math.max(1, Math.round((plannedEnd.getTime() - p.startDate.getTime()) / DAY));
     const real = Math.max(1, Math.round((realEnd.getTime() - p.startDate.getTime()) / DAY));
-    duration.push({ label: p.name, value: real, note: `planeado ${planned} días${allDone ? "" : " · en curso"}` });
+    const late = real - planned;
+    const lateText = late > 0 ? `${late} ${late === 1 ? "día" : "días"} de atraso · ` : "";
+    duration.push({ label: p.name, value: Math.round((real / planned) * 100), note: `${lateText}${real} de ${planned} días${allDone ? "" : " · en curso"}` });
   }
 
   const onTime: IndicatorRow[] = [];
@@ -136,8 +138,8 @@ export async function computeIndicators(scope: IndicatorScope): Promise<Indicato
   for (const p of projects) clientCounts.set(p.clientName ?? "Interno", (clientCounts.get(p.clientName ?? "Interno") ?? 0) + 1);
   const clients: IndicatorRow[] = [...clientCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
 
-  const rowsByKey: Record<string, { kind: Indicator["kind"]; unit: string; rows: IndicatorRow[] }> = {
-    duration: { kind: "bars", unit: " días", rows: duration },
+  const rowsByKey: Record<string, { kind: Indicator["kind"]; unit: string; rows: IndicatorRow[]; reference?: number }> = {
+    duration: { kind: "bars", unit: "%", rows: duration, reference: 100 },
     on_time: { kind: "bars", unit: "%", rows: onTime },
     test_rounds: { kind: "bars", unit: " rondas", rows: testRounds },
     common_errors: { kind: "donut", unit: "", rows: commonErrors },
@@ -152,7 +154,7 @@ export async function computeIndicators(scope: IndicatorScope): Promise<Indicato
     const d = rowsByKey[c.key];
     const rows = [...d.rows].sort((a, b) => b.value - a.value);
     const summary = rows.length ? rows.map((r) => `${r.label}: ${r.value}${d.unit}${r.note ? ` (${r.note})` : ""}`).join("; ") : "Sin datos.";
-    return { key: c.key, title: c.title, kind: d.kind, unit: d.unit, rows, summary };
+    return { key: c.key, title: c.title, kind: d.kind, unit: d.unit, rows, summary, reference: d.reference };
   });
 }
 

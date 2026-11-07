@@ -56,7 +56,7 @@ export function CompanyDashboard({ indicators, period, clientId, clients }: Prop
               </div>
             ) : (
               <div className="max-h-72 overflow-x-hidden overflow-y-auto pr-1">
-                <BarChart data={ind.rows.slice(0, 15).map((r) => ({ label: r.label, value: r.value, detail: r.note }))} valueSuffix={ind.unit} emptyLabel="Sin datos" />
+                <BarChart data={ind.rows.slice(0, 15).map((r) => ({ label: r.label, value: r.value, detail: r.note }))} valueSuffix={ind.unit} emptyLabel="Sin datos" reference={ind.reference} />
               </div>
             )}
           </article>
