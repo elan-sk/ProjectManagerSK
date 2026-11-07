@@ -23,7 +23,7 @@ import { setTaskReviewers, submitReviewRound } from "@/app/(app)/projects/[id]/t
 import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
 import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
-import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm } from "@/lib/permissions";
+import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm, canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -2496,6 +2496,7 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
     case "create_project": {
       try {
         const userId = await currentUserId();
+        if (!canCreateProjects(await currentActor())) return { ok: false, message: NO_CREATE_PROJECT };
         const parsed = z
           .object({
             name: z.string().trim().min(1),
@@ -2523,6 +2524,7 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
             targetEndDate: parsed.targetEndDate ?? null,
             description: parsed.description?.trim() ? plainTextToHtml(parsed.description) : null,
             pmId,
+            createdById: userId,
             parentId: parsed.parentId || null,
             countryCode: await getAppCountryCode(),
             phases: { create: [{ name: "General", order: 0 }] },

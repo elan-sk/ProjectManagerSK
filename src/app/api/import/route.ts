@@ -46,7 +46,7 @@ const userSchema = z.object({
   name: z.string().min(1),
   email: z.string().nullable(),
   phone: z.string().nullable(),
-  role: z.enum(["ADMIN", "MEMBER"]),
+  role: z.enum(["ADMIN", "COORDINATOR", "MEMBER"]),
   active: z.boolean(),
   deletedAt: z.string().nullable().optional(),
   avatarUrl: z.string().nullable(),

@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { canSeeClient, clientVisibleWhere, deleteClient, saveClient, type ClientInput } from "@/lib/clients";
+import { canSeeClient, clientPickerWhere, deleteClient, saveClient, type ClientInput } from "@/lib/clients";
 
 const NOT_ADMIN = "Solo un administrador puede cambiar la ficha de un cliente.";
 
 export async function listClientOptions(): Promise<{ id: string; label: string }[]> {
   const session = await auth();
   if (!session?.user) return [];
-  const clients = await prisma.client.findMany({ where: clientVisibleWhere(session.user), orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const clients = await prisma.client.findMany({ where: clientPickerWhere(session.user), orderBy: { name: "asc" }, select: { id: true, name: true } });
   return clients.map((c) => ({ id: c.id, label: c.name }));
 }
 

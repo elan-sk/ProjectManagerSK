@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getProjectAdmin, trustedActor } from "@/lib/permissions";
+import { getProjectAdmin, trustedActor, canCreateProjects } from "@/lib/permissions";
 import { appUrl } from "@/lib/appUrl";
 import type { ConversationMode, Me } from "@/lib/chontatec";
 import type { ChatChannel } from "@/lib/actorContext";
@@ -305,7 +305,7 @@ export async function moveNewProjectConversation(userId: string, projectId: stri
 
 export async function canUseProjectAssistant(user: { id: string; role: string }, projectId: string | null) {
   if (projectId) return Boolean(await getProjectAdmin(projectId, trustedActor(user)));
-  return user.role === "ADMIN" || (await prisma.project.count({ where: { pmId: user.id } })) > 0;
+  return canCreateProjects(user);
 }
 
 export const taskChannel = (projectId: string, taskId: string | null): ChatChannel => (taskId ? `task:${taskId}` : `task:new:${projectId}`);

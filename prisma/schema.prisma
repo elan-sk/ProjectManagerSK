@@ -13,6 +13,7 @@ datasource db {
 
 enum Role {
   ADMIN
+  COORDINATOR
   MEMBER
 }
 
@@ -171,7 +172,9 @@ model User {
   apiSessionTokenHash String?   @unique
   apiSessionExpiresAt DateTime?
 
-  pmOfProjects          Project[]                 @relation("ProjectPM")
+  pmOfProjects Project[] @relation("ProjectPM")
+
+  projectsCreated       Project[]                 @relation("ProjectCreator")
   assignments           TaskAssignee[]
   attachments           Attachment[]
   projectAttachments    ProjectAttachment[]
@@ -264,6 +267,8 @@ model Project {
   repoUrl       String?
   pmId          String
   pm            User          @relation("ProjectPM", fields: [pmId], references: [id])
+  createdById   String?
+  createdBy     User?         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime      @default(now())
 
   // Pestaña "Definición" (gestión de proyecto, vocabulario alineado con las
@@ -813,19 +818,19 @@ model ShareLink {
 // servir al completarse la tarea, tras 7 días sin uso o al desactivarlo
 // (ver resolveClaudeLink en apiAuth.ts).
 model ClaudeLink {
-  id         String    @id @default(cuid())
-  tokenHash  String    @unique
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId  String?
-  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskId     String?
-  task       Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   learningKey String?
   learningIds Json?
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime  @default(now())
-  revokedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime  @default(now())
+  revokedAt   DateTime?
 
   @@index([userId, taskId])
   @@index([userId, projectId])

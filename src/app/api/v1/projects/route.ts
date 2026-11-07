@@ -1,3 +1,4 @@
+import { canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
 import { clientFieldsFor } from "@/lib/clients";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -40,6 +41,7 @@ const createProjectSchema = z.object({
 export async function POST(request: Request) {
   const auth = await requireApiUser(request);
   if ("error" in auth) return auth.error;
+  if (!canCreateProjects(auth.actor)) return NextResponse.json({ error: NO_CREATE_PROJECT }, { status: 403 });
 
   const parsedBody = await safeJson(request);
   if ("error" in parsedBody) return parsedBody.error;
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
   const project = await prisma.project.create({
-    data: { ...rest, ...client, countryCode: await getAppCountryCode(), phases: { create: [{ name: "General", order: 0 }] } },
+    data: { ...rest, ...client, createdById: auth.actor.id, countryCode: await getAppCountryCode(), phases: { create: [{ name: "General", order: 0 }] } },
     include: { phases: true },
   });
   return NextResponse.json(project, { status: 201 });

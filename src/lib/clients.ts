@@ -20,7 +20,11 @@ export async function canSeeClient(viewer: Viewer, clientId: string): Promise<bo
 }
 
 export async function canCreateClients(viewer: Viewer): Promise<boolean> {
-  return viewer.role === "ADMIN" || (await prisma.project.count({ where: { pmId: viewer.id } })) > 0;
+  return viewer.role === "ADMIN" || viewer.role === "COORDINATOR";
+}
+
+export function clientPickerWhere(viewer: Viewer): Prisma.ClientWhereInput {
+  return viewer.role === "COORDINATOR" ? {} : clientVisibleWhere(viewer);
 }
 
 export async function findOrCreateClient(name: string, userId: string | null) {
@@ -37,6 +41,10 @@ export async function clientFieldsFor(input: { clientId?: string | null; clientN
     return { clientId: client.id, clientName: client.name };
   }
   if (input.clientName === undefined) return {};
+  if (input.clientName && !(await prisma.client.findUnique({ where: { nameKey: clientKey(input.clientName.replace(/\s+/g, " ").trim()) }, select: { id: true } }))) {
+    const user = userId ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }) : null;
+    if (!user || !(await canCreateClients(user))) throw new Error("Solo un administrador o un coordinador pueden crear clientes nuevos. Elegir uno de la lista.");
+  }
   const client = input.clientName ? await findOrCreateClient(input.clientName, userId) : null;
   return { clientId: client?.id ?? null, clientName: client?.name ?? null };
 }

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { getAppCountryCode } from "@/lib/appSettings";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
+import { canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -20,6 +21,7 @@ const createProjectSchema = z.object({
 export async function createProject(formData: FormData) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if (!canCreateProjects(session.user)) return { ok: false as const, error: NO_CREATE_PROJECT };
 
   const parsed = createProjectSchema.safeParse({
     name: formData.get("name"),
@@ -37,10 +39,17 @@ export async function createProject(formData: FormData) {
     if (error) return { ok: false as const, error };
   }
 
+  let client;
+  try {
+    client = await clientFieldsFromChoice(formData.get("client"), session.user.id);
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
   const project = await prisma.project.create({
     data: {
       ...data,
-      ...(await clientFieldsFromChoice(formData.get("client"), session.user.id)),
+      ...client,
+      createdById: session.user.id,
       countryCode: await getAppCountryCode(),
       phases: {
         // ponytail: una fase "General" de arranque — evita bloquear la

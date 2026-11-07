@@ -85,6 +85,20 @@ export async function requireProjectAdmin(projectId: string, actor?: Actor) {
   return user;
 }
 
+export const NO_CREATE_PROJECT = "Crear proyectos es solo para coordinadores y administradores.";
+
+export function canCreateProjects(user: { role: string }) {
+  return user.role === "ADMIN" || user.role === "COORDINATOR";
+}
+
+export async function canReassignPm(projectId: string, actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return false;
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { ...PM_SCOPE_SELECT, createdById: true } });
+  if (!project || !canSeeProject(project, user)) return false;
+  return user.role === "ADMIN" || (user.role === "COORDINATOR" && project.createdById === user.id);
+}
+
 /**
  * Punto 1 (extendido): editar una tarea — estado, título, descripción, tipo,
  * fase, checklist, asignación, insumos/evidencia — lo puede hacer un

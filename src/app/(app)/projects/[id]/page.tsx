@@ -6,7 +6,7 @@ import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { averageContribution, deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
-import { canSeeProject, managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
+import { canSeeProject, managedProjectWhere, visibleProjectWhere, canCreateProjects, canReassignPm } from "@/lib/permissions";
 import { worstVariance } from "@/lib/subprojects";
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
@@ -847,7 +847,7 @@ export default async function ProjectPage({
             <p className="text-[11px] text-slate-400">Product Manager</p>
             <p className="text-sm font-medium text-slate-900">{project.pm.name}</p>
           </div>
-          {canManage && (
+          {(await canReassignPm(project.id)) && (
             <ModalTrigger label="Cambiar" title="Reasignar Product Manager" variant="secondary">
               <ReassignPMForm projectId={project.id} currentPmId={project.pmId} users={users} />
             </ModalTrigger>
@@ -1160,6 +1160,7 @@ export default async function ProjectPage({
             parent: project.parent ? { id: project.parent.id, name: project.parent.name, iconUrl: project.parent.iconUrl } : null,
             subprojects: children.map((c) => ({ id: c.id, name: c.name, iconUrl: c.iconUrl, pmName: c.pm.name, pmAvatarUrl: c.pm.avatarUrl, pct: childPct(c.id) })),
             linkable: linkableProjects,
+            canCreate: canCreateProjects(session.user),
             users: users.map((u) => ({ id: u.id, name: u.name })),
           }}
           parentObjectives={parentObjectives}

@@ -2,7 +2,7 @@ import { canUseProjectAssistant } from "@/lib/projectAssistant";
 import { deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
-import { managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
+import { managedProjectWhere, visibleProjectWhere, canCreateProjects } from "@/lib/permissions";
 import { hiddenProjectsPref } from "@/lib/hiddenProjectsPref";
 import { ShowHiddenProjectsToggle } from "@/components/ShowHiddenProjectsToggle";
 import { ComboFilter } from "@/components/ComboFilter";
@@ -604,6 +604,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
           currentParams={{}}
           users={users}
           projectShareTokenById={projectShareTokenById}
+          showCreateButton={canCreateProjects(session.user)}
           showAssistant={await canUseProjectAssistant(session.user, null)}
         />
       </div>

@@ -44,7 +44,12 @@ export async function updateProjectIdentity(projectId: string, formData: FormDat
   const iconUrl = typeof rawIconUrl === "string" && rawIconUrl.trim() !== "" ? rawIconUrl : null;
 
   const session = await auth();
-  const client = await clientFieldsFromChoice(formData.get("client"), session?.user?.id ?? null);
+  let client;
+  try {
+    client = await clientFieldsFromChoice(formData.get("client"), session?.user?.id ?? null);
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
 
   await prisma.project.update({ where: { id: projectId }, data: { name: parsedName.data, iconUrl, ...client } });
   revalidatePath(`/projects/${projectId}`);

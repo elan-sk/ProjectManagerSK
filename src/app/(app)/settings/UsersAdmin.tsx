@@ -17,7 +17,7 @@ type UserRow = {
   name: string;
   username: string;
   email: string | null;
-  role: "ADMIN" | "MEMBER";
+  role: "ADMIN" | "COORDINATOR" | "MEMBER";
   avatarUrl: string | null;
   phone: string | null;
   /** Qué hace la persona en el equipo, en general (ej. «Diseñador UX»). */
@@ -40,6 +40,7 @@ function RoleSelect({ userId, role }: { userId: string; role: UserRow["role"] })
       className="rounded-lg border border-slate-300 px-2 py-1 text-xs disabled:opacity-60"
     >
       <option value="MEMBER">Miembro</option>
+      <option value="COORDINATOR">Coordinador</option>
       <option value="ADMIN">Administrador</option>
     </select>
   );

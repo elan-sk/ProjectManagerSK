@@ -1,0 +1,30 @@
+digraph G {
+  rankdir=LR; fontname="Helvetica"; nodesep=0.35; ranksep=0.6;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_roles { label="Roles"; fontsize=12; color="#9E9E9E";
+    member [label="Miembro\nya no crea proyectos ni clientes", fillcolor="#FFE0B2", color="#EF6C00"];
+    coord  [label="Coordinador (nuevo)\ncrea proyectos y clientes", fillcolor="#C8E6C9", color="#2E7D32"];
+    admin  [label="Administrador", fillcolor="#E0E0E0", color="#757575"];
+  }
+
+  subgraph cluster_entry { label="Puertas para crear proyecto"; fontsize=12; color="#9E9E9E";
+    form [label="Botón «+ Nuevo proyecto»\ny «+ Nuevo subproyecto»", fillcolor="#FFE0B2", color="#EF6C00"];
+    asst [label="Asistente de proyectos", fillcolor="#FFE0B2", color="#EF6C00"];
+    bot  [label="Bot (crear proyecto)", fillcolor="#FFE0B2", color="#EF6C00"];
+    api  [label="API POST /projects", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+
+  gate [label="Control único:\n¿admin o Coordinador?", fillcolor="#C8E6C9", color="#2E7D32"];
+  proj [label="Proyecto\n+ quién lo creó", fillcolor="#FFE0B2", color="#EF6C00"];
+  client [label="Cliente nuevo por nombre\nsolo admin o Coordinador", fillcolor="#FFE0B2", color="#EF6C00"];
+  pm [label="Cambiar PM\nadmin o Coordinador creador\n(el PM ya no)", fillcolor="#FFE0B2", color="#EF6C00"];
+  sens [label="Empresa, fichas de cliente,\nconfiguración, usuarios", fillcolor="#E0E0E0", color="#757575"];
+
+  coord -> form; admin -> form;
+  form -> gate; asst -> gate; bot -> gate; api -> gate;
+  gate -> proj; proj -> client [label="si el cliente no existe"];
+  proj -> pm;
+  admin -> sens [label="solo admin"];
+}

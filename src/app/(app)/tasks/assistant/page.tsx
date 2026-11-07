@@ -14,10 +14,11 @@ export default async function TaskAssistantPage({ searchParams }: { searchParams
   const p = await searchParams;
   const projectId = p.project ?? "";
   const taskId = p.task || null;
-  if (!projectId || !(await canUseTaskAssistant(session.user, projectId, taskId))) {
+  const projectExists = Boolean(projectId) && (await prisma.project.count({ where: { id: projectId } })) > 0;
+  if (!projectExists || !(await canUseTaskAssistant(session.user, projectId, taskId))) {
     return (
       <div className="mx-auto max-w-xl space-y-2 rounded-3xl border border-slate-100 bg-white p-8 text-center">
-        <p className="text-[17px] text-slate-700">No tiene acceso a este asistente.</p>
+        <p className="text-[17px] text-slate-700">{projectExists ? "No tiene acceso a este asistente." : "Falta elegir el proyecto: el asistente de tareas se abre desde un proyecto."}</p>
         <Link href="/projects" className="text-sm font-medium text-slate-900 hover:underline">
           Ir a proyectos
         </Link>

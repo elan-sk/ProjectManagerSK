@@ -25,6 +25,7 @@ export function SubprojectsPanel({
   subprojects,
   canManage,
   linkable,
+  canCreate,
   users,
 }: {
   projectId: string;
@@ -32,6 +33,7 @@ export function SubprojectsPanel({
   subprojects: Sub[];
   canManage: boolean;
   linkable: { id: string; name: string; iconUrl: string | null }[];
+  canCreate: boolean;
   users: { id: string; name: string }[];
 }) {
   const router = useRouter();
@@ -69,9 +71,11 @@ export function SubprojectsPanel({
         <h2 className="text-[21px] font-semibold text-slate-900">Subproyectos</h2>
         {canManage && (
           <div className="flex gap-2">
-            <ModalTrigger label="+ Nuevo subproyecto" title="Nuevo subproyecto" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
-              <CreateProjectForm users={users} parentId={projectId} />
-            </ModalTrigger>
+            {canCreate && (
+              <ModalTrigger label="+ Nuevo subproyecto" title="Nuevo subproyecto" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
+                <CreateProjectForm users={users} parentId={projectId} />
+              </ModalTrigger>
+            )}
             {linkable.length > 0 && (
               <ModalTrigger label="Vincular existente" title="Vincular un proyecto existente" variant="secondary" compact className={DEFINITION_ACTION_BTN}>
                 <LinkExistingForm projectId={projectId} linkable={linkable} />

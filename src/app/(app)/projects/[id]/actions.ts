@@ -8,7 +8,7 @@ import { scheduleArchivedImageCompression } from "@/lib/archivedImageCompression
 import { requirementsForProject } from "@/lib/taskRequirement";
 import { addBusinessDays, subtractBusinessDays, businessDaysBetween, isBusinessDay } from "@/lib/holidays";
 import { notifyAssignment, notifyBlocked } from "@/lib/notifications";
-import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor } from "@/lib/permissions";
+import { requireProjectAdmin, canEditTask, canReviewTask, getProjectAdmin, resolveActor, allowsSelfReview, type Actor, canReassignPm } from "@/lib/permissions";
 import { upsertTag } from "@/lib/tags";
 import { adjustmentItemAnswered } from "@/lib/taskProgress";
 import type { TaskStatus, TaskType, Prisma } from "@prisma/client";
@@ -51,11 +51,7 @@ export async function addPhase(projectId: string, formData: FormData) {
 }
 
 export async function reassignPM(projectId: string, formData: FormData, actor?: Actor) {
-  try {
-    await requireProjectAdmin(projectId, actor);
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
+  if (!(await canReassignPm(projectId, actor))) return { ok: false, error: "Solo un administrador o el coordinador que creó el proyecto pueden cambiar su PM." };
   const pmId = z.string().min(1).parse(formData.get("pmId"));
   await prisma.project.update({ where: { id: projectId }, data: { pmId } });
   revalidatePath(`/projects/${projectId}`);

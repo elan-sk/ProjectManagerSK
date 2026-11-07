@@ -53,7 +53,7 @@ const createUserSchema = z.object({
   name: z.string().min(1),
   username: usernameSchema,
   email: emailSchema,
-  role: z.enum(["ADMIN", "MEMBER"]),
+  role: z.enum(["ADMIN", "COORDINATOR", "MEMBER"]),
   password: z.string().min(6, "Mínimo 6 caracteres"),
 });
 
@@ -95,7 +95,7 @@ export async function createUser(formData: FormData) {
   return { ok: true };
 }
 
-export async function updateUserRole(userId: string, role: "ADMIN" | "MEMBER") {
+export async function updateUserRole(userId: string, role: "ADMIN" | "COORDINATOR" | "MEMBER") {
   try {
     await requireAdmin();
   } catch (err) {
