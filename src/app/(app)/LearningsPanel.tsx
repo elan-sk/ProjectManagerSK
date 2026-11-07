@@ -36,8 +36,8 @@ const PERIODS = [
 ];
 const CARD_BY_STATUS: Record<keyof typeof STATUS_STYLE, string> = {
   PROPOSED: "border-slate-100 border-l-amber-400 bg-white",
-  APPLIED: "border-emerald-100 border-l-emerald-500 bg-emerald-50/60",
-  DISCARDED: "border-slate-200 border-l-slate-400 bg-slate-50 opacity-75",
+  APPLIED: "border-emerald-200 border-l-emerald-600 bg-emerald-50",
+  DISCARDED: "border-dashed border-slate-300 border-l-slate-300 bg-white opacity-60",
 };
 const PILL = "rounded-full border px-3 py-1 text-sm";
 const FAILED = { ok: false as const, error: "No se pudo completar. Recargar la página e intentarlo de nuevo." };
