@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { holdPageAtBottom } from "@/lib/holdPageAtBottom";
 import Link from "next/link";
 import { useRouter } from "@/lib/useAppRouter";
 import { useConfirm } from "@/components/Confirm";
@@ -248,6 +249,7 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
   const topics = [...new Set(learnings.map((l) => l.topic))];
   const shown = learnings.filter((l) => (!status || l.status === status) && (!topic || l.topic === topic));
   const [picked, setPicked] = useState<string[]>([]);
+  useEffect(holdPageAtBottom, []);
   const selectable = shown.filter((l) => l.status !== "DISCARDED").map((l) => l.id);
   const pickedShown = picked.filter((id) => selectable.includes(id));
   const allPicked = selectable.length > 0 && pickedShown.length === selectable.length;
@@ -263,6 +265,23 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
         setNotice(`Se generaron ${r.count} aprendizajes.`);
         router.refresh();
       }
+    });
+  }
+
+  function setPickedStatus(next: "APPLIED" | "DISCARDED") {
+    setError(null);
+    setNotice(null);
+    const ids = pickedShown;
+    start(async () => {
+      const failed: string[] = [];
+      for (const id of ids) {
+        const r = await safe(() => setLearningStatusAction(id, next));
+        if (!r.ok) failed.push(`#${learnings.find((l) => l.id === id)?.number}: ${r.error}`);
+      }
+      setPicked([]);
+      if (failed.length) setError(`No se pudo en: ${failed.join(" · ")}`);
+      else setNotice(`${ids.length === 1 ? "1 aprendizaje quedó" : `${ids.length} aprendizajes quedaron`} como «${STATUS[next]}».`);
+      router.refresh();
     });
   }
 
@@ -289,9 +308,10 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
       <div className="space-y-5 sm:shrink-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900">Aprendizajes</h2>
+        <div className="flex flex-wrap items-center gap-2">
         {canGenerate &&
           (aiConfigured ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <>
               {!projectId && (
                 <select value={period} onChange={(e) => setPeriod(e.target.value)} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm">
                   {PERIODS.map((p) => (
@@ -305,10 +325,11 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
                 <SparklesIcon className="h-4 w-4" />
                 {pending && !progress ? "Generando…" : "Generar aprendizajes"}
               </button>
-            </div>
+            </>
           ) : (
             <p className="text-sm text-slate-500">Falta conectar un servicio de IA en Configuración → Bot</p>
           ))}
+        </div>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-emerald-700">{notice}</p>}
@@ -330,6 +351,11 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
               ))}
             </select>
           )}
+          {selectable.length > 0 && (
+            <span className="flex flex-wrap gap-2 sm:ml-auto">
+              <LearningTools ids={pickedShown.length > 0 ? pickedShown : selectable} learningKey={`learnings:${projectId ?? "empresa"}`} />
+            </span>
+          )}
         </div>
       )}
 
@@ -340,12 +366,21 @@ export function LearningsPanel({ learnings, projectId, canGenerate, isAdmin, aiC
             Seleccionar todos
           </label>
           {pickedShown.length > 0 && <span className="text-sm text-slate-500">{pickedShown.length === 1 ? "1 seleccionado" : `${pickedShown.length} seleccionados`}</span>}
+          {pickedShown.length > 0 && (
+            <span className="flex flex-wrap gap-2">
+              <button type="button" disabled={pending} onClick={() => setPickedStatus("APPLIED")} className={`${CHECK_RESULT_BUTTON} ${CHECK_RESULT_COLOR.APPROVED}`}>
+                Marcar aplicadas
+              </button>
+              <button type="button" disabled={pending} onClick={() => setPickedStatus("DISCARDED")} className={`${CHECK_RESULT_BUTTON} ${CHECK_RESULT_COLOR.NOT_APPLICABLE}`}>
+                Marcar descartadas
+              </button>
+            </span>
+          )}
           <span className="flex flex-wrap gap-2 sm:ml-auto">
             <AskAiButton
               all={pickedShown.length === 0}
               numbers={shown.filter((l) => l.status !== "DISCARDED" && (pickedShown.length === 0 || pickedShown.includes(l.id))).map((l) => l.number)}
             />
-            {pickedShown.length > 0 && <LearningTools ids={pickedShown} learningKey={`learnings:${projectId ?? "empresa"}`} />}
           </span>
         </div>
       )}

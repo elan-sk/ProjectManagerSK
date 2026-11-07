@@ -358,6 +358,14 @@ export function ExpandIcon({ className }: IconProps) {
   );
 }
 
+export function CollapseIcon({ className }: IconProps) {
+  return (
+    <svg {...strokeProps} className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8.25h3.75a.75.75 0 0 0 .75-.75V3.75m7.5 0v3.75c0 .414.336.75.75.75h3.75m0 7.5h-3.75a.75.75 0 0 0-.75.75v3.75m-7.5 0v-3.75a.75.75 0 0 0-.75-.75H3.75" />
+    </svg>
+  );
+}
+
 /** Libreta (sin chulo): "ir a la tarea" — no confundir con ReviewChecklistIcon (una insignia de aprobado). */
 export function TaskIcon({ className }: IconProps) {
   return (

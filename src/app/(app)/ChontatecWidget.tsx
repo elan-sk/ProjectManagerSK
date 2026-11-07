@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { getChatHistory, sendChontatecMessage, confirmChontatecAction, clearChatHistory } from "./chontatecActions";
 import { Avatar } from "@/components/Avatar";
 import { useConfirm } from "@/components/Confirm";
-import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon, MicIcon } from "@/components/icons";
+import { XIcon, SpeakerIcon, SpeakerOffIcon, TrashIcon, ExpandIcon, CollapseIcon, MicIcon } from "@/components/icons";
 import { useDictation } from "@/components/useDictation";
 import { appendDictation } from "@/lib/dictation";
 import { fitToContent } from "@/lib/fitToContent";
@@ -111,7 +111,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
           if (lastAssistant) toggleSpeak(lastAssistant.id, lastAssistant.text);
         } else speakLastOnLoad.current = true;
       } else if (e.key === "Escape" && open && expanded && voice.state === "idle" && !e.defaultPrevented && !viewerOpenRef.current) {
-        setExpanded(false);
+        setOpen(false);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -248,7 +248,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
         </span>
       </div>
 
-      {open && expanded && <div className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setExpanded(false)} />}
+      {open && expanded && <div className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setOpen(false)} />}
       {open && (
         <div
           {...dropHandlers}
@@ -266,12 +266,12 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                aria-label={expanded ? "Tamaño normal" : "Pantalla completa"}
+                aria-label={expanded ? "Minimizar" : "Pantalla completa"}
                 aria-pressed={expanded}
-                title={expanded ? "Tamaño normal" : "Pantalla completa"}
+                title={expanded ? "Minimizar" : "Pantalla completa"}
                 className={`rounded-full p-1 hover:bg-slate-100 hover:text-slate-700 ${expanded ? "text-slate-700" : "text-slate-400"}`}
               >
-                <ExpandIcon className="h-4 w-4" />
+                {expanded ? <CollapseIcon className="h-4 w-4" /> : <ExpandIcon className="h-4 w-4" />}
               </button>
               <button
                 type="button"

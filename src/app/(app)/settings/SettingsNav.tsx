@@ -35,7 +35,7 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
       <div className="lg:hidden">
         <TabMenu items={items.map((i) => ({ label: i.label, href: i.href, active: isActive(i) }))} />
       </div>
-      <nav className="sticky top-20 hidden h-fit w-56 shrink-0 space-y-1 lg:block" aria-label="Secciones de Configuración">
+      <nav className="sticky top-20 hidden h-fit w-48 shrink-0 space-y-1 lg:block" aria-label="Secciones de Configuración">
         {items.map((item) => {
           const active = isActive(item);
           return (

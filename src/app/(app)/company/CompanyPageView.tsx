@@ -93,9 +93,9 @@ export function CompanyPageView({ profile, aiConfigured, clients, dashboard, lea
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-8">
+    <div className="mx-auto flex max-w-7xl gap-6">
       {fileViewer.viewer}
-      <aside className="sticky top-20 hidden h-fit w-56 shrink-0 lg:block">
+      <aside className="sticky top-20 hidden h-fit w-48 shrink-0 lg:block">
         <nav className="space-y-1">
           {SECTIONS.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="block rounded-xl px-3 py-2 text-[15px] font-medium text-slate-600 hover:bg-white hover:text-slate-900">
