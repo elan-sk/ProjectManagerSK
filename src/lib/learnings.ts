@@ -42,6 +42,8 @@ export async function listLearnings(viewer: Viewer, filter: { projectId?: string
   });
 }
 
+const PLAIN_LANGUAGE = "Lenguaje simple para cualquier persona (equipo, gerencia o cliente): frases cortas, palabras de todos los días, sin jerga de gestión (nada de «hitos», «desvío», «criterio», «seguimiento», «absorber»), sin palabras en inglés; la cifra dicha en simple (ej. «menos de la mitad de las tareas llegó a tiempo: 15 de 33»); la recomendación como un paso concreto que se entienda sin explicación.";
+
 export type LearningInput = { topic: string; title: string; evidence: string; recommendation: string; personId?: string | null; cutoff?: string | null };
 
 export function validateLearning(l: LearningInput): string | null {
@@ -118,9 +120,9 @@ const PROPOSE_TOOL: Anthropic.Tool = {
           type: "object",
           properties: {
             topic: { type: "string", enum: [...LEARNING_TOPICS] },
-            title: { type: "string", description: "La conclusión en una frase." },
+            title: { type: "string", description: "La conclusión en una frase corta y simple." },
             evidence: { type: "string", description: "Las cifras de los indicadores que la sostienen, tal cual." },
-            recommendation: { type: "string", description: "Qué hacer distinto, concreto." },
+            recommendation: { type: "string", description: "Qué hacer distinto, en uno o dos pasos simples." },
             personName: { type: "string", description: "Solo si la conclusión es sobre el desempeño de una persona: su nombre exacto como aparece en los indicadores." },
           },
           required: ["topic", "title", "evidence", "recommendation"],
@@ -182,7 +184,7 @@ export async function generateLearnings(viewer: Viewer, scope: { projectId: stri
 
   const intent = profile.topics.filter((t) => ["app_goals", "advice"].includes(t.key) && t.text).map((t) => t.text).join(" ");
   const system = `Sos un consultor de gestión de proyectos. Sacás aprendizajes de ${project ? `el proyecto «${project.name}»${project.clientName ? ` (cliente ${project.clientName})` : ""}` : "la empresa en el período"} SOLO con los indicadores de abajo, calculados por la app.
-Reglas: entre 3 y 7 aprendizajes; cada evidencia cita cifras exactas de los indicadores; nunca inventes un dato; no repitas los ya existentes; tema de la lista; recomendación concreta y accionable; personName solo si la conclusión es sobre el desempeño de una persona. Orientá las conclusiones por lo que la empresa quiere lograr: ${intent || "(sin definir)"}. Si los datos no alcanzan, notEnoughData=true y lista vacía. Español neutro, tercera persona. Respondé SOLO con la herramienta propose_learnings.`;
+Reglas: entre 3 y 7 aprendizajes; cada evidencia cita cifras exactas de los indicadores; nunca inventes un dato; no repitas los ya existentes; tema de la lista; recomendación concreta y accionable; personName solo si la conclusión es sobre el desempeño de una persona. Orientá las conclusiones por lo que la empresa quiere lograr: ${intent || "(sin definir)"}. Si los datos no alcanzan, notEnoughData=true y lista vacía. Español neutro, tercera persona. ${PLAIN_LANGUAGE} Respondé SOLO con la herramienta propose_learnings.`;
   const user = `Indicadores:\n${indicatorsAsText(indicators)}\n\nAprendizajes ya existentes (no repetir):\n${existing.map((e) => `- ${e.title}`).join("\n") || "(ninguno)"}`;
 
   const ai = await askAi(conn, system, user, [PROPOSE_TOOL]);
@@ -253,7 +255,7 @@ export async function exportLearnings(viewer: Viewer, ids: string[], format: Exp
   const scope = [...new Set(rows.map((l) => l.project?.name ?? "Empresa"))].join(", ");
   const slides = format === "pptx";
   const system = `Sos un consultor de gestión. Escribís un plan de mejora para el equipo y la gerencia de ${profile.name ?? "la empresa"}, en Markdown, con SOLO los aprendizajes de abajo (no inventes datos ni cifras).
-Estructura: «# Plan de mejora — ${scope}»; ${slides ? "una diapositiva por sección con «## Título» y como máximo 5 viñetas cortas" : "secciones con «##»"}: Resumen (2-3 líneas); Prioridades (tabla: Recomendación | Prioridad Alta/Media/Baja | Responsable sugerido por rol, nunca un nombre que no esté en los datos); una sección por aprendizaje con Qué pasó (la evidencia con sus cifras), Qué hacer (pasos concretos) y Cómo medirlo; Próximos pasos. Español neutro, tercera persona, sin jerga técnica. Respondé solo con el Markdown.`;
+Estructura: «# Plan de mejora — ${scope}»; ${slides ? "una diapositiva por sección con «## Título» y como máximo 5 viñetas cortas" : "secciones con «##»"}: Resumen (2-3 líneas); Prioridades (tabla: Recomendación | Prioridad Alta/Media/Baja | Responsable sugerido por rol, nunca un nombre que no esté en los datos); una sección por aprendizaje con Qué pasó (la evidencia con sus cifras), Qué hacer (pasos concretos) y Cómo medirlo; Próximos pasos. Español neutro, tercera persona. ${PLAIN_LANGUAGE} Respondé solo con el Markdown.`;
   const user = rows
     .map((l) => `- [${l.topic}] ${l.title}\n  Proyecto: ${l.project?.name ?? "Empresa"} · Estado: ${LEARNING_STATUS_LABEL[l.status]}\n  Evidencia: ${l.evidence}\n  Recomendación: ${l.recommendation}${l.person ? `\n  Persona: ${l.person.name}` : ""}`)
     .join("\n");

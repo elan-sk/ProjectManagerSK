@@ -109,6 +109,7 @@ Se nota que funcionó cuando un administrador ve en «Empresa» los indicadores 
 - Avisos solo por campana (supuesto: evitar mensajes de WhatsApp de más).
 
 ## Cambios
+- 2026-11-06 — Aprendizajes y plan exportado en lenguaje simple, para cualquier lector (pedido del usuario).
 - 2026-11-06 — Aplicados como reglas de la empresa al crear (RF-29), sugerencia aceptada por el usuario.
 - 2026-11-06 — Número fijo por aprendizaje, «Preguntar a la IA» sobre los seleccionados (abre el chat de la app) y oferta del asistente de clientes desde el chat (RF-26 a RF-28), pedido del usuario.
 - 2026-11-06 — Exportar y Conectar IA: un solo botón arriba que trabaja con los aprendizajes marcados con check (más «Seleccionar todos»), en vez de botones en cada tarjeta (pedido del usuario).

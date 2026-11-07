@@ -108,6 +108,14 @@ const tagLabel = ({ tag }: TaskTagForBot) => sharedTagLabel(tag.category, tag.na
 // donde la persona no es PM, asignada ni revisora de ninguna tarea.
 // Campo de archivos compartido por varias herramientas; qué va en `url` lo dicen las reglas del chat
 // (chontatec.ts), una sola vez, para no repetirlo en cada herramienta (ahorra tokens en cada pedido).
+// Insumo vs. resultado: el bot no elige por defecto; si el pedido no lo deja claro, pregunta.
+const ATTACHMENT_KIND = {
+  type: "string",
+  enum: ["INSUMO", "RESULTADO"],
+  description:
+    "RESULTADO = lo que entrega o demuestra el trabajo hecho: evidencia, entregable, «ya quedó», «para cerrar/terminar la tarea». INSUMO = material de partida para hacerla: referencia, brief, diseño a seguir, datos que manda el cliente. Si el pedido no deja claro cuál es, preguntá antes de adjuntar; nunca lo asumas.",
+};
+
 const FILE_REFS = {
   type: "array",
   description: "Archivos o links { url, name }.",
@@ -427,9 +435,9 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         taskId: { type: "string" },
         url: { type: "string" },
         name: { type: "string", description: "Nombre visible del enlace." },
-        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (resultado de la tarea)." },
+        kind: ATTACHMENT_KIND,
       },
-      required: ["taskId", "url", "name"],
+      required: ["taskId", "url", "name", "kind"],
     },
   },
   {
@@ -442,9 +450,9 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
         taskId: { type: "string" },
         fileUrl: { type: "string", description: "Ruta /uploads/… exactamente como aparece en el mensaje." },
         fileName: { type: "string" },
-        kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO (resultado de la tarea)." },
+        kind: ATTACHMENT_KIND,
       },
-      required: ["taskId", "fileUrl", "fileName"],
+      required: ["taskId", "fileUrl", "fileName", "kind"],
     },
   },
   {
@@ -613,8 +621,8 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
     description: "Sube varios archivos o links de una vez como Insumos (INSUMO) o Resultados (RESULTADO) de una tarea. Para uno solo también sirven attach_uploaded_file y attach_link_to_task.",
     input_schema: {
       type: "object",
-      properties: { taskId: { type: "string" }, kind: { type: "string", description: "INSUMO (por defecto) o RESULTADO" }, files: FILE_REFS },
-      required: ["taskId", "files"],
+      properties: { taskId: { type: "string" }, kind: ATTACHMENT_KIND, files: FILE_REFS },
+      required: ["taskId", "kind", "files"],
     },
   },
 ];
