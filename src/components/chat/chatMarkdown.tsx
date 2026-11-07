@@ -7,6 +7,7 @@ import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, PROJECT_PHASE_LABEL } from "@/lib
 import type { TaskStatus } from "@prisma/client";
 import type { TaskAlert } from "@/lib/delays";
 import { isFileHref, type ViewFile } from "@/components/FileViewer";
+import { SparklesIcon } from "@/components/icons";
 
 // Markdown mínimo que puede mandar el bot: **negrita**, [texto](url), y
 // miniaturas propias de la interfaz [[tipo:datos]] (persona/proyecto/estado/
@@ -39,6 +40,15 @@ function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
         <button key={i} type="button" onClick={() => openFile({ url: link[2], name: link[1] })} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-slate-950">
           {link[1]}
         </button>
+      );
+    }
+    // Link a un asistente guiado (proyectos, tareas, clientes, empresa): botón con el ícono de los asistentes.
+    if (link && /\/assistant(\?|$)/.test(link[2])) {
+      return (
+        <Link key={i} href={link[2]} className="my-1 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white no-underline shadow-sm hover:bg-blue-700">
+          <SparklesIcon className="h-4 w-4" />
+          {link[1]}
+        </Link>
       );
     }
     if (link) {
