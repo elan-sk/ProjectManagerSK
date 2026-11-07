@@ -1588,6 +1588,10 @@ export function writeToolGroup(name: string, input: unknown, names: Map<string, 
       return action === "set" ? { group: "Equipo", item: `${names.get(String(i.userId)) ?? "una persona"}${str(i.role) ? ` — ${i.role}` : ""}` } : null;
     case "set_task_tag":
       return str(i.name) ? { group: "Etiquetas", item: String(i.name) } : null;
+    case "set_learning_status": {
+      const label = { PROPOSED: "Propuesta", APPLIED: "Aplicada", DISCARDED: "Descartada" }[String(i.status)] ?? String(i.status);
+      return { group: `Marcar como «${label}»`, item: names.get(String(i.learningId)) ?? "un aprendizaje" };
+    }
     default:
       return null;
   }
@@ -1607,11 +1611,15 @@ export function summarizeGroupedWriteTools(uses: { name: string; input: unknown 
   }
   const MAX_ITEMS = 10;
   const list = (items: string[]) => {
-    const shown = items.slice(0, MAX_ITEMS).map((x) => `• ${x}`);
-    if (items.length > MAX_ITEMS) shown.push(`y ${items.length - MAX_ITEMS} más`);
+    if (items.every((x) => /^#\d+$/.test(x))) return items.join(", ");
+    const counts = new Map<string, number>();
+    for (const x of items) counts.set(x, (counts.get(x) ?? 0) + 1);
+    const unique = [...counts].map(([x, n]) => (n > 1 ? `${x} (${n} en total)` : x));
+    const shown = unique.slice(0, MAX_ITEMS).map((x) => `• ${x}`);
+    if (unique.length > MAX_ITEMS) shown.push(`y ${unique.length - MAX_ITEMS} más`);
     return shown.join("\n");
   };
-  return sections.map((s) => (s.group ? `${s.group} (${s.items.length})\n` : "") + list(s.items)).join("\n\n");
+  return sections.map((s) => (s.group ? `${s.group} (${s.items.length}): ` + (s.items.every((x) => /^#\d+$/.test(x)) ? "" : "\n") : "") + list(s.items)).join("\n\n");
 }
 
 export function summarizeWriteTool(name: string, input: unknown, names: Map<string, string> = new Map()): string {
@@ -1625,8 +1633,8 @@ function baseSummary(name: string, input: unknown, names: Map<string, string>): 
   const who = (id?: string) => (id && names.get(id)) || "una persona";
   switch (name) {
     case "set_learning_status": {
-      const { status } = input as { status?: string };
-      return `Marcar el aprendizaje como «${{ PROPOSED: "Propuesta", APPLIED: "Aplicada", DISCARDED: "Descartada" }[status ?? ""] ?? status}»`;
+      const { status, learningId } = input as { status?: string; learningId?: string };
+      return `Marcar el aprendizaje${learningId && names.get(learningId) ? ` ${names.get(learningId)}` : ""} como «${{ PROPOSED: "Propuesta", APPLIED: "Aplicada", DISCARDED: "Descartada" }[status ?? ""] ?? status}»`;
     }
     case "save_client": {
       const c = input as Record<string, string | undefined>;
@@ -1852,7 +1860,9 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
         const me = await prisma.user.findUniqueOrThrow({ where: { id: await currentUserId() }, select: { id: true, role: true } });
         const { updateLearningAs, LEARNING_STATUS_LABEL } = await import("@/lib/learnings");
         const r = await updateLearningAs(me, learningId, { status });
-        return r.ok ? { ok: true, message: `Listo, el aprendizaje quedó como «${LEARNING_STATUS_LABEL[status]}».` } : { ok: false, message: r.error };
+        if (!r.ok) return { ok: false, message: r.error };
+        const learning = await prisma.learning.findUnique({ where: { id: learningId }, select: { number: true } });
+        return { ok: true, message: `Listo, quedó como «${LEARNING_STATUS_LABEL[status]}»: #${learning?.number ?? "?"}` };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

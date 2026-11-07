@@ -234,17 +234,18 @@ async function currentHistory(userId: string, mode: ConversationMode): Promise<C
 async function peopleNamesIn(contents: string[]): Promise<Map<string, string>> {
   const ids = new Set<string>();
   for (const c of contents) {
-    for (const m of c.matchAll(/"(?:userId|addUserId|removeUserId|pmId|taskId|predecessorId|projectId)":"([A-Za-z0-9]+)"/g)) ids.add(m[1]);
+    for (const m of c.matchAll(/"(?:userId|addUserId|removeUserId|pmId|taskId|predecessorId|projectId|learningId)":"([A-Za-z0-9]+)"/g)) ids.add(m[1]);
     for (const m of c.matchAll(/"(?:assigneeIds|reviewerIds)":\[([^\]]*)\]/g)) for (const id of m[1].match(/[A-Za-z0-9]+/g) ?? []) ids.add(id);
   }
   if (ids.size === 0) return new Map();
   const where = { id: { in: [...ids] } };
-  const [users, tasks, projects] = await Promise.all([
+  const [users, tasks, projects, learnings] = await Promise.all([
     prisma.user.findMany({ where, select: { id: true, name: true } }),
     prisma.task.findMany({ where, select: { id: true, title: true } }),
     prisma.project.findMany({ where, select: { id: true, name: true } }),
+    prisma.learning.findMany({ where, select: { id: true, number: true } }),
   ]);
-  return new Map([...users.map((u) => [u.id, u.name] as const), ...tasks.map((t) => [t.id, t.title] as const), ...projects.map((p) => [p.id, p.name] as const)]);
+  return new Map([...users.map((u) => [u.id, u.name] as const), ...tasks.map((t) => [t.id, t.title] as const), ...projects.map((p) => [p.id, p.name] as const), ...learnings.map((l) => [l.id, `#${l.number}`] as const)]);
 }
 
 function toChatUiMessages(rows: { id: string; role: string; content: string }[], mode: ConversationMode, names = new Map<string, string>()): ChatUiMessage[] {
@@ -310,7 +311,7 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
     const toolResults = blocks.filter((b) => b.type === "tool_result");
     if (toolResults.length > 0) {
       const showResult = mode.showResult ?? ((name: string) => mode.writeNames.has(name));
-      const lines = new Map<string, number>();
+      const lines = new Map<string, { count: number; refs: string[] }>();
       for (const toolResult of toolResults) {
         const toolName = toolNames.get(toolResult.tool_use_id ?? "");
         if (!toolName || !showResult(toolName)) continue;
@@ -318,9 +319,16 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
         const visible = content.replace(/<!--[\s\S]*?-->/g, "").trim();
         const jsonError = visible.startsWith("{") ? (() => { try { return (JSON.parse(visible) as { error?: unknown }).error; } catch { return undefined; } })() : undefined;
         const line = typeof jsonError === "string" ? `❌ ${jsonError}` : toolResult.is_error ? `❌ ${visible}` : `✅ ${visible}`;
-        lines.set(line, (lines.get(line) ?? 0) + 1);
+        const key = line.replace(/#\d+/g, "#");
+        const entry = lines.get(key) ?? { count: 0, refs: [] };
+        entry.count++;
+        entry.refs.push(...(line.match(/#\d+/g) ?? []));
+        lines.set(key, entry);
       }
-      [...lines].forEach(([line, count], n) => out.push({ id: `${row.id}:${n}`, role: "system", text: count > 1 ? `${line} (${count} en total)` : line }));
+      [...lines].forEach(([key, { count, refs }], n) => {
+        const text = refs.length ? key.replace("#", refs.join(", ")).replace(/#(?!\d)/g, "") : key;
+        out.push({ id: `${row.id}:${n}`, role: "system", text: count > 1 ? `${text} (${count} en total)` : text });
+      });
       continue;
     }
 
