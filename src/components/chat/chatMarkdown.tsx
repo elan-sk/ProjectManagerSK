@@ -45,8 +45,8 @@ function renderInlineMarkdown(text: string, openFile: (f: ViewFile) => void) {
     // Link a un asistente guiado (proyectos, tareas, clientes, empresa): botón con el ícono de los asistentes.
     if (link && /\/assistant(\?|$)/.test(link[2])) {
       return (
-        <Link key={i} href={link[2]} className="my-1 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white no-underline shadow-sm hover:bg-blue-700">
-          <SparklesIcon className="h-4 w-4" />
+        <Link key={i} href={link[2]} className="my-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 no-underline hover:border-[#0a6b78] hover:bg-slate-50">
+          <SparklesIcon className="h-4 w-4 text-[#0a6b78]" />
           {link[1]}
         </Link>
       );
