@@ -6,7 +6,7 @@ import { AssistantEntryButton } from "@/components/AssistantEntryButton";
 import { averageContribution, deliverableEvidenceLoaded, taskContribution, taskProgress } from "@/lib/taskProgress";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { auth } from "@/auth";
-import { canSeeProject, managedProjectWhere, visibleProjectWhere, canCreateProjects, canReassignPm } from "@/lib/permissions";
+import { canSeeProject, managedProjectWhere, visibleProjectWhere, canCreateProjects, canReassignPm, isProjectMember } from "@/lib/permissions";
 import { worstVariance } from "@/lib/subprojects";
 import { Avatar } from "@/components/Avatar";
 import { ComboFilter } from "@/components/ComboFilter";
@@ -877,9 +877,11 @@ export default async function ProjectPage({
               }))}
             />
           </ModalTrigger>
-          {/* Junto a «+ Nueva tarea» (visible en todas las pestañas), no solo dentro de Archivos. Mismo estilo que «Compartir». */}
-          <AddCredentialButton place={{ projectId: project.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" />
           </>
+        )}
+        {/* Junto a «+ Nueva tarea» (visible en todas las pestañas), no solo dentro de Archivos. Lo usa cualquier miembro del proyecto. */}
+        {(await isProjectMember(project.id)) && (
+          <AddCredentialButton place={{ projectId: project.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" />
         )}
       </div>
 

@@ -24,7 +24,7 @@ import { setTaskReviewers, submitReviewRound } from "@/app/(app)/projects/[id]/t
 import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
 import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
-import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm, canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
+import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm, PM_OWNER_SELECT, canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -1211,7 +1211,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       const actor = await currentActor();
       if (kind === "project_summary") {
         if (!projectId) return JSON.stringify({ error: "Falta indicar el proyecto." });
-        const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true, parent: { select: { pmId: true } } } });
+        const project = await prisma.project.findUnique({ where: { id: projectId }, select: PM_OWNER_SELECT });
         if (!project || (actor.role !== "ADMIN" && !isProjectPm(project, userId))) {
           return JSON.stringify({ error: "Solo un administrador o el PM de ese proyecto pueden armar su resumen." });
         }
@@ -1913,7 +1913,7 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
         const senderId = await currentUserId();
         const [sender, project, task, whatsapp] = await Promise.all([
           prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
-          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, pmId: true, parent: { select: { pmId: true } }, whatsappGroupJid: true, hidden: true } }),
+          prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, ...PM_OWNER_SELECT, whatsappGroupJid: true, hidden: true } }),
           taskId === undefined ? null : prisma.task.findFirst({
             where: { id: taskId, projectId },
             select: { title: true, assignees: { select: { userId: true } }, reviewers: { select: { userId: true } } },

@@ -37,16 +37,44 @@ export function canSeeProject(project: { hidden: boolean } & PmScope, user: Acto
 /**
  * Subproyectos (spec 004): el PM del proyecto padre es PM, a efectos de permisos, de cada hijo.
  * Al revés no: el PM de un hijo no administra al padre ni a los otros hijos.
+ * Quien creó el proyecto (coordinador o admin, spec 018) tiene los mismos permisos que su PM.
  */
-export type PmScope = { pmId: string; parent?: { pmId: string } | null };
+type PmOwner = { pmId: string; createdById?: string | null };
+export type PmScope = PmOwner & { parent?: PmOwner | null };
+const ownsAsPm = (p: PmOwner, userId: string) => p.pmId === userId || p.createdById === userId;
 export function isProjectPm(project: PmScope, userId: string) {
-  return project.pmId === userId || project.parent?.pmId === userId;
+  return ownsAsPm(project, userId) || (project.parent ? ownsAsPm(project.parent, userId) : false);
 }
-/** Select mínimo para canSeeProject / isProjectPm (incluye al PM del padre). */
-export const PM_SCOPE_SELECT = { hidden: true, pmId: true, parent: { select: { pmId: true } } } as const;
-/** Filtro de Prisma: proyectos que esta persona administra como PM (propios + hijos de los suyos). */
+/** Select mínimo para isProjectPm (incluye al PM y al creador del padre). */
+export const PM_OWNER_SELECT = { pmId: true, createdById: true, parent: { select: { pmId: true, createdById: true } } } as const;
+/** Select mínimo para canSeeProject / isProjectPm. */
+export const PM_SCOPE_SELECT = { hidden: true, ...PM_OWNER_SELECT } as const;
+/** Filtro de Prisma: proyectos que esta persona administra como PM (propios, creados por ella + hijos de esos). */
 export function managedProjectWhere(userId: string) {
-  return { OR: [{ pmId: userId }, { parent: { pmId: userId } }] };
+  return { OR: [{ pmId: userId }, { createdById: userId }, { parent: { pmId: userId } }, { parent: { createdById: userId } }] };
+}
+
+/**
+ * Miembro del proyecto: PM (o creador), administrador, o responsable o revisor de al menos una tarea.
+ * Con esto se agregan contraseñas al proyecto y a sus tareas.
+ */
+export function projectMemberWhere(userId: string) {
+  return {
+    OR: [
+      ...managedProjectWhere(userId).OR,
+      { tasks: { some: { OR: [{ assignees: { some: { userId } } }, { reviewers: { some: { userId } } }] } } },
+    ],
+  };
+}
+
+export async function isProjectMember(projectId: string, actor?: Actor) {
+  const user = await resolveActor(actor);
+  if (!user) return null;
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ...(user.role === "ADMIN" ? {} : projectMemberWhere(user.id)) },
+    select: PM_SCOPE_SELECT,
+  });
+  return project && canSeeProject(project, user) ? user : null;
 }
 
 /** Proyectos del flujo normal: ni eliminados (status ARCHIVED) ni archivados como historial (archivedAt). */
@@ -136,6 +164,11 @@ export async function canReviewTask(taskId: string, actor?: Actor) {
   if (!task || !canSeeProject(task.project, user)) return false;
   if (user.role === "ADMIN" || isProjectPm(task.project, user.id)) return true;
   return task.reviewers.some((r) => r.userId === user.id);
+}
+
+/** Compartir la tarea y «Conectar IA»: responsable, revisor, PM (o creador) o administrador. */
+export async function canShareTask(taskId: string, actor?: Actor) {
+  return (await canEditTask(taskId, actor)) || (await canReviewTask(taskId, actor));
 }
 
 /**

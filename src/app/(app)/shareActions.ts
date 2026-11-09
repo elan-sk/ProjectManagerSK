@@ -4,7 +4,7 @@ import { listLearnings } from "@/lib/learnings";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectAdmin, canEditTask } from "@/lib/permissions";
+import { requireProjectAdmin, canShareTask } from "@/lib/permissions";
 import { createShareLink, revokeShareLink } from "@/lib/shareLinks";
 import { createClaudeLinkToken, revokeClaudeLink, type ClaudeLinkTarget } from "@/lib/apiAuth";
 
@@ -40,8 +40,8 @@ export async function revokeProjectShareLink(projectId: string, linkId: string) 
 export async function createTaskShareLink(taskId: string) {
   const session = await auth();
   if (!session?.user) return { ok: false as const, error: "Necesitás iniciar sesión para hacer esto." };
-  if (!(await canEditTask(taskId))) {
-    return { ok: false as const, error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden compartirla." };
+  if (!(await canShareTask(taskId))) {
+    return { ok: false as const, error: "Solo un responsable o revisor de esta tarea, el PM del proyecto o un administrador pueden compartirla." };
   }
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   const link = await createShareLink("TASK", taskId, session.user.id);
@@ -50,8 +50,8 @@ export async function createTaskShareLink(taskId: string) {
 }
 
 export async function revokeTaskShareLink(taskId: string, linkId: string) {
-  if (!(await canEditTask(taskId))) {
-    return { ok: false as const, error: "Solo un responsable de esta tarea, el PM del proyecto o un administrador pueden dejar de compartirla." };
+  if (!(await canShareTask(taskId))) {
+    return { ok: false as const, error: "Solo un responsable o revisor de esta tarea, el PM del proyecto o un administrador pueden dejar de compartirla." };
   }
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { projectId: true } });
   await revokeShareLink(linkId);
@@ -73,6 +73,7 @@ export async function createClaudeLink(target: ClaudeLinkTarget) {
   if ("taskId" in target) {
     const task = await prisma.task.findUnique({ where: { id: target.taskId }, select: { status: true } });
     if (!task) return { ok: false as const, error: "La tarea ya no existe." };
+    if (!(await canShareTask(target.taskId))) return { ok: false as const, error: "Solo un responsable o revisor de esta tarea, el PM del proyecto o un administrador pueden conectar la IA." };
     if (task.status === "COMPLETED") return { ok: false as const, error: "La tarea ya está completada: el link dejaría de funcionar de inmediato." };
   } else if (!(await prisma.project.findUnique({ where: { id: target.projectId }, select: { id: true } }))) {
     return { ok: false as const, error: "El proyecto ya no existe." };

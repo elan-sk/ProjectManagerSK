@@ -12,7 +12,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getTaskDelayDays, getTaskEarlyDays, getTaskAlert, getTaskScheduleVariance } from "@/lib/delays";
 import { utcToBogotaLocalInputValue } from "@/lib/workingHours";
-import { getProjectAdmin, canEditTask, canReviewTask, isPmOrAdminAnywhere } from "@/lib/permissions";
+import { getProjectAdmin, canEditTask, canReviewTask, isPmOrAdminAnywhere, isProjectMember } from "@/lib/permissions";
 import { addStep, setDependency, removeDependency } from "./actions";
 import { NewStepInput } from "./NewStepInput";
 import { StepList } from "./StepList";
@@ -55,6 +55,7 @@ import { getKnownCategories } from "@/lib/reviewCategories";
 import { createTaskShareLink, revokeTaskShareLink } from "../../../../shareActions";
 import { ShareLinkPanel } from "@/components/ShareLinkPanel";
 import { ClaudeLinkPanel } from "@/components/ClaudeLinkPanel";
+import { AddCredentialButton } from "../../../../credentials/AddCredentialButton";
 import { getActiveClaudeLink } from "@/lib/apiAuth";
 import { TaskTagsEditor } from "./TaskTagsEditor";
 import { InternalConversation } from "@/components/InternalConversation";
@@ -114,7 +115,7 @@ export default async function TaskDetailPage({
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      project: { include: { parent: { select: { id: true, name: true, iconUrl: true, pmId: true } } } },
+      project: { include: { parent: { select: { id: true, name: true, iconUrl: true, pmId: true, createdById: true } } } },
       phase: true,
       requirements: { select: { id: true } },
       assignees: { include: { user: true } },
@@ -200,6 +201,10 @@ export default async function TaskDetailPage({
     task.type === "ACCEPTANCE" ? getKnownCategories() : Promise.resolve([]),
     getActiveClaudeLink(session.user.id, { taskId }),
   ]);
+  // Compartir y «Conectar IA»: misma regla que canShareTask (responsable, revisor, PM o admin).
+  const canShare = canEdit || canReview;
+  // «+ Contraseña» sin poder editar la tarea: miembro del proyecto (responsable o revisor de alguna tarea).
+  const canAddCredentialOnly = !canEdit && task.status !== "COMPLETED" && Boolean(await isProjectMember(projectId));
 
   // Mismo mapa que en projects/[id]/page.tsx: nombres ya usados en este
   // proyecto por categoría, para sugerir (sin obligar) en el <datalist>.
@@ -343,23 +348,19 @@ export default async function TaskDetailPage({
           <NavLinkWithMemory href={`/projects/${projectId}`} storageKey={`project:${projectId}`} className="hover:underline max-sm:hidden">
             {task.project.parent ? task.project.name : `← ${task.project.name}`}
           </NavLinkWithMemory>
-          {(canEdit || canManage) && (
+          {canShare && (
             <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
-              {canEdit && (
-                <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
-                  <ShareLinkPanel
-                    activeToken={activeShareLink?.token ?? null}
-                    activeLinkId={activeShareLink?.id ?? null}
-                    onCreate={createTaskShareLink.bind(null, taskId)}
-                    onRevoke={revokeTaskShareLink.bind(null, taskId)}
-                  />
-                </ModalTrigger>
-              )}
-              {canManage && (
-                <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
-                  <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
-                </ModalTrigger>
-              )}
+              <ModalTrigger label="Compartir" title="Compartir tarea" variant="secondary" compact icon={<ShareIcon className="h-3.5 w-3.5" />}>
+                <ShareLinkPanel
+                  activeToken={activeShareLink?.token ?? null}
+                  activeLinkId={activeShareLink?.id ?? null}
+                  onCreate={createTaskShareLink.bind(null, taskId)}
+                  onRevoke={revokeTaskShareLink.bind(null, taskId)}
+                />
+              </ModalTrigger>
+              <ModalTrigger label="Conectar IA" title="Conectar IA" variant="secondary" compact icon={<SparklesIcon className="h-3.5 w-3.5" />}>
+                <ClaudeLinkPanel taskId={taskId} activeLastUsedLabel={activeClaudeLink?.lastUsedAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" }) ?? null} />
+              </ModalTrigger>
             </div>
           )}
         </div>
@@ -666,6 +667,7 @@ export default async function TaskDetailPage({
                 credentialPlace={{ taskId }}
               />
             )}
+            {canAddCredentialOnly && <AddCredentialButton place={{ taskId }} />}
             {task.status === "COMPLETED" && (
               <p className="text-xs text-slate-400">La tarea ya está completada — no se pueden subir más insumos.</p>
             )}
@@ -693,7 +695,7 @@ export default async function TaskDetailPage({
       )}
 
       {/* Tarea tipo Ajuste: las imágenes que suben cliente/equipo en los comentarios quedan como Insumos. */}
-      {task.type === "ADJUSTMENT" && (insumos.length > 0 || taskCredentials.length > 0 || (canEdit && task.status !== "COMPLETED")) && (
+      {task.type === "ADJUSTMENT" && (insumos.length > 0 || taskCredentials.length > 0 || (canEdit && task.status !== "COMPLETED") || canAddCredentialOnly) && (
         <section className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-[21px] font-semibold text-slate-900">Insumos</h2>
           <AttachmentGrid
@@ -703,6 +705,7 @@ export default async function TaskDetailPage({
           {canEdit && session?.user && task.status !== "COMPLETED" && (
             <AttachmentUploader taskId={taskId} userId={session.user.id} kind="INSUMO" label="+ Subir insumo" credentialPlace={{ taskId }} />
           )}
+          {canAddCredentialOnly && <AddCredentialButton place={{ taskId }} />}
         </section>
       )}
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { credentialVisibleWhere } from "@/lib/credentials";
-import { isProjectPm, LIVE_PROJECT_WHERE, managedProjectWhere, visibleProjectWhere } from "@/lib/permissions";
+import { isProjectPm, LIVE_PROJECT_WHERE, projectMemberWhere, visibleProjectWhere } from "@/lib/permissions";
 import { CredentialsBoard, type BoardProject } from "./CredentialsBoard";
 
 // Todas las contraseñas que la persona puede ver, agrupadas por proyecto (como las carpetas de LastPass).
@@ -13,9 +13,9 @@ export default async function CredentialsPage() {
   if (!session?.user) redirect("/login");
   const user = session.user;
 
-  // Donde puede crear contraseñas: PM del proyecto (o de su principal) o administrador — misma regla que createCredential.
+  // Donde puede crear contraseñas: miembro del proyecto o administrador — misma regla que createCredential.
   const addable = await prisma.project.findMany({
-    where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : managedProjectWhere(user.id)] },
+    where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : projectMemberWhere(user.id)] },
     select: { id: true, name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } },
     orderBy: { name: "asc" },
   });
@@ -29,7 +29,7 @@ export default async function CredentialsPage() {
       url: true,
       username: true,
       createdById: true,
-      project: { select: { id: true, name: true, iconUrl: true, pmId: true, parent: { select: { name: true, iconUrl: true, pmId: true } } } },
+      project: { select: { id: true, name: true, iconUrl: true, pmId: true, createdById: true, parent: { select: { name: true, iconUrl: true, pmId: true, createdById: true } } } },
     },
     orderBy: { name: "asc" },
   });

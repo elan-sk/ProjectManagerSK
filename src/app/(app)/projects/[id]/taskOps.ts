@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { scheduleArchivedImageCompression } from "@/lib/archivedImageCompression";
-import { canEditTask, getProjectAdmin, isProjectPm, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
+import { canEditTask, getProjectAdmin, isProjectPm, PM_OWNER_SELECT, requireProjectAdmin, resolveActor, type Actor } from "@/lib/permissions";
 import { notifyAssignment, notifyUrgentTask } from "@/lib/notifications";
 
 // Acciones de Fase 2 sobre tareas y proyectos: urgente, archivar, duplicar,
@@ -238,7 +238,7 @@ export async function setProjectHidden(projectId: string, hidden: boolean, actor
   const user = await resolveActor(actor);
   if (user?.role !== "ADMIN") return { ok: false, error: "Solo un administrador puede ocultar o mostrar un proyecto." };
   // Un proyecto oculto lo ve únicamente su responsable (PM) —o el PM de su proyecto principal—, así que solo él, siendo administrador, lo gestiona.
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { pmId: true, parent: { select: { pmId: true } } } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: PM_OWNER_SELECT });
   if (!project || !isProjectPm(project, user.id)) return { ok: false, error: "Solo el administrador que es responsable (PM) de este proyecto puede ocultarlo o mostrarlo." };
   // Spec 004: ocultar o mostrar un proyecto principal hace lo mismo con sus subproyectos.
   await prisma.project.updateMany({ where: { OR: [{ id: projectId }, { parentId: projectId }] }, data: { hidden } });

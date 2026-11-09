@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { canEditTask, getProjectAdmin, managedProjectWhere, resolveActor, visibleProjectWhere, type Actor } from "@/lib/permissions";
+import { canEditTask, getProjectAdmin, isProjectMember, projectMemberWhere, resolveActor, visibleProjectWhere, type Actor } from "@/lib/permissions";
 import { encryptPassword, decryptPassword } from "@/lib/credentialCrypto";
 import { canManageCredential, canSeeCredential, credentialAudienceIds, credentialVisibleWhere, logCredentialAccess } from "@/lib/credentials";
 import { notifyCredentialShared } from "@/lib/notifications";
@@ -69,7 +69,7 @@ type ResolvedPlace = { projectId: string; taskId: string | null; stepId: string 
  */
 async function resolvePlace(place: CredentialPlace, actor?: Actor): Promise<ResolvedPlace | { error: string }> {
   if ("projectId" in place) {
-    if (!(await getProjectAdmin(place.projectId, actor))) return { error: "Solo el PM del proyecto o un administrador pueden agregar contraseñas al proyecto." };
+    if (!(await isProjectMember(place.projectId, actor))) return { error: "Solo los miembros del proyecto (responsables o revisores de alguna tarea), su PM o un administrador pueden agregar contraseñas." };
     return { projectId: place.projectId, taskId: null, stepId: null, adjustmentItemId: null };
   }
   let taskId: string;
@@ -88,7 +88,7 @@ async function resolvePlace(place: CredentialPlace, actor?: Actor): Promise<Reso
     adjustmentItemId = place.adjustmentItemId;
   }
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
-  if (!task || !(await canEditTask(taskId, actor))) return { error: "No tiene permiso para agregar contraseñas a esta tarea." };
+  if (!task || !((await canEditTask(taskId, actor)) || (await isProjectMember(task.projectId, actor)))) return { error: "No tiene permiso para agregar contraseñas a esta tarea." };
   return { projectId: task.projectId, taskId, stepId, adjustmentItemId };
 }
 
@@ -361,14 +361,14 @@ export async function getCredentialAccessLog(credentialId: string, actor?: Actor
   return { ok: true, entries: rows.map((r) => ({ id: r.id, userName: r.userName, event: r.event, source: r.source, createdAt: r.createdAt.toISOString() })) };
 }
 
-/** Proyectos a los que la persona puede llevar una contraseña: PM (o PM del principal) o administrador — misma regla que createCredential. */
+/** Proyectos a los que la persona puede llevar una contraseña: miembro del proyecto o administrador — misma regla que createCredential. */
 export async function listCredentialTargetProjects(
   actor?: Actor,
 ): Promise<{ id: string; name: string; iconUrl: string | null; parent: { name: string; iconUrl: string | null } | null }[]> {
   const user = await resolveActor(actor);
   if (!user) return [];
   return prisma.project.findMany({
-    where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : managedProjectWhere(user.id)] },
+    where: { AND: [visibleProjectWhere(user), user.role === "ADMIN" ? {} : projectMemberWhere(user.id)] },
     select: { id: true, name: true, iconUrl: true, parent: { select: { name: true, iconUrl: true } } },
     orderBy: { name: "asc" },
   });

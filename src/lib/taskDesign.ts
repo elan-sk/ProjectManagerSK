@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { FALLBACK_RESPONSE_CATEGORY, pickResponseCategory, sameResponse } from "@/lib/responseTemplates";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { canEditTask, canReviewTask, canSeeProject, getProjectAdmin, PM_SCOPE_SELECT, type Actor } from "@/lib/permissions";
+import { canEditTask, canReviewTask, canShareTask, canSeeProject, getProjectAdmin, PM_SCOPE_SELECT, type Actor } from "@/lib/permissions";
 import { LINK_MIME_TYPE } from "@/lib/attachments";
 import { deleteFileIfUnused } from "@/lib/fileCleanup";
 import { resolveMime } from "@/lib/uploadLimits";
@@ -543,7 +543,7 @@ export async function updateTaskAttachment(taskId: string, attachmentId: string,
 
 // ---------- Links compartidos ----------
 
-// Compartir una tarea lo puede hacer quien la edita; compartir el proyecto entero, solo PM/admin (igual que la app).
+// Compartir una tarea: responsable, revisor, PM o admin; compartir el proyecto entero, solo PM/admin (igual que la app).
 export async function getShareLink(target: { taskId?: string; projectId?: string }) {
   const link = target.taskId ? await getActiveShareLink("TASK", target.taskId) : await getActiveShareLink("PROJECT", target.projectId!);
   return { ok: true as const, active: Boolean(link), token: link?.token ?? null, path: link ? `/share/${link.token}` : null };
@@ -553,7 +553,7 @@ export async function createShare(target: { taskId?: string; projectId?: string 
   if (target.taskId) {
     const task = await loadTask(target.taskId);
     if (!task) return fail(404, "La tarea no existe.");
-    if (!(await canEditTask(target.taskId, actor))) return fail(403, "Solo un responsable, el PM del proyecto o un administrador pueden compartir la tarea.");
+    if (!(await canShareTask(target.taskId, actor))) return fail(403, "Solo un responsable o revisor, el PM del proyecto o un administrador pueden compartir la tarea.");
     const link = await createShareLink("TASK", target.taskId, actor.id);
     touch(task);
     return { ok: true as const, token: link.token, path: `/share/${link.token}` };
@@ -567,7 +567,7 @@ export async function createShare(target: { taskId?: string; projectId?: string 
 export async function revokeShare(target: { taskId?: string; projectId?: string }, actor: Actor) {
   const link = target.taskId ? await getActiveShareLink("TASK", target.taskId) : await getActiveShareLink("PROJECT", target.projectId!);
   if (!link) return fail(404, "No hay un link compartido activo.");
-  const allowed = target.taskId ? await canEditTask(target.taskId, actor) : Boolean(await getProjectAdmin(target.projectId!, actor));
+  const allowed = target.taskId ? await canShareTask(target.taskId, actor) : Boolean(await getProjectAdmin(target.projectId!, actor));
   if (!allowed) return fail(403, "No se cuenta con permiso para dejar de compartir esto.");
   await revokeShareLink(link.id);
   return { ok: true as const };
