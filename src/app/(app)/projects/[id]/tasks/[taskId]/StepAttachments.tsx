@@ -1,7 +1,7 @@
 "use client";
 
 import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
-import { isDuplicate } from "@/lib/duplicateNotice";
+import { isDuplicate, attachError } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -208,7 +208,10 @@ export const StepAttachments = forwardRef<
     setUploading(true);
     setError(null);
     try {
-      if (isDuplicate(await addStepLinkAttachment(stepId, linkUrl.trim(), linkName.trim()))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
+      const r = await addStepLinkAttachment(stepId, linkUrl.trim(), linkName.trim());
+      const failed = attachError(r);
+      if (failed) return setError(failed);
+      if (isDuplicate(r)) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       setAddingLink(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
-import { isDuplicate } from "@/lib/duplicateNotice";
+import { isDuplicate, attachError } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
 import { usePasteImage } from "@/lib/usePasteImage";
@@ -86,7 +86,10 @@ export function AttachmentUploader({
     setUploading(true);
     setError(null);
     try {
-      if (isDuplicate(await addLinkAttachment(taskId, kind, linkUrl.trim(), linkName.trim(), userId))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
+      const r = await addLinkAttachment(taskId, kind, linkUrl.trim(), linkName.trim(), userId);
+      const failed = attachError(r);
+      if (failed) return setError(failed);
+      if (isDuplicate(r)) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       router.refresh();

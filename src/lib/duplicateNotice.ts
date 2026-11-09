@@ -10,3 +10,8 @@ export function alreadyLoadedMessage(names: string[]) {
 export function isDuplicate(result: unknown): boolean {
   return typeof result === "object" && result !== null && (result as { duplicate?: boolean }).duplicate === true;
 }
+
+/** Mensaje para el usuario si la acción de adjuntar devolvió { error } (los throw se ocultan en producción). */
+export function attachError(result: unknown): string | null {
+  return typeof result === "object" && result !== null && typeof (result as { error?: unknown }).error === "string" ? (result as { error: string }).error : null;
+}

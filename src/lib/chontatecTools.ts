@@ -1,3 +1,4 @@
+import { attachError } from "@/lib/duplicateNotice";
 import { credentialVisibleWhere } from "@/lib/credentials";
 import { clientBodySchema, clientDetailFor, clientFieldsFor, listClientsFor, saveClientAs } from "@/lib/clients";
 import type { Prisma } from "@prisma/client";
@@ -2231,7 +2232,10 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
           // ponytail: addStep no devuelve el id (también es acción de formulario); el recién creado es el último.
           const step = await prisma.taskStep.findFirstOrThrow({ where: { taskId }, orderBy: { order: "desc" }, select: { id: true } });
           for (const f of files) {
-            if (/^https?:\/\//i.test(f.url)) await addStepLinkAttachment(step.id, f.url, f.name);
+            if (/^https?:\/\//i.test(f.url)) {
+              const failed = attachError(await addStepLinkAttachment(step.id, f.url, f.name));
+              if (failed) throw new Error(failed);
+            }
             else await addStepAttachment(step.id, { url: f.url, name: f.name, mimeType: resolveMime(f.mimeType, f.name, f.url) });
           }
         }
@@ -2245,7 +2249,9 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
       try {
         const { taskId, url, name: linkName, kind } = z.object({ taskId: z.string(), url: z.string(), name: z.string(), kind: z.enum(["INSUMO", "RESULTADO"]).optional() }).parse(input);
         const r = await addLinkAttachment(taskId, kind ?? "INSUMO", url, linkName, await currentUserId());
-        return { ok: true, message: r?.duplicate ? "Ese enlace ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el enlace." };
+        const failed = attachError(r);
+        if (failed) return { ok: false, message: failed };
+        return { ok: true, message: r && "duplicate" in r ? "Ese enlace ya estaba cargado ahí, no se repitió." : "Listo, se adjuntó el enlace." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

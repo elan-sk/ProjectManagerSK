@@ -1,7 +1,7 @@
 "use client";
 
 import { UPLOAD_ACCEPT } from "@/lib/uploadLimits";
-import { isDuplicate } from "@/lib/duplicateNotice";
+import { isDuplicate, attachError } from "@/lib/duplicateNotice";
 import { useDuplicateNotice } from "@/lib/useDuplicateNotice";
 
 import { Linkify, linkifyHtml } from "@/lib/linkify";
@@ -361,7 +361,10 @@ function AdjustmentSide({ label, kind, itemId, taskId, attachments, credentials 
     setUploading(true);
     setError(null);
     try {
-      if (isDuplicate(await addAdjustmentLinkAttachment(itemId, kind, linkUrl.trim(), linkName.trim(), userId))) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
+      const r = await addAdjustmentLinkAttachment(itemId, kind, linkUrl.trim(), linkName.trim(), userId);
+      const failed = attachError(r);
+      if (failed) return setError(failed);
+      if (isDuplicate(r)) notifyDuplicate([linkName.trim() || linkUrl.trim()]);
       setLinkUrl("");
       setLinkName("");
       setAddingLink(false);

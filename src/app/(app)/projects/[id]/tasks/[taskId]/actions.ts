@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { createCalendarEvent } from "@/lib/googleCalendar";
 import { requireProjectAdmin, canEditTask, getActingUser, allowsSelfReview, type Actor } from "@/lib/permissions";
 import { notifyAssignment } from "@/lib/notifications";
-import { LINK_MIME_TYPE } from "@/lib/attachments";
+import { LINK_MIME_TYPE, parseLinkUrl } from "@/lib/attachments";
 import { fetchPageTitle } from "@/lib/pageTitle";
 import { bogotaLocalToUTC } from "@/lib/workingHours";
 import { requirementsForProject } from "@/lib/taskRequirement";
@@ -119,15 +119,16 @@ export async function addStepLinkAttachment(stepId: string, url: string, name: s
   const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
   if (!(await canEditTask(step.taskId))) throw new Error("No tenés permiso para editar esta tarea.");
   await assertCanAddAttachment(step.taskId, "INSUMO");
-  const parsedUrl = z.string().trim().url().safeParse(url);
-  if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
+  // Errores esperados se devuelven (no throw): en producción Next oculta el mensaje de los throw.
+  const linkUrl = parseLinkUrl(url);
+  if (!linkUrl) return { error: "Ese link no parece válido. Revisar que sea una dirección web completa." };
   // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
-  const parsedName = name.trim() || (await fetchPageTitle(parsedUrl.data));
-  if (!parsedName) throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
-  if (await inSection({ stepId }, parsedUrl.data)) return DUPLICATE;
+  const parsedName = name.trim() || (await fetchPageTitle(linkUrl));
+  if (!parsedName) return { error: "No se pudo obtener el nombre de ese link. Falta escribir uno." };
+  if (await inSection({ stepId }, linkUrl)) return DUPLICATE;
   const user = await getActingUser();
   await prisma.attachment.create({
-    data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: parsedUrl.data, fileName: parsedName, mimeType: LINK_MIME_TYPE, uploadedById: user?.id ?? null },
+    data: { taskId: step.taskId, kind: "INSUMO", stepId, fileUrl: linkUrl, fileName: parsedName, mimeType: LINK_MIME_TYPE, uploadedById: user?.id ?? null },
   });
   await revalidateTask(step.taskId);
 }
@@ -216,16 +217,12 @@ export async function addLinkAttachment(
   // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
   uploadedById = (await getActingUser())?.id ?? uploadedById;
   await assertCanAddAttachment(taskId, kind);
-  const parsedUrlResult = z.string().trim().url().safeParse(url);
-  if (!parsedUrlResult.success) {
-    throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
-  }
-  const parsedUrl = parsedUrlResult.data;
+  // Errores esperados se devuelven (no throw): en producción Next oculta el mensaje de los throw.
+  const parsedUrl = parseLinkUrl(url);
+  if (!parsedUrl) return { error: "Ese link no parece válido. Revisar que sea una dirección web completa." };
   // Sin nombre se usa el título de la página; si no se logra obtener, se pide el nombre.
   const parsedName = name.trim() || (await fetchPageTitle(parsedUrl));
-  if (!parsedName) {
-    throw new Error("No se pudo obtener el nombre de ese link. Escribí uno.");
-  }
+  if (!parsedName) return { error: "No se pudo obtener el nombre de ese link. Falta escribir uno." };
   if (await inSection({ taskId, kind }, parsedUrl)) return DUPLICATE;
   await prisma.attachment.create({
     data: {
@@ -553,16 +550,17 @@ export async function addAdjustmentLinkAttachment(
   }
   // Seguridad: quien sube sale de la sesión, no del argumento (lo manda el navegador).
   uploadedById = (await getActingUser())?.id ?? uploadedById;
-  const parsedUrl = z.string().trim().url().safeParse(url);
-  if (!parsedUrl.success) throw new Error("Ese link no parece válido — revisá que sea una dirección web completa (con https://).");
+  // Errores esperados se devuelven (no throw): en producción Next oculta el mensaje de los throw.
+  const linkUrl = parseLinkUrl(url);
+  if (!linkUrl) return { error: "Ese link no parece válido. Revisar que sea una dirección web completa." };
   const parsedName = z.string().trim().min(1).safeParse(name);
-  if (!parsedName.success) throw new Error("Ponele un nombre al link.");
-  if (await inSection({ adjustmentItemId: itemId, kind }, parsedUrl.data)) return DUPLICATE;
+  if (!parsedName.success) return { error: "Falta el nombre del link." };
+  if (await inSection({ adjustmentItemId: itemId, kind }, linkUrl)) return DUPLICATE;
   await prisma.adjustmentAttachment.create({
     data: {
       adjustmentItemId: itemId,
       kind,
-      fileUrl: parsedUrl.data,
+      fileUrl: linkUrl,
       fileName: parsedName.data,
       mimeType: LINK_MIME_TYPE,
       uploadedById,

@@ -5,7 +5,7 @@ import { canEditTask, resolveActor } from "@/lib/permissions";
 import { projectMedia, type MediaItem } from "@/lib/projectMedia";
 import { linkCredential } from "../../../../credentials/actions";
 import { CREDENTIAL_MIME_TYPE, LINK_MIME_TYPE, credentialIdFromRef } from "@/lib/attachments";
-import { isDuplicate } from "@/lib/duplicateNotice";
+import { isDuplicate, attachError } from "@/lib/duplicateNotice";
 import { addAttachmentRecord, addLinkAttachment, addAdjustmentAttachment, addAdjustmentLinkAttachment, addStepAttachment, addStepLinkAttachment } from "./actions";
 import type { AttachmentKind, AdjustmentAttachmentKind } from "@prisma/client";
 
@@ -37,6 +37,8 @@ export async function reuseMedia(taskId: string, kind: AttachmentKind, url: stri
       return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
     }
     const r = item.mimeType === LINK_MIME_TYPE ? await addLinkAttachment(taskId, kind, item.url, item.name, userId) : await addAttachmentRecord(taskId, kind, item, userId);
+    const failed = attachError(r);
+    if (failed) return { ok: false as const, error: failed };
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
@@ -59,6 +61,8 @@ export async function reuseMediaForAdjustment(itemId: string, kind: AdjustmentAt
       return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
     }
     const r = item.mimeType === LINK_MIME_TYPE ? await addAdjustmentLinkAttachment(itemId, kind, item.url, item.name, userId) : await addAdjustmentAttachment(itemId, kind, item, userId);
+    const failed = attachError(r);
+    if (failed) return { ok: false as const, error: failed };
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
@@ -80,6 +84,8 @@ export async function reuseMediaForStep(stepId: string, url: string) {
       return linked.ok ? { ok: true as const, duplicate: Boolean(linked.duplicate) } : linked;
     }
     const r = item.mimeType === LINK_MIME_TYPE ? await addStepLinkAttachment(stepId, item.url, item.name) : await addStepAttachment(stepId, item);
+    const failed = attachError(r);
+    if (failed) return { ok: false as const, error: failed };
     return { ok: true as const, duplicate: isDuplicate(r) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };

@@ -105,3 +105,15 @@ export function documentStyle(mimeType: string, name: string): DocumentStyle {
   // Texto plano (txt, md, markdown, log, rtf, json, xml…) y cualquier otra extensión: nunca queda una ficha sin estilo.
   return DOC_STYLES.text;
 }
+
+/** URL de un link pegado; sin protocolo («racafe.com.co/…») se asume https://. null si no es válida. */
+export function parseLinkUrl(raw: string): string | null {
+  const url = raw.trim();
+  const full = /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`;
+  try {
+    const u = new URL(full);
+    return /^https?:$/.test(u.protocol) && u.hostname.includes(".") ? full : null;
+  } catch {
+    return null;
+  }
+}
