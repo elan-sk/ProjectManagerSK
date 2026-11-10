@@ -618,7 +618,7 @@ export async function sendChatReply(jid: string, userId: string, parts: string[]
   }
 }
 
-export async function sendConfirmPoll(jid: string, question: string, options: [string, string]) {
+export async function sendConfirmPoll(jid: string, question: string, options: string[]) {
   if (!state.sock || blockedByTestMode(jid)) return null;
   try {
     return (await qrSend(jid, { poll: { name: question, values: options, selectableCount: 1 } })) ?? null;

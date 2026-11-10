@@ -22,6 +22,8 @@ const RESTART_TEXT = "Listo, borré nuestra conversación y empezamos de cero �
 
 export const POLL_CONFIRM = "✅ Confirmar";
 export const POLL_CANCEL = "❌ Cancelar";
+export const POLL_CHANGE = "✏️ Cambiar algo";
+const CHANGE_REQUEST_TEXT = "Quiero cambiar algo de la propuesta.";
 const POLL_QUESTION = "¿Confirma esta acción?";
 const POLL_TTL_MS = 24 * 60 * 60 * 1000;
 const INTERNAL_TIMEOUT_MS = 120_000;
@@ -31,9 +33,9 @@ export const VOICE_TOO_LONG_TEXT = "La nota de voz es muy larga; máximo 5 minut
 export const VOICE_FAILED_TEXT = "No se pudo entender la nota de voz; puede intentarlo de nuevo o escribirlo.";
 const INTERNAL_ERROR_TEXT = "Hubo un problema al responder. Puede intentarlo de nuevo en un momento.";
 const IRREVERSIBLE_TEXT = "⚠️ Esto no se puede deshacer.";
-const ANSWER_HINT_POLL = "Toque una opción de la encuesta o responda *sí* o *no*.";
+const ANSWER_HINT_POLL = "Toque una opción de la encuesta, responda *sí* o *no*, o escriba qué cambiar.";
 const ANSWER_HINT_BUTTONS = "Toque un botón o responda *sí* o *no*.";
-const ANSWER_HINT_GROUP = "Responda *sí* o *no* a este mensaje.";
+const ANSWER_HINT_GROUP = "Responda *sí* o *no* a este mensaje, o escriba qué cambiar.";
 
 type ChatUser = { id: string; name: string; role: string };
 type PendingPoll = { userId: string; toolUseId: string; secret: Uint8Array; jid: string; createdAt: number };
@@ -42,6 +44,8 @@ type Transport = {
   confirm: (toolUseId: string) => Promise<void>;
   answerHint: string;
   typing: (task: () => Promise<void>) => Promise<void>;
+  /** Pedido del grupo: la propuesta y su confirmación van por este chat privado; en el grupo, solo el aviso. */
+  privately?: Transport;
 };
 type Batch = { parts: ChatPart[]; timer: ReturnType<typeof setTimeout>; transport: Transport; user: ChatUser };
 
@@ -74,7 +78,7 @@ function qrTransport(sock: WASocket, jid: string, userId: string): Transport {
       await sendChatReply(jid, userId, parts, files);
     },
     confirm: async (toolUseId) => {
-      const sent = await sendConfirmPoll(jid, POLL_QUESTION, [POLL_CONFIRM, POLL_CANCEL]);
+      const sent = await sendConfirmPoll(jid, POLL_QUESTION, [POLL_CONFIRM, POLL_CHANGE, POLL_CANCEL]);
       const secret = sent?.message?.messageContextInfo?.messageSecret;
       if (sent?.key.id && secret) {
         prunePolls();
@@ -96,9 +100,11 @@ function qrTransport(sock: WASocket, jid: string, userId: string): Transport {
   };
 }
 
-// Pedido hecho en un grupo: se responde y se confirma en el mismo grupo, citando el mensaje de la persona.
-function groupTransport(sock: WASocket, groupJid: string, quoted: WAMessage): Transport {
+// Pedido hecho en un grupo: se responde en el grupo citando el mensaje de la persona; lo que pide
+// confirmación sigue por su chat privado (privately) y al grupo vuelve solo el resultado (post_group_result).
+function groupTransport(sock: WASocket, groupJid: string, quoted: WAMessage, privately?: Transport): Transport {
   return {
+    privately,
     reply: async (parts, files = []) => {
       for (const [i, text] of parts.entries()) await replyInGroup(groupJid, text, i === 0 ? quoted : null, i === parts.length - 1 ? files : []);
     },
@@ -135,6 +141,7 @@ function cloudTransport(config: CloudConfig, phone: string, userId: string, mess
     confirm: async (toolUseId) => {
       await cloudSendButtons(config, phone, POLL_QUESTION, [
         { id: `confirm:${toolUseId}`, title: POLL_CONFIRM },
+        { id: `change:${toolUseId}`, title: POLL_CHANGE },
         { id: `decline:${toolUseId}`, title: POLL_CANCEL },
       ]).catch(() => undefined);
     },
@@ -212,6 +219,10 @@ async function deliver(t: Transport, user: ChatUser, messages: ChatUiMessage[] |
     await t.reply([prefix ? `${prefix}\n\n${INTERNAL_ERROR_TEXT}` : INTERNAL_ERROR_TEXT]);
     return;
   }
+  if (t.privately && (await hasPendingChontatecAction(user.id, "whatsapp"))) {
+    await t.reply([`📩 ${user.name}, le escribí por privado para confirmar.`]);
+    t = t.privately;
+  }
   const visible = messages.filter((m) => (m.role === "assistant" && m.text) || (m.role === "system" && m.text.startsWith("❌")));
   const raw = visible.map((m) => m.text).join("\n\n");
   const text = [prefix, toWhatsAppText(raw)].filter(Boolean).join("\n\n");
@@ -232,6 +243,12 @@ async function dispatch(t: Transport, user: ChatUser, text: string, prefix = "")
       ? await callInternal({ action: "decision", userId: user.id, toolUseId: pendingId, decision })
       : await callInternal({ action: "message", userId: user.id, text });
   await deliver(t, user, messages, prefix);
+}
+
+// «✏️ Cambiar algo»: va como mensaje; la propuesta se descarta y el bot pregunta qué cambiar.
+async function requestChange(t: Transport, user: ChatUser, toolUseId: string) {
+  if ((await hasPendingChontatecAction(user.id, "whatsapp")) !== toolUseId) return;
+  await dispatch(t, user, CHANGE_REQUEST_TEXT);
 }
 
 async function decide(t: Transport, user: ChatUser, toolUseId: string, decision: "confirm" | "decline") {
@@ -317,6 +334,11 @@ async function handleVote(sock: WASocket, t: Transport, user: ChatUser, msg: WAM
   }
   if (!selected || selected.length === 0) return;
   const chosen = Buffer.from(selected[0]).toString("hex");
+  if (chosen === optionHash(POLL_CHANGE)) {
+    polls.delete(pollId!);
+    await requestChange(t, user, poll.toolUseId);
+    return;
+  }
   const decision = chosen === optionHash(POLL_CONFIRM) ? "confirm" : chosen === optionHash(POLL_CANCEL) ? "decline" : null;
   if (!decision) return;
   polls.delete(pollId!);
@@ -388,7 +410,7 @@ async function handleGroupMessage(sock: WASocket, msg: WAMessage, content: proto
     request: stripBotMention(text, botIds.map(jidUser)),
   });
   openGroupRequest(user.id, groupJid, msg);
-  const t = groupTransport(sock, groupJid, msg);
+  const t = groupTransport(sock, groupJid, msg, qrTransport(sock, `${phone}@s.whatsapp.net`, user.id));
   enqueue(user.id, () => t.typing(() => dispatch(t, user, request)));
 }
 
@@ -506,6 +528,7 @@ export async function handleCloudIncoming(config: CloudConfig, msg: CloudIncomin
     } else if (msg.type === "interactive" && msg.interactive?.button_reply) {
       const [decision, toolUseId] = msg.interactive.button_reply.id.split(/:(.+)/);
       if ((decision === "confirm" || decision === "decline") && toolUseId) await decide(t, user, toolUseId, decision);
+      else if (decision === "change" && toolUseId) await requestChange(t, user, toolUseId);
     } else if (msg.type === "button" && msg.button?.text) {
       submit(t, user, { text: msg.button.text, forwarded: false });
     } else {

@@ -50,4 +50,14 @@ assert.equal(merged[0].type, "tool_result", "el resultado va antes del texto de 
 assert.equal(merged[1].type, "text");
 assert.equal(stuck.at(-1)!.content.length, 1, "la acción pendiente del final queda igual");
 
+// Propuesta descartada para cambiarla + el pedido de cambio: dos mensajes de la persona seguidos se juntan.
+const changed = trimHistory([
+  { role: "user", content: [{ type: "text", text: "creá la tarea" }] },
+  { role: "assistant", content: [{ type: "tool_use", id: "c1", name: "create_task", input: {} }] },
+  { role: "user", content: [{ type: "tool_result", tool_use_id: "c1", content: "descartada", is_error: true }] },
+  { role: "user", content: "en sprint 4" },
+]);
+assert.deepEqual(changed.map((m) => m.role), ["user", "assistant", "user"]);
+assert.deepEqual((changed[2].content as Anthropic.ContentBlockParam[]).map((b) => b.type), ["tool_result", "text"]);
+
 console.log("OK — historial del chat recortado y caché de Claude");

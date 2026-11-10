@@ -48,6 +48,23 @@ function withMissingResults(messages: Anthropic.MessageParam[]): Anthropic.Messa
   return out;
 }
 
+const asBlocks = (m: Anthropic.MessageParam): Anthropic.ContentBlockParam[] => (typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content);
+
+/** Dos mensajes seguidos del mismo rol (ej. propuesta descartada + el pedido de cambio) se juntan en uno; los resultados de herramientas, primero. */
+function mergeSameRole(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const out: Anthropic.MessageParam[] = [];
+  for (const m of messages) {
+    const prev = out.at(-1);
+    if (!prev || prev.role !== m.role) {
+      out.push(m);
+      continue;
+    }
+    const blocks = [...asBlocks(prev), ...asBlocks(m)];
+    out[out.length - 1] = { role: m.role, content: [...blocks.filter((b) => b.type === "tool_result"), ...blocks.filter((b) => b.type !== "tool_result")] };
+  }
+  return out;
+}
+
 /**
  * `messages`: los últimos HISTORY_WINDOW en orden. Empieza en un mensaje real de la persona (nunca en
  * un resultado de herramienta suelto, que el servicio rechaza) y, antes de la pregunta actual, recorta
@@ -56,10 +73,12 @@ function withMissingResults(messages: Anthropic.MessageParam[]): Anthropic.Messa
 export function trimHistory(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
   const start = messages.findIndex(isRealUserMessage);
   if (start === -1) return messages;
-  const kept = messages.slice(start);
+  const kept = mergeSameRole(withMissingResults(messages.slice(start)));
+  // La pregunta actual: el último mensaje con texto de la persona (puede venir junto a una propuesta descartada).
+  const hasPersonText = (m: Anthropic.MessageParam) => m.role === "user" && asBlocks(m).some((b) => b.type === "text");
   let current = kept.length - 1;
-  while (current > 0 && !isRealUserMessage(kept[current])) current--;
-  return withMissingResults(kept).map((m, i) => {
+  while (current > 0 && !hasPersonText(kept[current])) current--;
+  return kept.map((m, i) => {
     if (i >= current || typeof m.content === "string" || !m.content.some((b) => b.type === "tool_result")) return m;
     return {
       ...m,

@@ -13,11 +13,11 @@ const ITEMS: Item[] = [
   { label: "Bot y WhatsApp", href: "/settings/bot-whatsapp", adminOnly: true },
   {
     label: "Tareas",
-    href: "/settings/tests",
-    matches: ["/settings/tests", "/settings/tags"],
+    href: "/settings/tags",
+    matches: ["/settings/tags", "/settings/tests"],
     children: [
-      { label: "Plantillas de pruebas", href: "/settings/tests" },
       { label: "Etiquetas", href: "/settings/tags" },
+      { label: "Plantillas de pruebas", href: "/settings/tests" },
     ],
   },
   { label: "Integraciones", href: "/settings/integrations" },

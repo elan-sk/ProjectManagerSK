@@ -127,7 +127,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "post_group_result",
     description:
-      "Publica en el grupo de WhatsApp el resultado de un pedido hecho en el grupo cuando la conversación siguió por privado (después de ask_privately). Una sola vez, al terminar o si no se pudo, con un texto corto (qué se hizo y el link, o en una línea por qué no se pudo). Si la conversación sigue en el grupo no hace falta: tu respuesta ya sale ahí.",
+      "Publica en el grupo de WhatsApp el resultado de un pedido hecho en el grupo cuando la conversación siguió por privado (después de ask_privately o de una confirmación por privado). SIEMPRE una sola vez, al terminar (apenas se ejecuta lo confirmado) o si no se pudo, con un texto corto (qué se hizo y el link, o en una línea por qué no se pudo). Si la conversación sigue en el grupo no hace falta: tu respuesta ya sale ahí.",
     input_schema: {
       type: "object",
       properties: { text: { type: "string", description: "Resultado listo para leer en el grupo." } },
@@ -137,7 +137,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "ask_privately",
     description:
-      "Escribe por el chat privado de WhatsApp a la persona que hizo un pedido en el grupo. Solo para una duda o algo delicado que no conviene tratar delante del grupo; la confirmación simple (sí/no) va en el grupo. Después de usarla no escribas nada más en esta respuesta.",
+      "Escribe por el chat privado de WhatsApp a la persona que hizo un pedido en el grupo. Por defecto TODA pregunta o duda de un pedido del grupo va por acá (el grupo no ve el ida y vuelta); las acciones que proponés en un pedido del grupo se confirman solas por privado. Después de usarla no escribas nada más en esta respuesta.",
     input_schema: {
       type: "object",
       properties: { text: { type: "string", description: "La pregunta o el tema, listo para leer en el chat privado." } },
@@ -833,6 +833,12 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
           description: "Opcional. Etiquetas que se ponen al crearla: una por categoría (categoryId de list_tags; name opcional, se crea si no existe en el proyecto).",
           items: { type: "object", properties: { categoryId: { type: "string" }, name: { type: "string" } }, required: ["categoryId"] },
         },
+        steps: {
+          type: "array",
+          description: "Opcional. Checklist de la tarea en la MISMA confirmación: un paso por ítem, en orden; files = imágenes o archivos de ese paso.",
+          items: { type: "object", properties: { description: { type: "string" }, files: FILE_REFS }, required: ["description"] },
+        },
+        files: { ...FILE_REFS, description: "Opcional. Archivos o links { url, name } que quedan como insumos de la tarea, en la MISMA confirmación." },
       },
       required: ["projectId", "title", "type", "plannedStart", "durationDays", "assigneeIds"],
     },
@@ -1690,9 +1696,18 @@ function baseSummary(name: string, input: unknown, names: Map<string, string>): 
       return templateId ? "Asignar la plantilla de pruebas a la tarea" : "Quitar la plantilla de pruebas de la tarea";
     }
     case "create_task": {
-      const { title, phaseName, plannedStart, durationDays, assigneeIds } = input as { title?: string; phaseName?: string; plannedStart?: string; durationDays?: number; assigneeIds?: string[] };
+      const { title, phaseName, plannedStart, durationDays, assigneeIds, tags, steps, files } = input as { title?: string; phaseName?: string; plannedStart?: string; durationDays?: number; assigneeIds?: string[]; tags?: Array<{ name?: string }>; steps?: unknown[]; files?: unknown[] };
       const people = (assigneeIds ?? []).map((id) => names.get(id)).filter(Boolean);
-      const detail = [phaseName && `fase «${phaseName}»`, people.length > 0 && `responsable: ${people.join(", ")}`, plannedStart && `desde ${plannedStart}`, durationDays && `${durationDays} ${durationDays === 1 ? "día" : "días"}`].filter(Boolean).join(", ");
+      const tagNames = (tags ?? []).map((t) => t.name).filter(Boolean);
+      const detail = [
+        phaseName && `fase «${phaseName}»`,
+        people.length > 0 && `responsable: ${people.join(", ")}`,
+        plannedStart && `desde ${plannedStart}`,
+        durationDays && `${durationDays} ${durationDays === 1 ? "día" : "días"}`,
+        tagNames.length > 0 && `etiqueta: ${tagNames.join(", ")}`,
+        steps?.length && `${steps.length} paso(s) de checklist`,
+        files?.length && `${files.length} insumo(s)`,
+      ].filter(Boolean).join(", ");
       return `Crear la tarea "${title ?? "?"}"${detail ? ` (${detail})` : ""}`;
     }
     case "update_task": {
@@ -1995,6 +2010,8 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
             requirementIds: z.array(z.string()).optional(),
             requirementTitles: z.array(z.string()).optional(),
             tags: z.array(z.object({ categoryId: z.string(), name: z.string().optional() })).optional(),
+            steps: z.array(z.unknown()).optional(),
+            files: z.array(z.unknown()).optional(),
           })
           .parse(input);
         // La fase se resuelve dentro del proyecto: por id, por nombre, o la única que exista.
@@ -2031,6 +2048,15 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
             if (!tagged.ok) failed.push(category?.name ?? "categoría inexistente");
           }
           if (failed.length) tagNote = ` No se pudieron poner estas etiquetas: ${failed.join(", ")}.`;
+        }
+        // Checklist e insumos en la misma confirmación, con las acciones de siempre (validan y chequean permiso).
+        if (result.ok && parsed.steps?.length) {
+          const r = await runWriteToolUnsafe("add_checklist_steps", { taskId: String(result.id), steps: parsed.steps });
+          tagNote += r.ok ? ` Checklist: ${parsed.steps.length} paso(s).` : ` No se pudo cargar el checklist: ${plainError(r.message)}`;
+        }
+        if (result.ok && parsed.files?.length) {
+          const r = await runWriteToolUnsafe("add_task_files", { taskId: String(result.id), kind: "INSUMO", files: parsed.files });
+          tagNote += r.ok ? ` Insumos: ${r.message.replace(/^Listo, /, "")}` : ` No se pudieron subir los insumos: ${plainError(r.message)}`;
         }
         return {
           ok: result.ok,
