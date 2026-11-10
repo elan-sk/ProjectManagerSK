@@ -6,17 +6,19 @@ import { APP_SETTING_ID } from "@/lib/appSettings";
 import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { INTERNAL_CHAT_HEADER, internalChatSecret } from "@/lib/actorContext";
 import { isWhatsappChatEnabled } from "@/lib/botSettings";
-import { getChontatecHistory, hasPendingChontatecAction, type ChatUiMessage } from "@/lib/chontatec";
+import { clearChontatecHistory, getChontatecHistory, hasPendingChontatecAction, type ChatUiMessage } from "@/lib/chontatec";
 import { blockedByTestMode, replyInGroup, sendChatReply, sendCloudChatIntroIfNeeded, sendConfirmPoll } from "@/lib/whatsapp";
 import { cloudDownloadMedia, cloudSendButtons, cloudSendDocument, cloudSendText, cloudTyping, getWhatsAppConnection, type CloudConfig } from "@/lib/whatsappCloud";
 import { buildGroupRequest, FORWARD_JOIN_MS, joinChatParts, recentGroupLines, stripBotMention, type ChatPart } from "@/lib/whatsappCloudFormat";
 import { groupLines, groupRequestIn, openGroupRequest, rememberGroupLine } from "@/lib/whatsappGroupRequests";
-import { extractUploadFiles, normalizePhone, parseConfirmation, splitWhatsApp, toWhatsAppText } from "@/lib/whatsappFormat";
+import { extractUploadFiles, isRestartCommand, normalizePhone, parseConfirmation, splitWhatsApp, toWhatsAppText } from "@/lib/whatsappFormat";
 import { withUploadNote } from "@/lib/chatUploadNote";
 import { findUploadPath } from "@/lib/persistentUploads";
 import { saveUploadedFile } from "@/lib/uploadFile";
 import { EXTENSION_MIME, MAX_UPLOAD_BYTES, TOO_LARGE_MESSAGE, mimeFromFileName } from "@/lib/uploadLimits";
 import { transcribeAudio } from "@/lib/voiceTranscription";
+
+const RESTART_TEXT = "Listo, borré nuestra conversación y empezamos de cero 👍 ¿En qué le ayudo?";
 
 export const POLL_CONFIRM = "✅ Confirmar";
 export const POLL_CANCEL = "❌ Cancelar";
@@ -218,6 +220,11 @@ async function deliver(t: Transport, user: ChatUser, messages: ChatUiMessage[] |
 }
 
 async function dispatch(t: Transport, user: ChatUser, text: string, prefix = "") {
+  if (isRestartCommand(text)) {
+    await clearChontatecHistory(user.id, "whatsapp");
+    await t.reply([RESTART_TEXT]);
+    return;
+  }
   const pendingId = await hasPendingChontatecAction(user.id, "whatsapp");
   const decision = pendingId ? parseConfirmation(text) : null;
   const messages =

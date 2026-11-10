@@ -33,4 +33,21 @@ const lastBlock = (cached[cached.length - 1].content as Array<{ cache_control?: 
 assert.deepEqual(lastBlock.cache_control, { type: "ephemeral" });
 assert.equal("cache_control" in (out[out.length - 1].content as object[]).at(-1)!, false, "no modifica el original (no se guarda)");
 
+// Acción que quedó sin resultado (otro mensaje se guardó mientras esperaba confirmación): se completa.
+const stuck = trimHistory([
+  { role: "user", content: [{ type: "text", text: "creá la tarea" }] },
+  { role: "assistant", content: [{ type: "tool_use", id: "b1", name: "create_task", input: {} }] },
+  { role: "assistant", content: [{ type: "text", text: "nota de la web" }] },
+  { role: "user", content: [{ type: "text", text: "ya te confirmé" }] },
+  { role: "assistant", content: [{ type: "tool_use", id: "b2", name: "create_task", input: {} }] },
+  { role: "user", content: "prueba" },
+  { role: "assistant", content: [{ type: "tool_use", id: "b3", name: "create_task", input: {} }] },
+]);
+assert.deepEqual(stuck.map((m) => m.role), ["user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant"]);
+assert.equal((stuck[2].content as Anthropic.ToolResultBlockParam[])[0].tool_use_id, "b1", "se agrega el resultado que faltaba");
+const merged = stuck[6].content as Anthropic.ContentBlockParam[];
+assert.equal(merged[0].type, "tool_result", "el resultado va antes del texto de la persona");
+assert.equal(merged[1].type, "text");
+assert.equal(stuck.at(-1)!.content.length, 1, "la acción pendiente del final queda igual");
+
 console.log("OK — historial del chat recortado y caché de Claude");

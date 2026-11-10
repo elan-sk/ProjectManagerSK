@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { toWhatsAppText, splitWhatsApp, extractUploadFiles, parseConfirmation, normalizePhone } from "../src/lib/whatsappFormat";
+import { toWhatsAppText, splitWhatsApp, extractUploadFiles, parseConfirmation, normalizePhone, isRestartCommand } from "../src/lib/whatsappFormat";
 import { withUploadNote } from "../src/lib/chatUploadNote";
 import { runAsUser, contextActor } from "../src/lib/actorContext";
 import { auth } from "../src/auth";
@@ -37,6 +37,8 @@ assert.equal(parts.join(" "), long, "sin cortar ni perder palabras");
 for (const yes of ["sí", "Si", "SÍ!", "dale", "✅ Confirmar", "ok."]) assert.equal(parseConfirmation(yes), "confirm", yes);
 for (const no of ["no", "No.", "❌ Cancelar", "cancelar"]) assert.equal(parseConfirmation(no), "decline", no);
 for (const other of ["sí, pero cambiá la fecha", "noviembre", "¿qué tareas tengo?"]) assert.equal(parseConfirmation(other), null, other);
+for (const r of ["Empezar de nuevo", "borrar chat!", "Reiniciar"]) assert.ok(isRestartCommand(r), r);
+for (const r of ["empezar de nuevo la tarea 12", "reiniciá el proyecto X"]) assert.ok(!isRestartCommand(r), r);
 
 assert.equal(normalizePhone("+57 314-401 8901"), "573144018901", "teléfono solo dígitos");
 assert.equal(withUploadNote("", [{ name: "a.pdf", url: "/uploads/a.pdf" }]), 'Subí este archivo.\n\n[Archivos subidos en el chat: "a.pdf" → /uploads/a.pdf]', "nota de archivos igual a la del chat");

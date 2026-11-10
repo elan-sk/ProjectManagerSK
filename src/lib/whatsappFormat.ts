@@ -69,14 +69,22 @@ export function extractUploadFiles(markdown: string) {
 const CONFIRM_WORDS = new Set(["si", "dale", "confirmar", "confirmo", "confirma", "ok", "okay", "listo", "de una", "hagale", "si confirmar", "si dale"]);
 const DECLINE_WORDS = new Set(["no", "cancelar", "cancela", "cancelo", "no gracias", "mejor no"]);
 
-export function parseConfirmation(text: string): "confirm" | "decline" | null {
-  const clean = text
+const RESTART_WORDS = new Set(["empezar de nuevo", "empecemos de nuevo", "borrar chat", "borrar conversacion", "reiniciar", "reiniciar chat"]);
+
+const normalizeWords = (text: string) =>
+  text
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+/** «empezar de nuevo»: borra la conversación de WhatsApp para destrabarla, sin pasar por la IA. */
+export const isRestartCommand = (text: string) => RESTART_WORDS.has(normalizeWords(text));
+
+export function parseConfirmation(text: string): "confirm" | "decline" | null {
+  const clean = normalizeWords(text);
   if (CONFIRM_WORDS.has(clean)) return "confirm";
   if (DECLINE_WORDS.has(clean)) return "decline";
   return null;

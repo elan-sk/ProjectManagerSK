@@ -16,6 +16,38 @@ function shortenResult(text: string) {
   return `${text.replace(/<!--[\s\S]*?-->/g, "").slice(0, OLD_RESULT_MAX_CHARS)}\n[…recortado; volver a consultar si hace falta]${hidden}`;
 }
 
+const UNANSWERED_TEXT = "Esta acción no se confirmó ni se ejecutó.";
+
+/**
+ * Toda acción (tool_use) necesita su resultado en el mensaje siguiente o el servicio rechaza el
+ * historial entero y el chat queda trabado. Si quedó una sin resultado (ej. se guardó otro mensaje
+ * mientras esperaba confirmación), se le agrega «no se confirmó». La última, si está pendiente, queda igual.
+ */
+function withMissingResults(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const out: Anthropic.MessageParam[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    out.push(m);
+    if (m.role !== "assistant" || typeof m.content === "string" || i === messages.length - 1) continue;
+    const next = messages[i + 1];
+    const answered = new Set(
+      next.role === "user" && typeof next.content !== "string" ? next.content.flatMap((b) => (b.type === "tool_result" ? [b.tool_use_id] : [])) : []
+    );
+    const missing: Anthropic.ToolResultBlockParam[] = m.content.flatMap((b) =>
+      b.type === "tool_use" && !answered.has(b.id) ? [{ type: "tool_result" as const, tool_use_id: b.id, content: UNANSWERED_TEXT }] : []
+    );
+    if (missing.length === 0) continue;
+    if (next.role === "user") {
+      // Los resultados van primero en el mensaje de la persona.
+      const rest = typeof next.content === "string" ? [{ type: "text" as const, text: next.content }] : next.content;
+      messages = [...messages.slice(0, i + 1), { ...next, content: [...missing, ...rest] }, ...messages.slice(i + 2)];
+    } else {
+      out.push({ role: "user", content: missing });
+    }
+  }
+  return out;
+}
+
 /**
  * `messages`: los últimos HISTORY_WINDOW en orden. Empieza en un mensaje real de la persona (nunca en
  * un resultado de herramienta suelto, que el servicio rechaza) y, antes de la pregunta actual, recorta
@@ -27,7 +59,7 @@ export function trimHistory(messages: Anthropic.MessageParam[]): Anthropic.Messa
   const kept = messages.slice(start);
   let current = kept.length - 1;
   while (current > 0 && !isRealUserMessage(kept[current])) current--;
-  return kept.map((m, i) => {
+  return withMissingResults(kept).map((m, i) => {
     if (i >= current || typeof m.content === "string" || !m.content.some((b) => b.type === "tool_result")) return m;
     return {
       ...m,
