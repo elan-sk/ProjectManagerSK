@@ -23,7 +23,8 @@ const SEARCH_THRESHOLD = 6;
 
 // sequence: carrusel del visor cuando debe seguir más allá de esta grilla
 // (ej. Antes → Después de un ajuste); por defecto son las imágenes de files.
-export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; sequence?: (PublicFile & { group?: string })[] }) {
+// large: lo que se le pregunta al cliente (entregas, antes/después): la imagen completa a todo el ancho, legible sin abrirla.
+export function PublicFileGrid({ files, sequence, large = false }: { files: PublicFile[]; sequence?: (PublicFile & { group?: string })[]; large?: boolean }) {
   const [preview, setPreview] = useState<PublicFile | null>(null);
   const [openImageId, setOpenImageId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -49,7 +50,7 @@ export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; seque
         </div>
       )}
       {filtered.length === 0 && <p className="text-xs text-slate-400">Sin resultados.</p>}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className={large ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-2 sm:grid-cols-3"}>
         {filtered.map((f) => {
           const isImage = f.mimeType.startsWith("image/");
           const isLink = f.mimeType === LINK_MIME_TYPE;
@@ -59,7 +60,7 @@ export function PublicFileGrid({ files, sequence }: { files: PublicFile[]; seque
             return (
               <button key={f.id} type="button" onClick={() => setOpenImageId(f.id)} className="block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={thumbUrl(f.url, 320)} loading="lazy" alt={f.name} className="h-16 w-full rounded-lg border border-slate-200 object-cover" />
+                <img src={thumbUrl(f.url, large ? 800 : 320)} loading="lazy" alt={f.name} className={large ? "h-auto max-h-[75vh] w-full rounded-lg border border-slate-200 bg-slate-50 object-contain" : "h-16 w-full rounded-lg border border-slate-200 object-cover"} />
               </button>
             );
           }

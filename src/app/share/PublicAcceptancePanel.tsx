@@ -89,7 +89,7 @@ function ActiveAcceptanceRound({ token, round }: { token: string; round: PublicA
       {round.deliverables.length > 0 && (
         <div className="space-y-1">
           <p className="text-[18px] font-semibold text-slate-600">Entregado</p>
-          <PublicFileGrid files={round.deliverables} />
+          <PublicFileGrid files={round.deliverables} large />
         </div>
       )}
 
@@ -163,13 +163,13 @@ function PendingItemRow({
       )}
       {item.evidence.length > 0 && (
         <EvidenceGroup label="Entrega">
-          <PublicFileGrid files={item.evidence} />
+          <PublicFileGrid files={item.evidence} large />
         </EvidenceGroup>
       )}
       {(item.response || item.responseEvidence.length > 0) && (
         <EvidenceGroup label="Respuesta">
           {item.response && <p className="text-[17px] text-slate-600"><Linkify text={item.response} /></p>}
-          {item.responseEvidence.length > 0 && <PublicFileGrid files={item.responseEvidence} />}
+          {item.responseEvidence.length > 0 && <PublicFileGrid files={item.responseEvidence} large />}
         </EvidenceGroup>
       )}
 

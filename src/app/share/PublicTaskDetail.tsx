@@ -38,11 +38,11 @@ function AdjustmentComparison({ item }: { item: PublicAdjustmentItem }) {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <p className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Antes · otros archivos</p>
-            <PublicFileGrid files={restBefore} />
+            <PublicFileGrid files={restBefore} large />
           </div>
           <div className="space-y-1">
             <p className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Después · otros archivos</p>
-            <PublicFileGrid files={restAfter} />
+            <PublicFileGrid files={restAfter} large />
           </div>
         </div>
       )}
@@ -191,11 +191,11 @@ export function PublicTaskDetail({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <p className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">Antes</p>
-                  <PublicFileGrid files={item.before} sequence={beforeAfterSequence(item)} />
+                  <PublicFileGrid files={item.before} sequence={beforeAfterSequence(item)} large />
                 </div>
                 <div className="space-y-1">
                   <p className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Después</p>
-                  <PublicFileGrid files={item.after} sequence={beforeAfterSequence(item)} />
+                  <PublicFileGrid files={item.after} sequence={beforeAfterSequence(item)} large />
                 </div>
               </div>
               )}
