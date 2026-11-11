@@ -67,10 +67,15 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate, tagProjects
       <div className="space-y-2">
         {categories.map((c) => (
           <div key={c.id} className="overflow-hidden rounded-lg border border-slate-200">
-            <CategoryRow category={c} isAdmin={isAdmin} canEdit={canCreate} tagProjects={tagProjects} />
+            <CategoryRow category={c} isAdmin={isAdmin} canEdit={canCreate} />
             <div className="space-y-2 border-t border-slate-100 px-3 py-2">
               {c.tags.map((tag) => <TagRow key={tag.id} tag={tag} isAdmin={isAdmin} />)}
               {c.tags.length === 0 && <p className="text-xs text-slate-500">Sin etiquetas en los proyectos visibles.</p>}
+              {tagProjects.length > 0 && (
+                <ModalTrigger label="Agregar etiqueta" title={`Nueva etiqueta · ${c.name}`} compact icon={<PlusIcon className="h-4 w-4" />}>
+                  <NewTagForm categoryId={c.id} projects={tagProjects} />
+                </ModalTrigger>
+              )}
             </div>
           </div>
         ))}
@@ -111,7 +116,7 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate, tagProjects
   );
 }
 
-function CategoryRow({ category, isAdmin, canEdit, tagProjects }: { category: Category; isAdmin: boolean; canEdit: boolean; tagProjects: TagProject[] }) {
+function CategoryRow({ category, isAdmin, canEdit }: { category: Category; isAdmin: boolean; canEdit: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
@@ -185,17 +190,6 @@ function CategoryRow({ category, isAdmin, canEdit, tagProjects }: { category: Ca
         <span className="truncate text-sm font-medium text-slate-800">{category.name}</span>
       </button>
       <TaskCount count={category.taskCount} />
-      {tagProjects.length > 0 && (
-        <ModalTrigger
-          label=""
-          title={`Nueva etiqueta · ${category.name}`}
-          ariaLabel={`Agregar etiqueta a ${category.name}`}
-          icon={<PlusIcon className="h-4 w-4" />}
-          className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        >
-          <NewTagForm categoryId={category.id} projects={tagProjects} />
-        </ModalTrigger>
-      )}
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
       {isAdmin && (
         <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label={`Eliminar categoría ${category.name}`} onClick={handleDelete} disabled={isPending} danger />
