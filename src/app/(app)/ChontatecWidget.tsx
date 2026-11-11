@@ -37,7 +37,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
   useLayoutEffect(() => fitToContent(textRef.current), [text]);
   const [isPending, startTransition] = useTransition();
   const lastPending = messages.length > 0 ? messages[messages.length - 1].pendingAction : undefined;
-  const { attached, setAttached, openPicker, dropHandlers, fileInput, chips, dropOverlay } = useChatAttachments(!lastPending && !isPending);
+  const { attached, setAttached, uploading, openPicker, dropHandlers, fileInput, chips, dropOverlay } = useChatAttachments(!lastPending && !isPending);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   // Respuestas que llegaron con el chat cerrado: insignia sobre el ícono hasta que se abra.
   const [unread, setUnread] = useState(0);
@@ -378,6 +378,7 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
                   onSend={() => handleSend()}
                   canWrite={!lastPending && !isPending && voice.state !== "transcribing"}
                   hasAttachments={attached.length > 0}
+                  uploading={uploading}
                   openPicker={openPicker}
                   fileInput={fileInput}
                   chips={<>{chatContext && (

@@ -86,7 +86,7 @@ export function GuidedAssistant({ botName, botAvatarUrl, subtitle, exitHref, int
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const lastPending = messages.length > 0 ? messages[messages.length - 1].pendingAction : undefined;
-  const { attached, setAttached, openPicker, dropHandlers, fileInput, chips, dropOverlay } = useChatAttachments(!lastPending && !isPending);
+  const { attached, setAttached, uploading, openPicker, dropHandlers, fileInput, chips, dropOverlay } = useChatAttachments(!lastPending && !isPending);
   const voice = useVoiceRecorder((spoken) => send(appendDictation(text, spoken)));
 
   useEffect(() => {
@@ -280,6 +280,7 @@ export function GuidedAssistant({ botName, botAvatarUrl, subtitle, exitHref, int
                   onSend={() => send(text)}
                   canWrite={canWrite}
                   hasAttachments={attached.length > 0}
+                  uploading={uploading}
                   openPicker={openPicker}
                   fileInput={fileInput}
                   chips={chips}

@@ -199,6 +199,7 @@ export function AssistantComposer({
   onSend,
   canWrite,
   hasAttachments,
+  uploading = false,
   openPicker,
   fileInput,
   chips,
@@ -211,6 +212,7 @@ export function AssistantComposer({
   onSend: () => void;
   canWrite: boolean;
   hasAttachments: boolean;
+  uploading?: boolean;
   openPicker: () => void;
   fileInput: ReactNode;
   chips: ReactNode;
@@ -244,7 +246,7 @@ export function AssistantComposer({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                onSend();
+                if (!uploading) onSend();
               }
             }}
             placeholder={placeholder}
@@ -266,7 +268,7 @@ export function AssistantComposer({
             <button
               type="button"
               onClick={onSend}
-              disabled={!canWrite || (!text.trim() && !hasAttachments)}
+              disabled={!canWrite || uploading || (!text.trim() && !hasAttachments)}
               aria-label="Enviar"
               title="Enviar"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-[#073b4c] text-white hover:bg-[#0a6b78] disabled:bg-slate-200 disabled:text-slate-400"
