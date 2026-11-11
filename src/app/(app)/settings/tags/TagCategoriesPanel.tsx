@@ -4,12 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { useConfirm } from "@/components/Confirm";
 import { ToolbarButton } from "@/components/ToolbarButton";
-import { TrashIcon } from "@/components/icons";
+import { PlusIcon, TrashIcon } from "@/components/icons";
+import { ModalTrigger, useModalClose } from "@/components/Modal";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { EmojiButton } from "@/components/EmojiButton";
 import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
-import { createTagCategory, updateTagCategory, deleteTagCategory, deleteTag, updateTag } from "./tagActions";
+import { createTagCategory, updateTagCategory, deleteTagCategory, createTag, deleteTag, updateTag } from "./tagActions";
 
 import type { TagCategorySummary as Category } from "@/lib/tagSummary";
+
+type TagProject = { id: string; name: string };
 
 export function ColorSwatchPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
   return (
@@ -30,7 +34,7 @@ export function ColorSwatchPicker({ value, onChange }: { value: string; onChange
   );
 }
 
-export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categories: Category[]; isAdmin: boolean; canCreate: boolean }) {
+export function TagCategoriesPanel({ categories, isAdmin, canCreate, tagProjects }: { categories: Category[]; isAdmin: boolean; canCreate: boolean; tagProjects: TagProject[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -63,7 +67,7 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categor
       <div className="space-y-2">
         {categories.map((c) => (
           <div key={c.id} className="overflow-hidden rounded-lg border border-slate-200">
-            <CategoryRow category={c} isAdmin={isAdmin} canEdit={canCreate} />
+            <CategoryRow category={c} isAdmin={isAdmin} canEdit={canCreate} tagProjects={tagProjects} />
             <div className="space-y-2 border-t border-slate-100 px-3 py-2">
               {c.tags.map((tag) => <TagRow key={tag.id} tag={tag} isAdmin={isAdmin} />)}
               {c.tags.length === 0 && <p className="text-xs text-slate-500">Sin etiquetas en los proyectos visibles.</p>}
@@ -107,7 +111,7 @@ export function TagCategoriesPanel({ categories, isAdmin, canCreate }: { categor
   );
 }
 
-function CategoryRow({ category, isAdmin, canEdit }: { category: Category; isAdmin: boolean; canEdit: boolean }) {
+function CategoryRow({ category, isAdmin, canEdit, tagProjects }: { category: Category; isAdmin: boolean; canEdit: boolean; tagProjects: TagProject[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [error, setError] = useState<string | null>(null);
@@ -181,11 +185,66 @@ function CategoryRow({ category, isAdmin, canEdit }: { category: Category; isAdm
         <span className="truncate text-sm font-medium text-slate-800">{category.name}</span>
       </button>
       <TaskCount count={category.taskCount} />
+      {tagProjects.length > 0 && (
+        <ModalTrigger
+          label=""
+          title={`Nueva etiqueta · ${category.name}`}
+          ariaLabel={`Agregar etiqueta a ${category.name}`}
+          icon={<PlusIcon className="h-4 w-4" />}
+          className="flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <NewTagForm categoryId={category.id} projects={tagProjects} />
+        </ModalTrigger>
+      )}
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
       {isAdmin && (
         <ToolbarButton icon={<TrashIcon className="h-4 w-4" />} label={`Eliminar categoría ${category.name}`} onClick={handleDelete} disabled={isPending} danger />
       )}
     </div>
+  );
+}
+
+function NewTagForm({ categoryId, projects }: { categoryId: string; projects: TagProject[] }) {
+  const router = useRouter();
+  const close = useModalClose();
+  const [isPending, startTransition] = useTransition();
+  const [projectId, setProjectId] = useState(projects.length === 1 ? projects[0].id : "");
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!projectId) return setError("Falta elegir el proyecto.");
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await createTag(categoryId, projectId, name);
+        if (!result.ok) return setError(result.error);
+        router.refresh();
+        close();
+      } catch {
+        setError("No se pudo crear la etiqueta. Se puede intentar nuevamente.");
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="block text-xs text-slate-600">
+        Proyecto
+        <div className="mt-1">
+          <SearchableSelect name="projectId" options={projects.map((p) => ({ id: p.id, label: p.name }))} defaultValue={projectId} onChange={setProjectId} placeholder="Elegir proyecto…" />
+        </div>
+      </div>
+      <label className="block text-xs text-slate-600">
+        Nombre de la etiqueta
+        <input autoFocus required maxLength={80} value={name} disabled={isPending} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </label>
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+      <button type="submit" disabled={isPending || !name.trim() || !projectId} className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+        {isPending ? "Creando…" : "Crear etiqueta"}
+      </button>
+    </form>
   );
 }
 

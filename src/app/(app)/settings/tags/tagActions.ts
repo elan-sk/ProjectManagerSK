@@ -84,6 +84,28 @@ export async function deleteTagCategory(categoryId: string, actor?: Actor) {
   return { ok: true as const };
 }
 
+// Etiqueta nueva desde Configuración: mismo permiso que renombrarla (admin o PM del proyecto).
+export async function createTag(categoryId: string, projectId: string, rawName: string) {
+  const user = await resolveActor();
+  if (!user) return { ok: false as const, error: "Se necesita iniciar sesión." };
+  const name = tagNameSchema.safeParse(rawName);
+  if (!name.success) return { ok: false as const, error: "El nombre debe tener entre 1 y 80 caracteres." };
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, AND: [visibleProjectWhere(user, { includeArchived: true }), ...(user.role === "ADMIN" ? [] : [managedProjectWhere(user.id)])] },
+    select: { id: true },
+  });
+  if (!project) return { ok: false as const, error: "No hay permiso para crear etiquetas en ese proyecto." };
+  try {
+    const exists = await prisma.tag.findUnique({ where: { projectId_categoryId_name: { projectId, categoryId, name: name.data } }, select: { id: true } });
+    if (exists) return { ok: false as const, error: "Ya existe una etiqueta con ese nombre en esta categoría y proyecto." };
+    await upsertTag(projectId, categoryId, name.data);
+  } catch {
+    return { ok: false as const, error: "No se pudo crear la etiqueta. Se puede intentar nuevamente." };
+  }
+  revalidate();
+  return { ok: true as const };
+}
+
 export async function updateTag(tagId: string, rawName: string) {
   const user = await resolveActor();
   if (!user) return { ok: false as const, error: "Se necesita iniciar sesión." };
