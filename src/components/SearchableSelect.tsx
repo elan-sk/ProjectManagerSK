@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { normalizeSearchText } from "@/lib/search";
+import { useFixedBelow } from "@/components/AnchoredPopover";
 
 /**
  * Select con buscador para un <form> — mismo look/UX que ComboFilter
@@ -35,11 +37,15 @@ export function SearchableSelect({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // La lista va en portal, fija debajo del botón: así no la recorta el scroll de un popup.
+  const panelStyle = useFixedBelow(rootRef, open, false);
 
   useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false);
         setQuery("");
       }
@@ -76,8 +82,8 @@ export function SearchableSelect({
         ) : allowCustom && value ? value : <span className="text-slate-400">{placeholder}</span>}
       </button>
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
+      {panelStyle && createPortal(
+        <div ref={panelRef} style={{ ...panelStyle, width: panelStyle.minWidth }} className="z-[70] rounded-2xl bg-white p-2 shadow-[0_4px_8px_rgba(15,23,42,0.08),0_16px_40px_rgba(15,23,42,0.12)]">
           <input
             autoFocus
             value={query}
@@ -121,7 +127,8 @@ export function SearchableSelect({
             )}
             {filtered.length === 0 && !showCustom && <p className="px-2.5 py-1.5 text-xs text-slate-400">Sin resultados.</p>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
