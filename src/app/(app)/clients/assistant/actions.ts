@@ -6,10 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { getBotSettings } from "@/lib/botSettings";
 import { confirmModeAction, getModeHistory, sendModeMessage } from "@/lib/chontatec";
 import { clientAssistantMode, clientChannel, clientSteps } from "@/lib/projectAssistant";
+import { canUseClientAssistant } from "@/lib/clients";
 
 async function requireAdminId(clientId: string | null) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") throw new Error("Esta sección es solo para administradores.");
+  if (!session?.user || !(await canUseClientAssistant(session.user, clientId))) throw new Error("No tiene permiso para usar el asistente de clientes.");
   if (clientId && !(await prisma.client.count({ where: { id: clientId } }))) throw new Error("Ese cliente ya no existe.");
   return session.user.id;
 }

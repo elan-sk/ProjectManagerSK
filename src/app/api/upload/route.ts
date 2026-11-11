@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAnyUser } from "@/lib/apiAuth";
-import { prisma } from "@/lib/prisma";
 import { saveUploadedFile } from "@/lib/uploadFile";
+import { isPmAnywhere } from "@/lib/permissions";
 
 // ponytail: guarda en public/uploads/ para el prototipo local. Al pasar a
 // Hostinger/producción, cambiar esto por un put() a Supabase Storage — el
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!file) return NextResponse.json({ error: "Falta el archivo" }, { status: 400 });
 
   // HTML: solo admin o PM de algún proyecto (ver saveUploadedFile).
-  const allowHtml = auth.actor.role === "ADMIN" || Boolean(await prisma.project.findFirst({ where: { pmId: auth.actor.id }, select: { id: true } }));
+  const allowHtml = auth.actor.role === "ADMIN" || (await isPmAnywhere(auth.actor.id));
   const result = await saveUploadedFile(file, { allowHtml });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ url: result.url, name: result.name, mimeType: result.mimeType });

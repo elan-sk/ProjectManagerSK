@@ -85,8 +85,8 @@ export async function deleteTagCategory(categoryId: string, actor?: Actor) {
 }
 
 // Etiqueta nueva desde Configuración: mismo permiso que renombrarla (admin o PM del proyecto).
-export async function createTag(categoryId: string, projectId: string, rawName: string) {
-  const user = await resolveActor();
+export async function createTag(categoryId: string, projectId: string, rawName: string, actor?: Actor) {
+  const user = await resolveActor(actor);
   if (!user) return { ok: false as const, error: "Se necesita iniciar sesión." };
   const name = tagNameSchema.safeParse(rawName);
   if (!name.success) return { ok: false as const, error: "El nombre debe tener entre 1 y 80 caracteres." };
@@ -95,19 +95,21 @@ export async function createTag(categoryId: string, projectId: string, rawName: 
     select: { id: true },
   });
   if (!project) return { ok: false as const, error: "No hay permiso para crear etiquetas en ese proyecto." };
+  if (!(await prisma.tagCategory.count({ where: { id: categoryId } }))) return { ok: false as const, error: "Esa categoría de etiqueta ya no existe." };
+  let tag: { id: string; name: string };
   try {
     const exists = await prisma.tag.findUnique({ where: { projectId_categoryId_name: { projectId, categoryId, name: name.data } }, select: { id: true } });
     if (exists) return { ok: false as const, error: "Ya existe una etiqueta con ese nombre en esta categoría y proyecto." };
-    await upsertTag(projectId, categoryId, name.data);
+    tag = await upsertTag(projectId, categoryId, name.data);
   } catch {
     return { ok: false as const, error: "No se pudo crear la etiqueta. Se puede intentar nuevamente." };
   }
   revalidate();
-  return { ok: true as const };
+  return { ok: true as const, tag: { id: tag.id, name: tag.name } };
 }
 
-export async function updateTag(tagId: string, rawName: string) {
-  const user = await resolveActor();
+export async function updateTag(tagId: string, rawName: string, actor?: Actor) {
+  const user = await resolveActor(actor);
   if (!user) return { ok: false as const, error: "Se necesita iniciar sesión." };
   const name = tagNameSchema.safeParse(rawName);
   if (!name.success) return { ok: false as const, error: "El nombre debe tener entre 1 y 80 caracteres." };
@@ -132,8 +134,8 @@ export async function updateTag(tagId: string, rawName: string) {
   return { ok: true as const };
 }
 
-export async function deleteTag(tagId: string) {
-  const user = await resolveActor();
+export async function deleteTag(tagId: string, actor?: Actor) {
+  const user = await resolveActor(actor);
   if (!user || user.role !== "ADMIN") {
     return { ok: false as const, error: "Solo un administrador puede eliminar etiquetas." };
   }

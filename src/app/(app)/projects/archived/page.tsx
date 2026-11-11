@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { visibleProjectWhere } from "@/lib/permissions";
+import { visibleProjectWhere, isPmAnywhere } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getProjectSummaryRows } from "@/lib/projectSummaries";
 import { ProjectSummaryGrid } from "../ProjectSummaryGrid";
@@ -15,7 +15,7 @@ export default async function ArchivedProjectsPage({ searchParams }: { searchPar
   const { pid, health } = await searchParams;
 
   const isAdmin = session.user.role === "ADMIN";
-  const isPM = !isAdmin && (await prisma.project.count({ where: { pmId: session.user.id } })) > 0;
+  const isPM = !isAdmin && (await isPmAnywhere(session.user.id));
   const myAssignedProjectIds =
     isAdmin || isPM
       ? null

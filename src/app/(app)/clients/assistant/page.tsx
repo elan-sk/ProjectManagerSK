@@ -3,18 +3,20 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getBotSettings } from "@/lib/botSettings";
 import { ClientAssistant } from "./ClientAssistant";
+import { canUseClientAssistant } from "@/lib/clients";
 
 export default async function ClientAssistantPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") {
+  const clientId = (await searchParams).client || null;
+  // Cliente nuevo: administrador o coordinador (canCreateClients); completar uno existente, solo administrador.
+  if (!(await canUseClientAssistant(session.user, clientId))) {
     return (
       <div className="mx-auto max-w-xl rounded-3xl border border-slate-100 bg-white p-8 text-center">
-        <p className="text-[17px] text-slate-700">Esta sección es solo para administradores.</p>
+        <p className="text-[17px] text-slate-700">{clientId ? "Completar la ficha de un cliente es solo para administradores." : "Registrar clientes nuevos es solo para administradores y coordinadores."}</p>
       </div>
     );
   }
-  const clientId = (await searchParams).client || null;
   const client = clientId ? await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } }) : null;
   if (clientId && !client) notFound();
   const bot = await getBotSettings();

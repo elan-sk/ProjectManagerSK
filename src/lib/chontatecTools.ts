@@ -24,7 +24,7 @@ import { setTaskReviewers, submitReviewRound } from "@/app/(app)/projects/[id]/t
 import { setProjectRole, removeProjectRole } from "@/app/(app)/projects/[id]/roleActions";
 import { newSubprojectParentError } from "@/lib/subprojectsServer";
 import { setProjectParent } from "@/app/(app)/projects/[id]/subprojectActions";
-import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm, PM_OWNER_SELECT, canCreateProjects, NO_CREATE_PROJECT } from "@/lib/permissions";
+import { requireProjectAdmin, visibleProjectWhere, LIVE_PROJECT_WHERE, trustedActor, type Actor, managedProjectWhere, isProjectPm, PM_OWNER_SELECT, canCreateProjects, NO_CREATE_PROJECT, isPmAnywhere, managedProjectIds } from "@/lib/permissions";
 import {
   addAdjustmentItems,
   addAdjustmentAttachments,
@@ -45,7 +45,8 @@ import {
   setDefaultTestTemplate,
   updateAdjustmentItem,
 } from "@/lib/taskDesign";
-import { canManageTemplates } from "@/lib/testTemplateApi";
+import { canManageTemplates, templateExists, templateItemExists, itemFormData } from "@/lib/testTemplateApi";
+import { createTestTemplate, updateTestTemplate, deleteTestTemplate, addTestTemplateItem, updateTestTemplateItem, deleteTestTemplateItem } from "@/app/(app)/settings/tests/testActions";
 import { getProjectForecast, scheduleForApi } from "@/lib/scheduleForecast";
 import { commentInputSchema, listProjectThreads, listTaskThreads, postProjectComment, postTaskComment, PROJECT_SCOPES, setPollClosed, TASK_SCOPES, votePoll } from "@/lib/threadsApi";
 import { reopenAdjustmentReview } from "@/app/(app)/projects/[id]/tasks/[taskId]/shareThreadActions";
@@ -85,7 +86,7 @@ import { contextActor } from "@/lib/actorContext";
 import { normalizePhone, toWhatsAppText } from "@/lib/whatsappFormat";
 import { getWhatsAppSettings } from "@/lib/appSettings";
 import { notify } from "@/lib/notifications";
-import { setTaskTag, removeTaskTag, createTagCategory, updateTagCategory, deleteTagCategory } from "@/app/(app)/settings/tags/tagActions";
+import { setTaskTag, removeTaskTag, createTagCategory, updateTagCategory, deleteTagCategory, createTag, updateTag, deleteTag } from "@/app/(app)/settings/tags/tagActions";
 import { categoryForm } from "@/lib/tagCategoryInput";
 import { TAG_CATEGORY_COLORS } from "@/lib/tagColors";
 import { tagLabel as sharedTagLabel } from "@/lib/tagFilter";
@@ -331,7 +332,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_test_templates",
-    description: "Lista las plantillas de pruebas (id, nombre y cantidad de pruebas) para elegir la de una tarea de tipo Prueba. Solo para revisores, PM o administradores.",
+    description: "Lista las plantillas de pruebas (id, nombre y sus pruebas: id, título y categoría) para elegir la del tipo de componente de una tarea de tipo Prueba. Solo para revisores, PM o administradores.",
     input_schema: { type: "object", properties: {} },
   },
   {
@@ -397,6 +398,28 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { taskId: { type: "string" }, templateId: { type: ["string", "null"], description: "null para quitarla." } },
       required: ["taskId", "templateId"],
+    },
+  },
+  {
+    name: "manage_test_template",
+    description:
+      "Gestiona las plantillas de pruebas (las mismas de Configuración → Pruebas), que son por TIPO de componente y se reutilizan entre proyectos: create (name = el tipo, ej. «Carrusel / slider»; items opcionales), rename (templateId, name), add_items (templateId, items), update_item (itemId, title, criteria?, category?; reescribe la prueba completa), delete_item (itemId) o delete (templateId). Crear, renombrar, agregar y editar: revisor, PM o admin; borrar: solo admin. Cambiarla no toca las rondas donde ya se aplicó.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "create | rename | add_items | update_item | delete_item | delete" },
+        templateId: { type: "string" },
+        itemId: { type: "string" },
+        name: { type: "string" },
+        title: { type: "string" },
+        criteria: { type: "string", description: "Un punto por línea." },
+        category: { type: "string" },
+        items: {
+          type: "array",
+          items: { type: "object", properties: { title: { type: "string" }, criteria: { type: "string" }, category: { type: "string" } }, required: ["title"] },
+        },
+      },
+      required: ["action"],
     },
   },
   {
@@ -721,6 +744,22 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "manage_tag",
+    description:
+      "Gestiona las etiquetas de un proyecto (dentro de una categoría), igual que Configuración → Etiquetas: create (categoryId, projectId, name) crea una etiqueta sin ponerla en ninguna tarea; rename (tagId, name) cambia el nombre en todas sus tareas; delete (tagId; solo un administrador) la quita de sus tareas, que se conservan. Crear y renombrar: PM del proyecto o admin. Ids en list_tags con projectId. Para ponerle una etiqueta a una tarea, set_task_tag (la crea si no existe).",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: "create | rename | delete" },
+        categoryId: { type: "string" },
+        projectId: { type: "string" },
+        tagId: { type: "string" },
+        name: { type: "string" },
+      },
+      required: ["action"],
+    },
+  },
+  {
     name: "manage_phase",
     description:
       "Gestiona fases de un proyecto: create (name), rename (phaseId, name), reorder (orderedPhaseIds con TODAS las fases en el orden nuevo) o delete (phaseId; solo si no tiene tareas).",
@@ -934,7 +973,7 @@ export function isDestructiveTool(name: string, input: unknown) {
   if (DESTRUCTIVE_TOOL_NAMES.has(name)) return true;
   const action = (input as { action?: string } | null)?.action;
   if (name === "manage_share_link" && action === "revoke") return true;
-  return name.startsWith("manage_") && action === "delete";
+  return name.startsWith("manage_") && (action === "delete" || action === "delete_item");
 }
 const ADMIN_ONLY_TOOLS = new Set(["archive_project", "send_daily_digest", "send_welcome_message"]);
 const ADVANCED_TOOL_NAMES = new Set(ADVANCED_WRITE_TOOLS.map((t) => t.name));
@@ -946,8 +985,9 @@ async function assertToolAllowed(userId: string, name: string) {
   if (!ADVANCED_TOOL_NAMES.has(name)) return;
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
   const isAdmin = user.role === "ADMIN";
-  const isPM = isAdmin || (await prisma.project.count({ where: { pmId: userId } })) > 0;
-  if (!isPM) throw new Error("Esa acción es solo para administradores o PM.");
+  // El Coordinador crea proyectos y clientes aunque todavía no sea PM de ninguno; cada acción revalida su permiso.
+  const isPM = isAdmin || user.role === "COORDINATOR" || (await isPmAnywhere(userId));
+  if (!isPM) throw new Error("Esa acción es solo para administradores, coordinadores o PM.");
   if (ADMIN_ONLY_TOOLS.has(name) && !isAdmin) throw new Error("Esa acción es solo para administradores.");
 }
 
@@ -959,9 +999,9 @@ const MEMBER_WRITE_TOOLS = WRITE_TOOLS.filter(
   (tool) => tool.name !== "send_whatsapp_message" && tool.name !== "send_whatsapp_group_message"
 );
 
-// Solo admins y PM pueden proponer mensajes individuales de WhatsApp. Para
-// miembros, la única comunicación individual automática es el resumen diario;
-// por eso ni siquiera reciben esta tool en el chat.
+// Solo admins y PM pueden proponer mensajes de WhatsApp desde el chat; los
+// miembros reciben solo los avisos automáticos de la app, así que ni siquiera
+// tienen esta herramienta.
 async function uploadedInConversation(userId: string, url: string) {
   const own = await prisma.botMessage.findMany({ where: { userId, role: "user" }, orderBy: { createdAt: "desc" }, take: 300, select: { content: true } });
   return own.some((m) => m.content.includes(url));
@@ -979,7 +1019,7 @@ export async function getToolsForUser(userId: string): Promise<Anthropic.Tool[]>
 
 async function isAdminOrPm(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
-  return user.role === "ADMIN" || (await prisma.project.count({ where: { pmId: userId } })) > 0;
+  return user.role === "ADMIN" || user.role === "COORDINATOR" || (await isPmAnywhere(userId));
 }
 
 // Quien conversa, con su rol real: los servicios de diseño y de hilos aplican el mismo permiso que la app.
@@ -1304,8 +1344,8 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
     case "list_test_templates": {
       const role = (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } })).role;
       if (!(await canManageTemplates(trustedActor({ id: userId, role })))) return JSON.stringify({ error: "Las plantillas de pruebas solo las ven revisores, PM o administradores." });
-      const templates = await prisma.testTemplate.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { items: true } } } });
-      return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t._count.items })));
+      const templates = await prisma.testTemplate.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, items: { orderBy: { order: "asc" }, select: { id: true, title: true, category: true } } } });
+      return JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, tests: t.items })));
     }
 
     case "get_learnings": {
@@ -1318,7 +1358,7 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
     case "get_team_performance": {
       const { projectId } = z.object({ projectId: z.string().optional() }).parse(input);
       const me = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, role: true } });
-      const managed = me.role === "ADMIN" ? null : (await prisma.project.findMany({ where: { pmId: me.id }, select: { id: true } })).map((p) => p.id);
+      const managed = me.role === "ADMIN" ? null : await managedProjectIds(me.id);
       if (projectId && managed && !managed.includes(projectId)) {
         if (!hasAccess(await getAccessibleProjectIds(userId), projectId)) return JSON.stringify(NO_ACCESS);
       }
@@ -1358,10 +1398,10 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
       if (!hasAccess(await getAccessibleProjectIds(userId), projectId)) return JSON.stringify(NO_ACCESS);
       const tags = await prisma.tag.findMany({
         where: { projectId },
-        select: { categoryId: true, name: true, _count: { select: { taskTags: true } } },
+        select: { id: true, categoryId: true, name: true, _count: { select: { taskTags: true } } },
         orderBy: { name: "asc" },
       });
-      return JSON.stringify({ categories, tags: tags.map((t) => ({ categoryId: t.categoryId, name: t.name, tasks: t._count.taskTags })) });
+      return JSON.stringify({ categories, tags: tags.map((t) => ({ id: t.id, categoryId: t.categoryId, name: t.name, tasks: t._count.taskTags })) });
     }
 
     case "get_task_design":
@@ -1685,6 +1725,26 @@ function baseSummary(name: string, input: unknown, names: Map<string, string>): 
         "Gestionar categorías de etiqueta"
       );
     }
+    case "manage_test_template": {
+      const { action, name: tplName, items } = input as { action?: string; name?: string; items?: unknown[] };
+      return (
+        {
+          create: `Crear la plantilla de pruebas «${tplName ?? ""}»${items?.length ? ` con ${items.length} prueba(s)` : ""}`,
+          rename: `Renombrar la plantilla de pruebas a «${tplName ?? ""}»`,
+          add_items: `Agregar ${items?.length ?? 0} prueba(s) a la plantilla`,
+          update_item: "Editar una prueba de la plantilla",
+          delete_item: "⚠️ Quitar una prueba de la plantilla (no se puede deshacer)",
+          delete: "⚠️ Eliminar la plantilla de pruebas (no se puede deshacer)",
+        }[action ?? ""] ?? "Gestionar plantillas de pruebas"
+      );
+    }
+    case "manage_tag": {
+      const { action, name: tagName } = input as { action?: string; name?: string };
+      return (
+        { create: `Crear la etiqueta «${tagName ?? ""}»`, rename: `Renombrar la etiqueta a «${tagName ?? ""}»`, delete: "⚠️ Eliminar la etiqueta de todas sus tareas (no se puede deshacer)" }[action ?? ""] ??
+        "Gestionar etiquetas"
+      );
+    }
     case "set_task_cover": {
       const { cover } = input as { cover?: string };
       return cover === "none" ? "Quitar la portada de la tarea" : cover === "first" ? "Usar la primera imagen como portada" : "Cambiar la portada de la tarea";
@@ -1902,9 +1962,9 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
         const senderId = await currentUserId();
         const [sender, managedProjects] = await Promise.all([
           prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
-          prisma.project.count({ where: { pmId: senderId } }),
+          isPmAnywhere(senderId),
         ]);
-        if (sender.role !== "ADMIN" && managedProjects === 0) {
+        if (sender.role !== "ADMIN" && !managedProjects) {
           return { ok: false, message: "Solo un administrador o PM puede enviar WhatsApp individuales desde el chat." };
         }
         const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { phone: true, name: true } });
@@ -2169,6 +2229,87 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
           categoryForm({ name: parsed.name ?? current.name, colorHex: parsed.colorHex ?? current.colorHex, emoji: parsed.emoji === undefined ? current.emoji : parsed.emoji })
         );
         return result.ok ? { ok: true, message: "Listo, se actualizó la categoría." } : { ok: false, message: result.error };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_test_template": {
+      try {
+        const item = z.object({ title: z.string().trim().min(1), criteria: z.string().optional(), category: z.string().optional() });
+        const parsed = z
+          .object({
+            action: z.enum(["create", "rename", "add_items", "update_item", "delete_item", "delete"]),
+            templateId: z.string().optional(),
+            itemId: z.string().optional(),
+            name: z.string().optional(),
+            title: z.string().optional(),
+            criteria: z.string().optional(),
+            category: z.string().optional(),
+            items: z.array(item).optional(),
+          })
+          .parse(input);
+        const addItems = async (templateId: string) => {
+          for (const it of parsed.items ?? []) {
+            const r = await addTestTemplateItem(templateId, itemFormData(it));
+            if (!r.ok) return r.error;
+          }
+          return null;
+        };
+        if (parsed.action === "create") {
+          const form = new FormData();
+          form.set("name", parsed.name ?? "");
+          const created = await createTestTemplate(form);
+          if (!created.ok) return { ok: false, message: created.error };
+          const failed = await addItems(created.id);
+          if (failed) return { ok: false, message: `Se creó la plantilla, pero no se pudieron cargar todas sus pruebas: ${failed}` };
+          return { ok: true, message: withHiddenIds(`Listo, se creó la plantilla «${parsed.name?.trim()}» con ${parsed.items?.length ?? 0} prueba(s).`, { templateId: created.id }) };
+        }
+        if (parsed.action === "update_item" || parsed.action === "delete_item") {
+          if (!parsed.itemId || !(await templateItemExists(parsed.itemId))) return { ok: false, message: "Esa prueba de la plantilla ya no existe." };
+          if (parsed.action === "delete_item") {
+            const r = await deleteTestTemplateItem(parsed.itemId);
+            return r.ok ? { ok: true, message: "Listo, se quitó la prueba de la plantilla." } : { ok: false, message: r.error };
+          }
+          const r = await updateTestTemplateItem(parsed.itemId, itemFormData({ title: parsed.title ?? "", criteria: parsed.criteria, category: parsed.category }));
+          return r.ok ? { ok: true, message: "Listo, se actualizó la prueba de la plantilla." } : { ok: false, message: r.error };
+        }
+        if (!parsed.templateId || !(await templateExists(parsed.templateId))) return { ok: false, message: "Esa plantilla de pruebas ya no existe." };
+        if (parsed.action === "rename") {
+          const r = await updateTestTemplate(parsed.templateId, parsed.name ?? "");
+          return r.ok ? { ok: true, message: `Listo, la plantilla ahora se llama «${parsed.name?.trim()}».` } : { ok: false, message: r.error };
+        }
+        if (parsed.action === "delete") {
+          const r = await deleteTestTemplate(parsed.templateId);
+          return r.ok ? { ok: true, message: "Listo, se eliminó la plantilla de pruebas." } : { ok: false, message: r.error };
+        }
+        if (!parsed.items?.length) return { ok: false, message: "Falta indicar las pruebas que se agregan." };
+        const failed = await addItems(parsed.templateId);
+        return failed ? { ok: false, message: failed } : { ok: true, message: `Listo, se agregaron ${parsed.items.length} prueba(s) a la plantilla.` };
+      } catch (err) {
+        return { ok: false, message: (err as Error).message };
+      }
+    }
+
+    case "manage_tag": {
+      try {
+        const parsed = z
+          .object({ action: z.enum(["create", "rename", "delete"]), categoryId: z.string().optional(), projectId: z.string().optional(), tagId: z.string().optional(), name: z.string().optional() })
+          .parse(input);
+        if (parsed.action === "create") {
+          if (!parsed.categoryId || !parsed.projectId || !parsed.name?.trim()) return { ok: false, message: "Falta indicar la categoría, el proyecto y el nombre de la etiqueta." };
+          const result = await createTag(parsed.categoryId, parsed.projectId, parsed.name);
+          if (!result.ok) return { ok: false, message: result.error };
+          return { ok: true, message: withHiddenIds(`Listo, se creó la etiqueta «${result.tag.name}».`, { tagId: result.tag.id, projectId: parsed.projectId }) };
+        }
+        if (!parsed.tagId) return { ok: false, message: "Falta indicar la etiqueta." };
+        if (parsed.action === "delete") {
+          const result = await deleteTag(parsed.tagId);
+          return result.ok ? { ok: true, message: "Listo, se eliminó la etiqueta; sus tareas se conservan." } : { ok: false, message: result.error };
+        }
+        if (!parsed.name?.trim()) return { ok: false, message: "Falta indicar el nombre nuevo." };
+        const result = await updateTag(parsed.tagId, parsed.name);
+        return result.ok ? { ok: true, message: `Listo, la etiqueta ahora se llama «${parsed.name.trim()}».` } : { ok: false, message: result.error };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
       }

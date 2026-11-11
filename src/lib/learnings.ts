@@ -7,6 +7,7 @@ import { computeIndicators, indicatorsAsText } from "@/lib/companyIndicators";
 import { getCompanyProfile } from "@/lib/companyProfile";
 import { notify } from "@/lib/notifications";
 import { appUrl } from "@/lib/appUrl";
+import { managedProjectWhere, managedProjectIds } from "@/lib/permissions";
 
 export const LEARNING_TOPICS = ["Plazos", "Pruebas y calidad", "Ajustes y cambios", "Aceptación del cliente", "Equipo y carga", "Clientes", "Procesos"] as const;
 export const LEARNING_STATUS_LABEL: Record<LearningStatus, string> = { PROPOSED: "Propuesta", APPLIED: "Aplicada", DISCARDED: "Descartada" };
@@ -18,13 +19,13 @@ const NO_ACCESS = { ok: false as const, status: 403, error: "No tiene acceso a e
 export function learningVisibleWhere(viewer: Viewer): Prisma.LearningWhereInput {
   const live = { OR: [{ projectId: null }, { project: { status: { not: "ARCHIVED" as const } } }] };
   if (viewer.role === "ADMIN") return live;
-  return { AND: [live, { project: { pmId: viewer.id } }, { personId: null }] };
+  return { AND: [live, { project: managedProjectWhere(viewer.id) }, { personId: null }] };
 }
 
 export async function canManageScope(viewer: Viewer, projectId: string | null): Promise<boolean> {
   if (viewer.role === "ADMIN") return true;
   if (!projectId) return false;
-  return (await prisma.project.count({ where: { id: projectId, pmId: viewer.id } })) > 0;
+  return (await prisma.project.count({ where: { id: projectId, ...managedProjectWhere(viewer.id) } })) > 0;
 }
 
 export async function listLearnings(viewer: Viewer, filter: { projectId?: string | null; status?: LearningStatus; topic?: string } = {}) {
@@ -140,7 +141,7 @@ type Conn = NonNullable<Awaited<ReturnType<typeof getBotConnection>>>;
 
 async function askAi(conn: Conn, system: string, user: string, tools: Anthropic.Tool[]): Promise<{ ok: true; content: Anthropic.ContentBlock[] } | { ok: false; status: number; error: string }> {
   try {
-    const deadline = Date.now() + 50_000;
+    const deadline = Date.now() + 110_000; // mismo tope que el chat (LOOP_BUDGET_MS en chontatec.ts)
     if (conn.format === "anthropic") {
       const client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseURL ?? undefined });
       const r = await client.messages.create(
@@ -281,7 +282,7 @@ Estructura: «# Plan de mejora — ${scope}»; ${slides ? "una diapositiva por s
 }
 
 export async function appliedRulesText(viewer: Viewer): Promise<string> {
-  const managed = viewer.role === "ADMIN" ? null : (await prisma.project.findMany({ where: { pmId: viewer.id }, select: { id: true } })).map((p) => p.id);
+  const managed = viewer.role === "ADMIN" ? null : await managedProjectIds(viewer.id);
   const rows = await prisma.learning.findMany({
     where: {
       status: "APPLIED",

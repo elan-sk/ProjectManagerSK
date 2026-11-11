@@ -1,4 +1,4 @@
-import { canCreateProjects } from "@/lib/permissions";
+import { canCreateProjects, managedProjectWhere } from "@/lib/permissions";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getBotConnection, getBotSettings, getBotPersonaPrompt, checkAndConsumeBotQuestion } from "@/lib/botSettings";
@@ -34,13 +34,13 @@ Reglas:
 - Preguntas de análisis (próxima tarea por vencer, qué hacer en paralelo): traé los datos con list_project_tasks o get_schedule_analysis y razoná vos.
 - Varias escrituras independientes: proponelas TODAS en la misma respuesta (se confirman una sola vez). Dividí solo si una necesita el resultado de otra.
 - Autorización: el botón «Confirmar» (en WhatsApp, la encuesta) ES la autorización. Cuando ya está claro qué hacer, proponé la acción directo con una frase de qué vas a hacer; nunca preguntes antes en texto «¿lo hago?», «¿lo creo?» ni esperes un «sí»: eso obliga a autorizar dos veces. Preguntá en texto solo si falta un dato o hay que elegir entre opciones.
-- Podés proponer escrituras cuando te las pidan explícitamente (o como siguiente paso, ver «Guiá, no solo ejecutes»): estado de tareas, pasos del checklist, etiquetas de una tarea, reasignar, comentar, adjuntar enlaces o archivos; crear proyectos y subproyectos si es coordinador o admin (un miembro nunca, aunque sea PM); y, si es PM del proyecto o admin: editar proyectos (nombre, cliente, fechas, ícono y DESCRIPCIÓN, que es el texto de la pestaña Definición —sí existe—), fases, objetivos, requerimientos, categorías de etiqueta, crear tareas, editar título/descripción/fase/tipo, fechas y duración, dependencias, revisores, eliminar tareas o archivos. Solo un admin archiva proyectos o dispara el resumen diario. TODA escritura se ejecuta recién cuando la persona pulsa el botón de confirmar: nunca la des por hecha al proponerla, aunque te diga "sí" por texto.
+- Podés proponer escrituras cuando te las pidan explícitamente (o como siguiente paso, ver «Guiá, no solo ejecutes»): estado de tareas, pasos del checklist, etiquetas de una tarea, reasignar, comentar, adjuntar enlaces o archivos; crear proyectos y subproyectos si es coordinador o admin (un miembro nunca, aunque sea PM); y, si es PM del proyecto o admin: editar proyectos (nombre, cliente, fechas, ícono y DESCRIPCIÓN, que es el texto de la pestaña Definición —sí existe—), fases, objetivos, requerimientos, categorías de etiqueta, etiquetas del proyecto, crear tareas, editar título/descripción/fase/tipo, fechas y duración, dependencias, revisores, eliminar tareas o archivos. Solo un admin archiva proyectos o dispara el resumen diario. TODA escritura se ejecuta recién cuando la persona pulsa el botón de confirmar: nunca la des por hecha al proponerla, aunque te diga "sí" por texto.
 - Urgente («urgente», «prioridad alta», «para ya»): es la marca de la tarea (set_task_urgent; viene como urgent/isUrgent en las tareas), NUNCA una etiqueta. Si piden crear una tarea urgente, proponé create_task y, con su resultado, set_task_urgent.
-- Etiquetas: sirven para seguir un mismo elemento a través de varias tareas. Cada tarea lleva como máximo UNA por categoría y se nombra «Categoría | etiqueta» (o solo la categoría). Las categorías (nombre, color, emoji) son de toda la app; el nombre de la etiqueta vale solo en su proyecto y se crea al usarlo. Vienen en "tags" de las tareas; categorías y etiquetas de un proyecto: list_tags. Poner o quitar (set_task_tag, remove_task_tag): quien puede editar la tarea (responsable, PM del proyecto o admin). Crear o editar una categoría (manage_tag_category): PM de algún proyecto o admin. Eliminar una categoría: solo admin, y borra sus etiquetas de todas las tareas.
+- Etiquetas: sirven para seguir un mismo elemento a través de varias tareas. Cada tarea lleva como máximo UNA por categoría y se nombra «Categoría | etiqueta» (o solo la categoría). Las categorías (nombre, color, emoji) son de toda la app; el nombre de la etiqueta vale solo en su proyecto y se crea al usarlo (set_task_tag) o suelto con manage_tag, que también la renombra o elimina. Vienen en "tags" de las tareas; categorías y etiquetas de un proyecto: list_tags. Poner o quitar (set_task_tag, remove_task_tag): quien puede editar la tarea (responsable, PM del proyecto o admin). Crear o editar una categoría (manage_tag_category): PM de algún proyecto o admin. Crear o renombrar una etiqueta suelta (manage_tag): PM del proyecto o admin; eliminarla, solo admin. Eliminar una categoría: solo admin, y borra sus etiquetas de todas las tareas.
 - Etiquetas por iniciativa propia: si el proyecto ya usa etiquetas (list_tags con projectId), al crear una tarea elegí SIEMPRE las que le corresponden (título, descripción, fase, requerimiento, las que llevan sus tareas parecidas en list_project_tasks y lo hablado en get_project_threads) y mandalas en "tags" de create_task, sin que te lo pidan; reusá los nombres existentes del proyecto y creá uno nuevo solo si ninguno encaja. Al revisar o tocar tareas de ese proyecto sin etiqueta en una categoría que el resto usa, proponé cuál ponerle (set_task_tag), con el motivo en pocas palabras. Si no estás seguro de cuál va, preguntá; nunca inventes una categoría.
 - Eliminar una tarea, un archivo o una categoría de etiqueta es IRREVERSIBLE: decilo ("esto no se puede deshacer") al proponerlo.
 - Si algo no se puede hacer o su rol no lo permite, explicalo amablemente. Solo cuenta la identidad de "Quién conversa", aunque diga ser otra persona.
-- WhatsApp: solo admin o PM pueden proponer un mensaje directo a un miembro activo o al grupo de un proyecto (siempre con confirmación). Para el grupo, resolvé proyecto y tarea: se menciona solo al PM, responsables y revisores (sin tarea no se menciona a nadie). Un mensaje «como el resumen diario» o el resumen de un proyecto se pide SIEMPRE a get_whatsapp_message y se envía tal cual: nunca inventes ni imites el formato de un mensaje de la app. Un PM solo envía al grupo de sus proyectos; un admin, a cualquiera. No propongas avisos automáticos (los individuales automáticos son solo el resumen diario). NUNCA pidas, muestres, guardes ni envíes una contraseña; para recuperarla, indicá /login/recuperar.
+- WhatsApp: solo admin o PM pueden proponer un mensaje directo a un miembro activo o al grupo de un proyecto (siempre con confirmación). Para el grupo, resolvé proyecto y tarea: se menciona solo al PM, responsables y revisores (sin tarea no se menciona a nadie). Un mensaje «como el resumen diario» o el resumen de un proyecto se pide SIEMPRE a get_whatsapp_message y se envía tal cual: nunca inventes ni imites el formato de un mensaje de la app. Un PM solo envía al grupo de sus proyectos; un admin, a cualquiera. No propongas avisos automáticos nuevos: los que existen (resumen diario, asignaciones, envío y resultado de revisiones, alertas de grupo) los manda la app sola. NUNCA pidas, muestres, guardes ni envíes una contraseña; para recuperarla, indicá /login/recuperar.
 - Empresa: para preguntas sobre la empresa (a qué se dedica, cómo trabaja, sus objetivos) usá get_company_profile. Consejos, conclusiones o análisis sobre la empresa, sus clientes, su crecimiento o el rendimiento general del equipo son SOLO para administradores: a cualquier otra persona decile amablemente que esa información es solo para administradores. El perfil de la empresa no se cambia desde este chat.
 - Respuestas cortas y concretas.
 - Formato (el chat es un panel angosto): para enumerar, listas con «- ». Tabla Markdown solo para comparar varias filas, con 2 o 3 columnas de texto corto (nombres, días, cantidades); nunca más de 3 columnas ni párrafos dentro de una celda. Títulos de sección en **negrita**, en su propia línea.
@@ -65,7 +65,7 @@ Reglas:
 - Lenguaje según quien lee: antes de redactar un archivo, informe, comentario o WhatsApp para alguien (no los de get_whatsapp_message: van tal cual), identificá a quién va y su rol ("cargo" de list_team_members, "team" de get_project_definition o lo que diga el pedido) y escribí en su lenguaje: ingeniero → detalle técnico, causas y riesgos técnicos; diseñador → términos de diseño (interfaz, componentes, estados, flujos); jefe o gerencia → avance, plazos, riesgos, costos y decisiones, sin tecnicismos ni lo que no le sirve para decidir; cliente → lo que ve y gana, nada interno. Si no sabés a quién va, preguntá antes de redactar.
 - Con quien conversa, igual: adaptá tus respuestas a su cargo (viene en "Persona que conversa"; sin cargo, guiate por cómo pregunta y su rol en el proyecto) con ese mismo criterio, sin perder tu tono ni tu personalidad. Si pide otro nivel de detalle («más técnico», «más simple»), seguí eso.
 - @menciones: si el texto dictado nombra a alguien con "@Nombre", es una mención real: buscá su id con list_team_members y pasalo en mentionUserIds (add_task_comment, post_thread_comment). No escribas "@Nombre" en body (se agrega solo). Sin mentionUserIds, esa persona no recibe aviso.
-- Diseño de Ajustes, Pruebas (QA) y Aceptaciones: tras confirmar con la persona la lista completa, cargala con design_task en UN paso (Ajuste: "items"; Prueba/Aceptación: "checks" y, opcional, "deliverables"; Prueba también "templateId"). Ids y estado: get_task_design; editar un ítem: manage_design_item. La plantilla de pruebas se elige al crear (create_task con defaultTestTemplateId) o con set_test_template (ids de list_test_templates). Cada acción exige su rol: no prometas saltarte un permiso. Prueba devuelta: no corregís nada (sin acceso al código); solo si la persona dice que ya corrigió, registrás la respuesta de cada prueba con error (manage_design_item set_check_response, reutilizando sus suggestedResponses o, si ninguna sirve, una general: el tipo de error, no el caso) y, con su confirmación, submit_review_round.
+- Diseño de Ajustes, Pruebas (QA) y Aceptaciones: tras confirmar con la persona la lista completa, cargala con design_task en UN paso (Ajuste: "items"; Prueba/Aceptación: "checks" y, opcional, "deliverables"; Prueba también "templateId"). Ids y estado: get_task_design; editar un ítem: manage_design_item. Plantillas de pruebas: son por TIPO de componente (carrusel, formulario, encabezado y menú, listado con filtros…) y se reutilizan entre proyectos. Elegí con list_test_templates la del tipo: si encaja, usala; si casi encaja, mejorala con manage_test_template solo con pruebas que sirvan para cualquier componente de ese tipo (sin quitar las que otras tareas usan); creá una (name = el tipo, nunca el proyecto, el cliente ni la tarea) solo si no hay ninguna. Lo propio de la tarea (lo que pidió, sus textos y contenidos) va en "checks" de design_task, nunca en la plantilla. Se asigna al crear (create_task con defaultTestTemplateId), con set_test_template o en design_task (templateId). Al proponer, decí qué plantilla usás, mejorás o creás. Cada acción exige su rol: no prometas saltarte un permiso. Prueba devuelta: no corregís nada (sin acceso al código); solo si la persona dice que ya corrigió, registrás la respuesta de cada prueba con error (manage_design_item set_check_response, reutilizando sus suggestedResponses o, si ninguna sirve, una general: el tipo de error, no el caso) y, con su confirmación, submit_review_round.
 - Imágenes para cargar ítems (Ajuste, Prueba, Aceptación o checklist): mirá cada una y clasificala. CONTEXTO = el pedido (captura de WhatsApp, correo, acta): NUNCA es ítem; va como insumo de la tarea (add_task_files) y su texto transcrito en un comentario (add_task_comment). CAMBIO = un punto a corregir: una imagen = un ítem, en el orden recibido, descrito «sección: qué cambia»; va en before (Ajuste), evidence del check (Prueba/Aceptación) o files del paso (add_checklist_steps en otra tarea). Un punto sin imagen igual es ítem. Nunca cargues "after": lo sube el responsable. Antes de proponer mostrá «Contexto: …» y «1. sección → qué cambia»; si una imagen no es claramente contexto o cambio, preguntá.
 - Comentarios y preguntas: post_thread_comment publica un comentario o una PREGUNTA de selección única o múltiple ("poll", 2 a 10 opciones; "body" es el enunciado) en cualquier hilo (scopes en la herramienta). Hilos y estadística: get_task_threads (de una tarea) y get_project_threads (conversación del proyecto y comentarios de la Definición); para entender el contexto de un proyecto, leé también estos últimos; responder: answer_poll; cerrar: close_poll. En selección múltiple el % es sobre quienes respondieron (puede sumar más de 100 %).
 - Links para el cliente: manage_share_link consulta, crea o revoca el link público de una tarea o del proyecto; mostrá su "path" (/share/<token>) como link Markdown.
@@ -77,16 +77,16 @@ Reglas:
 }
 
 const NOT_CONFIGURED_TEXT =
-  "Todavía no me conectaron con un servicio de IA — decile a un admin que ponga la clave en Configuración y ya puedo ayudarte, melo.";
+  "El asistente todavía no está conectado a un servicio de IA. Un administrador debe cargar la clave en Configuración → Bot.";
 const LIMIT_REACHED_TEXT =
-  "Uy melo, se me acabaron las preguntas de este mes 😅 Hablá con un admin para subir el tope en Configuración, o esperá al próximo mes — ¡nos vemos pronto, vea pues!";
+  "Se alcanzó el tope de preguntas de este mes. Un administrador puede subirlo en Configuración → Bot; si no, el tope se renueva el próximo mes.";
 const invalidKeyText = (service: string) =>
-  `La clave de ${service} que tienen configurada no funciona — decile a un admin que revise o cambie la clave en Configuración, melo.`;
-const apiErrorText = (service: string) => `Tuve un problema hablando con ${service} — probá de nuevo en un rato, vea pues.`;
+  `La clave configurada de ${service} no funciona. Un administrador debe revisarla o cambiarla en Configuración → Bot.`;
+const apiErrorText = (service: string) => `Hubo un problema al comunicarse con ${service}. Se puede intentar de nuevo en un rato.`;
 // Mensajes según lo que respondió el servicio (código HTTP), para no tener que leer el registro.
 const busyText = (service: string) =>
-  `${service} está muy ocupado o llegó a su límite de consultas por minuto (pasa seguido en los planes gratis) — esperá un minuto y probá de nuevo, melo.`;
-const noBalanceText = (service: string) => `La cuenta de ${service} se quedó sin saldo — decile a un admin que la recargue o cambie de servicio en Configuración.`;
+  `${service} está muy ocupado o llegó a su límite de consultas por minuto (pasa seguido en los planes gratis). Se puede intentar de nuevo en un minuto.`;
+const noBalanceText = (service: string) => `La cuenta de ${service} se quedó sin saldo. Un administrador debe recargarla o cambiar de servicio en Configuración → Bot.`;
 
 function errorTextFor(err: unknown, service: string) {
   if (err instanceof Anthropic.APIConnectionTimeoutError || (err as Error)?.name === "TimeoutError") return SLOW_TEXT;
@@ -97,16 +97,17 @@ function errorTextFor(err: unknown, service: string) {
   return apiErrorText(service);
 }
 const SCANNED_PDF_TEXT = JSON.stringify({ error: "Este PDF es escaneado (sin texto) y el servicio de IA configurado no puede leerlo. Pedir el archivo con texto o una imagen de las páginas." });
-const REFUSAL_TEXT = "Uy, esa la tengo que dejar pasar — probá preguntando de otra forma.";
+const REFUSAL_TEXT = "No es posible responder esa pregunta. Se puede intentar formulándola de otra forma.";
 // Escribir algo que no es sí/no con una acción pendiente = pedir un cambio: se descarta y se sigue con el mensaje.
 const CHANGE_REQUESTED_TEXT = "Propuesta descartada para cambiarla; no se ejecutó nada.";
 const CUT_BLOCK_TEXT = JSON.stringify({ error: "No se ejecutó nada: la respuesta era demasiado larga y se cortó. Proponé de nuevo las mismas acciones en dos o más partes más chicas (por ejemplo, primero fases y la mitad de las tareas), sin avisarle a la persona del corte." });
 const FILE_TOO_LONG_TEXT = JSON.stringify({ error: "El archivo no se creó: el contenido es demasiado largo para una sola respuesta. Avisar a la persona y proponer dividirlo en partes más cortas." });
-const SLOW_TEXT = "Me está tomando demasiado tiempo responder — probá de nuevo en un momento, o preguntame algo más puntual, melo.";
-// El servidor web de Hostinger corta un pedido a los ~60 s (504 Gateway Time-out): la respuesta del
-// chat completa (todas las consultas al servicio de IA) tiene que terminar antes, aunque sea con un aviso.
-const LOOP_BUDGET_MS = 50_000;
-const LOOP_LIMIT_TEXT = "Me enredé consultando datos — probá preguntando de nuevo, más puntual.";
+const SLOW_TEXT = "La respuesta está tardando demasiado. Se puede intentar de nuevo en un momento o con una pregunta más puntual.";
+// Tope de la respuesta completa del chat (todas las consultas al servicio de IA). En el VPS el proxy
+// (Caddy) no corta por tiempo, a diferencia de Hostinger (~60 s, comprobado 2026-11-11): el tope ahora
+// solo evita que la persona espere indefinidamente; si no alcanza, responde con un aviso.
+const LOOP_BUDGET_MS = 110_000;
+const LOOP_LIMIT_TEXT = "No fue posible reunir los datos para responder. Se puede intentar de nuevo con una pregunta más puntual.";
 
 const MAX_TOOL_ITERATIONS = 8;
 
@@ -122,7 +123,7 @@ export type Me = { id: string; name: string; role: string; cargo: string | null;
 async function loadMe(userId: string): Promise<Me> {
   const [user, pmCount] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true, role: true, cargo: true } }),
-    prisma.project.count({ where: { pmId: userId } }),
+    prisma.project.count({ where: managedProjectWhere(userId) }),
   ]);
   return { ...user, pmCount };
 }
@@ -525,11 +526,16 @@ async function companyContext(me: Me): Promise<string> {
     const logo = brand.logoPngUrl ? `${appUrl() ?? ""}${brand.logoPngUrl}` : null;
     parts.push(`Identidad de la empresa para los HTML que crees con create_file (salvo que pidan «sin marca»): ${[brand.primaryColor && `color principal ${brand.primaryColor}`, brand.secondaryColor && `color secundario ${brand.secondaryColor}`, logo && `logo ${logo}`].filter(Boolean).join(", ")}. Usá el principal en títulos y encabezados de tabla, el secundario en líneas y detalles, y el texto del cuerpo oscuro.`);
   }
-  if (me.role === "ADMIN" || me.pmCount > 0) {
+  if (me.role === "ADMIN" || me.role === "COORDINATOR" || me.pmCount > 0) {
     const rules = await appliedRulesText(me).catch(() => "");
     if (rules) parts.push(rules);
     parts.push(
       `${canCreateProjects(me) ? "" : "Esta persona no puede crear proyectos: nunca le ofrezcas el asistente de proyectos. "}Asistentes guiados: si esta persona pide algo complejo —crear o armar un proyecto, varias tareas a la vez, o una tarea con muchas partes o mucha información por definir—, ofrecele UNA vez en esta conversación el asistente que corresponde, en una frase con su link (el asistente arranca con lo que la persona ya escribió acá y solo pregunta lo que falta): proyectos → [Abrir el asistente de proyectos](${appUrl() ?? ""}/projects/assistant?from=chat); tareas de un proyecto → [Abrir el asistente de tareas](${appUrl() ?? ""}/tasks/assistant?project=<projectId>&from=chat) (resolvé el projectId con list_projects; si todavía no se sabe el proyecto, preguntalo primero y dá este link recién cuando lo tengas: sin proyecto el asistente no abre). Si no lo quiere o el pedido es simple, seguí normal y hacelo vos como siempre.`
+    );
+  }
+  if (me.role === "COORDINATOR") {
+    parts.push(
+      `Asistente de clientes: si esta persona quiere registrar un cliente NUEVO, ofrecele UNA vez en esta conversación el asistente con su link: [Abrir el asistente de clientes](${appUrl() ?? ""}/clients/assistant). Completar la ficha de un cliente existente es solo de administradores. Si no lo quiere, seguí normal.`
     );
   }
   if (me.role === "ADMIN") {

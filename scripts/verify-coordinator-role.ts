@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
 import { deleteTestProject } from "./verifyCleanup";
-import { canCreateProjects, canReassignPm, trustedActor } from "../src/lib/permissions";
-import { clientFieldsFor, canCreateClients, clientPickerWhere } from "../src/lib/clients";
+import { canCreateProjects, canReassignPm, trustedActor, isPmAnywhere, isPmOrAdminAnywhere, isReviewerAnywhere } from "../src/lib/permissions";
+import { clientFieldsFor, canCreateClients, clientPickerWhere, canUseClientAssistant } from "../src/lib/clients";
+import { getToolsForUser } from "../src/lib/chontatecTools";
 import { canUseProjectAssistant } from "../src/lib/projectAssistant";
 
 async function main() {
@@ -10,7 +11,7 @@ async function main() {
   const mk = (name: string, role: "ADMIN" | "COORDINATOR" | "MEMBER") =>
     prisma.user.create({ data: { name: `__vc_${name}`, username: `__vc_${name}_${stamp}`, email: `__vc_${name}_${stamp}@prueba.local`, phone: `57301${String(stamp).slice(-7)}${name.length}`, passwordHash: "x", role } });
   const [admin, coord, otherCoord, member] = await Promise.all([mk("admin", "ADMIN"), mk("coord", "COORDINATOR"), mk("othercoord", "COORDINATOR"), mk("member", "MEMBER")]);
-  const users = [admin, coord, otherCoord, member];
+  const users: { id: string }[] = [admin, coord, otherCoord, member];
   const actor = (u: { id: string; role: string }) => trustedActor({ id: u.id, role: u.role });
   const project = await prisma.project.create({ data: { name: `__verify-coordinator-${stamp}__`, startDate: new Date("2026-11-06"), pmId: member.id, createdById: coord.id } });
   const clientNames = [`__vc_cliente_coord_${stamp}`, `__vc_cliente_member_${stamp}`];
@@ -37,6 +38,25 @@ async function main() {
 
     assert.deepEqual(clientPickerWhere(coord), {}, "RF-7: el Coordinador ve todos los nombres");
     assert.notDeepEqual(clientPickerWhere(member), {}, "el Miembro sigue limitado");
+
+    // Regla única de PM (2026-11-11): quien creó el proyecto cuenta como PM aunque no figure en el campo PM.
+    assert.equal(await isPmAnywhere(coord.id), true, "el Coordinador creador cuenta como PM");
+    assert.equal(await isPmOrAdminAnywhere(actor(coord)), true, "crea categorías de etiqueta");
+    assert.equal(await isReviewerAnywhere(actor(coord)), true, "gestiona plantillas de pruebas");
+    assert.equal(await isPmAnywhere(otherCoord.id), false, "otro Coordinador sin proyectos no es PM");
+
+    // Chat: el Coordinador sin proyectos igual tiene las herramientas para crear proyectos y clientes.
+    const coordTools = (await getToolsForUser(otherCoord.id)).map((t) => t.name);
+    assert.ok(coordTools.includes("create_project") && coordTools.includes("save_client"), "el Coordinador crea proyectos y clientes desde el chat");
+    const memberUser = await mk("plainmember", "MEMBER");
+    users.push(memberUser);
+    assert.equal((await getToolsForUser(memberUser.id)).some((t) => t.name === "create_project"), false, "un Miembro sin proyectos no");
+
+    // Asistente de clientes: nuevo = admin o coordinador; completar uno existente = solo admin.
+    assert.equal(await canUseClientAssistant(otherCoord, null), true, "el Coordinador registra clientes nuevos");
+    assert.equal(await canUseClientAssistant(otherCoord, created.clientId!), false, "el Coordinador no completa fichas existentes");
+    assert.equal(await canUseClientAssistant(admin, created.clientId!), true);
+    assert.equal(await canUseClientAssistant(member, null), false, "el Miembro no usa el asistente de clientes");
 
     const pmMembers = await prisma.user.count({ where: { role: "MEMBER", deletedAt: null, pmOfProjects: { some: {} }, id: { notIn: users.map((u) => u.id) } } });
     assert.equal(pmMembers, 0, "RF-10: ningún Miembro existente quedó como PM sin pasar a Coordinador");

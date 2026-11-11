@@ -26,7 +26,7 @@ export const POLL_CHANGE = "✏️ Cambiar algo";
 const CHANGE_REQUEST_TEXT = "Quiero cambiar algo de la propuesta.";
 const POLL_QUESTION = "¿Confirma esta acción?";
 const POLL_TTL_MS = 24 * 60 * 60 * 1000;
-const INTERNAL_TIMEOUT_MS = 120_000;
+const INTERNAL_TIMEOUT_MS = 150_000; // mayor que el tope del chat (LOOP_BUDGET_MS = 110 s en chontatec.ts)
 
 export const UNSUPPORTED_TEXT = "Por ahora solo leo texto, notas de voz, imágenes y documentos.";
 export const VOICE_TOO_LONG_TEXT = "La nota de voz es muy larga; máximo 5 minutos.";

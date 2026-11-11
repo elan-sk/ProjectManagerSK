@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearchText } from "@/lib/search";
+import { managedProjectWhere } from "@/lib/permissions";
 
 export const CLIENT_FIELDS = ["name", "logoUrl", "contactName", "contactEmail", "contactPhone", "website", "profile"] as const;
 export type ClientInput = Partial<Record<(typeof CLIENT_FIELDS)[number], string | null>>;
@@ -12,7 +13,7 @@ export function clientKey(name: string): string {
 }
 
 export function clientVisibleWhere(viewer: Viewer): Prisma.ClientWhereInput {
-  return viewer.role === "ADMIN" ? {} : { projects: { some: { pmId: viewer.id } } };
+  return viewer.role === "ADMIN" ? {} : { projects: { some: managedProjectWhere(viewer.id) } };
 }
 
 export async function canSeeClient(viewer: Viewer, clientId: string): Promise<boolean> {
@@ -21,6 +22,11 @@ export async function canSeeClient(viewer: Viewer, clientId: string): Promise<bo
 
 export async function canCreateClients(viewer: Viewer): Promise<boolean> {
   return viewer.role === "ADMIN" || viewer.role === "COORDINATOR";
+}
+
+/** Asistente de clientes: uno nuevo, quien puede crear clientes; completar uno existente, solo administrador. */
+export async function canUseClientAssistant(viewer: Viewer, clientId: string | null) {
+  return clientId ? viewer.role === "ADMIN" : canCreateClients(viewer);
 }
 
 export function clientPickerWhere(viewer: Viewer): Prisma.ClientWhereInput {
@@ -120,7 +126,7 @@ export async function clientDetailFor(viewer: Viewer, id: string): Promise<Resul
     where: { id },
     select: {
       id: true, name: true, logoUrl: true, contactName: true, contactEmail: true, contactPhone: true, website: true, profile: true,
-      projects: { where: { status: { not: "ARCHIVED" }, ...(viewer.role === "ADMIN" ? {} : { pmId: viewer.id }) }, select: { id: true, name: true, archivedAt: true } },
+      projects: { where: { status: { not: "ARCHIVED" }, ...(viewer.role === "ADMIN" ? {} : managedProjectWhere(viewer.id)) }, select: { id: true, name: true, archivedAt: true } },
     },
   });
   return { ok: true, client };

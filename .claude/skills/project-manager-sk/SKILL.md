@@ -7,60 +7,25 @@ description: Consultar, crear y modificar proyectos, cronogramas y tareas en la 
 
 API REST del propio sistema de gestión de proyectos (Next.js + Prisma, este repo).
 
-## URL del servidor — nunca hardcodear `localhost`
+## Conexión: URL, login y link «Conectar IA» → skill `pmsk`
 
-Todavía no hay un dominio de producción fijo (el proyecto sigue en desarrollo local, va a pasar a un hosting real más adelante), así que la URL se resuelve así, en este orden:
-
-1. **Caché local**: si existe el archivo `.claude/skills/project-manager-sk/.cached-base-url` en este repo, usá el valor de ahí como `BASE_URL` — no preguntes de nuevo mientras siga funcionando.
-2. **`.env` de la raíz del proyecto**: si no hay caché todavía, fijate si `NEXTAUTH_URL` está definida ahí (la app la usa para sus propios links) y proponésela a la persona como valor por defecto.
-3. **Preguntar**: si no hay ni caché ni `.env`, o la persona quiere cambiarla, preguntale directamente "¿en qué URL está corriendo ProjectManagerSK?" (con el valor de `.env` como sugerencia si lo encontraste). Guardá lo que responda en `.cached-base-url` (texto plano, solo la URL — a diferencia del usuario/contraseña/token, esto no es secreto, así que sí se puede guardar en disco).
-4. **Si un llamado falla por conexión** (timeout, connection refused — no un 401/403/404, esos son respuestas válidas del servidor) con la URL cacheada: asumí que el servidor se movió, volvé a preguntar la URL, y sobrescribí `.cached-base-url` con la nueva.
-
-```bash
-BASE_URL=$(cat .claude/skills/project-manager-sk/.cached-base-url 2>/dev/null)
-```
-
-Si `.cached-base-url` no existe todavía, creá el archivo (y agregalo a `.gitignore` si no está) la primera vez que la persona te confirme la URL.
-
-## Autenticación — login por usuario/contraseña, NUNCA una clave guardada
-
-Esta skill se comparte entre todo el equipo, así que **no hay ninguna credencial grabada en su configuración**. Cada vez que haga falta hablar con la API en una conversación nueva (no hay todavía un token vigente en esta sesión):
-
-1. Pedile a la persona su usuario (o correo) y contraseña de ProjectManagerSK — las mismas con las que entra a la app web. Nunca los adivines ni los tomes de un archivo.
-2. Hacé login:
-   ```bash
-   curl -s "$BASE_URL/api/v1/auth/login" \
-     -H "Content-Type: application/json" \
-     -d '{"identifier": "usuario_o_correo", "password": "..."}'
-   ```
-   Devuelve `{ token, expiresAt, user: { id, name, username, role } }`.
-3. Usá ese `token` en el header `Authorization: Bearer <token>` para el resto de los llamados de esa conversación.
-4. El token dura 8 horas y representa a ESA persona con SU rol real — la API aplica exactamente los mismos permisos que la app web (ver más abajo, "Permisos"). Un login nuevo invalida cualquier sesión anterior de esa misma persona.
-5. **Nunca** escribas el usuario, la contraseña, ni el token en un archivo de esta skill, config, o cualquier lugar persistente — solo mantenelos en memoria mientras dure la conversación. Si la conversación termina y hace falta la API de nuevo, volvé a pedir el login.
-
-### Alternativa: link de "Conectar IA" (tiene prioridad sobre pedir credenciales)
-
-Si la persona pega un link `<BASE_URL>/api/v1/claude-link/<token>`, generado con el botón **"Conectar IA"** de la app, usalo en vez de pedir usuario/contraseña:
-
-1. Abrilo con `curl -s "<link>"`. Responde markdown con la URL base, el token `Bearer` y el contexto en JSON. Link de **tarea**: tres bloques, la tarea (`GET /tasks/:id`, con la cascada tarea → `requirements` (los requerimientos a los que responde, cada uno con sus `objectives`); `phase` es solo su lugar en el cronograma), el diseño (`/design`: cambios con antes/después/**insumos** o rondas) y todos los hilos (`/threads`). Link de proyecto: `GET /projects/:id` (con definición, adjuntos, links y los archivos de cada tarea) y sus hilos (`/projects/:id/threads`). Las rutas `/uploads/…` vienen con el dominio completo y se abren sin sesión (también dentro de textos y marcas `[[img:…]]`).
-2. El token del link **es** la credencial: usalo en `Authorization: Bearer`, con los permisos de la persona. Solo en memoria.
-3. Es reutilizable: reabrirlo trae el contexto actualizado. Vale hasta que la tarea se completa, pasan 7 días sin uso (cada uso reinicia el plazo), se desactiva desde la app o se genera otro para la misma tarea/proyecto. `410`/`401` → pedí uno nuevo.
-4. La tarea/proyecto del link es solo contexto: el token puede todo lo que la persona puede en la app.
-5. Un link activo por persona y tarea/proyecto; no se pisan entre sí ni con la sesión de login.
+La URL del servidor (producción `https://pmsk.depura-creatividad.com`), el login con el archivo `.pmsk.env` y el uso del link «Conectar IA» están en la skill `pmsk`, que es la única fuente para eso: no se repiten acá para que no se contradigan. Con el token, todos los llamados de abajo van con `Authorization: Bearer <token>` y los permisos reales de la persona.
 
 ## Permisos (importante para no ofrecer una acción que va a fallar)
 
-La API no tiene un modo "todo permitido" — cada operación exige lo mismo que exige la app web para esa misma persona:
+La API no tiene un modo "todo permitido" — cada operación exige lo mismo que exige la app web para esa misma persona. **PM del proyecto** = quien figura como PM, quien creó el proyecto o el PM (o creador) de su proyecto principal (regla única `managedProjectWhere`, 2026-11-09); «PM de algún proyecto» usa la misma regla (`isPmAnywhere`).
 
-- **Cualquier usuario logueado**: ver proyectos/tareas, crear un proyecto.
-- **PM del proyecto o administrador**: crear/borrar tareas, fases, objetivos, requisitos, links del proyecto; mover fechas (mover/redimensionar tarea o grupo); reasignar el PM del proyecto.
-- **Asignado a la tarea, PM del proyecto, o administrador** (`canEditTask`): editar título/descripción/fase/link de reunión, cambiar asignados, checklist de pasos, etiquetas.
+- **Cualquier usuario logueado**: ver los proyectos y tareas donde participa.
+- **Crear proyectos, subproyectos y clientes nuevos**: administrador o Coordinador (`canCreateProjects`, `canCreateClients`); un Miembro nunca, aunque sea PM. **Cambiar el PM**: administrador o el Coordinador que creó el proyecto (`canReassignPm`). Editar o eliminar la ficha de un cliente existente: solo administrador.
+- **PM del proyecto o administrador**: crear/borrar tareas, fases, objetivos, requisitos, links del proyecto; mover fechas (mover/redimensionar tarea o grupo); crear y renombrar etiquetas del proyecto (`POST /api/v1/tags`, `PATCH /api/v1/tags/:id`; eliminar una etiqueta, solo administrador).
+- **Responsable de la tarea, PM del proyecto, o administrador** (`canEditTask`): editar título/descripción/fase/link de reunión, cambiar responsables, checklist de pasos, etiquetas de la tarea.
 - **Revisor de la tarea (tipo Prueba/QA), PM del proyecto, o administrador** (`canReviewTask`): calificar pruebas, cerrar ronda, completar la revisión.
-- Un asignado a una tarea **nunca** puede ser también su revisor (regla dura, sin excepción de rol).
-- **Diseñar Ajustes y Aceptaciones** (cambios, características, entregables, evidencias): asignado, PM del proyecto o administrador (`canEditTask`). **Diseñar Pruebas** (agregar pruebas a la ronda, plantilla): revisor, PM o administrador (`canReviewTask`); crear la primera ronda exige además poder editar la tarea — en la práctica, PM o administrador.
-- **Gestionar plantillas de pruebas** (crear, renombrar, agregar o editar ítems) — en la web (Configuración → Pruebas) y por API, misma regla desde 2026-10-04: revisor (en al menos una tarea de cualquier proyecto), PM de algún proyecto o administrador (`isReviewerAnywhere`); borrar plantilla o ítem, solo administrador. Un miembro sin eso solo las ve en la web y por API recibe 403 en todo, incluso al listar. Misma regla para las categorías de respuesta (esas solo se gestionan en la web).
-- **Comentar y responder preguntas**: quien edita o revisa la tarea; en la conversación del proyecto o la Definición, quien participa en el proyecto (PM, administrador, o asignado/revisor de alguna tarea). **Cerrar una pregunta**: quien la publicó, quien edita la tarea, o el PM/administrador.
-- **Link compartido**: de una tarea, quien puede editarla; del proyecto entero, solo PM/administrador.
+- Un responsable de una tarea **nunca** puede ser también su revisor (regla dura, sin excepción de rol).
+- **Diseñar Ajustes y Aceptaciones** (cambios, características, entregables, evidencias): responsable, PM del proyecto o administrador (`canEditTask`). **Diseñar Pruebas** (agregar pruebas a la ronda, plantilla): revisor, PM o administrador (`canReviewTask`); crear la primera ronda (= enviar a revisión) exige además poder editar la tarea: responsable, PM o administrador.
+- **Gestionar plantillas de pruebas** (crear, renombrar, agregar o editar ítems) — en la web (Configuración → Pruebas), por API y desde el chat (`manage_test_template`), misma regla: revisor (en al menos una tarea de cualquier proyecto), PM de algún proyecto o administrador (`isReviewerAnywhere`); borrar plantilla o ítem, solo administrador. Un miembro sin eso solo las ve en la web y por API recibe 403 en todo, incluso al listar. Misma regla para las categorías de respuesta (esas solo se gestionan en la web).
+- **Contraseñas del proyecto**: agregarlas, cualquier miembro del proyecto (responsable o revisor de al menos una tarea), PM o administrador (`isProjectMember`); editarlas o borrarlas, quien la creó, el PM o un administrador.
+- **Comentar y responder preguntas**: quien edita o revisa la tarea; en la conversación del proyecto o la Definición, quien participa en el proyecto (PM, administrador, o responsable/revisor de alguna tarea). **Cerrar una pregunta**: quien la publicó, quien edita la tarea, o el PM/administrador.
+- **Link compartido y «Conectar IA»**: de una tarea, su responsable, su revisor, el PM o un administrador (`canShareTask`); del proyecto entero, solo PM/administrador.
 - Para subir un diseño, la persona que inicia sesión tiene que tener ese rol: la API no tiene clave maestra ni permisos propios.
 
 Si una llamada devuelve **403**, es un problema de permiso real (avisale a la persona qué rol hace falta) — no reintentes con otro método.
@@ -172,10 +137,11 @@ Toda tarea que se cree en PMSK lleva las etiquetas que usa su proyecto (p. ej. `
 - `POST /api/v1/tags/categories` — `{ "name", "colorHex", "emoji"? }` crea una categoría (PM de algún proyecto o admin). `colorHex` tiene que ser de la paleta de la app (si no, el 400 lista los válidos). `PATCH /api/v1/tags/categories/:id` (mismo cuerpo) la edita; `DELETE` la borra con sus etiquetas (solo admin).
 - `GET/POST /api/v1/tasks/:id/tags` — `{ "categoryId": "string", "name"?: "string" }`. Una etiqueta por categoría en cada tarea (reemplaza si ya había una de esa categoría); si el nombre no existe todavía en el proyecto bajo esa categoría, se crea solo. `name` es opcional (desde 2026-10-07): sin nombre, la tarea queda marcada solo con la categoría. En la app se ve «Categoría | etiqueta», o solo la categoría.
 - `DELETE /api/v1/tasks/:id/tags/:taskTagId` — quita la etiqueta.
+- Etiquetas sueltas del proyecto (igual que Configuración → Etiquetas y el `manage_tag` del chat): `POST /api/v1/tags` `{ "categoryId", "projectId", "name" }` crea una sin ponerla en ninguna tarea (devuelve `tag: { id, name }`; nombre repetido en la misma categoría y proyecto → 409); `PATCH /api/v1/tags/:id` `{ "name" }` la renombra en todas sus tareas; `DELETE /api/v1/tags/:id` la quita de sus tareas, que se conservan. Crear y renombrar: PM del proyecto o admin; eliminar: solo admin.
 - **Etiquetas (REGLA DURA, usuario 2026-11-02)**: antes de crear o tocar una tarea, mirar las etiquetas que usan las tareas del proyecto (`GET /projects/:id`, `GET /tags`). Si el proyecto las usa, **toda** tarea que se cree (desarrollo, Prueba, Ajuste, Aceptación, subtareas) lleva las mismas categorías que sus hermanas, p. ej. `Sprint | Sprint N` y `Componente | <nombre>`, con `POST /tasks/:id/tags`; y toda tarea posterior que afecte a un componente lleva su etiqueta de componente. Nunca crear tareas sin etiquetas en un proyecto que las usa. Al cerrar, revisar que cada tarea creada las tenga.
 - **Contraseñas (credenciales, desde 2026-10-07)** — en la app se llaman «Contraseñas»; en la API, `credentials`. Cada una tiene `name`, `url?`, `username?`, `password`, `notes?` y `visibility`: `PROJECT` (por defecto: PM, asignados y revisores de alguna tarea del proyecto, y administradores), `ALL` (todos los que ven el proyecto) o `USERS` (solo `userIds`). Quien la creó la ve siempre, y los asignados de una tarea donde está agregada también. La contraseña se guarda cifrada (clave derivada de `AUTH_SECRET`). Quien no tiene acceso recibe 404, como si no existiera.
   - `GET /api/v1/projects/:id/credentials` lista las que la persona puede ver **con la contraseña** (decisión del usuario: la API sí la entrega a quien tiene acceso, para poder usarla). `GET /projects/:id` y `GET /tasks/:id` también traen `credentials`.
-  - `POST /api/v1/projects/:id/credentials` `{ name, password, url?, username?, notes?, visibility?, userIds?, taskId? }`. Sin `taskId`, solo PM o administrador; con `taskId`, quien puede editar esa tarea. Avisa por la app y por WhatsApp (individual, en horario laboral) a todos los que pueden verla, **sin la contraseña**.
+  - `POST /api/v1/projects/:id/credentials` `{ name, password, url?, username?, notes?, visibility?, userIds?, taskId? }`. Sin `taskId`, cualquier miembro del proyecto (responsable o revisor de al menos una tarea), el PM o un administrador; con `taskId`, quien puede editar esa tarea. Avisa por la app y por WhatsApp (individual, en horario laboral) a todos los que pueden verla, **sin la contraseña**.
   - `GET|PATCH|DELETE /api/v1/credentials/:id`. Editar o borrar: quien la creó, el PM o un administrador. En `PATCH`, `password` vacío conserva la actual; solo reciben aviso las personas que ganan acceso.
   - `POST /api/v1/tasks/:id/credentials` `{ credentialId }` la agrega como insumo de la tarea (sus asignados ganan acceso y reciben aviso); `DELETE /api/v1/tasks/:id/credentials?credentialId=…` la quita de la tarea (sigue en el proyecto).
   - El bot nunca escribe URL, usuario ni contraseña: solo el nombre y el enlace `/credentials/:id`. Nunca aparecen en el link compartido con el cliente.
@@ -215,32 +181,9 @@ La app escribe un registro en archivos `app-AAAA-MM-DD.log` (un JSON por línea:
 
 Una tarea solo aparece en `delays` si **su propia duración real** superó la planeada — no por haber arrancado tarde porque una tarea de la que dependía se demoró. Si el usuario pregunta "¿quién generó el atraso?", la respuesta está en este campo, no en comparar fechas de fin a simple vista.
 
-## Lenguaje según quien lee (regla del usuario, 2026-10-28)
+## Lenguaje, tono y negritas de lo que se sube a la app → skill `pmsk`
 
-Antes de redactar un documento, informe, comentario o mensaje, identificar a quién va y su rol: el `cargo` de la persona (`GET /api/v1/users`), su rol en el proyecto (equipo de `GET /api/v1/projects/:id`) o lo que diga el pedido. Escribir en su lenguaje:
-- **Ingeniero/desarrollador**: detalle técnico, arquitectura, causas y riesgos técnicos.
-- **Diseñador**: términos de diseño (interfaz, componentes, estados, tipografía, color, flujos).
-- **Jefe/gerencia**: avance, plazos, riesgos, costos y decisiones pendientes; sin tecnicismos y omitiendo lo que no le sirve para decidir.
-- **Cliente**: lo que ve y lo que gana; nada interno ni técnico.
-
-Si no se puede deducir el destinatario, preguntar antes de redactar. El tono (de usted, tercera persona) no cambia con el rol.
-
-## Tono de todo texto que se sube a la app — tercera persona, de usted, cordial y respetuoso (regla dura, 2026-09-21)
-
-Todo lo que se redacte para la app (descripciones, Ajustes, checks y criterios de Pruebas y Aceptaciones, comentarios, preguntas, mensajes) lo leen miembros del equipo y clientes externos. Se escribe siempre **de usted, en tercera persona o impersonal, con calidez y respeto**:
-
-- Nunca tuteo ni voseo: no «mira», «pulsa», «comprueba», «anota», «vas a probar», «querés», «podés».
-- Sí: «Observe la parte superior…», «Pulse cada pestaña y verifique que…», «¿Qué es lo que usted va a probar?», «Se solicita indicar qué botón o función echa de menos.», «Quedamos atentos a sus comentarios».
-- Amable y cálido, sin confianza ni jerga técnica: agradecer, invitar («Por favor», «Sería de gran ayuda que…»), nunca ordenar en seco.
-- Aplica también a los textos de ejemplo y a los que se corrijan en contenido ya subido.
-
-## Negritas para dar jerarquía (regla dura, 2026-09-21)
-
-En los textos que se suben a la app, los **títulos y rótulos** de cada bloque van en negrita, en especial los que llevan dos puntos («Para qué sirve:», «Cómo probarlo:»). La negrita marca la jerarquía y hace el texto más fácil de recorrer.
-
-- **Texto plano** (`criteria` de los checks de Prueba/Aceptación, comentarios, pasos del checklist): la app interpreta `*texto*` (un asterisco a cada lado, en la misma línea) como negrita. Escribir el rótulo así: `*Para qué sirve:* Comprobar que…`. No usar `**doble**` ni `<strong>` (se vería literal).
-- **Campos HTML** (`description` de tareas y del proyecto): usar `<strong>` o `<h3>`.
-- Aplicarla donde haga falta para mostrar la jerarquía (rótulos, términos clave); no resaltar frases enteras ni todo el texto. Al cargar o corregir checks, poner los rótulos ya con asteriscos.
+Las reglas de lenguaje según quien lee, tono (tercera persona, de usted, cordial) y negritas para dar jerarquía están en la skill `pmsk` («Lenguaje según quien lee», «Tono de todo texto…», «Negritas…»). Valen igual acá; no se repiten para que no se contradigan.
 
 ## Diseñar Ajustes, Pruebas y Aceptaciones (y subirlos al sistema)
 
@@ -286,17 +229,16 @@ Estas acciones solo se pueden hacer desde la app web por ahora — decíselo a l
 - Sincronizar con Google Calendar (usa el login personal de Google en el navegador).
 - Calificar una característica de Aceptación: la hace el cliente desde su link.
 - Aplicar o quitar plantillas de Configuración, y categorías de respuesta de Pruebas (Configuración). Las plantillas de pruebas sí se gestionan por API (ver arriba).
-- Reenviar una ronda de Prueba con la respuesta a cada error (`responseCategory`): usar la app.
 
 ## Ejemplo (curl) — URL + login + una llamada
 
 ```bash
-BASE_URL=$(cat .claude/skills/project-manager-sk/.cached-base-url 2>/dev/null)
-# (si no existe todavía, resolvela primero como dice la sección de arriba)
+BASE_URL=${PMSK_BASE_URL:-https://pmsk.depura-creatividad.com}
+set -a; . ./.pmsk.env; set +a   # usuario y contraseña (cómo se arma: skill pmsk, «Credenciales»)
 
 TOKEN=$(curl -s "$BASE_URL/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"identifier": "usuario_o_correo", "password": "la_contraseña"}' | jq -r .token)
+  -d "{\"identifier\": \"$PMSK_USER\", \"password\": \"$PMSK_PASSWORD\"}" | jq -r .token)
 
 curl -s "$BASE_URL/api/v1/projects" -H "Authorization: Bearer $TOKEN"
 ```

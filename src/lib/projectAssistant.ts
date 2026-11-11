@@ -68,7 +68,7 @@ const SIMILAR_TOOL: Anthropic.Tool = {
 const CLIENT_RULES = `Cliente (ficha reutilizable en todos sus proyectos):
 - Buscalo primero con list_clients. Si existe, mostrá en pocas líneas su ficha (get_client) y preguntá si cambió algo.
 - Si no existe, preguntá a qué se dedica, el contacto (persona, correo, teléfono), su sitio web o redes y qué espera o cómo es trabajar con él. Con eso redactá el «Perfil» (texto libre en tercera persona, sin inventar nada).
-- La ficha se guarda con save_client y la persona la confirma con el botón, sin preguntar antes en texto. Un PM puede crear clientes pero no cambiar la ficha de uno existente: si hace falta cambiarla y no es administrador, decile que lo pida a un administrador.`;
+- La ficha se guarda con save_client y la persona la confirma con el botón, sin preguntar antes en texto. Crear un cliente nuevo: administrador o coordinador. Cambiar la ficha de uno existente: solo administrador; si hace falta y no lo es, decile que lo pida a un administrador.`;
 
 function stepList(steps: readonly StepDef[]) {
   return steps.map((s, i) => `${i + 1}. ${s.label} (${s.key})`).join("\n");

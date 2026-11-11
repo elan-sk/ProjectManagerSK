@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { canSeeProject, visibleProjectWhere } from "@/lib/permissions";
+import { canSeeProject, visibleProjectWhere, isPmAnywhere } from "@/lib/permissions";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -36,10 +36,7 @@ export default async function CollisionDetailPage({ params }: { params: Promise<
   // Mismo criterio que "canSeeCollisions" en /projects: solo quien administra
   // algo ve colisiones — un miembro normal no llega ni por URL directa.
   const isAdmin = session.user.role === "ADMIN";
-  const myPmProjectCount = isAdmin
-    ? 0
-    : await prisma.project.count({ where: { pmId: session.user.id } });
-  const canManage = isAdmin || myPmProjectCount > 0;
+  const canManage = isAdmin || (await isPmAnywhere(session.user.id));
   if (!canManage) redirect("/projects");
 
   const [allTasksRaw, allUsers] = await Promise.all([

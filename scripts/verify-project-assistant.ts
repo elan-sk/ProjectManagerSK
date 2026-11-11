@@ -9,6 +9,7 @@ import { fetchPageText, htmlToText } from "../src/lib/pageTitle";
 import { PROJECT_STEPS, TASK_STEPS, projectCoverage, stepMarksFromHistory, stepStates, taskCoverage, taskGaps, clientCoverage, clientGaps, CLIENT_STEPS } from "../src/lib/projectAssistantSteps";
 import { similarityScore } from "../src/lib/similarProjects";
 import { canUseProjectAssistant, canUseTaskAssistant, hiddenId, taskChannel } from "../src/lib/projectAssistant";
+import { managedProjectWhere } from "../src/lib/permissions";
 
 const TAG = `zz-verify-${Date.now()}`;
 
@@ -16,7 +17,8 @@ async function clients() {
   assert.equal(clientKey("  Panacá   Web "), "panaca web");
   assert.equal(clientKey("PANACA web"), clientKey("panacá  web"));
   assert.deepEqual(clientVisibleWhere({ id: "u", role: "ADMIN" }), {});
-  assert.deepEqual(clientVisibleWhere({ id: "u", role: "MEMBER" }), { projects: { some: { pmId: "u" } } });
+  // Regla única de PM (2026-11-11): también quien creó el proyecto o el PM de su principal.
+  assert.deepEqual(clientVisibleWhere({ id: "u", role: "MEMBER" }), { projects: { some: managedProjectWhere("u") } });
 
   const pm = await prisma.user.findFirstOrThrow({ where: { active: true }, select: { id: true } });
   const base = { startDate: new Date(), pmId: pm.id };

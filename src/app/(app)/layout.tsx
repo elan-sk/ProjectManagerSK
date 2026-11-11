@@ -27,6 +27,7 @@ import { ToastProvider } from "@/components/Toast";
 import { ConfirmProvider } from "@/components/Confirm";
 import { FeatureHints } from "@/components/FeatureHints";
 import { activeFeatureHints } from "@/lib/featureHints";
+import { managedProjectWhere, projectMemberWhere } from "@/lib/permissions";
 
 // Next.js 16: proxy.ts (ex-middleware) ya no es el lugar para auth — la
 // verificación de sesión va en el layout/route handler, como pide la guía
@@ -41,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       where: { id: session.user.id },
       select: { name: true, avatarUrl: true },
     }),
-    isAdmin ? Promise.resolve(0) : prisma.project.count({ where: { pmId: session.user.id } }),
+    isAdmin ? Promise.resolve(0) : prisma.project.count({ where: managedProjectWhere(session.user.id) }),
     getBotSettings(),
   ]);
   // Una restauración completa puede reemplazar los usuarios y dejar en el
@@ -65,7 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     where: { userId: session.user.id, read: false },
     include: { task: { select: { projectId: true } } },
     orderBy: { createdAt: "desc" },
-  }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { OR: [{ mentions: { some: { userId: session.user.id } } }, { project: { OR: [{ pmId: session.user.id }, { tasks: { some: { OR: [{ assignees: { some: { userId: session.user.id } } }, { reviewers: { some: { userId: session.user.id } } }] } } }] } }] }) }, include: { author: { select: { name: true } }, mentions: { where: { userId: session.user.id }, select: { userId: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
+  }), prisma.internalMessage.findMany({ where: { authorId: { not: session.user.id }, reads: { none: { userId: session.user.id } }, ...(isAdmin ? {} : { OR: [{ mentions: { some: { userId: session.user.id } } }, { project: projectMemberWhere(session.user.id) }] }) }, include: { author: { select: { name: true } }, mentions: { where: { userId: session.user.id }, select: { userId: true } } }, orderBy: { createdAt: "desc" }, take: 20 })]);
   // Avisos de credencial: si la persona ya no tiene acceso (cambió la visibilidad), el aviso no se
   // muestra — ni siquiera el nombre de la credencial.
   const credentialIds = notifications.flatMap((n) => (n.credentialId ? [n.credentialId] : []));

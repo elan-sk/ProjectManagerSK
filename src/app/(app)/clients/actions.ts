@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canSeeClient, clientPickerWhere, deleteClient, saveClient, type ClientInput } from "@/lib/clients";
+import { managedProjectWhere } from "@/lib/permissions";
 
 const NOT_ADMIN = "Solo un administrador puede cambiar la ficha de un cliente.";
 
@@ -22,7 +23,7 @@ export async function getClientCard(id: string) {
     where: { id },
     include: {
       projects: {
-        where: { status: { not: "ARCHIVED" }, ...(isAdmin ? {} : { pmId: session.user.id }) },
+        where: { status: { not: "ARCHIVED" }, ...(isAdmin ? {} : managedProjectWhere(session.user.id)) },
         select: { id: true, name: true, iconUrl: true, archivedAt: true },
         orderBy: { createdAt: "desc" },
       },

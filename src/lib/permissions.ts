@@ -184,7 +184,7 @@ export async function isReviewerAnywhere(actor?: Actor) {
   if (user.role === "ADMIN") return true;
 
   const [pmOf, reviewerOf] = await Promise.all([
-    prisma.project.findFirst({ where: { pmId: user.id } }),
+    isPmAnywhere(user.id),
     prisma.taskReviewer.findFirst({ where: { userId: user.id } }),
   ]);
   return Boolean(pmOf || reviewerOf);
@@ -202,8 +202,17 @@ export async function isPmOrAdminAnywhere(actor?: Actor) {
   if (!user) return false;
   if (user.role === "ADMIN") return true;
 
-  const pmOf = await prisma.project.findFirst({ where: { pmId: user.id } });
-  return Boolean(pmOf);
+  return isPmAnywhere(user.id);
+}
+
+/** PM de algún proyecto con la regla única (PM, creador o PM del principal): la usan app, API y bot. */
+export async function isPmAnywhere(userId: string) {
+  return (await prisma.project.count({ where: managedProjectWhere(userId) })) > 0;
+}
+
+/** Ids de los proyectos que la persona administra como PM (misma regla que isPmAnywhere). */
+export async function managedProjectIds(userId: string) {
+  return (await prisma.project.findMany({ where: managedProjectWhere(userId), select: { id: true } })).map((p) => p.id);
 }
 
 /**
