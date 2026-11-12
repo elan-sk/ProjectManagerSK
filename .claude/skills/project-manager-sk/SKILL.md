@@ -166,6 +166,7 @@ Flujo: se envía una ronda (entregables opcionales: el link o archivo no es obli
 - `PATCH /api/v1/tasks/:id/review/checks/:checkId/result` — califica una prueba: `{ "result": "APPROVED | FLAGGED | FAILED | NOT_APPLICABLE", "note": "string?" }`. Calificar `FAILED`/`FLAGGED` exige que la prueba ya tenga evidencia cargada (409 si no). `FLAGGED` se muestra como «Recomendación»: aprueba la prueba y no devuelve la ronda. Recalificar una prueba de la última ronda ya cerrada (tarea no completada) recalcula la ronda: sin `FAILED` queda Aprobada y la tarea sale de Devuelta; con `FAILED` queda Devuelta. En rondas anteriores o tareas completadas, 409.
 - `POST /api/v1/tasks/:id/review/checks/:checkId/revert` — revierte una calificación a blanco. Solo mientras la ronda siga abierta.
 - `POST /api/v1/tasks/:id/review/rounds/:roundId/close` — cierra la ronda (exige que todas las pruebas tengan resultado). Si alguna quedó "Con errores", la tarea pasa a "Devuelta".
+- `POST /api/v1/tasks/:id/review/rounds/:roundId/withdraw` — retira el envío de la ronda 1 mientras ninguna prueba tenga resultado (quien la envió, el PM o un administrador): la ronda se borra con sus pruebas y entregables y la tarea queda sin ronda, lista para volver a enviarla. En la app: botón «Retirar envío» en la ronda abierta. Rondas 2+ → 409.
 - `POST /api/v1/tasks/:id/review/complete` — completa la tarea de Prueba (exige última ronda aprobada).
 
 ## Proyectos ocultos (regla dura, 2026-09-21)

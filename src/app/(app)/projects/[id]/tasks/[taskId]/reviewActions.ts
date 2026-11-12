@@ -207,6 +207,37 @@ export async function submitReviewRound(
   return { ok: true as const };
 }
 
+// Retira el envío de la ronda 1 mientras nadie calificó ninguna prueba: la tarea vuelve a
+// estar sin ronda, como antes de enviarla. Rondas 2+ no: deshacer el arrastre de pruebas
+// «Con errores» a la ronda devuelta no está soportado (decisión del usuario 2026-11-12).
+export async function withdrawReviewRound(reviewRoundId: string, actor?: Actor) {
+  const round = await prisma.reviewRound.findUnique({
+    where: { id: reviewRoundId },
+    include: { checks: true, deliverables: true },
+  });
+  if (!round) return { ok: false as const, error: "Esa ronda ya no existe." };
+  const session = await resolveActor(actor);
+  if (!session) return { ok: false as const, error: "Sesión inválida." };
+  const task = await prisma.task.findUniqueOrThrow({ where: { id: round.taskId } });
+  const isAdminOrPm = Boolean(await getProjectAdmin(task.projectId, actor));
+  if (!isAdminOrPm && round.submittedById !== session.id) {
+    return { ok: false as const, error: "Solo quien envió la ronda, el PM o un administrador pueden retirarla." };
+  }
+  if (round.roundNumber !== 1) {
+    return { ok: false as const, error: "Solo se puede retirar el envío de la ronda 1." };
+  }
+  if (round.outcome !== null) {
+    return { ok: false as const, error: "La ronda ya está cerrada." };
+  }
+  if (round.checks.some((c) => c.result)) {
+    return { ok: false as const, error: "Ya hay pruebas calificadas: no se puede retirar el envío." };
+  }
+  await prisma.reviewRound.delete({ where: { id: reviewRoundId } });
+  for (const d of round.deliverables) await deleteFileIfUnused(d.fileUrl);
+  await revalidateTask(round.taskId);
+  return { ok: true as const };
+}
+
 export async function addReviewDeliverable(
   reviewRoundId: string,
   file: { url: string; name: string; mimeType: string }

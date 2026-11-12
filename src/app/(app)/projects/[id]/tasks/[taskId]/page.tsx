@@ -734,6 +734,7 @@ export default async function TaskDetailPage({
             }
             canEdit={canEdit}
             canReview={canReview}
+            canWithdrawRound={Boolean(canManage) || task.reviewRounds.some((r) => r.outcome === null && r.submittedById === session?.user?.id)}
             taskStatus={task.status}
             users={users.map((u) => ({ id: u.id, name: u.name, avatarUrl: u.avatarUrl }))}
             currentReviewerIds={task.reviewers.map((r) => r.userId)}

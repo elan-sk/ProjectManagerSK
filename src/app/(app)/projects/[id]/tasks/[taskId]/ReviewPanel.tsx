@@ -35,6 +35,7 @@ import {
   addReviewCheckEvidenceLink,
   removeReviewCheckEvidence,
   closeReviewRound,
+  withdrawReviewRound,
   completeReviewTask,
   setDefaultTestTemplateAction,
 } from "./reviewActions";
@@ -167,6 +168,7 @@ export function ReviewPanel({
   canManage,
   canEdit,
   canReview,
+  canWithdrawRound,
   users,
   currentReviewerIds,
   templates,
@@ -180,6 +182,7 @@ export function ReviewPanel({
   canManage: boolean;
   canEdit: boolean;
   canReview: boolean;
+  canWithdrawRound: boolean;
   users: { id: string; name: string; avatarUrl: string | null }[];
   currentReviewerIds: string[];
   templates: { id: string; name: string }[];
@@ -231,6 +234,7 @@ export function ReviewPanel({
           userId={userId}
           canReview={canReview}
           canEdit={canEdit}
+          canWithdraw={canWithdrawRound}
           templates={templates}
           responseCategories={responseCategories}
         />
@@ -509,11 +513,12 @@ function DefaultTemplatePicker({ taskId, canReview, templates, currentId }: {
   );
 }
 
-function ActiveRound({ round, userId, canReview, canEdit, templates, responseCategories }: {
+function ActiveRound({ round, userId, canReview, canEdit, canWithdraw, templates, responseCategories }: {
   round: Round;
   userId: string | null;
   canReview: boolean;
   canEdit: boolean;
+  canWithdraw: boolean;
   templates: { id: string; name: string }[];
   responseCategories: { name: string; responses: string[] }[];
 }) {
@@ -550,7 +555,20 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
     });
   }
 
+  async function handleWithdraw() {
+    const ok = await confirm("¿Retirar el envío? La ronda se borra con sus pruebas y la tarea queda como antes de enviarla.", {
+      confirmLabel: "Sí, retirar",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const result = await withdrawReviewRound(round.id);
+      if (result.ok) router.refresh();
+      else setError(result.error ?? null);
+    });
+  }
+
   const allResolved = round.checks.length > 0 && round.checks.every((c) => c.result);
+  const showWithdraw = canWithdraw && isFirstRound && round.checks.every((c) => !c.result);
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3">
@@ -585,6 +603,19 @@ function ActiveRound({ round, userId, canReview, canEdit, templates, responseCat
       <RoundChecks checks={round.checks} canReview={canReview} canEdit={canEdit} responseCategories={responseCategories} />
 
       {canReview && isFirstRound && <AddCheckForm reviewRoundId={round.id} />}
+
+      {showWithdraw && (
+        <div>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleWithdraw}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-[18px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Retirar envío
+          </button>
+        </div>
+      )}
 
       {canReview && (
         <div>
