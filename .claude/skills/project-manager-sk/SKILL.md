@@ -125,6 +125,10 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 
 Toda tarea que se cree en PMSK lleva las etiquetas que usa su proyecto (p. ej. `Sprint | Sprint N`, `Componente | <nombre>`), y toda tarea que se toque se revisa: si le falta alguna, se agrega. Antes de crear, mirar las tareas hermanas (`GET /projects/:id`) y las categorías (`GET /tags`). Aplica a desarrollo, Prueba, Ajuste, Aceptación, Entregable, subproyectos, duplicadas y combinadas. Al cerrar, comprobar que cada tarea creada o tocada las tenga. Detalle en «Etiquetas».
 
+## REGLA DURA: insumo de diseño de una tarea de componente = solo su recorte (usuario 2026-11-11)
+
+Al crear una tarea de componente o de ajuste a partir de capturas de páginas completas (inventario de páginas, diseño de una sección), a Insumos va **solo el recorte del segmento que se construye**, nunca la página completa. Se recorta a todo el ancho y solo el alto de esa sección (p. ej. con PIL), se revisan los recortes juntos antes de subirlos y se nombran «<componente> - <página>». Si el componente aparece en varias páginas, va un recorte por página. Motivo: en el inventario de Racafé (Mundo Racafé y Legales) se subió la página entera a 19 tareas y hubo que rehacerlas.
+
 #### Asignados, revisores, checklist, etiquetas
 
 - `PATCH /api/v1/tasks/:id/assignees` — `{ "assigneeIds": ["userId"] }`. Reemplaza la lista completa.
