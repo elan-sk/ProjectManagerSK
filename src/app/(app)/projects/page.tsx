@@ -625,7 +625,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
               prefix="Vista"
               items={[
                 { label: "Tablero", href: boardHref({ view: undefined }), active: !view || view === "kanban" },
-                { label: "Gantt", href: boardHref({ view: "gantt" }), active: view === "gantt" },
+                { label: "Cronograma", href: boardHref({ view: "gantt" }), active: view === "gantt" },
                 { label: "Calendario", href: boardHref({ view: "calendar" }), active: view === "calendar" },
                 { label: "Archivos", href: filesHref({}), active: view === "files" },
               ]}

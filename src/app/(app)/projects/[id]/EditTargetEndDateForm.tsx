@@ -34,7 +34,7 @@ export function EditTargetEndDateForm({
         defaultValue={currentTargetEndDate ?? undefined}
       />
       <p className="text-xs text-slate-400">
-        Deadline del proyecto (ej. compromiso con el cliente) — se dibuja como línea en el Gantt. No se recalcula
+        Deadline del proyecto (ej. compromiso con el cliente) — se dibuja como línea en el cronograma. No se recalcula
         solo: no tiene relación con las fechas planeadas de las tareas.
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}

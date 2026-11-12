@@ -14,7 +14,7 @@ assert.equal(L("/projects/p1/tasks/t1", P, "x".repeat(80)), "Abriendo la tarea",
 assert.equal(L("/projects/p2", `${B}/projects`, "  Editec \n"), 'Abriendo el proyecto "Editec"');
 assert.equal(L("/projects/p2", `${B}/projects`, "← Todos los proyectos"), "Abriendo el proyecto");
 assert.equal(L("/credentials/c1", `${B}/agenda`), "Abriendo la contraseña");
-assert.equal(L("/projects/p1?view=gantt", P), "Mostrando el Gantt");
+assert.equal(L("/projects/p1?view=gantt", P), "Mostrando el cronograma");
 assert.equal(L("/projects/p1?view=files&fileQ=factura", `${P}?view=files`), 'Buscando "factura"');
 assert.equal(L("/projects/p1?view=files", `${P}?view=files&fileQ=factura`), "Limpiando la búsqueda");
 assert.equal(L("/agenda?from=2026-10-01&to=2026-10-31", `${B}/agenda`), "Cambiando las fechas");

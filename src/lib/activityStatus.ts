@@ -44,7 +44,7 @@ export function endActivity(id: string) {
 // Mismos nombres que muestran las pestañas del proyecto.
 const VIEW_LABEL: Record<string, string> = {
   kanban: "el tablero",
-  gantt: "el Gantt",
+  gantt: "el cronograma",
   calendar: "el calendario",
   files: "los archivos",
   definition: "la definición",
@@ -71,7 +71,7 @@ function shortName(text?: string | null) {
 
 /**
  * Texto para una navegación de `current` a `href`. `linkText`: nombre del link pulsado (aria-label,
- * title o su texto). Ej.: «Abriendo la tarea "Diseño UX"», «Mostrando el Gantt», «Buscando "factura"»,
+ * title o su texto). Ej.: «Abriendo la tarea "Diseño UX"», «Mostrando el cronograma», «Buscando "factura"»,
  * «Aplicando filtros».
  */
 export function navigationLabel(href: string, current: string, linkText?: string | null): string {

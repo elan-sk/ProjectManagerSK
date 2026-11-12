@@ -24,7 +24,7 @@ export function EditStartDateForm({ projectId, currentStartDate }: { projectId: 
     >
       <CalendarDatePicker name="startDate" label="Fecha de inicio del proyecto" defaultValue={currentStartDate} />
       <p className="text-xs text-slate-400">
-        Cambiar esta fecha recalcula automáticamente todo el rango de días hábiles del Gantt.
+        Cambiar esta fecha recalcula automáticamente todo el rango de días hábiles del cronograma.
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

@@ -891,7 +891,7 @@ export default async function ProjectPage({
           items={[
             { label: "Definición", href: filterHref({ view: "definition" }), active: view === "definition" },
             { label: "Tablero", href: filterHref({ view: "kanban" }), active: !view || view === "kanban" },
-            { label: "Gantt", href: filterHref({ view: "gantt" }), active: view === "gantt" },
+            { label: "Cronograma", href: filterHref({ view: "gantt" }), active: view === "gantt" },
             { label: "Calendario", href: filterHref({ view: "calendar" }), active: view === "calendar" },
             { label: "Archivos", href: filesHref({}), active: view === "files" },
             { label: "Comentarios", href: filterHref({ view: "conversation" }), active: view === "conversation" },

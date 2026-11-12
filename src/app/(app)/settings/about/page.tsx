@@ -54,7 +54,7 @@ export default function AboutSettingsPage() {
 // Resumen de lo que ofrece la app, para la tarjeta «Sobre ProjectManagerSK».
 const APP_FEATURES = [
   { icon: "🎯", title: "Definir el proyecto", text: "Objetivos, requerimientos y fases, con el avance de cada uno calculado a partir de sus tareas." },
-  { icon: "🗂️", title: "Planear y seguir tareas", text: "Tablero, Gantt con dependencias y calendario; tareas con checklist, insumos y resultados." },
+  { icon: "🗂️", title: "Planear y seguir tareas", text: "Tablero, cronograma con dependencias y calendario; tareas con checklist, insumos y resultados." },
   { icon: "🔎", title: "Buscador avanzado", text: "Busca por proyectos, tareas y el resto; además se pueden combinar filtros como estados: o etiquetas:." },
   { icon: "✅", title: "Revisar la calidad", text: "Pruebas con plantillas y rondas de revisión, Ajustes y Aceptaciones que califica el cliente." },
   { icon: "🔗", title: "Trabajar con el cliente", text: "Links compartidos para ver el avance, comentar, responder preguntas y subir insumos." },
