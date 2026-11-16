@@ -819,6 +819,16 @@ export function GanttView({
   const businessDaysISO = businessDays.map((d) => d.toISOString());
   const maxEndIndex = businessDays.length - 1;
 
+  // Al abrir, el cronograma arranca en el día de hoy (con un par de días
+  // previos a la vista) en vez de la fecha de inicio. "Ver mis colisiones"
+  // tiene su propio desplazamiento (efecto de focusCollision).
+  useEffect(() => {
+    if (focusCollision || todayIndex < 0) return;
+    scrollRef.current?.scrollTo({ left: Math.max(0, (todayIndex - 2) * DAY_WIDTH) });
+    // Solo al montar: no volver a mover la vista en cada refresco del servidor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const monthGroups: { label: string; count: number }[] = [];
   for (const day of businessDays) {
     const label = monthLabel(day);
