@@ -70,6 +70,7 @@ import {
   setTaskAssignees,
   updateTaskTitle,
   updateTaskDescription,
+  updateTaskMeetingUrl,
   updateTaskPhase,
   updateTaskRequirements,
   updateTaskType,
@@ -884,7 +885,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "update_task",
-    description: "Actualiza título, descripción, fase, tipo y/o requerimientos de una tarea — cualquier combinación de campos, solo se cambian los que se manden. Los requerimientos (a cuáles de Definición responde la tarea, uno o varios) solo los cambia el PM del proyecto o un administrador.",
+    description: "Actualiza título, descripción, fase, tipo, requerimientos y/o link de reunión (el campo «Link de reunión» de la tarea: Meet/Zoom/Teams, con hora opcional para el recordatorio por WhatsApp 30 min antes) de una tarea — cualquier combinación de campos, solo se cambian los que se manden. Los requerimientos (a cuáles de Definición responde la tarea, uno o varios) solo los cambia el PM del proyecto o un administrador.",
     input_schema: {
       type: "object",
       properties: {
@@ -895,6 +896,8 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         type: { type: "string", description: "Opcional. SIMPLE | MILESTONE | QA | ADJUSTMENT | ACCEPTANCE" },
         requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Lista COMPLETA de títulos de requerimientos a los que pasa a responder la tarea (reemplaza la actual). Lista vacía = sin requerimiento." },
         requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Lo mismo por id, si se conocen." },
+        meetingUrl: { type: "string", description: "Opcional. Link de reunión completo (https://…). Vacío lo quita junto con la hora." },
+        meetingAt: { type: "string", description: "Opcional, con meetingUrl. Hora de la reunión en hora de Colombia, formato YYYY-MM-DDTHH:mm." },
       },
       required: ["taskId"],
     },
@@ -1773,7 +1776,8 @@ function baseSummary(name: string, input: unknown, names: Map<string, string>): 
     case "update_task": {
       const { title, description, phaseId, type, requirementIds, requirementTitles } = input as { title?: string; description?: string; phaseId?: string; type?: string; requirementIds?: string[]; requirementTitles?: string[] };
       const requirementChange = requirementIds !== undefined || requirementTitles !== undefined;
-      const fields = [title !== undefined && "título", description !== undefined && "descripción", phaseId !== undefined && "fase", type !== undefined && "tipo", requirementChange && "requerimientos"].filter(Boolean);
+      const { meetingUrl } = input as { meetingUrl?: string };
+      const fields = [title !== undefined && "título", description !== undefined && "descripción", phaseId !== undefined && "fase", type !== undefined && "tipo", requirementChange && "requerimientos", meetingUrl !== undefined && (meetingUrl.trim() ? "link de reunión" : "quitar el link de reunión")].filter(Boolean);
       return `Actualizar ${fields.join(", ") || "la tarea"}`;
     }
     case "set_task_dependency": {
@@ -2140,6 +2144,8 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
             type: z.string().optional(),
             requirementIds: z.array(z.string()).optional(),
             requirementTitles: z.array(z.string()).optional(),
+            meetingUrl: z.string().optional(),
+            meetingAt: z.string().optional(),
           })
           .parse(input);
         const changed: string[] = [];
@@ -2174,6 +2180,14 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
           const r = await updateTaskRequirements(parsed.taskId, resolved.ids);
           if (!r.ok) return { ok: false, message: r.error ?? "No se pudieron actualizar los requerimientos." };
           changed.push("requerimientos");
+        }
+        if (parsed.meetingUrl !== undefined) {
+          const fd = new FormData();
+          fd.set("meetingUrl", parsed.meetingUrl);
+          if (parsed.meetingAt) fd.set("meetingAt", parsed.meetingAt);
+          const r = await updateTaskMeetingUrl(parsed.taskId, fd);
+          if (!r.ok) return { ok: false, message: r.error ?? "No se pudo guardar el link de reunión." };
+          changed.push(parsed.meetingUrl.trim() ? "link de reunión" : "se quitó el link de reunión");
         }
         if (changed.length === 0) return { ok: false, message: "No se especificó qué cambiar." };
         return { ok: true, message: `Listo, se actualizó: ${changed.join(", ")}.` };
