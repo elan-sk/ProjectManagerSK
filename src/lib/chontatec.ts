@@ -12,6 +12,7 @@ import { getCompanyBrand } from "@/lib/companyBrand";
 import { countWebSearches, webSearchTool } from "@/lib/webSearch";
 import { stripHiddenContext } from "@/lib/chatBridge";
 import { appliedRulesText } from "@/lib/learnings";
+import { findMissingReferences, MISSING_REFERENCE_INSTRUCTION, PLAN_HELD_TEXT } from "@/lib/botReferenceCheck";
 
 // Reglas operativas NO negociables — fijas, no editables desde Configuración
 // (a diferencia del tono/personalidad, que sí lo es — ver
@@ -483,6 +484,23 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
     // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola
     // confirmación (las de lectura del mismo bloque se resuelven al confirmar).
     if (toolUses.some((t) => mode.writeNames.has(t.name))) {
+      // Un plan que nombra algo inexistente no llega a «Confirmar»: el bot recibe qué falta y opciones válidas.
+      const problems = await findMissingReferences(toolUses.filter((t) => mode.writeNames.has(t.name)), userId).catch((err) => {
+        console.error("[chontatec] no se pudo revisar el plan", err);
+        return new Map<string, string>();
+      });
+      if (problems.size > 0) {
+        console.warn(`[chontatec] plan frenado: ${problems.size} acción(es) con referencias inexistentes`);
+        const held = toolUses.map((t): Anthropic.ToolResultBlockParam => ({
+          type: "tool_result",
+          tool_use_id: t.id,
+          content: problems.has(t.id) ? `${problems.get(t.id)} ${MISSING_REFERENCE_INSTRUCTION}` : PLAN_HELD_TEXT,
+          is_error: true,
+        }));
+        messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: held }];
+        if (mode.persistSteps) await persistStep(userId, response.content, held, channel);
+        continue;
+      }
       await persistRow(userId, "assistant", response.content, channel);
       return; // no se ejecuta acá
     }
@@ -593,7 +611,11 @@ async function confirmWithMode(userId: string, toolUseId: string, decision: "con
     if (decision === "decline" && mode.writeNames.has(item.name)) {
       resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: "El usuario canceló esta acción." });
     } else if (mode.writeNames.has(item.name)) {
-      const result = await mode.runWrite(item.name, item.input);
+      // Una acción que falla no corta el resto del plan: queda anotada como error y se sigue.
+      const result = await mode.runWrite(item.name, item.input).catch((err: unknown) => {
+        console.error(`[chontatec] falló la acción ${item.name}`, err);
+        return { ok: false, message: "Esta acción no se pudo hacer por un error inesperado; las demás del plan sí se procesaron." };
+      });
       resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: result.message, is_error: !result.ok });
     } else {
       resultBlocks.push({ type: "tool_result", tool_use_id: item.id, content: await safeReadTool(item.name, item.input, mode) });
