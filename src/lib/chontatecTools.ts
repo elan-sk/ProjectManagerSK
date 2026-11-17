@@ -897,7 +897,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Lista COMPLETA de títulos de requerimientos a los que pasa a responder la tarea (reemplaza la actual). Lista vacía = sin requerimiento." },
         requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Lo mismo por id, si se conocen." },
         meetingUrl: { type: "string", description: "Opcional. Link de reunión completo (https://…). Vacío lo quita junto con la hora." },
-        meetingAt: { type: "string", description: "Opcional, con meetingUrl. Hora de la reunión en hora de Colombia, formato YYYY-MM-DDTHH:mm." },
+        meetingAt: { type: "string", description: "Con meetingUrl. Hora de la reunión en hora de Colombia, formato YYYY-MM-DDTHH:mm. Sin hora no sale ningún recordatorio: si la persona no la dijo, preguntásela antes de proponer el cambio (si responde que no hay hora, se guarda solo el link)." },
       },
       required: ["taskId"],
     },

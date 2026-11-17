@@ -626,13 +626,43 @@ export async function checkDeadlineAlerts(userId: string) {
 // evento) — un solo mensaje a la hora configurada, con conteos en vez de tarea
 // por tarea. Mismos números
 // que ve la persona en los tiles de /agenda (ver agendaSummary.ts).
+export function meetingReminderText(title: string, time: string, meetingUrl: string) {
+  return `📅 *Recordatorio de reunión*\n"${title}"\n🕐 ${time}\n\n🔗 ${meetingUrl}`;
+}
+
+export async function notifyMeetingReminder(task: { id: string; title: string; projectId: string; meetingUrl: string }, userIds: string[], time: string) {
+  await notify(userIds, "MEETING_REMINDER", `Reunión "${task.title}" — ${time}`, task.id, `/projects/${task.projectId}/tasks/${task.id}`);
+  const text = meetingReminderText(task.title, time, task.meetingUrl);
+  for (const userId of userIds) await dispatchDirect(userId, text, true);
+}
+
+const MEETING_HOUR_FORMAT = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", hour12: true });
+
+async function todaysMeetingLines(userId: string) {
+  const today = localDateKey(new Date());
+  const from = new Date(Date.now() - 24 * 3600_000);
+  const to = new Date(Date.now() + 48 * 3600_000);
+  const tasks = await prisma.task.findMany({
+    where: {
+      meetingUrl: { not: null },
+      meetingAt: { gte: from, lte: to },
+      project: { hidden: false, ...LIVE_PROJECT_WHERE },
+      OR: [{ assignees: { some: { userId } } }, { project: { pmId: userId } }],
+    },
+    select: { title: true, meetingAt: true },
+    orderBy: { meetingAt: "asc" },
+  });
+  return tasks.filter((t) => localDateKey(t.meetingAt!) === today).map((t) => `• ${MEETING_HOUR_FORMAT.format(t.meetingAt!)} — ${t.title}`);
+}
+
 export async function buildDailyDigestText(userId: string, name: string) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
-  const [counts, special, managedProjects] = await Promise.all([
+  const [counts, special, managedProjects, meetings] = await Promise.all([
     getAgendaCounts(userId),
     getHeaderAlertTasks({ id: userId, role: user.role }),
     // Una fila por proyecto principal con sus subproyectos sumados (misma regla que «Mis proyectos» de Agenda).
     (user.role === "ADMIN" ? getProjectsSummary(undefined, { id: userId, role: user.role }) : getPmProjectsSummary(userId, undefined, { withSubprojects: true })).then(groupPmSummaries),
+    todaysMeetingLines(userId),
   ]);
   const firstName = name.split(" ")[0];
   // Nada pendiente propio ni proyectos que administrar: no se manda un resumen lleno de ceros.
@@ -643,7 +673,7 @@ export async function buildDailyDigestText(userId: string, name: string) {
     special.returned.length > 0 ? `• ${special.returned.length} devuelta(s)` : null,
     special.pendingReviews.length > 0 ? `• ${special.pendingReviews.length} por revisar` : null,
   ].filter((l): l is string => l !== null);
-  if (managedProjects.length === 0 && extra.length === 0 && Object.values(counts).every((n) => n === 0)) return null;
+  if (managedProjects.length === 0 && extra.length === 0 && meetings.length === 0 && Object.values(counts).every((n) => n === 0)) return null;
 
   // Mismo orden de importancia que en /agenda y /projects: inicio retrasado
   // (todavía se puede evitar el daño) → por vencer → final retrasado (ya es
@@ -659,6 +689,8 @@ export async function buildDailyDigestText(userId: string, name: string) {
     `• ${counts.unopened} nueva(s)`,
     ...extra,
   ];
+
+  if (meetings.length > 0) lines.push("", "📅 *Reuniones de hoy:*", ...meetings);
 
   if (managedProjects.length > 0) {
     lines.push("", user.role === "ADMIN" ? "📁 *Resumen de todos los proyectos:*" : "📁 *Tus proyectos administrados:*");

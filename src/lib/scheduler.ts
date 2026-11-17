@@ -3,7 +3,7 @@ import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { sendGroupAlert, sendRawMessage } from "@/lib/whatsapp";
 import { getAppCountryCode, getWhatsAppSettings } from "@/lib/appSettings";
 import { isWorkingMoment, meetingReminderTargetTime } from "@/lib/workingHours";
-import { dispatchDailyDigests, dispatchGroupAlertDigest } from "@/lib/notifications";
+import { dispatchDailyDigests, dispatchGroupAlertDigest, notifyMeetingReminder } from "@/lib/notifications";
 import { ensureWhatsAppAlive } from "@/lib/whatsapp";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -68,12 +68,13 @@ async function dispatchMeetingReminders() {
     if (now < target) continue;
 
     const groupJid = task.project.whatsappGroupJid ?? defaultGroupJid;
-    if (groupJid) {
-      const time = MEETING_TIME_FORMAT.format(task.meetingAt!);
-      const mentionIds = Array.from(new Set([task.project.pmId, ...task.assignees.map((a) => a.userId)]));
-      void sendGroupAlert(groupJid, `📅 *Recordatorio de reunión*\n"${task.title}"\n🕐 ${time}`, mentionIds, task.meetingUrl!);
-    }
+    const time = MEETING_TIME_FORMAT.format(task.meetingAt!);
+    const participantIds = Array.from(new Set([task.project.pmId, ...task.assignees.map((a) => a.userId)]));
     await prisma.task.update({ where: { id: task.id }, data: { meetingReminderSentAt: new Date() } });
+    if (groupJid) void sendGroupAlert(groupJid, `📅 *Recordatorio de reunión*\n"${task.title}"\n🕐 ${time}`, participantIds, task.meetingUrl!);
+    await notifyMeetingReminder({ id: task.id, title: task.title, projectId: task.projectId, meetingUrl: task.meetingUrl! }, participantIds, time).catch((err) =>
+      console.error("[scheduler] no se pudo avisar la reunión por campana o WhatsApp individual", err)
+    );
   }
 }
 

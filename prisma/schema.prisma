@@ -94,6 +94,8 @@ enum NotificationType {
   SYSTEM
   // Se compartió una credencial con la persona (nunca lleva la contraseña).
   CREDENTIAL_SHARED
+  // Recordatorio de una reunión de la tarea (link de reunión con hora).
+  MEETING_REMINDER
 }
 
 enum ShareTargetType {
