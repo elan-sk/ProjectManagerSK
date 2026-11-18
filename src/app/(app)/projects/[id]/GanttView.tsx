@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -368,11 +368,25 @@ export function GanttView({
   // "conectar" ya activo.
   useEffect(() => {
     if (!contextMenu) return;
-    function onMouseDown(e: MouseEvent) {
+    // pointerdown en captura: el arrastre del cronograma hace preventDefault en pointerdown, lo que anula
+    // el mousedown; con mousedown el menú quedaba abierto al hacer clic en otra parte.
+    function onPointerDown(e: PointerEvent) {
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) setContextMenu(null);
     }
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [contextMenu]);
+
+  // El menú nunca se sale de la pantalla: si no cabe debajo del puntero se abre hacia arriba
+  // (barras de las últimas filas), y si no cabe a la derecha, hacia la izquierda.
+  useLayoutEffect(() => {
+    const el = contextMenuRef.current;
+    if (!el || !contextMenu) return;
+    const { width, height } = el.getBoundingClientRect();
+    const top = contextMenu.y + height > window.innerHeight - 8 ? Math.max(8, contextMenu.y - height) : contextMenu.y;
+    const left = contextMenu.x + width > window.innerWidth - 8 ? Math.max(8, contextMenu.x - width) : contextMenu.x;
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
   }, [contextMenu]);
 
   useEffect(() => {
@@ -1382,6 +1396,15 @@ export function GanttView({
           >
             {contextMenu.kind === "task" ? (
               <>
+                {taskById.get(contextMenu.taskId) && (
+                  <Link
+                    href={`/projects/${taskById.get(contextMenu.taskId)!.projectId}/tasks/${contextMenu.taskId}`}
+                    onClick={() => setContextMenu(null)}
+                    className="mb-1 block w-full rounded-lg border-b border-slate-100 px-3 py-2 pb-2.5 text-left font-medium text-slate-900 hover:bg-slate-50"
+                  >
+                    Abrir tarea
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => startConnect(contextMenu.taskId, "predecessor")}

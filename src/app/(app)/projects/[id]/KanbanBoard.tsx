@@ -121,6 +121,7 @@ function CardBody({
   deleting,
   onDelete,
   onDuplicate,
+  onArchive,
   onToggleUrgent,
   selectMode = false,
   selected = false,
@@ -135,6 +136,7 @@ function CardBody({
   deleting: boolean;
   onDelete: () => void;
   onDuplicate?: () => void;
+  onArchive?: () => void;
   onToggleUrgent?: () => void;
   selectMode?: boolean;
   selected?: boolean;
@@ -305,6 +307,12 @@ function CardBody({
             <CopyIcon className="h-3.5 w-3.5" />
             Duplicar
           </button>
+          {task.status === "COMPLETED" && !task.isArchived && onArchive && (
+            <button type="button" onClick={onArchive} title="Sacarla del tablero: sigue en el historial y las consultas" className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-500 hover:bg-white/70 hover:text-amber-700">
+              <ArchiveIcon className="h-3.5 w-3.5" />
+              Archivar
+            </button>
+          )}
           <button type="button" onClick={onDelete} disabled={deleting} title="Eliminar tarea" className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-500 hover:bg-white/70 hover:text-red-600">
             <TrashIcon className="h-3.5 w-3.5" />
             Eliminar
@@ -378,6 +386,14 @@ function Card({
     } else showToast(result.error);
   }
 
+  async function handleArchive() {
+    const result = await archiveCompletedTasks([task.id]);
+    if (!result.ok) return showToast(result.error);
+    onDeleted(task.id); // sale del tablero, igual que con el «Archivar» de la columna
+    showToast("Tarea archivada.", "success");
+    router.refresh();
+  }
+
   async function handleToggleUrgent() {
     const result = await setTaskUrgent(task.id, !task.isUrgent);
     if (result.ok) {
@@ -437,6 +453,7 @@ function Card({
         deleting={deleting}
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
+        onArchive={handleArchive}
         onToggleUrgent={handleToggleUrgent}
         selectMode={selectMode}
         selected={selected}
