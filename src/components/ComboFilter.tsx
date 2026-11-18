@@ -136,6 +136,7 @@ export function ComboFilter({
       <button
         type="button"
         onClick={toggle}
+        data-feature-hint="multi-select-filters"
         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 ${active ? (single && triggerColorClass ? triggerColorClass : "bg-[#0a6b78] text-white") : "bg-slate-100 text-slate-600"}`}
       >
         {!triggerColorClass && (single?.dotColorClass || single?.dotColorHex) && (

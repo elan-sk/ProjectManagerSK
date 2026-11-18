@@ -26,6 +26,13 @@ export function hintMatchesPath(pattern: string, pathname: string): boolean {
 
 export const FEATURE_HINTS: FeatureHint[] = [
   {
+    id: "multi-select-filters",
+    path: "*",
+    title: "Nuevo: filtros con varias opciones",
+    description: "En cada filtro, el botón + suma opciones y el ojo oculta las que no se quieren ver. Un clic en el nombre filtra solo por esa opción.",
+    publishedAt: "2026-11-18",
+  },
+  {
     id: "company-news",
     path: "*",
     title: "Nuevo en Empresa: Tablero y Aprendizajes",
