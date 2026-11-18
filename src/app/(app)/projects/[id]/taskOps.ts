@@ -80,6 +80,8 @@ export async function archiveCompletedTasks(taskIds: string[], actor?: Actor): P
       count += ids.length;
       refresh(projectId);
     }
+    // Spec 012: las imágenes de tareas archivadas también se comprimen, en segundo plano.
+    if (count > 0) scheduleArchivedImageCompression();
     return { ok: true, count };
   } catch (err) {
     return fail(err);

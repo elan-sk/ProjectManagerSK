@@ -47,6 +47,8 @@ Las imágenes subidas se guardan en el disco del hosting y el espacio crece sin 
 - RF-10: SI falla el proceso de una imagen (archivo faltante, imagen dañada, error de la base), ENTONCES EL SISTEMA la deja como estaba, lo registra en el log y sigue con las demás; archivar o eliminar el proyecto nunca falla por esto.
 - RF-11: MIENTRAS un proceso está corriendo, EL SISTEMA no arranca otro a la vez; si se archiva o elimina otro proyecto en ese momento, se vuelve a correr al terminar.
 - RF-12: EL SISTEMA no toca SVG, GIF, WebP, PDF, documentos ni comprimidos.
+- RF-13 (2026-11-18): CUANDO se archiva una tarea, EL SISTEMA trata lo que cuelga de ella (adjuntos, descripción, pasos, ajustes, pruebas y sus comentarios) como uso en un proyecto archivado y corre la compresión en segundo plano, aunque el proyecto siga activo. Al desarchivarla, las imágenes quedan comprimidas (como RF-9).
+- RF-14 (2026-11-18): Los PDF de proyectos o tareas archivados también se comprimen, con Ghostscript (`/ebook`, colores sin cambiar): siguen siendo PDF con su texto, conservan nombre y tipo, y solo se reemplazan si pesan menos (RF-5). Un PDF que ya pasó por Ghostscript no se vuelve a procesar. Los PDF de proyectos eliminados no se borran. Sin `gs` instalado, los PDF se saltean y queda un aviso en el log.
 
 ## Requisitos no funcionales
 
