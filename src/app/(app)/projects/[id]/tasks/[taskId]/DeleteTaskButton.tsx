@@ -62,7 +62,7 @@ export function DeleteTaskButton({
         }
       >
         {pill && <TrashIcon className="h-3.5 w-3.5" />}
-        {isPending ? "Eliminando…" : "Eliminar tarea"}
+        {isPending ? "Eliminando…" : pill ? "Eliminar" : "Eliminar tarea"}
       </button>
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "@/lib/useAppRouter";
 import { useToast } from "@/components/Toast";
 import { CopyIcon, UrgentIcon } from "@/components/icons";
-import { duplicateTask, setTaskUrgent, unarchiveTask } from "../../taskOps";
+import { archiveCompletedTasks, duplicateTask, setTaskUrgent, unarchiveTask } from "../../taskOps";
 import { ArchiveIcon } from "@/components/icons";
 
 // Acciones de Admin/PM en el detalle de la tarea: marcar/quitar urgente y duplicar.
@@ -40,14 +40,17 @@ export function TaskOpsButtons({ taskId, projectId, isUrgent, completed, archive
     router.refresh();
   }
 
+  async function archive() {
+    setPending(true);
+    const result = await archiveCompletedTasks([taskId]);
+    setPending(false);
+    if (!result.ok) return showToast(result.error);
+    showToast("Tarea archivada.", "success");
+    router.refresh();
+  }
+
   return (
     <>
-      {archived && (
-        <button type="button" disabled={pending} onClick={restore} title="Sacarla de archivadas: vuelve a la columna Completada" className="flex cursor-pointer items-center gap-1 rounded-lg border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60">
-          <ArchiveIcon className="h-3.5 w-3.5" />
-          Desarchivar
-        </button>
-      )}
       {!completed && (
         <button
           type="button"
@@ -63,6 +66,18 @@ export function TaskOpsButtons({ taskId, projectId, isUrgent, completed, archive
         <CopyIcon className="h-3.5 w-3.5" />
         Duplicar
       </button>
+      {completed && !archived && (
+        <button type="button" disabled={pending} onClick={archive} title="Sacarla del tablero: sigue en el historial y las consultas" className="flex flex-shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-60">
+          <ArchiveIcon className="h-3.5 w-3.5" />
+          Archivar
+        </button>
+      )}
+      {archived && (
+        <button type="button" disabled={pending} onClick={restore} title="Sacarla de archivadas: vuelve a la columna Completada" className="flex cursor-pointer items-center gap-1 rounded-lg border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60">
+          <ArchiveIcon className="h-3.5 w-3.5" />
+          Desarchivar
+        </button>
+      )}
     </>
   );
 }
