@@ -19,6 +19,7 @@ import { CreateProjectForm } from "./CreateProjectForm";
 import { SubprojectsPopover } from "./[id]/SubprojectsPanel";
 import { ProjectCardsOrder } from "./ProjectCardsOrder";
 import { projectStatus } from "@/lib/scheduleVarianceLabel";
+import { matchesMultiFilter, parseMultiFilter, serializeMultiFilter } from "@/lib/multiFilter";
 
 // La "vista resumen" de /projects (card de proyecto con salud/progreso/
 // alertas + el filtro Buscar/Alerta + el orden "recientes") — extraída para
@@ -42,7 +43,7 @@ export async function ProjectSummaryGrid({
   rows: ProjectSummaryRow[];
   basePath: string;
   pid?: string;
-  health?: "ok" | "warn" | "bad";
+  health?: string;
   currentParams: Record<string, string | undefined>;
   users: { id: string; name: string }[];
   projectShareTokenById?: Map<string, string>;
@@ -61,17 +62,27 @@ export async function ProjectSummaryGrid({
 
   // Spec 004: una tarjeta por principal con los números del grupo. Elegir un subproyecto en Buscar muestra su tarjeta.
   const grouped = groupSummaryRows(rows);
-  const pickedChild = pid && pid !== "all" && !grouped.some((g) => g.project.id === pid) ? rows.find((r) => r.project.id === pid) : undefined;
-  const cardRows = pickedChild ? [{ ...pickedChild, subprojects: [] }] : grouped;
+  const pidFilter = parseMultiFilter(pid);
+  const showAll = pidFilter.include.includes("all");
+  const pickedIds = pidFilter.include.filter((id) => id !== "all");
+  const groupedIds = new Set(grouped.map((g) => g.project.id));
+  const cardRows = pickedIds.length > 0 && !showAll
+    ? [
+        ...grouped.filter((g) => pickedIds.includes(g.project.id)),
+        ...rows.filter((r) => pickedIds.includes(r.project.id) && !groupedIds.has(r.project.id)).map((r) => ({ ...r, subprojects: [] })),
+      ]
+    : grouped;
+  const matchesHealth = ({ summary }: { summary: ProjectSummaryRow["summary"] }) =>
+    matchesMultiFilter(health, (v) => projectStatus(summary.health, summary.scheduleVarianceDays).tone === v);
   const visibleRows = cardRows
     // Filtra por lo que dice el badge: con fecha de cierre, el cronograma; sin ella, la salud.
-    .filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health)
-    .filter(({ project }) => !pid || pid === "all" || project.id === pid);
+    .filter(matchesHealth)
+    .filter(({ project }) => !pidFilter.exclude.includes(project.id));
   // Cuántos más aparecen al pulsar «Ver todos» (pid=all conserva el filtro de
   // salud): sin filtros la vista muestra solo `RECENT_LIMIT`.
-  const limit = pid || health ? undefined : RECENT_LIMIT;
+  const limit = pidFilter.include.length > 0 || health ? undefined : RECENT_LIMIT;
   const shownCount = limit ? Math.min(visibleRows.length, limit) : visibleRows.length;
-  const hiddenCount = grouped.filter(({ summary }) => !health || projectStatus(summary.health, summary.scheduleVarianceDays).tone === health).length - shownCount;
+  const hiddenCount = grouped.filter(matchesHealth).filter(({ project }) => !pidFilter.exclude.includes(project.id)).length - shownCount;
 
   return (
     <div className="space-y-4">
@@ -109,10 +120,10 @@ export async function ProjectSummaryGrid({
           </div>
           <ResetFiltersButton count={[pid, health].filter(Boolean).length} href={href({ pid: undefined, health: undefined })} />
           {/* Acceso directo al final de la fila (además de la opción dentro del filtro): texto subrayado, no botón. */}
-          {pid !== "all" && (
+          {!showAll && (
             <div className="flex flex-col gap-1">
               <span className="text-xs text-slate-400">&nbsp;</span>
-              <Link href={href({ pid: "all" })} scroll={false} className="py-1.5 text-sm text-slate-600 underline underline-offset-2 hover:text-[#0a6b78]">
+              <Link href={href({ pid: serializeMultiFilter({ include: ["all"], exclude: pidFilter.exclude }) })} scroll={false} className="py-1.5 text-sm text-slate-600 underline underline-offset-2 hover:text-[#0a6b78]">
                 Ver todos los proyectos
                 {hiddenCount > 0 && (
                   <span className="ml-1.5 inline-block rounded-full bg-slate-100 px-1.5 py-px align-[1px] text-[11px] font-medium text-slate-500 no-underline">

@@ -45,6 +45,7 @@ import { getActiveShareLink } from "@/lib/shareLinks";
 import { TASK_TYPE_LABEL, taskReviewState, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions, type ReviewState } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
+import { matchesMultiFilter, pruneMultiFilter } from "@/lib/multiFilter";
 import type { Prisma, TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -308,7 +309,7 @@ export default async function ProjectPage({
   ]);
   const info = (pid: string) => projectInfo.get(pid)!;
   // Filtro «Proyecto» del principal: el principal (solo sus tareas) o un subproyecto.
-  const projFilter = isParent && proj && projectInfo.has(proj) ? proj : undefined;
+  const projFilter = isParent ? pruneMultiFilter(proj, (pid) => projectInfo.has(pid)) : undefined;
   const projectFilterOptions = [{ id: project.id, label: project.name }, ...children.map((c) => ({ id: c.id, label: c.name }))];
   const childPct = (cid: string) => {
     const own = childTasks.filter((t) => t.projectId === cid);
@@ -388,7 +389,7 @@ export default async function ProjectPage({
   // Retraso u holgura si sigue al ritmo actual (spec 003, scheduleForecast.ts).
   const summaryScheduleVarianceDays = worstVariance([(await getProjectForecast(project.id)).varianceDays, ...childVariances]);
 
-  const matchesRisk = (taskId: string) => matchesRiskFilter(alertByTaskId.get(taskId)!, risk);
+  const matchesRisk = (taskId: string) => matchesMultiFilter(risk, (v) => matchesRiskFilter(alertByTaskId.get(taskId)!, v));
   // "Devueltas"/"Revisión" del filtro Tipo (punto 11 confirmado): no son un
   // TaskType real, son un atajo personal — "me devolvieron a mí" y "tengo
   // que revisarle a otro" — sobre los mismos datos que ya alimentan las
@@ -401,8 +402,7 @@ export default async function ProjectPage({
     attachments: { mimeType: string }[];
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
-  }) => {
-    if (!type) return true;
+  }, type: string) => {
     // "Devueltas"/"Revisión" son personales a propósito — el filtro de
     // Estado ya tiene "Devuelta" para ver todas las del proyecto sin
     // importar a quién; esto es distinto: solo las mías.
@@ -440,11 +440,11 @@ export default async function ProjectPage({
   }) =>
     matchesRisk(t.id) &&
     matchesDateRange(t, from, to) &&
-    ((status as string) === "ARCHIVED" || matchesStatusFilter(status, t)) &&
-    matchesType(t) &&
-    matchesAssigneeFilter(userId, t.assignees) &&
-    matchesTagFilter(tag, t.taskTags) &&
-    (!projFilter || t.projectId === projFilter) &&
+    ((status as string) === "ARCHIVED" || matchesMultiFilter(status, (v) => matchesStatusFilter(v, t))) &&
+    matchesMultiFilter(type, (v) => matchesType(t, v)) &&
+    matchesMultiFilter(userId, (v) => matchesAssigneeFilter(v, t.assignees)) &&
+    matchesMultiFilter(tag, (v) => matchesTagFilter(v, t.taskTags)) &&
+    matchesMultiFilter(projFilter, (v) => t.projectId === v) &&
     // En un principal el filtro «Proyecto» reemplaza a Buscar.
     matchesTaskSearch(t, isParent ? undefined : q);
 
@@ -646,8 +646,8 @@ export default async function ProjectPage({
         : []
     )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
-    .filter((a) => !fileTask || a.taskId === fileTask)
-    .filter((a) => !isParent || !fileProject || a.projectId === fileProject)
+    .filter((a) => matchesMultiFilter(fileTask, (v) => a.taskId === v))
+    .filter((a) => !isParent || matchesMultiFilter(fileProject, (v) => a.projectId === v))
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)))
     // Lo más reciente primero: en un archivo usado en varios lugares, la ficha muestra el uso más reciente.
     .sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
@@ -658,18 +658,18 @@ export default async function ProjectPage({
   // proyecto/tarea), por eso van en su propia sección, no mezclados en la
   // grilla de AttachmentGrid.
   const projectSharedLinks = [
-    ...(activeShareLink && !fileTask && (!isParent || !fileProject || fileProject === project.id)
+    ...(activeShareLink && matchesMultiFilter(fileTask, () => false) && (!isParent || matchesMultiFilter(fileProject, (v) => v === project.id))
       ? [{ id: activeShareLink.id, label: `Proyecto — ${project.name}`, token: activeShareLink.token, href: `/projects/${project.id}`, project: { name: project.name, iconUrl: project.iconUrl } }]
       : []),
     // Spec 004: links del cliente de cada subproyecto (cada uno con su propio link).
     ...childShareLinks
-      .filter((l) => l.targetType === "PROJECT" && !fileTask && (!fileProject || l.projectId === fileProject))
+      .filter((l) => l.targetType === "PROJECT" && matchesMultiFilter(fileTask, () => false) && matchesMultiFilter(fileProject, (v) => l.projectId === v))
       .map((l) => ({ id: l.id, label: `Proyecto — ${info(l.projectId!).name}`, token: l.token, href: `/projects/${l.projectId}`, project: { name: info(l.projectId!).name, iconUrl: info(l.projectId!).iconUrl, parent: info(l.projectId!).parent } })),
     ...[...taskShareLinks, ...childShareLinks.filter((l) => l.targetType === "TASK")]
-      .filter((l) => !fileTask || l.taskId === fileTask)
+      .filter((l) => matchesMultiFilter(fileTask, (v) => l.taskId === v))
       .map((l) => {
         const task = allTasks.find((t) => t.id === l.taskId);
-        if (!task || (isParent && fileProject && task.projectId !== fileProject)) return null;
+        if (!task || (isParent && !matchesMultiFilter(fileProject, (v) => task.projectId === v))) return null;
         const p = info(task.projectId);
         return { id: l.id, label: `Tarea — ${task.title}`, token: l.token, href: `/projects/${task.projectId}/tasks/${l.taskId}`, project: { name: p.name, iconUrl: p.iconUrl, parent: p.parent } };
       })
@@ -967,7 +967,7 @@ export default async function ProjectPage({
             options={[
               ...taskStatusFilterOptions(),
               // Ver las tareas archivadas es para todos; desarchivar sigue siendo solo de Admin/PM.
-              { id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500" },
+              { id: "ARCHIVED", label: "Archivadas", dotColorClass: "bg-amber-500", single: true },
             ]}
             paramKey="status"
             basePath={`/projects/${project.id}`}

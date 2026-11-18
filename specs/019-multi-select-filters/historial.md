@@ -1,0 +1,4 @@
+- 2026-11-18 — Entrevista: + y − en el mismo lugar; Agenda sigue personal (Persona filtra co-responsables, sin mí); Rendimiento y Empresa incluidos; «Archivadas» solo clic.
+- 2026-11-18 — Spec aprobada; plan aprobado (diagrama change-diagram.png).
+- 2026-11-18 — T1-T6 hechas. tsc OK, eslint OK en archivos tocados, verify-multi-filter OK. Sin prueba visual (navegador no autorizado).
+- Límite conocido: en el resumen de proyectos, ocultar un subproyecto no cambia la tarjeta del principal que lo agrupa.

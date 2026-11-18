@@ -32,6 +32,7 @@ import { projectStatus, scheduleVarianceExact } from "@/lib/scheduleVarianceLabe
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL, TASK_TYPE_LABEL, taskCardTint, isStartingSoon, matchesStatusFilter, taskReviewState, statusFilterTriggerClass, type ReviewState, taskStatusFilterOptions } from "@/lib/statusColors";
 import { ProjectCardsOrder } from "../projects/ProjectCardsOrder";
 import type { TaskStatus } from "@prisma/client";
+import { matchesMultiFilter, multiFilterIncludes } from "@/lib/multiFilter";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RememberViewState } from "../RememberViewState";
@@ -185,27 +186,17 @@ export default async function AgendaPage({
   const pmProjectIds = isAdmin
     ? null
     : (await prisma.project.findMany({ where: managedProjectWhere(session.user.id), select: { id: true } })).map((p) => p.id);
-  const viewingOther = Boolean(userId && userId !== session.user.id);
   const canViewOthers = isAdmin || Boolean(pmProjectIds && pmProjectIds.length > 0);
-  const effectiveUserId = viewingOther && canViewOthers ? userId! : session.user.id;
-  const scopedProjectIds =
-    viewingOther && canViewOthers && !isAdmin
-      ? projectId
-        ? pmProjectIds!.includes(projectId)
-          ? [projectId]
-          : []
-        : pmProjectIds!
-      : null;
+  const effectiveUserId = session.user.id;
 
   // Tareas de proyectos ocultos: solo con «Incluir proyectos ocultos» (o entrando al proyecto).
   // «Mis proyectos» y «Mi rendimiento» no cambian.
   const hiddenPref = await hiddenProjectsPref(session.user);
 
-  const [tasksRaw, projects, users, pmSummary, myPerf] = await Promise.all([
+  const [tasksRaw, projects, pmSummary, myPerf] = await Promise.all([
     prisma.task.findMany({
       where: {
         assignees: { some: { userId: effectiveUserId } },
-        projectId: viewingOther && canViewOthers && !isAdmin ? { in: pmProjectIds! } : undefined,
         archivedAt: null,
         project: hiddenPref.projectWhere,
       },
@@ -222,11 +213,10 @@ export default async function AgendaPage({
       where: { tasks: { some: { assignees: { some: { userId: session.user.id } } } }, ...hiddenPref.projectWhere },
       orderBy: { name: "asc" },
     }),
-    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     // "Mis proyectos"/"Mi rendimiento" — solo tienen sentido en tu propia
     // agenda, nunca mirando la de otra persona.
-    viewingOther ? Promise.resolve([]) : getPmProjectsSummary(session.user.id, session.user, { withSubprojects: true }).then(groupPmSummaries),
-    viewingOther ? Promise.resolve(null) : getMyPerformanceSummary(session.user.id, session.user.role === "ADMIN" ? session.user : null),
+    getPmProjectsSummary(session.user.id, session.user, { withSubprojects: true }).then(groupPmSummaries),
+    getMyPerformanceSummary(session.user.id, session.user.role === "ADMIN" ? session.user : null),
   ]);
 
   // Links de compartir activos de estas tareas: alimentan el indicador (igual que en las demás vistas) y el filtro «Compartidas».
@@ -245,26 +235,33 @@ export default async function AgendaPage({
     tasksRaw.map(async (t) => ({ ...t, alert: await getTaskAlert(t.project.countryCode, t) }))
   );
   const scopedTasks = tasksWithAlert
-    .filter((t) => (scopedProjectIds ? scopedProjectIds.includes(t.projectId) : !projectId || t.projectId === projectId))
-    .filter((t) => matchesStatusFilter(status, t));
+    .filter((t) => matchesMultiFilter(projectId, (v) => t.projectId === v))
+    .filter((t) => matchesMultiFilter(status, (v) => matchesStatusFilter(v, t)));
   const tasks = scopedTasks
-    .filter((t) => matchesRiskFilter(t.alert, risk))
+    .filter((t) => matchesMultiFilter(userId, (v) => t.assignees.some((a) => a.userId === v)))
+    .filter((t) => matchesMultiFilter(risk, (v) => matchesRiskFilter(t.alert, v)))
     // Tipo: un tipo de tarea, o una opción de atributo (Nuevas / Archivos
     // adjuntos / Compartidas — ver taskTypeFilter.ts).
-    .filter((t) => {
-      if (!type) return true;
-      if (!isAttributeType(type)) return t.type === type;
-      return matchesAttributeType(type, {
-        isNewForMe: t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt == null,
-        hasFiles: hasUploadedFiles(t.attachments),
-        isShared: sharedTaskIds.has(t.id),
-      });
-    })
+    .filter((t) =>
+      matchesMultiFilter(type, (v) => {
+        if (!isAttributeType(v)) return t.type === v;
+        return matchesAttributeType(v, {
+          isNewForMe: t.assignees.find((a) => a.userId === effectiveUserId)?.viewedAt == null,
+          hasFiles: hasUploadedFiles(t.attachments),
+          isShared: sharedTaskIds.has(t.id),
+        });
+      })
+    )
     .filter((t) => matchesDateRange(t, from, to))
     // Completadas de días ya pasados no son deuda: se ocultan para dejar a la vista lo urgente (salvo al filtrar por «Completadas»).
-    .filter((t) => status === "COMPLETED" || t.status !== "COMPLETED" || t.plannedEnd.toISOString().slice(0, 10) >= todayKey)
+    .filter((t) => multiFilterIncludes(status, "COMPLETED") || t.status !== "COMPLETED" || t.plannedEnd.toISOString().slice(0, 10) >= todayKey)
     .filter((t) => matchesTaskSearch(t, q))
-    .filter((t) => matchesTagFilter(tag, t.taskTags.map((tt) => ({ tagId: tt.tagId, categoryId: tt.tag.categoryId }))));
+    .filter((t) => matchesMultiFilter(tag, (v) => matchesTagFilter(v, t.taskTags.map((tt) => ({ tagId: tt.tagId, categoryId: tt.tag.categoryId })))));
+  const personOptions = [
+    ...new Map(
+      tasksWithAlert.flatMap((t) => t.assignees.filter((a) => a.userId !== effectiveUserId).map((a) => [a.userId, { id: a.userId, label: a.user.name }] as const))
+    ).values(),
+  ].sort((a, b) => a.label.localeCompare(b.label, "es"));
   // Opciones del filtro Etiqueta: las que usan las tareas de esta agenda (antes de filtrar).
   const agendaTagCategories = [...new Map(scopedTasks.flatMap((t) => t.taskTags.map((tt) => [tt.tag.category.id, tt.tag.category] as const))).values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
   const agendaTags = [...new Map(scopedTasks.flatMap((t) => t.taskTags.map((tt) => [tt.tagId, { id: tt.tagId, categoryId: tt.tag.categoryId, name: tt.tag.name }] as const))).values()];
@@ -357,7 +354,7 @@ export default async function AgendaPage({
         })}
       </div>
 
-      {!viewingOther && (
+      {(
         <div className={`grid grid-cols-1 gap-3 ${pmSummary.length > 0 ? "md:grid-cols-2" : ""}`}>
           <div className="flex min-h-48 flex-col rounded-xl border border-slate-200 bg-white p-3.5">
             <div className="mb-2 flex items-center justify-between">
@@ -492,13 +489,13 @@ export default async function AgendaPage({
           />
         </div>
 
-        {canViewOthers && (
+        {personOptions.length > 0 && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-400">Persona</span>
             <ComboFilter
               allLabel="Todas las personas"
               value={userId}
-              options={users.map((u) => ({ id: u.id, label: u.name }))}
+              options={personOptions}
               paramKey="userId"
               basePath="/agenda"
               currentParams={{ projectId, status, risk, type, q, tag, from, to }}
@@ -600,9 +597,7 @@ export default async function AgendaPage({
 
       {cards.length === 0 && (
         <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-          {viewingOther && canViewOthers
-            ? `${users.find((u) => u.id === userId)?.name ?? "Esa persona"} no tiene tareas a su cargo con estos filtros.`
-            : "No hay tareas a su cargo con estos filtros."}
+          No hay tareas a su cargo con estos filtros.
         </p>
       )}
 

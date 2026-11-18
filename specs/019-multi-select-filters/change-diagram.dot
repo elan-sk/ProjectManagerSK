@@ -1,0 +1,22 @@
+digraph G {
+  rankdir=LR; fontname="Helvetica"; nodesep=0.35; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#212121", penwidth=1.2];
+  edge [color="#424242", fontname="Helvetica", fontsize=9];
+  subgraph cluster_ui { label="Desplegable del filtro"; fontsize=11; color="#9E9E9E";
+    row [label="Clic en el nombre\n= solo ese", fillcolor="#E0E0E0", color="#757575"];
+    btns [label="Botones +/− y ojo\nen cada fila", fillcolor="#C8E6C9", color="#2E7D32"];
+    trig [label="Botón del filtro\n«Alejandro +2» / «Sin Elan»", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+  url [label="URL: un valor por filtro\n→ lista con elegidos y !ocultos\n(?userId=a,b,!c)", fillcolor="#FFE0B2", color="#EF6C00"];
+  helper [label="Regla común\nelegidos / ocultos", fillcolor="#C8E6C9", color="#2E7D32"];
+  subgraph cluster_pages { label="Pantallas que filtran"; fontsize=11; color="#9E9E9E";
+    p1 [label="Proyecto\n(tablero, cronograma, calendario, archivos)", fillcolor="#FFE0B2", color="#EF6C00"];
+    p2 [label="Panorama general\n+ resumen de proyectos", fillcolor="#FFE0B2", color="#EF6C00"];
+    p3 [label="Agenda\n(Persona = quién más está en mis tareas)", fillcolor="#FFE0B2", color="#EF6C00"];
+    p4 [label="Rendimiento y Empresa", fillcolor="#FFE0B2", color="#EF6C00"];
+  }
+  other [label="Ver la agenda\nde otra persona", fillcolor="#FFCDD2", color="#C62828"];
+  row -> url; btns -> url; url -> trig;
+  url -> helper; helper -> p1; helper -> p2; helper -> p3; helper -> p4;
+  p3 -> other [style=dashed];
+}

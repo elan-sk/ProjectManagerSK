@@ -22,6 +22,7 @@ import { matchesTaskSearch, normalizeSearchText } from "@/lib/search";
 import { TASK_TYPE_LABEL, taskReviewState, matchesStatusFilter, statusFilterTriggerClass, taskStatusFilterOptions, type ReviewState } from "@/lib/statusColors";
 import { buildTagFilterOptions, matchesTagFilter } from "@/lib/tags";
 import { matchesAssigneeFilter, UNASSIGNED_ASSIGNEE_OPTION } from "@/lib/assigneeFilter";
+import { matchesMultiFilter } from "@/lib/multiFilter";
 import type { TaskStatus, TaskType } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -272,8 +273,8 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
   // Filtro «Proyecto» (spec 004): proyectos con tareas en este panorama, cada principal seguido de sus subproyectos.
   const boardProjectNodes = [...new Map(boardTasksRaw.map((t) => [t.projectId, { id: t.projectId, parentId: t.project.parentId, name: t.project.name, parentName: t.project.parent?.name ?? null }])).values()];
   const boardProjectOptions = projectFilterOptions(boardProjectNodes);
-  const projSet = expandProjectFilter(proj, boardProjectNodes);
-  const fileProjectSet = expandProjectFilter(fileProject, boardProjectNodes);
+  const projMatches = (pid: string) => matchesMultiFilter(proj, (v) => expandProjectFilter(v, boardProjectNodes)!.has(pid));
+  const fileProjectMatches = (pid: string) => matchesMultiFilter(fileProject, (v) => expandProjectFilter(v, boardProjectNodes)!.has(pid));
   // Etiquetas del filtro "Etiqueta": solo las ya usadas en algún proyecto
   // visible en este panorama (mismo criterio que projects/[id]/page.tsx, acá
   // agregado a través de todos los boardProjectIds).
@@ -306,8 +307,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
     attachments: { mimeType: string }[];
     reviewers: { userId: string }[];
     reviewRounds: { outcome: string | null }[];
-  }) => {
-    if (!type) return true;
+  }, type: string) => {
     if (type === "RETURNED_MINE") return t.status === "RETURNED" && t.assignees.some((a) => a.userId === myUserId);
     if (type === "REVIEWING_MINE") {
       return t.reviewers.some((r) => r.userId === myUserId) && t.reviewRounds.some((r) => r.outcome === null);
@@ -338,14 +338,14 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
     plannedStart: Date;
     plannedEnd: Date;
   }) =>
-    matchesRiskFilter(boardAlertById.get(t.id)!, risk) &&
-    matchesStatusFilter(status, t) &&
+    matchesMultiFilter(risk, (v) => matchesRiskFilter(boardAlertById.get(t.id)!, v)) &&
+    matchesMultiFilter(status, (v) => matchesStatusFilter(v, t)) &&
     matchesDateRange(t, from, to) &&
-    matchesType(t) &&
-    matchesAssigneeFilter(userId, t.assignees) &&
-    matchesTagFilter(tag, t.taskTags) &&
+    matchesMultiFilter(type, (v) => matchesType(t, v)) &&
+    matchesMultiFilter(userId, (v) => matchesAssigneeFilter(v, t.assignees)) &&
+    matchesMultiFilter(tag, (v) => matchesTagFilter(v, t.taskTags)) &&
     (!collision || (myCollisionTaskIds ? myCollisionTaskIds.has(t.id) : Boolean(collisionsById.get(t.id)))) &&
-    (!projSet || projSet.has(t.projectId)) &&
+    projMatches(t.projectId) &&
     matchesTaskSearch(t, q);
 
   const earliestStart =
@@ -503,7 +503,7 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
     boardFileKind === "RESULTADO"
       ? []
       : projects
-          .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProjectSet || fileProjectSet.has(p.id)))
+          .filter((p) => boardVisibleProjectIds.has(p.id) && fileProjectMatches(p.id))
           .flatMap((p) => [
             ...p.attachments.map((a) => ({ ...a, taskId: null, taskTitle: null, projectId: p.id, projectName: p.name })),
             ...p.links.map((l) => ({
@@ -558,20 +558,20 @@ reviewRounds: { select: { outcome: true, checks: { select: { result: true } } } 
         : []
     )
     .filter((a) => !fileType || fileType === "all" || attachmentFileType(a.mimeType) === fileType)
-    .filter((a) => !fileProjectSet || fileProjectSet.has(a.projectId))
+    .filter((a) => fileProjectMatches(a.projectId))
     .filter((a) => !fileQ || normalizeSearchText(a.fileName).includes(normalizeSearchText(fileQ)))
     // Lo más reciente primero (ver projects/[id]/page.tsx).
     .sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
   const boardSharedLinks = [
     ...projects
-      .filter((p) => boardVisibleProjectIds.has(p.id) && (!fileProjectSet || fileProjectSet.has(p.id)))
+      .filter((p) => boardVisibleProjectIds.has(p.id) && fileProjectMatches(p.id))
       .map((p) => {
         const token = projectShareTokenById.get(p.id);
         return token ? { id: `project:${p.id}`, label: `Proyecto — ${p.name}`, token, href: `/projects/${p.id}`, project: { name: p.name, iconUrl: p.iconUrl, parent: p.parent } } : null;
       })
       .filter((l) => l !== null),
     ...boardTasksRaw
-      .filter((t) => !fileProjectSet || fileProjectSet.has(t.projectId))
+      .filter((t) => fileProjectMatches(t.projectId))
       .map((t) => {
         const token = taskShareTokenById.get(t.id);
         return token

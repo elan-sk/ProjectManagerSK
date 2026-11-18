@@ -1,0 +1,6 @@
+- [x] **T1. Regla común elegidos/ocultos + chequeo.** RF-5, RF-13
+- [x] **T2. Desplegable con +/−, ojo, estados y texto del botón.** RF-1..RF-9
+- [x] **T3. Proyecto (tablero, cronograma, calendario, archivos).** RF-10
+- [x] **T4. Panorama general y resumen de proyectos.** RF-9, RF-10
+- [x] **T5. Agenda personal con Persona entre mis tareas.** RF-11
+- [x] **T6. Rendimiento y Empresa.** RF-12

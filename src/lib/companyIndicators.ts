@@ -1,3 +1,4 @@
+import { parseMultiFilter } from "@/lib/multiFilter";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearchText } from "@/lib/search";
 import { isDeliveredOnTime, getTeamContribution } from "@/lib/delays";
@@ -6,6 +7,16 @@ import { getCommonFailureCategories, getReviewPerformance, formatHours } from "@
 export type IndicatorRow = { label: string; value: number; note?: string };
 export type Indicator = { key: string; title: string; kind: "bars" | "donut"; unit: string; rows: IndicatorRow[]; summary: string; reference?: number };
 export type IndicatorScope = { projectIds?: string[] | null; from?: Date | null; clientId?: string | null };
+
+function clientWhere(raw: string | null | undefined) {
+  const { include, exclude } = parseMultiFilter(raw);
+  return {
+    AND: [
+      ...(include.length > 0 ? [{ clientId: { in: include } }] : []),
+      ...(exclude.length > 0 ? [{ OR: [{ clientId: null }, { clientId: { notIn: exclude } }] }] : []),
+    ],
+  };
+}
 
 export const INDICATOR_CATALOG = [
   { key: "duration", title: "Duración real vs. planeada", keywords: ["duracion", "duran", "tiempo", "tiempos", "plazo", "plazos", "cronograma", "demora", "atraso"] },
@@ -31,7 +42,7 @@ export async function scopeProjects(scope: IndicatorScope) {
     where: {
       status: { not: "ARCHIVED" },
       ...(scope.projectIds ? { id: { in: scope.projectIds } } : {}),
-      ...(scope.clientId ? { clientId: scope.clientId } : {}),
+      ...clientWhere(scope.clientId),
       ...(scope.from ? { tasks: { some: { OR: [{ plannedEnd: { gte: scope.from } }, { actualEnd: { gte: scope.from } }] } } } : {}),
     },
     select: { id: true, name: true, clientName: true, startDate: true, targetEndDate: true },

@@ -16,6 +16,7 @@ import { BarChart, TrendBars } from "@/components/charts/BarChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { toDonutData } from "@/lib/chartPalette";
 import { ComboFilter } from "@/components/ComboFilter";
+import { matchesMultiFilter, pruneMultiFilter, singleIncluded } from "@/lib/multiFilter";
 import { ResetFiltersButton } from "@/components/ResetFiltersButton";
 import { ProjectIcon } from "@/components/ProjectIcon";
 import { getUserActivityStats, type ActivityStats } from "@/lib/activity";
@@ -189,13 +190,9 @@ export default async function PerformancePage({
   const { projectId } = await searchParams;
   // Si es PM, queda acotado a sus proyectos aunque el projectId de la URL
   // sea de uno ajeno (o no exista) — nunca ve datos de un proyecto que no administra.
-  const selectedProjectIds = isAdmin
-    ? projectId && adminVisibleIds!.includes(projectId)
-      ? [projectId]
-      : adminVisibleIds!
-    : projectId && myPmProjectIds!.includes(projectId)
-    ? [projectId]
-    : myPmProjectIds!;
+  const allowedProjectIds = isAdmin ? adminVisibleIds! : myPmProjectIds!;
+  const projectFilter = pruneMultiFilter(projectId, (id) => allowedProjectIds.includes(id));
+  const selectedProjectIds = allowedProjectIds.filter((id) => matchesMultiFilter(projectFilter, (v) => v === id));
 
   const [
     projects,
@@ -246,7 +243,8 @@ export default async function PerformancePage({
   const qaTrendByUser = new Map(qaPerformance.map((p, i) => [p.userId, qaTrends[i]]));
   const acceptanceTrendByUser = new Map(acceptancePerformance.map((p, i) => [p.userId, acceptanceTrends[i]]));
 
-  const selectedProject = projectId ? projects.find((p) => p.id === projectId) ?? null : null;
+  const selectedProjectId = singleIncluded(projectFilter);
+  const selectedProject = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) ?? null : null;
 
   const contributionBars = workload
     .filter((w) => w.percent > 0 || w.openTotal > 0)
@@ -270,10 +268,10 @@ export default async function PerformancePage({
           </div>
         </div>
         <div className="flex items-start gap-2">
-          <ResetFiltersButton count={projectId ? 1 : 0} href="/performance" aligned={false} />
+          <ResetFiltersButton count={projectFilter ? 1 : 0} href="/performance" aligned={false} />
           <ComboFilter
             allLabel={isAdmin ? "Todos los proyectos" : "Todos los míos"}
-            value={projectId}
+            value={projectFilter}
             options={projects.map((p) => ({ id: p.id, label: p.name }))}
             paramKey="projectId"
             basePath="/performance"
