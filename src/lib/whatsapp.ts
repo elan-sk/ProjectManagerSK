@@ -9,6 +9,7 @@ import { getBotName, getBotAvatarBuffer, getBotIntroMessage } from "@/lib/botSet
 import { mimeFromFileName } from "@/lib/uploadLimits";
 import { absoluteUrl } from "@/lib/appUrl";
 import { APP_SETTING_ID } from "@/lib/appSettings";
+import { isPmAnywhere } from "@/lib/permissions";
 import { LIMIT_REACHED_REASON, recordWhatsAppSent, whatsAppLimitReached } from "@/lib/whatsappUsage";
 import { cloudSendImage, cloudSendTemplate, cloudSendText, getCloudConfig, getWhatsAppConnection } from "@/lib/whatsappCloud";
 import { cloudImageMime, isWindowOpen, noticeLink, oneLineSummary } from "@/lib/whatsappCloudFormat";
@@ -592,6 +593,23 @@ export async function sendCloudChatIntroIfNeeded(phone: string, userId: string) 
 
 export async function sendDirectAlert(phone: string, text: string, imageUrls?: string[], urgent = false) {
   return sendRawMessage(`${phone}@s.whatsapp.net`, text, imageUrls, urgent);
+}
+
+// WhatsApp de una persona a otra por el bot (herramienta del chat y respuesta citando un «💬 Mensaje de X»).
+// El destinatario tiene que saber que el mensaje es de quien lo pidió, no del bot.
+export async function sendWhatsappOnBehalf(senderId: string, recipientId: string, message: string): Promise<{ ok: boolean; message: string }> {
+  const [sender, managesProjects] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true, name: true } }),
+    isPmAnywhere(senderId),
+  ]);
+  if (sender.role !== "ADMIN" && !managesProjects) {
+    return { ok: false, message: "Solo un administrador o PM puede enviar WhatsApp individuales desde el chat." };
+  }
+  const recipient = await prisma.user.findFirst({ where: { id: recipientId, active: true }, select: { phone: true, name: true } });
+  if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
+  if (/contrase(?:ñ|n)a|password/i.test(message)) return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
+  const sent = await sendDirectAlert(recipient.phone, `💬 Mensaje de *${sender.name}*:\n\n${message}`, undefined, true);
+  return { ok: sent, message: sent ? `Listo, se envió el WhatsApp a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar el mensaje." };
 }
 
 export function getChatSocket() {

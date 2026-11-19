@@ -7,7 +7,7 @@ import { LIVE_PROJECT_WHERE } from "@/lib/permissions";
 import { INTERNAL_CHAT_HEADER, internalChatSecret } from "@/lib/actorContext";
 import { isWhatsappChatEnabled } from "@/lib/botSettings";
 import { clearChontatecHistory, getChontatecHistory, hasPendingChontatecAction, type ChatUiMessage } from "@/lib/chontatec";
-import { blockedByTestMode, replyInGroup, sendChatReply, sendCloudChatIntroIfNeeded, sendConfirmPoll } from "@/lib/whatsapp";
+import { blockedByTestMode, replyInGroup, sendChatReply, sendCloudChatIntroIfNeeded, sendConfirmPoll, sendWhatsappOnBehalf } from "@/lib/whatsapp";
 import { cloudDownloadMedia, cloudSendButtons, cloudSendDocument, cloudSendText, cloudTyping, getWhatsAppConnection, type CloudConfig } from "@/lib/whatsappCloud";
 import { buildGroupRequest, FORWARD_JOIN_MS, joinChatParts, recentGroupLines, stripBotMention, type ChatPart } from "@/lib/whatsappCloudFormat";
 import { groupLines, groupRequestIn, openGroupRequest, rememberGroupLine } from "@/lib/whatsappGroupRequests";
@@ -345,13 +345,40 @@ async function handleVote(sock: WASocket, t: Transport, user: ChatUser, msg: WAM
   await decide(t, user, poll.toolUseId, decision);
 }
 
-function isForwarded(content: proto.IMessage) {
-  const info =
+function contextOf(content: proto.IMessage) {
+  return (
     content.extendedTextMessage?.contextInfo ??
     content.imageMessage?.contextInfo ??
     content.documentMessage?.contextInfo ??
-    content.audioMessage?.contextInfo;
-  return Boolean(info?.isForwarded);
+    content.audioMessage?.contextInfo
+  );
+}
+
+function isForwarded(content: proto.IMessage) {
+  return Boolean(contextOf(content)?.isForwarded);
+}
+
+// Respuesta citando un mensaje (ej. un «💬 Mensaje de Nata»): sin la cita el bot no sabe a qué responde.
+// Un «sí/no» a una confirmación va sin cita, para que se siga reconociendo como decisión.
+function withQuote(content: proto.IMessage, text: string) {
+  const quoted = textOf(contextOf(content)?.quotedMessage);
+  return quoted && !parseConfirmation(text) ? `[Responde citando: «${quoted}»]\n${text}` : text;
+}
+
+// Responder citando un «💬 Mensaje de X» que llegó por el bot = la respuesta va directo a X, sin confirmación.
+function relayAuthor(content: proto.IMessage) {
+  return textOf(contextOf(content)?.quotedMessage).match(/💬 Mensaje de \*([^*\n]+)\*:/)?.[1]?.trim() ?? null;
+}
+
+// false = no se pudo saber a quién va (nombre repetido o sin cuenta): sigue el camino normal del bot.
+async function relayQuotedReply(t: Transport, user: ChatUser, content: proto.IMessage, text: string) {
+  const name = relayAuthor(content);
+  if (!name || parseConfirmation(text)) return false;
+  const matches = await prisma.user.findMany({ where: { name, active: true }, select: { id: true }, take: 2 });
+  if (matches.length !== 1) return false;
+  const result = await sendWhatsappOnBehalf(user.id, matches[0].id, text);
+  await t.reply([result.ok ? `✅ Enviado a ${name}: «${text}»` : result.message]);
+  return true;
 }
 
 function textOf(content: proto.IMessage | null | undefined) {
@@ -447,7 +474,12 @@ export async function handleIncomingMessage(sock: WASocket, msg: WAMessage) {
   const forwarded = isForwarded(content);
   if (type === "conversation" || type === "extendedTextMessage") {
     const text = textOf(content);
-    if (text) submit(t, user, { text, forwarded });
+    if (!text) return;
+    if (relayAuthor(content)) {
+      enqueue(user.id, () => t.typing(async () => {
+        if (!(await relayQuotedReply(t, user, content, text))) submit(t, user, { text: withQuote(content, text), forwarded });
+      }));
+    } else submit(t, user, { text: withQuote(content, text), forwarded });
     return;
   }
   enqueue(user.id, () => t.typing(async () => {
@@ -466,7 +498,9 @@ export async function handleIncomingMessage(sock: WASocket, msg: WAMessage) {
       if ((content.audioMessage.seconds ?? 0) > 300) return t.reply([VOICE_TOO_LONG_TEXT]);
       const buffer = await downloadMediaMessage(msg, "buffer", {}).catch(() => null);
       const audio = await audioToPart(t, buffer, content.audioMessage.seconds, forwarded);
-      if (audio) submit(t, user, audio.part, audio.part.forwarded ? "" : audio.prefix);
+      if (audio && !(await relayQuotedReply(t, user, content, audio.part.text))) {
+        submit(t, user, { ...audio.part, text: withQuote(content, audio.part.text) }, audio.part.forwarded ? "" : audio.prefix);
+      }
     } else if (type === "pollUpdateMessage" && content.pollUpdateMessage) {
       await handleVote(sock, t, user, msg, content.pollUpdateMessage);
     } else if (UNSUPPORTED_TYPES.has(type)) {

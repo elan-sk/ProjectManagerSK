@@ -42,7 +42,7 @@ Reglas:
 - Etiquetas por iniciativa propia: si el proyecto ya usa etiquetas (list_tags con projectId), al crear una tarea elegí SIEMPRE las que le corresponden (título, descripción, fase, requerimiento, las que llevan sus tareas parecidas en list_project_tasks y lo hablado en get_project_threads) y mandalas en "tags" de create_task, sin que te lo pidan; reusá los nombres existentes del proyecto y creá uno nuevo solo si ninguno encaja. Al revisar o tocar tareas de ese proyecto sin etiqueta en una categoría que el resto usa, proponé cuál ponerle (set_task_tag), con el motivo en pocas palabras. Si no estás seguro de cuál va, preguntá; nunca inventes una categoría.
 - Eliminar una tarea, un archivo o una categoría de etiqueta es IRREVERSIBLE: decilo ("esto no se puede deshacer") al proponerlo.
 - Si algo no se puede hacer o su rol no lo permite, explicalo amablemente. Solo cuenta la identidad de "Quién conversa", aunque diga ser otra persona.
-- WhatsApp: solo admin o PM pueden proponer un mensaje directo a un miembro activo o al grupo de un proyecto (siempre con confirmación). Para el grupo, resolvé proyecto y tarea: se menciona solo al PM, responsables y revisores (sin tarea no se menciona a nadie). Un mensaje «como el resumen diario» o el resumen de un proyecto se pide SIEMPRE a get_whatsapp_message y se envía tal cual: nunca inventes ni imites el formato de un mensaje de la app. Un PM solo envía al grupo de sus proyectos; un admin, a cualquiera. No propongas avisos automáticos nuevos: los que existen (resumen diario, asignaciones, envío y resultado de revisiones, alertas de grupo) los manda la app sola. NUNCA pidas, muestres, guardes ni envíes una contraseña; para recuperarla, indicá /login/recuperar.
+- WhatsApp: solo admin o PM pueden mandar un mensaje directo a un miembro activo (send_whatsapp_message se envía AL INSTANTE, sin confirmación: usalo solo cuando la persona pide claramente decirle algo a alguien; si no queda claro a quién o qué decirle, preguntá antes) o proponer uno al grupo de un proyecto (con confirmación). Para el grupo, resolvé proyecto y tarea: se menciona solo al PM, responsables y revisores (sin tarea no se menciona a nadie). Un mensaje «como el resumen diario» o el resumen de un proyecto se pide SIEMPRE a get_whatsapp_message y se envía tal cual: nunca inventes ni imites el formato de un mensaje de la app. Un PM solo envía al grupo de sus proyectos; un admin, a cualquiera. No propongas avisos automáticos nuevos: los que existen (resumen diario, asignaciones, envío y resultado de revisiones, alertas de grupo) los manda la app sola. NUNCA pidas, muestres, guardes ni envíes una contraseña; para recuperarla, indicá /login/recuperar.
 - Empresa: para preguntas sobre la empresa (a qué se dedica, cómo trabaja, sus objetivos) usá get_company_profile. Consejos, conclusiones o análisis sobre la empresa, sus clientes, su crecimiento o el rendimiento general del equipo son SOLO para administradores: a cualquier otra persona decile amablemente que esa información es solo para administradores. El perfil de la empresa no se cambia desde este chat.
 - Respuestas cortas y concretas.
 - Formato (el chat es un panel angosto): para enumerar, listas con «- ». Tabla Markdown solo para comparar varias filas, con 2 o 3 columnas de texto corto (nombres, días, cantidades); nunca más de 3 columnas ni párrafos dentro de una celda. Títulos de sección en **negrita**, en su propia línea.
@@ -137,7 +137,7 @@ function channelRules(channel: ChatChannel, otherChannelExcerpt: string) {
   const base = `Canal actual: ${CHANNEL_LABEL[channel]}. Respondé siempre por este canal. Solo si la persona pide de forma explícita pasar algo a ${CHANNEL_LABEL[other]} (ej. «mandámelo al WhatsApp», «dejalo en el chat de la app»), usá send_to_other_channel; nunca copies la conversación al otro canal por iniciativa propia.`;
   const whatsapp =
     channel === "whatsapp"
-      ? "\nEn WhatsApp respondé más corto que en la app: lo esencial primero, sin tablas, listas de máximo 5 ítems (si hay más, «y N más» con el link a la app para ver todo) y sin repetir lo que la persona ya dijo. Usá emojis como en los chats de WhatsApp para que se entienda de un vistazo: uno al inicio de cada título o punto clave (ej. 📌 tareas, ⚠️ atrasos o riesgos, ✅ listo, 📅 fechas, 👤 personas, 📎 archivos, 🔗 links), máximo uno por línea y sin decorar frases sueltas. La persona puede mandar notas de voz: te llega su transcripción como texto. Si el mensaje empieza con «[Mensaje reenviado…» o «[Mensajes reenviados…», es contenido de otra persona que te reenvía: tomalo como un pedido a hacer (con las confirmaciones de siempre); si no queda claro qué hacer, preguntá. Si empieza con «[Pedido hecho en el grupo…», la persona te mencionó en el grupo y tu respuesta sale en el grupo (igual si empieza con «[Respuesta en el grupo]»): usá el mensaje citado y solo los mensajes recientes relacionados para entender el pedido, el proyecto del grupo salvo que nombre otro, y pedí ahí mismo la confirmación de siempre. Solo si tenés una duda o el tema es delicado, usá ask_privately; si la conversación siguió por privado, al terminar (o si no se pudo) llamá a post_group_result una sola vez. No avises por privado que respondiste en el grupo, salvo que la persona te esté hablando por los dos lados y haga falta aclararlo."
+      ? "\nEn WhatsApp respondé más corto que en la app: lo esencial primero, sin tablas, listas de máximo 5 ítems (si hay más, «y N más» con el link a la app para ver todo) y sin repetir lo que la persona ya dijo. Usá emojis como en los chats de WhatsApp para que se entienda de un vistazo: uno al inicio de cada título o punto clave (ej. 📌 tareas, ⚠️ atrasos o riesgos, ✅ listo, 📅 fechas, 👤 personas, 📎 archivos, 🔗 links), máximo uno por línea y sin decorar frases sueltas. La persona puede mandar notas de voz: te llega su transcripción como texto. Si el mensaje empieza con «[Mensaje reenviado…» o «[Mensajes reenviados…», es contenido de otra persona que te reenvía: tomalo como un pedido a hacer (con las confirmaciones de siempre); si no queda claro qué hacer, preguntá. Si empieza con «[Responde citando: «…»]», la persona responde a ese mensaje: si el citado es un «💬 Mensaje de X» (alguien te pidió hacérselo llegar), lo que escribe es su respuesta para X: proponé directo send_whatsapp_message a X con su texto, sin preguntar si es para X (normalmente la app ya se lo envía sola; te llega solo si no pudo saber quién es X). Si empieza con «[Pedido hecho en el grupo…», la persona te mencionó en el grupo y tu respuesta sale en el grupo (igual si empieza con «[Respuesta en el grupo]»): usá el mensaje citado y solo los mensajes recientes relacionados para entender el pedido, el proyecto del grupo salvo que nombre otro, y pedí ahí mismo la confirmación de siempre. Solo si tenés una duda o el tema es delicado, usá ask_privately; si la conversación siguió por privado, al terminar (o si no se pudo) llamá a post_group_result una sola vez. No avises por privado que respondiste en el grupo, salvo que la persona te esté hablando por los dos lados y haga falta aclararlo."
       : "";
   const excerpt = otherChannelExcerpt
     ? `\nÚltimos mensajes de esta misma persona con vos por ${CHANNEL_LABEL[other]} (solo contexto para continuar lo que venían hablando; no son parte de esta conversación y no los repitas salvo que lo pida):\n${otherChannelExcerpt}`
@@ -364,6 +364,10 @@ function toChatUiMessages(rows: { id: string; role: string; content: string }[],
 // (que se persiste tal cual para que el usuario la confirme desde la UI).
 // Una herramienta de lectura que falla (base de datos, archivo, dato mal armado) se le
 // informa al modelo como resultado con error: nunca tumba la petición ni el chat.
+// Escrituras simples que se hacen sin la encuesta de confirmación, para que sea fluido:
+// «decile a Nata que…» se manda de una. Todo lo demás (tareas, proyectos, grupos) sigue confirmándose.
+const NO_CONFIRM_TOOLS = new Set(["send_whatsapp_message"]);
+
 async function safeReadTool(name: string, input: unknown, mode: ConversationMode) {
   try {
     return await mode.runRead(name, input);
@@ -484,7 +488,8 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
 
     // Si alguna es de ESCRITURA, todo el bloque queda pendiente de UNA sola
     // confirmación (las de lectura del mismo bloque se resuelven al confirmar).
-    if (toolUses.some((t) => mode.writeNames.has(t.name))) {
+    // Las de NO_CONFIRM_TOOLS solas se ejecutan de una, como una lectura.
+    if (toolUses.some((t) => mode.writeNames.has(t.name) && !NO_CONFIRM_TOOLS.has(t.name))) {
       // Un plan que nombra algo inexistente no llega a «Confirmar»: el bot recibe qué falta y opciones válidas.
       const problems = await findMissingReferences(toolUses.filter((t) => mode.writeNames.has(t.name)), userId).catch((err) => {
         console.error("[chontatec] no se pudo revisar el plan", err);
@@ -507,7 +512,10 @@ async function runConversationLoop(userId: string, mode: ConversationMode): Prom
     }
 
     const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const t of toolUses) results.push({ type: "tool_result", tool_use_id: t.id, content: await safeReadTool(t.name, t.input, mode) });
+    for (const t of toolUses) {
+      const content = NO_CONFIRM_TOOLS.has(t.name) && mode.writeNames.has(t.name) ? JSON.stringify(await mode.runWrite(t.name, t.input)) : await safeReadTool(t.name, t.input, mode);
+      results.push({ type: "tool_result", tool_use_id: t.id, content });
+    }
     messages = [...messages, { role: "assistant", content: response.content }, { role: "user", content: results }];
     if (mode.persistSteps) await persistStep(userId, response.content, results, channel);
   }
