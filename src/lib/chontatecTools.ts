@@ -482,7 +482,7 @@ export const WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "send_whatsapp_message",
-    description: "Envía un mensaje directo de WhatsApp a un usuario activo con teléfono registrado. Requiere confirmación del usuario antes de enviar.",
+    description: "Envía un mensaje directo de WhatsApp a un usuario activo con teléfono registrado, de parte de quien lo pide: la app antepone sola «💬 Mensaje de <nombre>:». Redactá el mensaje con las palabras de quien lo pide (si responde a algo que le hicieron llegar, como su respuesta), sin presentarlo como opinión del bot ni repetir quién lo envía. Requiere confirmación del usuario antes de enviar.",
     input_schema: {
       type: "object",
       properties: { userId: { type: "string" }, message: { type: "string", description: "Texto del mensaje, sin contraseña ni secretos." } },
@@ -1696,7 +1696,7 @@ function baseSummary(name: string, input: unknown, names: Map<string, string>): 
     }
     case "send_whatsapp_message": {
       const { userId, message } = input as { userId?: string; message?: string };
-      return `Enviar un WhatsApp a ${who(userId)}${message ? `: «${message.length > 120 ? `${message.slice(0, 120)}…` : message}»` : ""}`;
+      return `Enviar un WhatsApp de su parte a ${who(userId)}${message ? `: «${message.length > 120 ? `${message.slice(0, 120)}…` : message}»` : ""}`;
     }
     case "send_whatsapp_group_message":
       return (input as { taskId?: string }).taskId ? "Enviar un mensaje al grupo del proyecto y mencionar a los implicados" : "Enviar un mensaje al grupo del proyecto";
@@ -1965,7 +1965,7 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
         const { userId, message } = z.object({ userId: z.string(), message: z.string().trim().min(1).max(2000) }).parse(input);
         const senderId = await currentUserId();
         const [sender, managedProjects] = await Promise.all([
-          prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true } }),
+          prisma.user.findUniqueOrThrow({ where: { id: senderId }, select: { role: true, name: true } }),
           isPmAnywhere(senderId),
         ]);
         if (sender.role !== "ADMIN" && !managedProjects) {
@@ -1974,7 +1974,8 @@ async function runWriteToolUnsafe(name: string, input: unknown): Promise<{ ok: b
         const recipient = await prisma.user.findFirst({ where: { id: userId, active: true }, select: { phone: true, name: true } });
         if (!recipient?.phone) return { ok: false, message: "Esa persona no tiene un teléfono de WhatsApp registrado." };
         if (/contrase(?:ñ|n)a|password/i.test(message)) return { ok: false, message: "No se envían contraseñas por el bot. Usá el restablecimiento de contraseña." };
-        const sent = await sendDirectAlert(recipient.phone, message, undefined, true);
+        // El destinatario tiene que saber que el mensaje es de quien lo pidió, no del bot.
+        const sent = await sendDirectAlert(recipient.phone, `💬 Mensaje de *${sender.name}*:\n\n${message}`, undefined, true);
         return { ok: sent, message: sent ? `Listo, se envió el WhatsApp a ${recipient.name}.` : "WhatsApp no está conectado; no se pudo enviar el mensaje." };
       } catch (err) {
         return { ok: false, message: (err as Error).message };
