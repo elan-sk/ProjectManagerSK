@@ -127,11 +127,24 @@ export function ChontatecWidget({ botName, botAvatarUrl }: { botName: string; bo
       setExpanded(true);
       if (detail.autoSend) setAutoAsk(detail);
       else setChatContext(detail);
-      requestAnimationFrame(() => containerRef.current?.querySelector<HTMLTextAreaElement>("footer textarea")?.focus());
+      requestAnimationFrame(focusComposerAtEnd);
     }
     window.addEventListener(CHAT_ASK_EVENT, onAsk);
     return () => window.removeEventListener(CHAT_ASK_EVENT, onAsk);
   }, []);
+
+  // Vista chica y grande tienen cada una su caja de texto: al cambiar de vista la nueva toma el foco
+  // con el cursor al inicio, y hay que dejarlo al final para seguir escribiendo.
+  function focusComposerAtEnd() {
+    const box = containerRef.current?.querySelector<HTMLTextAreaElement>("footer textarea");
+    if (!box) return;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+    box.scrollTop = box.scrollHeight;
+  }
+  useEffect(() => {
+    if (open) requestAnimationFrame(focusComposerAtEnd);
+  }, [open, expanded]);
 
   const onScroll = useStickToBottom(scrollRef, `${open}:${expanded}:${messages.length}:${optimisticMessage ? 1 : 0}:${isPending}:${voice.state}`, `${open}:${expanded}:${loaded}`);
   const cancelVoice = voice.cancel;

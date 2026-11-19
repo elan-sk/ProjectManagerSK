@@ -10,7 +10,7 @@ import { buildFile } from "@/lib/botFileCreate";
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { normalizeSearchText, matchesTaskSearch } from "@/lib/search";
+import { normalizeSearchText } from "@/lib/search";
 import { getProjectDelaySummary, getTaskAlert, getBottlenecks, getTeamWorkload } from "@/lib/delays";
 import { getProjectTaskSlack } from "@/lib/criticalPath";
 import { TASK_STATUS_LABEL, PROJECT_PHASE_LABEL, projectPhase, taskStatusWhere, taskReviewState } from "@/lib/statusColors";
@@ -303,7 +303,7 @@ export const READ_TOOLS: Anthropic.Tool[] = [
   {
     name: "search_tasks",
     description:
-      "Busca tareas por texto en título, descripción, etiquetas o nombre de adjuntos (sin distinguir mayúsculas ni tildes); también sirve para saber en qué tarea está un archivo o cuáles llevan una etiqueta. projectId opcional (sin él, en todos los accesibles).",
+      "Busca tareas por palabras en título, descripción, etiquetas o nombre de adjuntos (sin distinguir mayúsculas ni tildes): trae las que contienen TODAS las palabras, en cualquier campo y orden (ej. «sprint 5 inventario» encuentra una tarea titulada «Inventario…» con la etiqueta «Sprint | S5»). Usá pocas palabras clave, no frases. También sirve para saber en qué tarea está un archivo o cuáles llevan una etiqueta. projectId opcional (sin él, en todos los accesibles).",
     input_schema: {
       type: "object",
       properties: {
@@ -1539,16 +1539,23 @@ export async function runReadTool(name: string, input: unknown): Promise<ToolRes
           taskTags: TASK_TAGS_SELECT,
         },
       });
-      const needle = normalizeSearchText(query.trim());
+      // Palabra por palabra y en todos los campos juntos: «sprint 5» tiene que encontrar la etiqueta «Sprint | S5».
       // Si no tiene acceso a los archivos de esa tarea puntual, la búsqueda
       // no debe encontrarla POR un nombre de archivo (ni mostrar cuál
-      // matcheó) — solo puede aparecer por título/descripción.
+      // matcheó) — solo puede aparecer por título/descripción/etiquetas.
+      const words = normalizeSearchText(query).split(/[^a-z0-9ñ]+/).filter(Boolean);
       const matches = tasks
-        .filter(
-          (t) =>
-            matchesTaskSearch({ ...t, attachments: canSeeTaskFiles(fileAccessIds, t.id) ? t.attachments : [] }, query) ||
-            t.taskTags.some((tt) => normalizeSearchText(tagLabel(tt)).includes(needle))
-        )
+        .filter((t) => {
+          const haystack = normalizeSearchText(
+            [
+              t.title,
+              t.description?.replace(/<[^>]*>/g, " ") ?? "",
+              ...t.taskTags.map(tagLabel),
+              ...(canSeeTaskFiles(fileAccessIds, t.id) ? t.attachments.map((a) => a.fileName) : []),
+            ].join(" ")
+          );
+          return words.every((w) => haystack.includes(w));
+        })
         .slice(0, 20);
       return JSON.stringify(
         matches.map((t) => ({
