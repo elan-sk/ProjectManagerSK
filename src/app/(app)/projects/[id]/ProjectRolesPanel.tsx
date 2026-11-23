@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar } from "@/components/Avatar";
+import { CollapsibleContent } from "@/components/CollapsibleContent";
 import { useConfirm } from "@/components/Confirm";
 import { ModalTrigger } from "@/components/Modal";
 import { ROLE_MAX } from "@/lib/projectRoles";
@@ -101,6 +102,7 @@ export function ProjectRolesPanel({
             : "Todavía no hay roles cargados en este proyecto."}
         </p>
       ) : (
+        <CollapsibleContent>
         <ul className="space-y-2">
           {roles.map((row) => (
             <li
@@ -185,6 +187,7 @@ export function ProjectRolesPanel({
             </li>
           ))}
         </ul>
+        </CollapsibleContent>
       )}
     </div>
   );
