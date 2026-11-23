@@ -6,11 +6,11 @@ import type { PublicCommentWithReplies } from "@/lib/publicView";
 
 function ProgressBar({ pct, level }: { pct: number; level: keyof typeof DEFINITION_LEVEL_FILL }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-shrink-0 items-center gap-2 pt-1">
       <div className="h-1.5 w-24 flex-shrink-0 overflow-hidden bg-slate-100">
         <div className={`${DEFINITION_LEVEL_FILL[level]} h-full`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="flex-shrink-0 text-[17px] text-slate-500">{pct}%</span>
+      <span className="w-12 flex-shrink-0 text-right text-[17px] text-slate-500">{pct}%</span>
     </div>
   );
 }
@@ -50,8 +50,8 @@ export function PublicDefinitionView({
         {objectives.length === 0 && <p className="text-[18px] text-slate-400">Sin objetivos definidos.</p>}
         {objectives.map((o) => (
           <div key={o.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[19px] font-semibold text-slate-800">{o.title}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 text-[19px] font-semibold text-slate-800">{o.title}</p>
               <ProgressBar pct={o.pct} level="OBJECTIVE" />
             </div>
             {o.description && <p className="text-[18px] text-slate-500">{o.description}</p>}
@@ -64,8 +64,8 @@ export function PublicDefinitionView({
         {requirements.length === 0 && <p className="text-[18px] text-slate-400">Sin requerimientos definidos.</p>}
         {requirements.map((r) => (
           <div key={r.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[19px] font-semibold text-slate-800">{r.title}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 text-[19px] font-semibold text-slate-800">{r.title}</p>
               <ProgressBar pct={r.pct} level="REQUIREMENT" />
             </div>
             {r.description && <p className="text-[18px] text-slate-500">{r.description}</p>}
@@ -80,8 +80,8 @@ export function PublicDefinitionView({
         {phases.length === 0 && <p className="text-[18px] text-slate-400">Sin fases definidas.</p>}
         {phases.map((p) => (
           <div key={p.id} className="space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[19px] font-semibold text-slate-800">{p.name}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 text-[19px] font-semibold text-slate-800">{p.name}</p>
               <ProgressBar pct={p.pct} level="PHASE" />
             </div>
             {p.taskTitles.length > 0 && (
