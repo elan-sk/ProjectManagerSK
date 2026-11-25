@@ -85,7 +85,7 @@ Dos pasos — primero subir el archivo, después adjuntarlo:
 ### Tareas
 
 - `GET /api/v1/projects/:id/tasks` — lista las tareas de un proyecto.
-- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin. Acepta `requirementIds` opcional: los requerimientos del mismo proyecto a los que responde la tarea (uno o varios). **Etiquetas: después de crearla, `POST /tasks/:id/tags` con las mismas categorías que usan sus tareas hermanas (ver «Etiquetas», regla dura).**
+- `POST /api/v1/projects/:id/tasks` — crea una tarea. Requiere PM/admin. Acepta `requirementIds` opcional: los requerimientos del mismo proyecto a los que responde la tarea (uno o varios). **Requerimientos (regla dura): una tarea puede responder a uno o a varios. Si no se dijo a cuáles, inferirlos del título/descripción frente a los requerimientos del proyecto (`GET /projects/:id`) y de los que llevan sus tareas parecidas, y mandar TODOS los que apliquen en `requirementIds`; avisar en el resumen cuáles se eligieron. Si ninguno encaja o hay duda, preguntar; nunca inventar ni crear uno sin pedido.** **Etiquetas: después de crearla, `POST /tasks/:id/tags` con las mismas categorías que usan sus tareas hermanas (ver «Etiquetas», regla dura).**
   ```json
   {
     "phaseId": "string",

@@ -866,7 +866,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
         assigneeIds: { type: "array", items: { type: "string" }, description: "Al menos un id de usuario." },
         reviewerIds: { type: "array", items: { type: "string" }, description: "Solo tipo QA (Prueba): ids de revisores, distintos de los responsables." },
         defaultTestTemplateId: { type: "string", description: "Solo tipo QA (Prueba): plantilla de pruebas (id de list_test_templates)." },
-        requirementTitles: { type: "array", items: { type: "string" }, description: "Opcional. Títulos de los requerimientos de Definición a los que responde la tarea (uno o varios), tal cual figuran en el proyecto." },
+        requirementTitles: { type: "array", items: { type: "string" }, description: "Títulos de los requerimientos de Definición a los que responde la tarea (uno o varios), tal cual figuran en el proyecto. Si la persona no los dijo, inferirlos (ver «Requerimientos por iniciativa propia»)." },
         requirementIds: { type: "array", items: { type: "string" }, description: "Opcional. Ids de los requerimientos, si se conocen; si no, usar requirementTitles." },
         tags: {
           type: "array",
@@ -885,7 +885,7 @@ export const ADVANCED_WRITE_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "update_task",
-    description: "Actualiza título, descripción, fase, tipo, requerimientos y/o link de reunión (el campo «Link de reunión» de la tarea: Meet/Zoom/Teams, con hora opcional para el recordatorio por WhatsApp 30 min antes) de una tarea — cualquier combinación de campos, solo se cambian los que se manden. Los requerimientos (a cuáles de Definición responde la tarea, uno o varios) solo los cambia el PM del proyecto o un administrador.",
+    description: "Actualiza título, descripción, fase, tipo, requerimientos y/o link de reunión (el campo «Link de reunión» de la tarea: Meet/Zoom/Teams, con hora opcional para el recordatorio por WhatsApp 15 min antes) de una tarea — cualquier combinación de campos, solo se cambian los que se manden. Los requerimientos (a cuáles de Definición responde la tarea, uno o varios) solo los cambia el PM del proyecto o un administrador.",
     input_schema: {
       type: "object",
       properties: {
