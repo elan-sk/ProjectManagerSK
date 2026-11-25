@@ -1,6 +1,6 @@
 import { PublicCommentThread } from "./PublicCommentThread";
 import { linkifyHtml } from "@/lib/linkify";
-import { DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
+import { DEFINITION_LEVEL_COLOR, DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 import { CollapsibleContent } from "@/components/CollapsibleContent";
 import type { PublicCommentWithReplies } from "@/lib/publicView";
 import { DefinitionSummary } from "@/app/(app)/projects/[id]/DefinitionSummary";
@@ -58,8 +58,11 @@ export function PublicDefinitionView({
 
       <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Alcance</p>
 
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-[21px] font-semibold text-slate-900">Objetivos</h2>
+      <div className={`space-y-2 rounded-xl border border-l-4 border-slate-200 ${DEFINITION_LEVEL_COLOR.OBJECTIVE.borderLeft} bg-white p-4`}>
+        <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.OBJECTIVE.text}`}>
+          <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.OBJECTIVE.dot}`} aria-hidden />
+          Objetivos
+        </h2>
         {objectives.length === 0 && <p className="text-[18px] text-slate-400">Sin objetivos definidos.</p>}
         {objectives.map((o) => (
           <div key={o.id} id={`definition-objective-${o.id}`} className="scroll-mt-20 space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
@@ -72,8 +75,11 @@ export function PublicDefinitionView({
         ))}
       </div>
 
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-[21px] font-semibold text-slate-900">Requerimientos</h2>
+      <div className={`space-y-2 rounded-xl border border-l-4 border-slate-200 ${DEFINITION_LEVEL_COLOR.REQUIREMENT.borderLeft} bg-white p-4`}>
+        <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.REQUIREMENT.text}`}>
+          <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.REQUIREMENT.dot}`} aria-hidden />
+          Requerimientos
+        </h2>
         {requirements.length === 0 && <p className="text-[18px] text-slate-400">Sin requerimientos definidos.</p>}
         {requirements.map((r) => (
           <div key={r.id} id={`definition-requirement-${r.id}`} className="scroll-mt-20 space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
@@ -88,8 +94,11 @@ export function PublicDefinitionView({
 
       <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Cronograma</p>
 
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-[21px] font-semibold text-slate-900">Fases</h2>
+      <div className={`space-y-2 rounded-xl border border-l-4 border-slate-200 ${DEFINITION_LEVEL_COLOR.PHASE.borderLeft} bg-white p-4`}>
+        <h2 className={`flex items-center gap-1.5 text-[21px] font-semibold ${DEFINITION_LEVEL_COLOR.PHASE.text}`}>
+          <span className={`h-2 w-2 rounded-full ${DEFINITION_LEVEL_COLOR.PHASE.dot}`} aria-hidden />
+          Fases
+        </h2>
         {phases.length === 0 && <p className="text-[18px] text-slate-400">Sin fases definidas.</p>}
         {phases.map((p) => (
           <div key={p.id} id={`definition-phase-${p.id}`} className="scroll-mt-20 space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
