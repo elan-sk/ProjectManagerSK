@@ -31,7 +31,7 @@ async function runQueuedAlerts() {
 
   // Las alertas con más de STALE_QUEUE_HOURS en cola NO salen solas (ya no son "en tiempo real"):
   // el admin decide en Configuración → WhatsApp si las envía o las descarta.
-  const pending = await prisma.whatsAppQueueItem.findMany({ where: { sentAt: null, createdAt: { gte: new Date(Date.now() - STALE_QUEUE_HOURS * 3600_000) } } });
+  const pending = await prisma.whatsAppQueueItem.findMany({ where: { sentAt: null, createdAt: { gte: new Date(Date.now() - STALE_QUEUE_HOURS * 3600_000) }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
   for (const item of pending) {
     const sent = await sendRawMessage(item.target, item.message);
     if (sent) await prisma.whatsAppQueueItem.update({ where: { id: item.id }, data: { sentAt: new Date() } });
@@ -72,7 +72,7 @@ async function dispatchMeetingReminders() {
     const participantIds = Array.from(new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]));
     await prisma.task.update({ where: { id: task.id }, data: { meetingReminderSentAt: new Date() } });
     if (groupJid) void sendGroupAlert(groupJid, `📅 *Recordatorio de reunión*\n"${task.title}"\n🕐 ${time}`, participantIds, task.meetingUrl!);
-    await notifyMeetingReminder({ id: task.id, title: task.title, projectId: task.projectId, meetingUrl: task.meetingUrl! }, participantIds, time).catch((err) =>
+    await notifyMeetingReminder({ id: task.id, title: task.title, projectId: task.projectId, meetingUrl: task.meetingUrl!, meetingAt: task.meetingAt! }, participantIds, time).catch((err) =>
       console.error("[scheduler] no se pudo avisar la reunión por campana o WhatsApp individual", err)
     );
   }

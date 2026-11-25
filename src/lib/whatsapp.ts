@@ -116,8 +116,32 @@ export function blockedByTestMode(jid: string) {
 type QrContent = Parameters<WASocket["sendMessage"]>[1];
 type QrOptions = Parameters<WASocket["sendMessage"]>[2];
 
+// El socket puede quedar «connected» pero muerto: cada envío falla con 428 «Connection Closed» y
+// Baileys nunca emite «close» (2026-11-25: dos horas sin enviar). Ante ese error se descarta el
+// socket y se reconecta; lo que falló ya quedó en la cola y sale al volver.
+function isClosedConnectionError(err: unknown) {
+  const e = err as { output?: { statusCode?: number }; message?: string } | null;
+  return e?.output?.statusCode === 428 || e?.message === "Connection Closed";
+}
+
+function reconnectDeadSocket(socket: NonNullable<typeof state.rawSocket>) {
+  if (state.rawSocket !== socket || state.manualStop) return; // ya se reemplazó o se detuvo a mano
+  console.warn(`[whatsapp] la conexión dejó de enviar (Connection Closed); reconectando (pid ${process.pid}).`);
+  state.sock = null;
+  state.rawSocket = null; // antes de end(): así su evento «close» no programa otro reintento
+  state.status = "connecting";
+  try {
+    void socket.end(undefined);
+  } catch {}
+  void startWhatsApp().catch((err) => console.error("[whatsapp] no se pudo reconectar tras Connection Closed", err));
+}
+
 async function qrSend(jid: string, content: QrContent, options?: QrOptions) {
-  const sent = await state.sock!.sendMessage(jid, content, options);
+  const socket = state.rawSocket;
+  const sent = await state.sock!.sendMessage(jid, content, options).catch((err) => {
+    if (socket && isClosedConnectionError(err)) reconnectDeadSocket(socket);
+    throw err;
+  });
   void recordWhatsAppSent().catch((err) => console.error("[whatsapp] no se pudo contar el mensaje", err));
   return sent;
 }

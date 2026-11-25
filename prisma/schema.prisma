@@ -974,6 +974,8 @@ model WhatsAppQueueItem {
   message   String    @db.Text
   createdAt DateTime  @default(now())
   sentAt    DateTime?
+  /// Pasada esta fecha ya no sirve y no se envía (ej. recordatorio de una reunión que ya empezó).
+  expiresAt DateTime?
 }
 
 // Punto 2.6.1: Configuración > "Pruebas" — plantillas reutilizables de

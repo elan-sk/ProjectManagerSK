@@ -374,7 +374,7 @@ export async function notifyShareActivity(taskId: string, message: string) {
 // Mensaje directo de WhatsApp a una persona: en horario laboral sale al
 // instante; fuera de horario se encola (poller de scheduler.ts), salvo
 // `immediate` (urgencias), que ignora el horario.
-async function dispatchDirect(userId: string, text: string, immediate = false, imageUrls?: string[]) {
+async function dispatchDirect(userId: string, text: string, immediate = false, imageUrls?: string[], expiresAt?: Date) {
   const user = await prisma.user.findFirst({ where: { id: userId, active: true, phone: { not: null } }, select: { phone: true } });
   if (!user?.phone) {
     // Antes se cortaba en silencio (ej. alguien mencionado sin teléfono cargado/inactivo
@@ -389,7 +389,7 @@ async function dispatchDirect(userId: string, text: string, immediate = false, i
   const phone = user.phone;
   const enqueue = () => {
     const imageLinks = (imageUrls ?? []).map((u) => `\n📷 ${absoluteUrl(u)}`).join("");
-    return prisma.whatsAppQueueItem.create({ data: { target: `${phone}@s.whatsapp.net`, message: `${text}${imageLinks}` } });
+    return prisma.whatsAppQueueItem.create({ data: { target: `${phone}@s.whatsapp.net`, message: `${text}${imageLinks}`, expiresAt } });
   };
   if (immediate || (await isCurrentlyWorkingHour())) {
     // Si el envío falla (ej. WhatsApp justo reconectando), el aviso no se pierde: pasa a la
@@ -630,10 +630,11 @@ export function meetingReminderText(title: string, time: string, meetingUrl: str
   return `📅 *Recordatorio de reunión*\n"${title}"\n🕐 ${time}\n\n🔗 ${meetingUrl}`;
 }
 
-export async function notifyMeetingReminder(task: { id: string; title: string; projectId: string; meetingUrl: string }, userIds: string[], time: string) {
+export async function notifyMeetingReminder(task: { id: string; title: string; projectId: string; meetingUrl: string; meetingAt: Date }, userIds: string[], time: string) {
   await notify(userIds, "MEETING_REMINDER", `Reunión "${task.title}" — ${time}`, task.id, `/projects/${task.projectId}/tasks/${task.id}`);
   const text = meetingReminderText(task.title, time, task.meetingUrl);
-  for (const userId of userIds) await dispatchDirect(userId, text, true);
+  // Si no sale ahora y queda en cola, vence al empezar la reunión: después ya no sirve.
+  for (const userId of userIds) await dispatchDirect(userId, text, true, undefined, task.meetingAt);
 }
 
 const MEETING_HOUR_FORMAT = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", hour12: true });

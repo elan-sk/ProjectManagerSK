@@ -95,7 +95,7 @@ export async function testWhatsAppDelivery() {
 
 // ─── Alertas viejas en cola ─────────────────────────────────────────────
 // Las que llevan más de STALE_QUEUE_HOURS esperando no se envían solas: el admin elige.
-const staleWhere = () => ({ sentAt: null, createdAt: { lt: new Date(Date.now() - STALE_QUEUE_HOURS * 3600_000) } });
+const staleWhere = () => ({ sentAt: null, createdAt: { lt: new Date(Date.now() - STALE_QUEUE_HOURS * 3600_000) }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] });
 
 export async function getStaleQueue() {
   await requireAdmin();
