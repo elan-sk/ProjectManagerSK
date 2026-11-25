@@ -647,7 +647,7 @@ async function todaysMeetingLines(userId: string) {
       meetingUrl: { not: null },
       meetingAt: { gte: from, lte: to },
       project: { hidden: false, ...LIVE_PROJECT_WHERE },
-      OR: [{ assignees: { some: { userId } } }, { project: { pmId: userId } }],
+      OR: [{ assignees: { some: { userId } } }, { reviewers: { some: { userId } } }, { project: { pmId: userId } }],
     },
     select: { title: true, meetingAt: true },
     orderBy: { meetingAt: "asc" },

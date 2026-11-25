@@ -50,13 +50,13 @@ const MEETING_TIME_FORMAT = new Intl.DateTimeFormat("es-CO", {
   hour12: true,
 });
 
-// Recordatorio de reunión al grupo del proyecto, 30 min antes (o antes si el
-// horario laboral no lo permite) — mencionando a los asignados y al PM.
+// Recordatorio de reunión al grupo del proyecto, 15 min antes (o antes si el
+// horario laboral no lo permite) — mencionando a responsables, revisores y PM.
 async function dispatchMeetingReminders() {
   const now = new Date();
   const upcoming = await prisma.task.findMany({
     where: { meetingAt: { gt: now }, meetingReminderSentAt: null, meetingUrl: { not: null }, project: { hidden: false, ...LIVE_PROJECT_WHERE } },
-    include: { project: { select: { pmId: true, whatsappGroupJid: true } }, assignees: true },
+    include: { project: { select: { pmId: true, whatsappGroupJid: true } }, assignees: true, reviewers: true },
   });
   if (upcoming.length === 0) return;
 
@@ -69,7 +69,7 @@ async function dispatchMeetingReminders() {
 
     const groupJid = task.project.whatsappGroupJid ?? defaultGroupJid;
     const time = MEETING_TIME_FORMAT.format(task.meetingAt!);
-    const participantIds = Array.from(new Set([task.project.pmId, ...task.assignees.map((a) => a.userId)]));
+    const participantIds = Array.from(new Set([task.project.pmId, ...task.assignees.map((a) => a.userId), ...task.reviewers.map((r) => r.userId)]));
     await prisma.task.update({ where: { id: task.id }, data: { meetingReminderSentAt: new Date() } });
     if (groupJid) void sendGroupAlert(groupJid, `📅 *Recordatorio de reunión*\n"${task.title}"\n🕐 ${time}`, participantIds, task.meetingUrl!);
     await notifyMeetingReminder({ id: task.id, title: task.title, projectId: task.projectId, meetingUrl: task.meetingUrl! }, participantIds, time).catch((err) =>

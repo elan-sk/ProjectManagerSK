@@ -91,7 +91,7 @@ export async function isFirstWorkingHour(date: Date, countryCode: string, startH
   return isWorkingMoment(date, countryCode, startHour, endHour);
 }
 
-// Si `meetingAt - 30min` cae en horario laboral, ese es el momento del
+// Si `meetingAt - 15min` cae en horario laboral, ese es el momento del
 // recordatorio. Si no, se reprograma al cierre del horario laboral del día
 // hábil anterior a la reunión (ej. reunión lunes 7am -> aviso viernes ~17:55).
 export async function meetingReminderTargetTime(
@@ -100,7 +100,7 @@ export async function meetingReminderTargetTime(
   startHour: number,
   endHour: number
 ) {
-  const normalTarget = new Date(meetingAt.getTime() - 30 * 60 * 1000);
+  const normalTarget = new Date(meetingAt.getTime() - 15 * 60 * 1000);
   if (await isWorkingMoment(normalTarget, countryCode, startHour, endHour)) {
     return normalTarget;
   }
