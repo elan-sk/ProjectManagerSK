@@ -135,6 +135,7 @@ Al crear una tarea de componente o de ajuste a partir de capturas de páginas co
 - `PATCH /api/v1/tasks/:id/reviewers` — `{ "reviewerIds": ["userId"] }`. Solo tiene efecto real en tareas tipo Prueba/QA.
 - `GET/POST /api/v1/tasks/:id/steps` — `{ "description": "string" }`.
 - `PATCH /api/v1/tasks/:id/steps/:stepId` — `{ "done"?: true, "description"?: "string" }` (al menos uno: marca el paso y/o cambia su texto). `DELETE` quita el paso.
+- `POST /api/v1/tasks/:id/steps/:stepId` — duplica el paso justo debajo (sin marcar; copia texto, archivos/links, credenciales y la pregunta sin votos).
 - `POST /api/v1/tasks/:id/steps/reorder` — `{ "stepIds": [...] }` con todos los pasos en el orden nuevo.
 - `POST /api/v1/tasks/:id/steps/:stepId/poll` — `{ "multiple": false, "options": ["A","B"] }` convierte el paso en pregunta (el enunciado es el texto del paso). El `GET` de pasos trae `poll.id`; se vota/cierra con `/api/v1/polls/:id` y se quita con `DELETE /api/v1/polls/:id`.
 - `GET /api/v1/tags` — lista las categorías de etiqueta disponibles (id, name, colorHex, emoji).

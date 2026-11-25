@@ -7,7 +7,7 @@ import { BoldButton, boldOnKeyDown } from "@/components/BoldButton";
 import { PaperclipIcon } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/Confirm";
-import { removeStep, toggleStep, updateStep } from "./actions";
+import { duplicateStep, removeStep, toggleStep, updateStep } from "./actions";
 import { StepAttachments, type StepAttachmentsHandle } from "./StepAttachments";
 import type { AttachmentGridItem } from "./AttachmentGrid";
 import type { TeamPoll } from "./TeamShareThread";
@@ -140,6 +140,19 @@ export function StepCheckbox({
     }
   }
 
+  async function copyStep() {
+    setBusy(true);
+    setError(null);
+    try {
+      await duplicateStep(stepId);
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message || "No se pudo duplicar el paso.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteStep() {
     const accepted = await confirm(`¿Eliminar el paso "${description}"? Esta acción no se puede deshacer.`, { confirmLabel: "Eliminar", danger: true });
     if (!accepted) return;
@@ -219,6 +232,7 @@ export function StepCheckbox({
               </>
             )}
             <button type="button" disabled={busy} onClick={() => setEditing(true)} className="text-slate-400 hover:text-slate-700 hover:underline">Editar</button>
+            <button type="button" disabled={busy} onClick={copyStep} className="text-slate-400 hover:text-slate-700 hover:underline">Duplicar</button>
             <button type="button" disabled={busy} onClick={deleteStep} className="text-slate-400 hover:text-red-600 hover:underline">Eliminar</button>
           </div>
         )}

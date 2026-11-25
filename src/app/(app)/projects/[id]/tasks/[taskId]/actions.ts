@@ -65,6 +65,36 @@ export async function reorderSteps(taskId: string, orderedIds: string[], actor?:
   await revalidateTask(taskId);
 }
 
+// Copia el paso justo debajo del original, sin marcar: mismo texto, archivos/links (apuntan al mismo
+// archivo; deleteFileIfUnused solo lo borra cuando nadie más lo usa), credenciales y la pregunta sin votos.
+export async function duplicateStep(stepId: string, actor?: Actor) {
+  const step = await prisma.taskStep.findUniqueOrThrow({
+    where: { id: stepId },
+    include: { attachments: true, credentials: { select: { credentialId: true } }, poll: { include: { options: { orderBy: { order: "asc" } } } } },
+  });
+  if (!(await canEditTask(step.taskId, actor))) {
+    throw new Error("No tenés permiso para editar esta tarea.");
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.taskStep.updateMany({ where: { taskId: step.taskId, order: { gt: step.order } }, data: { order: { increment: 1 } } });
+    const copy = await tx.taskStep.create({ data: { taskId: step.taskId, description: step.description, order: step.order + 1 } });
+    if (step.attachments.length) {
+      await tx.attachment.createMany({
+        data: step.attachments.map(({ id: _id, uploadedAt: _at, stepId: _s, ...a }) => ({ ...a, stepId: copy.id })),
+      });
+    }
+    if (step.credentials.length) {
+      await tx.credentialStep.createMany({ data: step.credentials.map((c) => ({ credentialId: c.credentialId, stepId: copy.id })) });
+    }
+    if (step.poll) {
+      await tx.sharePoll.create({
+        data: { taskStepId: copy.id, multiple: step.poll.multiple, options: { create: step.poll.options.map((o) => ({ label: o.label, order: o.order })) } },
+      });
+    }
+  });
+  await revalidateTask(step.taskId);
+}
+
 export async function removeStep(stepId: string, actor?: Actor) {
   const step = await prisma.taskStep.findUniqueOrThrow({ where: { id: stepId } });
   if (!(await canEditTask(step.taskId, actor))) {
