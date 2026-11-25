@@ -3,6 +3,7 @@ import { linkifyHtml } from "@/lib/linkify";
 import { DEFINITION_LEVEL_FILL } from "@/lib/statusColors";
 import { CollapsibleContent } from "@/components/CollapsibleContent";
 import type { PublicCommentWithReplies } from "@/lib/publicView";
+import { DefinitionSummary } from "@/app/(app)/projects/[id]/DefinitionSummary";
 
 function ProgressBar({ pct, level }: { pct: number; level: keyof typeof DEFINITION_LEVEL_FILL }) {
   return (
@@ -25,6 +26,7 @@ export function PublicDefinitionView({
   requirements,
   phases,
   comments,
+  taskProgress,
 }: {
   token: string;
   description: string | null;
@@ -32,6 +34,7 @@ export function PublicDefinitionView({
   requirements: { id: string; title: string; description: string | null; pct: number }[];
   phases: { id: string; name: string; pct: number; taskTitles: string[] }[];
   comments: CommentData[];
+  taskProgress: { completed: number; total: number; pct: number };
 }) {
   return (
     <div className="space-y-4">
@@ -43,13 +46,23 @@ export function PublicDefinitionView({
         </div>
       )}
 
+      {/* Sin «en riesgo» ni tareas sin requerimiento: atrasos y pendientes internos no salen por el link. */}
+      <DefinitionSummary
+        taskProgress={taskProgress}
+        objectives={objectives.map((o) => ({ id: o.id, label: o.title, pct: o.pct, atRisk: false }))}
+        requirements={requirements.map((r) => ({ id: r.id, label: r.title, pct: r.pct, atRisk: false }))}
+        phases={phases.map((p) => ({ id: p.id, label: p.name, pct: p.pct, atRisk: false }))}
+        subprojects={[]}
+        unassignedTasks={[]}
+      />
+
       <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Alcance</p>
 
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-[21px] font-semibold text-slate-900">Objetivos</h2>
         {objectives.length === 0 && <p className="text-[18px] text-slate-400">Sin objetivos definidos.</p>}
         {objectives.map((o) => (
-          <div key={o.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+          <div key={o.id} id={`definition-objective-${o.id}`} className="scroll-mt-20 space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 text-[19px] font-semibold text-slate-800">{o.title}</p>
               <ProgressBar pct={o.pct} level="OBJECTIVE" />
@@ -63,7 +76,7 @@ export function PublicDefinitionView({
         <h2 className="text-[21px] font-semibold text-slate-900">Requerimientos</h2>
         {requirements.length === 0 && <p className="text-[18px] text-slate-400">Sin requerimientos definidos.</p>}
         {requirements.map((r) => (
-          <div key={r.id} className="space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+          <div key={r.id} id={`definition-requirement-${r.id}`} className="scroll-mt-20 space-y-1 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 text-[19px] font-semibold text-slate-800">{r.title}</p>
               <ProgressBar pct={r.pct} level="REQUIREMENT" />
@@ -79,7 +92,7 @@ export function PublicDefinitionView({
         <h2 className="text-[21px] font-semibold text-slate-900">Fases</h2>
         {phases.length === 0 && <p className="text-[18px] text-slate-400">Sin fases definidas.</p>}
         {phases.map((p) => (
-          <div key={p.id} className="space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
+          <div key={p.id} id={`definition-phase-${p.id}`} className="scroll-mt-20 space-y-1.5 border-t border-slate-100 pt-2 first:border-0 first:pt-0">
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 text-[19px] font-semibold text-slate-800">{p.name}</p>
               <ProgressBar pct={p.pct} level="PHASE" />

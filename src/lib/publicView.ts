@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getProjectCascadeProgress } from "@/lib/cascadeProgress";
-import { adjustmentItemAnswered } from "@/lib/taskProgress";
+import { adjustmentItemAnswered, averageContribution, TASK_CONTRIBUTION_SELECT } from "@/lib/taskProgress";
 import type { TaskStatus, TaskType } from "@prisma/client";
 
 // DTOs para las vistas compartidas por link (punto 1) — construidos a mano,
@@ -64,7 +64,7 @@ export async function getPublicProjectData(projectId: string): Promise<PublicPro
 }
 
 export async function getPublicDefinition(projectId: string) {
-  const [progress, phaseTasks, comments] = await Promise.all([
+  const [progress, phaseTasks, comments, tasks] = await Promise.all([
     getProjectCascadeProgress(projectId),
     // Solo título — el resto de PhaseSummary (holgura, variación, tareas
     // atrasadas) es información interna que nunca debe salir por el link
@@ -81,6 +81,8 @@ export async function getPublicDefinition(projectId: string) {
       include: { attachments: true, poll: { include: { options: { orderBy: { order: "asc" } } } }, replies: { include: { attachments: true }, orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "asc" },
     }),
+    // Mismo cálculo que el «Resumen de avance» de la app (tareas del proyecto).
+    prisma.task.findMany({ where: { projectId }, select: TASK_CONTRIBUTION_SELECT }),
   ]);
   const taskTitlesByPhaseId = new Map(phaseTasks.map((p) => [p.id, p.tasks.map((t) => t.title)]));
   return {
@@ -88,6 +90,7 @@ export async function getPublicDefinition(projectId: string) {
     requirements: progress.requirements.map((r) => ({ id: r.id, title: r.title, description: r.description, pct: r.pct })),
     phases: progress.phases.map((p) => ({ id: p.id, name: p.name, pct: p.pct, taskTitles: taskTitlesByPhaseId.get(p.id) ?? [] })),
     comments: comments.map(toPublicCommentWithReplies),
+    taskProgress: { completed: tasks.filter((t) => t.status === "COMPLETED").length, total: tasks.length, pct: averageContribution(tasks) },
   };
 }
 
